@@ -88,6 +88,37 @@ Use them like this:
 Do not add empty services, repositories, factories, or entities only to fill the
 folders. The folders are ready for real sprint tasks.
 
+Most business modules now include this deeper skeleton:
+
+```text
+domain/
+  entities/
+  value-objects/
+  events/
+  exceptions/
+  policies/
+  contracts/
+application/
+  use-cases/
+  dto/
+  ports/
+  mappers/
+infrastructure/
+  persistence/
+  integrations/
+  jobs/
+presentation/
+  http/
+    controllers/
+    requests/
+    responses/
+    guards/
+    presenters/
+```
+
+Use `docs/examples/module-skeleton.md` as the sample for adding the first real
+feature files.
+
 ## Shared
 
 ```text
@@ -142,4 +173,3 @@ docs/architecture.md
 docs/backend-conventions.md
 docs/definition-of-done.md
 ```
-
