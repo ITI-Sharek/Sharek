@@ -82,6 +82,10 @@ Most business modules are placeholders for now. This is intentional. The folder
 structure is ready, but business logic should be added only when a real sprint
 task needs it.
 
+Each business module now has a deeper ready skeleton for domain, application,
+infrastructure, and presentation code. These folders are tracked with
+`.gitkeep` files until real implementation files replace them.
+
 ### Docker And Local Services
 
 Prepared:
