@@ -24,8 +24,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof ApplicationError) {
-      response.status(HttpStatus.BAD_REQUEST).json({
-        statusCode: HttpStatus.BAD_REQUEST,
+      response.status(exception.statusCode).json({
+        statusCode: exception.statusCode,
         error: exception.code,
         message: exception.message,
       });
@@ -40,4 +40,3 @@ export class HttpExceptionFilter implements ExceptionFilter {
     });
   }
 }
-

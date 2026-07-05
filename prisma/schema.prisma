@@ -230,6 +230,39 @@ model User {
   reportsResolved        Report[]                @relation("ReportResolver")
   reportsReceived        Report[]                @relation("ReportReportedUser")
   skillGapContributions  SkillGapGuidance[]      @relation("SkillGapContributor")
+  authSessions           AuthSession[]
+  githubOAuthStates      GitHubOAuthState[]
+}
+
+model AuthSession {
+  id                  String    @id @default(uuid()) @db.Uuid
+  user_id             String    @db.Uuid
+  access_token_hash   String    @unique @db.VarChar(128)
+  refresh_token_hash  String    @unique @db.VarChar(128)
+  user_agent          String?   @db.VarChar(500)
+  ip_address          String?   @db.VarChar(45)
+  expires_at          DateTime
+  refresh_expires_at  DateTime
+  revoked_at          DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
+
+  user                User      @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+}
+
+model GitHubOAuthState {
+  id          String    @id @default(uuid()) @db.Uuid
+  user_id     String    @db.Uuid
+  state_hash  String    @unique @db.VarChar(128)
+  expires_at  DateTime
+  consumed_at DateTime?
+  created_at  DateTime  @default(now())
+
+  user        User      @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
 }
 
 model Subscription {
@@ -542,4 +575,3 @@ model UsageTracker {
 
   user         User               @relation(fields: [user_id], references: [id])
 }
-
