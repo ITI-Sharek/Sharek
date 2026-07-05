@@ -1,5 +1,17 @@
 import { Module } from '@nestjs/common';
 
-@Module({})
-export class GithubModule {}
+import { GitHubOAuthService } from './application/use-cases/github-oauth.service';
+import { GitHubRepositoryService } from './application/use-cases/github-repository.service';
+import { GitHubTokenEncryptionService } from './infrastructure/security/github-token-encryption.service';
+import { GitHubOAuthController } from './presentation/http/controllers/github-oauth.controller';
 
+@Module({
+  controllers: [GitHubOAuthController],
+  providers: [
+    GitHubOAuthService,
+    GitHubRepositoryService,
+    GitHubTokenEncryptionService,
+  ],
+  exports: [GitHubRepositoryService],
+})
+export class GithubModule {}
