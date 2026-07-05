@@ -8,7 +8,16 @@ process.env.JWT_ACCESS_SECRET =
   process.env.JWT_ACCESS_SECRET ?? 'test-access-secret-change-me';
 process.env.JWT_REFRESH_SECRET =
   process.env.JWT_REFRESH_SECRET ?? 'test-refresh-secret-change-me';
-process.env.AI_PROVIDER = process.env.AI_PROVIDER ?? 'mock';
+process.env.GITHUB_OAUTH_CALLBACK_URL =
+  process.env.GITHUB_OAUTH_CALLBACK_URL ??
+  'http://localhost:3000/github/oauth/callback';
+process.env.GITHUB_TOKEN_ENCRYPTION_KEY =
+  process.env.GITHUB_TOKEN_ENCRYPTION_KEY ??
+  'test-github-token-encryption-key-32-chars-min';
+process.env.AI_SERVICE_URL =
+  process.env.AI_SERVICE_URL ?? 'http://localhost:8000';
+process.env.AI_SERVICE_TIMEOUT_MS =
+  process.env.AI_SERVICE_TIMEOUT_MS ?? '5000';
+process.env.AI_SERVICE_AUTH_TOKEN = process.env.AI_SERVICE_AUTH_TOKEN ?? '';
 process.env.AI_LOW_CONFIDENCE_THRESHOLD =
   process.env.AI_LOW_CONFIDENCE_THRESHOLD ?? '0.70';
-

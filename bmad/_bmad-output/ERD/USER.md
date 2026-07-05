@@ -35,6 +35,7 @@ The central identity entity for all platform participants. Every person interact
 | Related Entity | Relationship | FK Location | Description |
 |---------------|-------------|-------------|-------------|
 | SUBSCRIPTION | 1:N | `subscription.user_id` → `user.id` | Subscription history (one active per role context) |
+| GITHUB_ACCOUNT | 1:1 | `github_account.user_id` → `user.id` | Connected GitHub OAuth account |
 | PROJECT | 1:N | `project.owner_id` → `user.id` | Projects owned by this user |
 | SKILL_PROFILE | 1:N | `skill_profile.user_id` → `user.id` | AI-generated skills (one record per skill) |
 | REPUTATION_RECORD | 1:1 | `reputation_record.user_id` → `user.id` | Aggregated reputation metrics |
@@ -46,6 +47,8 @@ The central identity entity for all platform participants. Every person interact
 | AI_MATCH_RESULT | 1:N | `ai_match_result.contributor_id` → `user.id` | Matching results (as matched contributor) |
 | SKILL_PROFILE | 1:N | `skill_profile.reviewed_by` → `user.id` | Skills reviewed by this admin |
 | DELIVERY_REVIEW | 1:N | `delivery_review.reviewer_id` → `user.id` | Delivery reviews made by this owner |
+| AUTH_SESSION | 1:N | `auth_session.user_id` → `user.id` | Login sessions and token refresh state |
+| GITHUB_OAUTH_STATE | 1:N | `github_oauth_state.user_id` → `user.id` | Short-lived GitHub OAuth callback states |
 
 ## Business Rules
 
