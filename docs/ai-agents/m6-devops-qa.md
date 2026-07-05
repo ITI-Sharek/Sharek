@@ -16,6 +16,8 @@ Allowed primary areas:
 
 - Make local development reproducible.
 - Keep Docker startup documented.
+- Coordinate how the separate FastAPI AI repository runs locally with this
+  backend when AI workflows are implemented.
 - Add CI checks for lint, tests, and migrations where practical.
 - Support BullMQ and Redis setup.
 - Add logging and correlation ID plumbing.
@@ -34,4 +36,3 @@ Allowed primary areas:
 - Test command works in container.
 - Migration command works in container.
 - CI commands match local commands where possible.
-

@@ -5,10 +5,10 @@
 The frontend calls the NestJS backend only.
 
 ```text
-Next.js frontend -> NestJS backend -> database/model providers/GitHub
+Next.js frontend -> NestJS backend -> database/GitHub/FastAPI AI service
 ```
 
-The frontend should not call model providers directly.
+The frontend should not call model providers or the FastAPI AI service directly.
 
 ## REST Guidelines
 
@@ -39,11 +39,86 @@ Expected API groups:
 
 Exact route naming can evolve, but ownership must stay aligned with modules.
 
-## AI Adapter Contracts
+## Identity And Session Contracts
 
-AI runs inside the backend through ports/adapters.
+Implemented identity endpoints:
 
-Expected ports:
+```text
+POST /auth/register
+POST /auth/login
+POST /auth/refresh
+POST /auth/logout
+GET /auth/me
+PATCH /auth/users/:id/role
+```
+
+Registration supports these public roles:
+
+```text
+owner
+contributor
+```
+
+`admin` is reserved for role assignment by an authenticated admin.
+
+Login and registration return opaque access and refresh tokens. Access tokens
+are sent to protected routes using:
+
+```text
+Authorization: Bearer <accessToken>
+```
+
+Refresh rotates the stored session tokens. Logout revokes the current session.
+The backend stores only token hashes.
+
+## GitHub Connection Contracts
+
+Implemented GitHub connection endpoints:
+
+```text
+GET /github/oauth/start
+GET /github/oauth/callback
+POST /github/oauth/callback
+GET /github/account
+GET /github/repositories
+DELETE /github/account
+POST /projects/import/github
+```
+
+`GET /github/oauth/start` requires an authenticated Share-k user. It stores a
+short-lived OAuth state and returns the GitHub authorization URL.
+
+The callback validates the stored state, exchanges the GitHub code, fetches the
+GitHub profile, and stores the linked account. GitHub access tokens are never
+returned in API responses. Stored GitHub access and refresh tokens are encrypted
+at rest with AES-256-GCM.
+
+`GET /github/repositories` requires an authenticated user with a connected
+GitHub account. It returns normalized public repository metadata fetched through
+the encrypted server-side GitHub token.
+
+`POST /projects/import/github` requires an authenticated `owner` or `admin`
+and accepts:
+
+```json
+{
+  "fullName": "owner/repository"
+}
+```
+
+The response is a draft project created or refreshed from GitHub metadata. The
+backend stores the GitHub repo URL, GitHub repo ID, language breakdown, topics,
+repository statistics, and README content snapshot. This is the handoff point
+for later repository ingestion/background jobs and FastAPI AI evidence
+generation.
+
+## AI Service Contracts
+
+AI implementation lives in a separate FastAPI AI repository. The NestJS backend
+calls that service through ports/adapters and owns all business decisions,
+database writes, and user-facing API responses.
+
+Expected NestJS ports:
 
 ```text
 SkillProfileGenerator
@@ -52,7 +127,20 @@ SkillGapAdvisor
 EmbeddingGenerator
 ```
 
-AI output must be structured. Example eligibility result:
+Expected FastAPI service endpoints:
+
+```text
+POST /skill-profiles/generate
+POST /eligibility/analyze
+POST /skill-gap/generate
+POST /embeddings/generate
+GET /health
+```
+
+The exact FastAPI route names may evolve, but the request/response schemas must
+be documented and versioned across both repositories before implementation.
+
+AI service output must be structured. Example eligibility result:
 
 ```json
 {
@@ -64,6 +152,8 @@ AI output must be structured. Example eligibility result:
   "provider": "openai",
   "model": "gpt-4.1-mini",
   "promptVersion": "eligibility-v1",
+  "schemaVersion": "eligibility-result-v1",
+  "serviceVersion": "ai-service-0.1.0",
   "reasonSummary": "Backend evidence is strong, but Docker evidence is weak."
 }
 ```
@@ -78,10 +168,14 @@ manual_review
 
 The backend may override or transform recommendations according to policy.
 
+The FastAPI service must not update Share-k business state directly. It returns
+recommendations and evidence metadata; the NestJS backend decides what to store
+and which workflow transition is allowed.
+
 ## Failure Handling
 
-If an AI provider times out, returns invalid JSON, returns low confidence, or
-cannot cite evidence:
+If the FastAPI AI service times out, returns invalid JSON, returns low
+confidence, or cannot cite evidence:
 
 - Do not silently approve.
 - Retry only when safe.
@@ -92,7 +186,6 @@ cannot cite evidence:
 ## Contract Change Rules
 
 - Breaking API changes require frontend coordination.
-- AI output schema changes require tests.
+- AI service output schema changes require backend and FastAPI contract tests.
 - DTO changes must be reflected in docs or generated OpenAPI.
 - Contract drift should be caught by integration or contract tests.
-

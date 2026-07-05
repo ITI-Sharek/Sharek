@@ -7,10 +7,15 @@ Docker Compose is the default local development path.
 The backend development stack should include:
 
 ```text
-backend    NestJS app
+api        NestJS app
 postgres   PostgreSQL with pgvector
 redis      Redis for BullMQ jobs
 ```
+
+The FastAPI AI service lives in a separate repository. Until Docker wiring is
+agreed, run it separately and point this backend at it with `AI_SERVICE_URL`.
+When the backend runs inside Docker and FastAPI runs on the host machine, use
+`http://host.docker.internal:8000`.
 
 Use the pgvector image for PostgreSQL:
 
@@ -40,14 +45,23 @@ At minimum, `.env.example` should document:
 ```text
 NODE_ENV=development
 PORT=3000
-DATABASE_URL=postgresql://sharek:sharek@postgres:5432/sharek
+PRISMA_STUDIO_PORT=5555
+DATABASE_URL=postgresql://sharek:sharek@postgres:5432/sharek?schema=public
+POSTGRES_USER=sharek
+POSTGRES_PASSWORD=sharek
+POSTGRES_DB=sharek
+POSTGRES_PORT=5432
 REDIS_URL=redis://redis:6379
+REDIS_PORT=6379
 JWT_ACCESS_SECRET=change-me
 JWT_REFRESH_SECRET=change-me
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
-OPENAI_API_KEY=
-AI_PROVIDER=openai
+GITHUB_OAUTH_CALLBACK_URL=http://localhost:3000/github/oauth/callback
+GITHUB_TOKEN_ENCRYPTION_KEY=change-this-github-token-encryption-key-32-chars-min
+AI_SERVICE_URL=http://host.docker.internal:8000
+AI_SERVICE_TIMEOUT_MS=5000
+AI_SERVICE_AUTH_TOKEN=
 AI_LOW_CONFIDENCE_THRESHOLD=0.70
 ```
 
@@ -60,11 +74,11 @@ Expected commands after the NestJS app is scaffolded:
 ```bash
 docker compose up --build
 docker compose down
-docker compose logs -f backend
-docker compose exec backend npm run lint
-docker compose exec backend npm run test
-docker compose exec backend npm run prisma:migrate
-docker compose exec backend npm run prisma:studio
+docker compose logs -f api
+docker compose exec api npm run lint
+docker compose exec api npm run test
+docker compose exec api npm run prisma:migrate
+docker compose exec api npm run prisma:studio
 ```
 
 ## First Run Flow
@@ -97,9 +111,11 @@ If migrations fail, check:
 - Prisma schema validity.
 - Whether pgvector extension is enabled.
 
-If AI calls fail locally, check:
+If AI service calls fail locally, check:
 
-- Provider API key.
-- Provider timeout settings.
-- Adapter output validation.
-- Fallback to mock adapter for local tests.
+- The separate FastAPI AI repository is running.
+- `AI_SERVICE_URL` points to the right local URL from the process/container.
+- `AI_SERVICE_AUTH_TOKEN` matches the AI service if auth is enabled.
+- Timeout settings.
+- Response schema validation.
+- Fallback to mock FastAPI client adapters for local tests.

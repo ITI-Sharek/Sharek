@@ -19,10 +19,11 @@ export interface EligibilityResult {
   provider: string;
   model: string;
   promptVersion: string;
+  schemaVersion?: string;
+  serviceVersion?: string;
   reasonSummary: string;
 }
 
 export abstract class EligibilityAnalyzer {
   abstract analyze(input: EligibilityInput): Promise<EligibilityResult>;
 }
-

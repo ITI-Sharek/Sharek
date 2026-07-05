@@ -41,7 +41,7 @@ Goal: prove the core Share-k trust workflow.
 Deliverables:
 
 - Skill profile candidate generation.
-- AI adapter contract.
+- FastAPI AI service contract and NestJS client adapter.
 - Pending skills.
 - Admin approval/rejection.
 - Project draft and publish flow.
@@ -90,5 +90,4 @@ Add these only after the core MVP is reliable:
 - Advanced matching.
 - Notifications.
 - More sophisticated vector retrieval.
-- Separate FastAPI AI service if justified by real AI workload.
-
+- Independent AI service scaling and deployment hardening.

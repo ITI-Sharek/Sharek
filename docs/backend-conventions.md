@@ -29,7 +29,7 @@ Controllers should:
 Controllers should not:
 
 - Query Prisma directly.
-- Call model providers directly.
+- Call the FastAPI AI service or model providers directly.
 - Calculate eligibility.
 - Change application status directly.
 - Calculate reputation.
@@ -62,6 +62,7 @@ Domain code must not import:
 - Prisma client.
 - HTTP clients.
 - Model provider SDKs.
+- AI service clients.
 - Environment configuration.
 
 ## Infrastructure Rules
@@ -70,7 +71,7 @@ Infrastructure code may contain:
 
 - Prisma repositories.
 - GitHub API clients.
-- AI provider clients.
+- FastAPI AI service clients.
 - Queue workers.
 - Email or notification adapters.
 - Persistence mappers.
@@ -103,7 +104,8 @@ functions in `shared/` for convenience.
 - Foreign keys are allowed, but they do not grant permission to bypass module
   logic.
 - Store audit snapshots for important AI decisions.
-- Store model/provider/version metadata for AI-generated results.
+- Store provider/model/schema/service-version metadata for AI-generated
+  results.
 
 ## API Rules
 
@@ -128,8 +130,7 @@ Add tests based on risk:
 - Domain tests for business rules.
 - Use-case tests with fake ports.
 - Repository integration tests for Prisma behavior.
-- Adapter tests for GitHub/model provider edge cases.
+- Adapter tests for GitHub/FastAPI AI service edge cases.
 - E2E tests for core product flows.
 
 Important status transitions must always be tested.
-

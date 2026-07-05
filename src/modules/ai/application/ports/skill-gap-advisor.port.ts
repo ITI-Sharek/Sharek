@@ -9,9 +9,10 @@ export interface SkillGapResult {
   provider: string;
   model: string;
   promptVersion: string;
+  schemaVersion?: string;
+  serviceVersion?: string;
 }
 
 export abstract class SkillGapAdvisor {
   abstract generate(input: SkillGapInput): Promise<SkillGapResult>;
 }
-

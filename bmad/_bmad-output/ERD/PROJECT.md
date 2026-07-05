@@ -56,9 +56,9 @@ Represents an open-source project published on Share-k. Project owners import pr
 ## Data Flow
 
 ```
-Owner submits GitHub repo URL
+Owner imports a connected GitHub repository
      ↓
-GitHub API Service fetches: title, description, languages, tags, stats, README
+GitHub API Service fetches using encrypted GitHub token: title, description, languages, tags, stats, README
      ↓
 PROJECT created with status = 'draft' + auto-populated fields
      ↓

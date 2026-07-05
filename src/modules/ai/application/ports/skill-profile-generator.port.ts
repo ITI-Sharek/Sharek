@@ -15,9 +15,10 @@ export interface SkillProfileResult {
   provider: string;
   model: string;
   promptVersion: string;
+  schemaVersion?: string;
+  serviceVersion?: string;
 }
 
 export abstract class SkillProfileGenerator {
   abstract generate(input: SkillProfileInput): Promise<SkillProfileResult>;
 }
-

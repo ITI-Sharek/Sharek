@@ -16,8 +16,9 @@ Before editing code, read:
 ## Architecture Facts
 
 - Backend is a NestJS feature-first modular monolith.
-- AI runs inside NestJS through ports/adapters for the MVP.
-- Ready model APIs are used; no custom model training is planned.
+- AI implementation lives in a separate FastAPI AI repository.
+- The backend calls the FastAPI AI service through ports/adapters and owns final
+  business decisions.
 - PostgreSQL with pgvector is the main database.
 - Prisma owns schema and migrations.
 - BullMQ and Redis are used for async jobs when needed.
@@ -45,7 +46,7 @@ controller -> request DTO validation -> use case -> domain/policy -> port/reposi
 Use this path for AI-backed decisions:
 
 ```text
-use case -> deterministic checks -> AI port -> provider adapter -> structured recommendation -> backend decision -> audit snapshot
+use case -> deterministic checks -> AI port -> FastAPI AI client -> structured recommendation -> backend decision -> audit snapshot
 ```
 
 Use events for reactions after facts have happened:
@@ -63,4 +64,3 @@ For every implementation task, provide:
 - Tests added or updated.
 - Migrations added, if any.
 - Known risks or follow-up work.
-

@@ -39,10 +39,11 @@ Stores the linked GitHub OAuth connection for each user. This entity holds OAuth
 ## Business Rules
 
 1. **One-to-One Enforcement**: Each user can connect exactly one GitHub account. Reconnecting replaces the existing tokens.
-2. **Token Security**: `access_token` and `refresh_token` must be encrypted at rest using AES-256 or equivalent. They must never appear in API responses or logs.
+2. **Token Security**: `access_token` and `refresh_token` must be encrypted at rest using AES-256-GCM or equivalent. They must never appear in API responses or logs.
 3. **Ingestion Pipeline**:
    - On connection, `ingestion_status` = `pending`
-   - Background job sets it to `in_progress` and fetches repos, READMEs, languages, commits
+   - Repository listing/import uses the encrypted token to fetch repos, READMEs, languages, and statistics
+   - Background job later sets it to `in_progress` and fetches deeper evidence such as commits and code signals
    - On success → `completed`; on failure → `failed` (with retry capability)
 4. **Token Refresh**: If `token_expires_at` is past, the system must attempt a refresh before making API calls.
 5. **Disconnect**: If a user disconnects GitHub, tokens are wiped and `ingestion_status` resets. Associated skill profiles may be flagged for re-review.
@@ -65,5 +66,5 @@ GitHub OAuth → GITHUB_ACCOUNT stored → Ingestion Service triggered
 |----------------------|-------------|
 | FR-001 | Owner connects GitHub account |
 | FR-011 | Contributor connects GitHub account |
-| FR-027 | System starts GitHub ingestion after connection |
+| FR-027 | System prepares GitHub ingestion after connection |
 | FR-028 | Fetch repositories, READMEs, code evidence, languages, commits |

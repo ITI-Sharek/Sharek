@@ -24,6 +24,45 @@ erDiagram
         TIMESTAMP last_login_at
     }
 
+    AUTH_SESSION {
+        UUID id PK
+        UUID user_id FK "NOT NULL"
+        VARCHAR access_token_hash UK "NOT NULL"
+        VARCHAR refresh_token_hash UK "NOT NULL"
+        VARCHAR user_agent
+        VARCHAR ip_address
+        TIMESTAMP expires_at "NOT NULL"
+        TIMESTAMP refresh_expires_at "NOT NULL"
+        TIMESTAMP revoked_at
+        TIMESTAMP created_at "NOT NULL"
+        TIMESTAMP updated_at "NOT NULL"
+    }
+
+    GITHUB_OAUTH_STATE {
+        UUID id PK
+        UUID user_id FK "NOT NULL"
+        VARCHAR state_hash UK "NOT NULL"
+        TIMESTAMP expires_at "NOT NULL"
+        TIMESTAMP consumed_at
+        TIMESTAMP created_at "NOT NULL"
+    }
+
+    GITHUB_ACCOUNT {
+        UUID id PK
+        UUID user_id FK "NOT NULL, UNIQUE"
+        VARCHAR github_id UK "NOT NULL"
+        VARCHAR username "NOT NULL"
+        VARCHAR access_token "NOT NULL, ENCRYPTED"
+        VARCHAR refresh_token "ENCRYPTED"
+        VARCHAR avatar_url
+        VARCHAR profile_url
+        JSONB raw_profile_data
+        ENUM ingestion_status "pending | in_progress | completed | failed"
+        TIMESTAMP token_expires_at
+        TIMESTAMP connected_at "NOT NULL"
+        TIMESTAMP last_synced_at
+    }
+
     SUBSCRIPTION {
         UUID id PK
         UUID user_id FK "NOT NULL"
@@ -316,6 +355,9 @@ erDiagram
     USER ||--o{ REPORT : "submits report"
     USER ||--o{ DISPUTE : "raises dispute"
     USER ||--o{ USAGE_TRACKER : "tracks usage"
+    USER ||--o{ AUTH_SESSION : "has sessions"
+    USER ||--o{ GITHUB_OAUTH_STATE : "starts OAuth"
+    USER ||--o| GITHUB_ACCOUNT : "connects GitHub"
 
     PROJECT ||--o{ CONTRIBUTION_REQUEST : "has tasks"
 
@@ -342,22 +384,25 @@ erDiagram
 | # | Entity | Description | Key Relationships |
 |---|--------|-------------|-------------------|
 | 1 | **USER** | Core identity for all platform participants (owners, contributors, admins) | Parent of most entities |
-| 3 | **SUBSCRIPTION** | Premium plan (Bronze/Silver/Gold) per user role context | Many per USER |
-| 4 | **PROJECT** | Published open-source project from a GitHub repository | Many per USER (owner) |
-| 5 | **CONTRIBUTION_REQUEST** | Structured task/order created by an owner for a project | Many per PROJECT |
-| 6 | **APPLICATION** | Contributor's application to a contribution request | Many per CONTRIBUTION_REQUEST |
-| 7 | **AI_VALIDATION_RESULT** | AI eligibility decision for an application | 1:1 with APPLICATION |
-| 8 | **SKILL_PROFILE** | Individual AI-generated skill record for a contributor | Many per USER |
-| 9 | **DELIVERY** | Contributor's PR submission for accepted work | 1:1 with APPLICATION |
-| 10 | **DELIVERY_REVIEW** | Owner's rating, feedback, and approval for a delivery | 1:1 with DELIVERY |
-| 11 | **REPUTATION_RECORD** | Aggregated contributor reputation metrics | 1:1 with USER |
-| 12 | **REPORT** | Trust & safety report filed by any user | Many per USER |
-| 13 | **DISPUTE** | Contributor challenge against AI skill or validation decisions | Many per USER |
-| 14 | **NOTIFICATION** | In-app notification for status changes, matches, recommendations | Many per USER |
-| 15 | **AI_MATCH_RESULT** | AI-generated contributor ranking for a contribution request | Many per CONTRIBUTION_REQUEST |
-| 16 | **SKILL_GAP_GUIDANCE** | AI guidance for Gold-tier rejected contributors | Per APPLICATION |
-| 17 | **AI_TRACE_LOG** | Observability trace for all AI agent executions | Standalone audit log |
-| 18 | **USAGE_TRACKER** | Daily/monthly action counts for premium limit enforcement | Many per USER |
+| 2 | **AUTH_SESSION** | Hashed access/refresh token sessions for logged-in users | Many per USER |
+| 3 | **GITHUB_OAUTH_STATE** | Short-lived hashed OAuth state for secure GitHub callback validation | Many per USER |
+| 4 | **GITHUB_ACCOUNT** | Linked GitHub OAuth account and encrypted token storage | 1:1 with USER |
+| 5 | **SUBSCRIPTION** | Premium plan (Bronze/Silver/Gold) per user role context | Many per USER |
+| 6 | **PROJECT** | Published open-source project from a GitHub repository | Many per USER (owner) |
+| 7 | **CONTRIBUTION_REQUEST** | Structured task/order created by an owner for a project | Many per PROJECT |
+| 8 | **APPLICATION** | Contributor's application to a contribution request | Many per CONTRIBUTION_REQUEST |
+| 9 | **AI_VALIDATION_RESULT** | AI eligibility decision for an application | 1:1 with APPLICATION |
+| 10 | **SKILL_PROFILE** | Individual AI-generated skill record for a contributor | Many per USER |
+| 11 | **DELIVERY** | Contributor's PR submission for accepted work | 1:1 with APPLICATION |
+| 12 | **DELIVERY_REVIEW** | Owner's rating, feedback, and approval for a delivery | 1:1 with DELIVERY |
+| 13 | **REPUTATION_RECORD** | Aggregated contributor reputation metrics | 1:1 with USER |
+| 14 | **REPORT** | Trust & safety report filed by any user | Many per USER |
+| 15 | **DISPUTE** | Contributor challenge against AI skill or validation decisions | Many per USER |
+| 16 | **NOTIFICATION** | In-app notification for status changes, matches, recommendations | Many per USER |
+| 17 | **AI_MATCH_RESULT** | AI-generated contributor ranking for a contribution request | Many per CONTRIBUTION_REQUEST |
+| 18 | **SKILL_GAP_GUIDANCE** | AI guidance for Gold-tier rejected contributors | Per APPLICATION |
+| 19 | **AI_TRACE_LOG** | Observability trace for all AI agent executions | Standalone audit log |
+| 20 | **USAGE_TRACKER** | Daily/monthly action counts for premium limit enforcement | Many per USER |
 
 ---
 
@@ -368,6 +413,9 @@ Each entity has a dedicated detail file with full attribute specifications, cons
 | Entity | Detail File |
 |--------|------------|
 | USER | [USER.md](./USER.md) |
+| AUTH_SESSION | [AUTH_SESSION.md](./AUTH_SESSION.md) |
+| GITHUB_OAUTH_STATE | [GITHUB_OAUTH_STATE.md](./GITHUB_OAUTH_STATE.md) |
+| GITHUB_ACCOUNT | [GITHUB_ACCOUNT.md](./GITHUB_ACCOUNT.md) |
 | SUBSCRIPTION | [SUBSCRIPTION.md](./SUBSCRIPTION.md) |
 | PROJECT | [PROJECT.md](./PROJECT.md) |
 | CONTRIBUTION_REQUEST | [CONTRIBUTION_REQUEST.md](./CONTRIBUTION_REQUEST.md) |
@@ -391,6 +439,7 @@ Each entity has a dedicated detail file with full attribute specifications, cons
 
 ### One-to-One (1:1)
 - `USER` ↔ `REPUTATION_RECORD` — Each contributor has one aggregated reputation record
+- `USER` ↔ `GITHUB_ACCOUNT` — Each user can connect one GitHub account
 - `APPLICATION` ↔ `AI_VALIDATION_RESULT` — Each application gets one AI validation
 - `APPLICATION` ↔ `DELIVERY` — Each accepted application results in one delivery
 - `DELIVERY` ↔ `DELIVERY_REVIEW` — Each delivery gets one owner review
@@ -404,6 +453,8 @@ Each entity has a dedicated detail file with full attribute specifications, cons
 - `USER` → `REPORT` — A user can file many reports
 - `USER` → `DISPUTE` — A contributor can raise many disputes
 - `USER` → `USAGE_TRACKER` — A user has many usage tracking entries
+- `USER` → `AUTH_SESSION` — A user can have many active or historical sessions
+- `USER` → `GITHUB_OAUTH_STATE` — A user can create short-lived OAuth states
 - `PROJECT` → `CONTRIBUTION_REQUEST` — A project has many tasks/orders
 - `CONTRIBUTION_REQUEST` → `APPLICATION` — A task receives many applications
 - `CONTRIBUTION_REQUEST` → `AI_MATCH_RESULT` — A task generates multiple match results
@@ -424,6 +475,9 @@ Each entity has a dedicated detail file with full attribute specifications, cons
 graph TB
     subgraph Identity["🔐 Identity & Auth"]
         USER
+        AUTH_SESSION
+        GITHUB_OAUTH_STATE
+        GITHUB_ACCOUNT
         SUBSCRIPTION
     end
 

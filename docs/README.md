@@ -16,7 +16,7 @@ This folder is the operating manual for the backend repo.
 | `local-development.md` | Docker, environment, database, Redis, tests, and local startup flow. |
 | `implementation-roadmap.md` | Practical build order mapped to the selected architecture. |
 | `database-plan.md` | PostgreSQL, pgvector, Prisma, ownership, and audit rules. |
-| `api-contracts.md` | API and AI adapter contract rules. |
+| `api-contracts.md` | API and FastAPI AI service contract rules. |
 | `sprint-template.md` | Template for planning each sprint. |
 | `examples/module-skeleton.md` | Copyable sample module shape and example file names. |
 | `ai-agents/` | Role-specific prompts and scopes for coding agents. |

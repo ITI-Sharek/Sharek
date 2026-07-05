@@ -38,26 +38,27 @@ If a task needs another module:
 
 Do not import another module's infrastructure.
 
-## AI Feature Rules
+## AI Service Rules
 
-For model calls:
+For AI-backed workflows:
 
-- Hide provider details behind ports.
+- Call the separate FastAPI AI service through backend ports/adapters.
 - Use structured inputs and outputs.
 - Include confidence, reasoning summary, evidence IDs, provider, model, and
-  version where relevant.
-- Validate model output before using it.
+  schema/service version where relevant.
+- Validate AI service output before using it.
 - Save audit snapshots for business decisions.
 - Fall back to retry or manual review on timeout, malformed output, or low
   confidence.
 
-## Prompt and Model Rules
+## Contract Rules
 
-- Keep prompts versioned in code.
-- Do not embed secrets in prompts.
-- Keep prompt output schemas strict.
-- Add tests for malformed or incomplete provider output.
-- Make model provider changes through adapters, not use cases.
+- Keep FastAPI request and response schemas strict and versioned.
+- Do not embed secrets in prompts, payloads, logs, or docs.
+- Add tests for malformed or incomplete AI service output.
+- Make AI service integration changes through adapters, not use cases.
+- Provider-specific prompts and model calls belong in the FastAPI AI repository,
+  not this NestJS backend.
 
 ## Review Checklist For AI Output
 
@@ -70,4 +71,3 @@ Before accepting AI-generated code, verify:
 - AI output cannot directly change final business state.
 - Tests cover important behavior.
 - No secrets or debug-only code were added.
-
