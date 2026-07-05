@@ -41,7 +41,7 @@ bottleneck or retrieval requirements become specialized.
 Every table has one owning module:
 
 ```text
-identity              users, user_roles, refresh_tokens
+identity              users, auth_sessions
 github                github_accounts, github_repositories, github_evidence
 skill-profiles        skill_profiles, skills, skill_evidence, skill_reviews
 projects              projects, project_technologies, project_tags
@@ -50,10 +50,14 @@ applications          applications, application_eligibility_results, application
 delivery-reviews      deliveries, delivery_reviews
 reputation            reputation_profiles, reputation_events
 admin                 admin_review_queue, reports, disputes, moderation_actions
-ai                    ai_prompt_versions, ai_call_audit, embeddings where shared
+ai                    ai_call_audit, AI service response snapshots, embeddings where backend-owned
 ```
 
 Only the owning module writes its tables.
+
+Prompt definitions and provider-specific model execution belong in the separate
+FastAPI AI repository. The backend stores the metadata and snapshots needed for
+business auditability.
 
 ## AI Audit Data
 
@@ -63,6 +67,7 @@ For AI-generated or AI-assisted results, store:
 - Model.
 - Prompt version.
 - Output schema version.
+- AI service version.
 - Confidence.
 - Evidence IDs.
 - Decision recommendation.
@@ -87,4 +92,3 @@ This is required for debugging, admin review, and trust.
 - Add indexes for common filters and foreign keys.
 - Use pagination on large tables.
 - Avoid caching until query measurements justify it.
-

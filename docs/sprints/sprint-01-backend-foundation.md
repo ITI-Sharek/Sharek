@@ -89,7 +89,7 @@ complete every product behavior listed by those IDs.
 
 Required local services:
 
-- backend
+- api
 - postgres using `pgvector/pgvector:pg16`
 - redis
 

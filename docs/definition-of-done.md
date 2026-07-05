@@ -24,8 +24,8 @@ A backend task is done only when all relevant checks below pass.
 - Migration is added when schema changes.
 - Table ownership is respected.
 - Important state changes have status history or audit data when required.
-- AI decisions store provider/model/version/confidence/evidence metadata when
-  they affect business workflows.
+- AI decisions store provider, model, schema version, service version,
+  confidence, and evidence metadata when they affect business workflows.
 
 ## API
 
@@ -41,7 +41,8 @@ A backend task is done only when all relevant checks below pass.
 - Low-confidence or malformed output routes to retry or manual review.
 - AI does not directly approve skills, accept applications, or update
   reputation.
-- Provider-specific logic is hidden behind adapters.
+- Provider-specific logic stays in the separate FastAPI AI repository.
+- NestJS calls the AI service through ports/adapters and validates responses.
 
 ## Tests
 
@@ -68,4 +69,3 @@ Every PR or task summary should include:
 - Tests run.
 - Migrations added.
 - Known risks.
-

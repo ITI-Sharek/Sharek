@@ -7,9 +7,10 @@ export interface EmbeddingResult {
   vector: number[];
   provider: string;
   model: string;
+  schemaVersion?: string;
+  serviceVersion?: string;
 }
 
 export abstract class EmbeddingGenerator {
   abstract generate(input: EmbeddingInput): Promise<EmbeddingResult>;
 }
-

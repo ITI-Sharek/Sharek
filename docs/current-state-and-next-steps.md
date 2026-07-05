@@ -11,16 +11,22 @@ The selected backend setup is:
 ```text
 Frontend repo: Next.js
 Backend repo: NestJS feature-first modular monolith
-AI: inside NestJS through ports/adapters
+AI repo: separate FastAPI service called through backend ports/adapters
 Database: PostgreSQL + pgvector
 ORM: Prisma
 Async jobs: BullMQ + Redis when needed
 Local development: Docker Compose
 ```
 
-FastAPI is not part of the MVP backend setup right now. It can be introduced
-later only if the AI workload needs Python-specific tooling or independent
-scaling.
+The backend does not own provider/model logic. The separate FastAPI AI
+repository owns model calls, prompt execution, Python AI tooling, embedding
+generation, and AI-service tests. This backend owns authorization, business
+state, database writes, audit snapshots, and final workflow decisions.
+
+The backend Docker Compose file does not start the FastAPI AI repository yet.
+For local development, run the AI service separately and point the backend at it
+with `AI_SERVICE_URL`. Decide the shared compose/deployment shape with M6 after
+the service repo contract is stable.
 
 ## What Is Done
 
@@ -57,6 +63,10 @@ Done:
 - Environment validation in `src/shared/config/env.validation.ts`
 - Global error filter in `src/shared/errors/http-exception.filter.ts`
 - Health endpoint in `src/modules/health`
+- Identity registration, login, refresh, logout, current-user, and admin role
+  assignment endpoints.
+- GitHub OAuth start/callback/account/disconnect endpoints.
+- GitHub OAuth token encryption before database storage.
 - Basic health controller test.
 
 ### Feature-First Module Structure
@@ -98,7 +108,7 @@ Prepared:
 The compose file is prepared to run:
 
 ```text
-backend
+api
 postgres with pgvector
 redis
 ```
@@ -111,13 +121,22 @@ available.
 Prepared:
 
 - Prisma schema: `prisma/schema.prisma`
-- Initial migration: `prisma/migrations/000001_init/migration.sql`
-- Initial migration enables pgvector.
+- Initial domain migration:
+  `prisma/migrations/20260704203533_init/migration.sql`
+- Business tables for users, subscriptions, projects, contribution requests,
+  applications, AI recommendation snapshots, deliveries, delivery reviews,
+  disputes, GitHub accounts, notifications, reports, reputation records, skill
+  gap guidance, skill profiles, and usage tracking.
+- Additional session/OAuth migration:
+  `prisma/migrations/20260705012000_auth_sessions_and_github_oauth_state/migration.sql`
 
 Not done yet:
 
-- Business tables such as users, projects, applications, skills, deliveries, and
-  reputation.
+- Verified migration execution in the local Docker database.
+- Seed data.
+- Repository/use-case code for the remaining business workflows.
+- Any additional migration needed for pgvector extension or future embedding
+  tables after the AI service contract is finalized.
 
 ### AI Foundation
 
@@ -127,13 +146,19 @@ Prepared:
 - `EligibilityAnalyzer` port.
 - `SkillGapAdvisor` port.
 - `EmbeddingGenerator` port.
+- Runtime configuration placeholders for an external AI service:
+  `AI_SERVICE_URL`, `AI_SERVICE_TIMEOUT_MS`, and optional
+  `AI_SERVICE_AUTH_TOKEN`.
 
 Not done yet:
 
-- OpenAI/Gemini/Claude provider adapter.
-- Prompt versions.
-- AI audit table.
-- Embedding persistence.
+- FastAPI AI client implementation in NestJS.
+- Shared request/response schema tests between this backend and the FastAPI AI
+  repository.
+- AI service authentication policy.
+- Prompt versions inside the FastAPI AI repository.
+- AI audit write flow in backend use cases.
+- Embedding persistence contract and ownership.
 - Skill profiling workflow.
 - Eligibility validation workflow.
 
@@ -141,9 +166,6 @@ Not done yet:
 
 Not implemented yet:
 
-- Authentication.
-- User registration and login.
-- GitHub OAuth.
 - GitHub repository ingestion.
 - Skill profile generation.
 - Admin skill review.
@@ -203,15 +225,18 @@ M1 should not write backend business logic unless explicitly assigned.
 
 Next work:
 
-- Own `src/modules/ai`.
-- Convert AI ports into real contracts for:
+- Own the FastAPI AI repository and the backend-facing AI contracts in
+  `src/modules/ai`.
+- Convert AI ports into service contracts for:
   - skill profile generation
   - eligibility analysis
   - skill gap guidance
   - embeddings
-- Decide initial model provider.
-- Create mock AI adapters for tests before using real provider calls.
-- Define prompt version names and output schemas.
+- Define FastAPI endpoint paths, DTOs, schema versions, and error responses.
+- Decide initial model provider inside the FastAPI AI repository.
+- Create mock FastAPI client adapters for backend tests before using the real
+  service.
+- Define prompt version names and output schemas in the AI repository.
 - Plan AI audit fields with M4.
 
 Do not let AI directly approve skills or applications.
@@ -267,13 +292,15 @@ M5 should not expose GitHub tokens through project/task APIs.
 Next work:
 
 - Run Docker Compose locally.
-- Verify backend container starts.
+- Verify API container starts.
 - Verify Postgres with pgvector starts.
 - Verify Redis starts.
 - Run Prisma migration.
 - Run health endpoint test.
 - Prepare CI commands for lint and tests.
 - Add BullMQ only when a sprint needs background jobs.
+- Decide with M2/M4 how the separate FastAPI AI repository should run locally:
+  independent process, shared Docker network, or compose override.
 
 M6 should make local and CI commands repeatable.
 
@@ -288,9 +315,10 @@ Do these before feature work gets heavy:
 5. Run `npm test`.
 6. Run Prisma migration.
 7. Confirm pgvector extension is enabled.
-8. Add CI command plan.
-9. Start identity database schema.
-10. Start auth foundation.
+8. Confirm `AI_SERVICE_URL` points to a local FastAPI service or documented
+   mock target before AI workflows are implemented.
+9. Add CI command plan.
+10. Start identity/auth foundation.
 
 ## Commands To Verify Locally
 
@@ -308,9 +336,9 @@ cp .env.example .env
 Then in another terminal:
 
 ```bash
-docker compose exec backend npm run prisma:migrate
-docker compose exec backend npm test
-docker compose exec backend npm run lint
+docker compose exec api npm run prisma:migrate
+docker compose exec api npm test
+docker compose exec api npm run lint
 ```
 
 Health endpoint:

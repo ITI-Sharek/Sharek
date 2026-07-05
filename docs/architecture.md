@@ -6,7 +6,7 @@ Share-k backend uses:
 
 ```text
 NestJS feature-first modular monolith
-AI inside NestJS through ports/adapters
+External FastAPI AI service through backend ports/adapters
 PostgreSQL + pgvector
 Prisma
 BullMQ + Redis for async jobs
@@ -23,15 +23,16 @@ across users, skills, tasks, applications, delivery, reputation, and admin
 review. A modular monolith keeps deployment and debugging simple while still
 protecting module boundaries.
 
-AI stays inside NestJS for the MVP because Share-k will use ready model APIs,
-not custom model training. A separate FastAPI service can be introduced later if
-Python-specific AI tooling, independent scaling, or failure isolation becomes
-worth the added integration cost.
+AI runs in a separate FastAPI repository. That service owns model/provider
+calls, prompt execution, Python AI tooling, embedding generation, and AI
+service-specific tests. The NestJS backend calls it through explicit contracts
+and remains the owner of authorization, business state, database writes, audit
+snapshots, and final workflow decisions.
 
 PostgreSQL with pgvector is enough for MVP semantic search and matching while
-avoiding an extra vector database service. If vector workload becomes large or
-specialized, the vector adapter can later move to Pinecone, Qdrant, or another
-service.
+avoiding an extra vector database service for backend-owned persisted vectors.
+If vector workload becomes large or specialized, the vector adapter can later
+move to Pinecone, Qdrant, or another service.
 
 ## Target Modules
 
@@ -77,8 +78,10 @@ counts, and reputation calculations.
 actions, and audit views. It does not own the underlying business entities from
 other modules.
 
-`ai` owns shared AI provider adapters, prompt/schema infrastructure, structured
-model calls, embedding adapters, and reusable AI error handling.
+`ai` owns the NestJS-side AI service gateway: request/response contracts,
+FastAPI client adapters, response validation, timeout/retry behavior, and
+reusable AI integration errors. Provider-specific prompts and model clients
+belong in the FastAPI AI repository.
 
 ## Layering Rule
 
@@ -98,33 +101,37 @@ architectural.
 
 - Controllers call use cases.
 - Use cases coordinate business rules and ports.
-- Domain code does not import NestJS, Prisma, HTTP clients, or model SDKs.
-- Infrastructure implements repositories, model providers, GitHub clients, and
-  queue workers.
+- Domain code does not import NestJS, Prisma, HTTP clients, model SDKs, or AI
+  service clients.
+- Infrastructure implements repositories, FastAPI AI clients, GitHub clients,
+  and queue workers.
 - Other modules consume public APIs, reader ports, or events.
 - Other modules do not import private repositories or infrastructure classes.
 
-## AI Rule
+## AI Service Rule
 
-AI adapters return recommendations. Backend use cases make final decisions.
+The FastAPI AI service returns recommendations. Backend use cases make final
+decisions.
 
 For example:
 
 ```text
-AI recommendation: manual_review, confidence 0.68
+FastAPI recommendation: manual_review, confidence 0.68
 Backend decision: store manual_review, create audit snapshot, route to admin
 ```
 
 Never allow AI output to directly approve skills, accept applications, reject
 contributors without policy checks, or update reputation.
 
-## When To Extract FastAPI Later
+## FastAPI Boundary
 
-Consider a separate AI service only when at least one is true:
+The FastAPI AI repository should expose stable HTTP contracts for:
 
-- Python-only libraries are required.
-- AI jobs need independent scaling.
-- The AI workload harms API latency.
-- A dedicated AI team needs independent deployment.
-- The AI boundary has stayed stable inside the monolith.
+- skill profile generation
+- eligibility analysis
+- skill gap guidance
+- embeddings or retrieval assistance
 
+The backend should call the AI service through ports, validate all responses,
+store audit metadata, and use deterministic policy before changing business
+state.

@@ -64,7 +64,8 @@ Use these module responsibilities:
 - `delivery-reviews`: PR delivery and owner review.
 - `reputation`: trusted contributor reputation and history.
 - `admin`: admin queues, disputes, reports, moderation workflows.
-- `ai`: model provider adapters, prompt contracts, embeddings, shared AI ports.
+- `ai`: FastAPI AI service gateway, request/response contracts, validation,
+  and shared AI ports.
 - `health`: operational health endpoint.
 
 ## Module Layers
@@ -82,7 +83,8 @@ Use them like this:
 
 - `domain`: entities, value objects, policies, domain errors, domain events.
 - `application`: use cases, input/output DTOs, ports, orchestration.
-- `infrastructure`: Prisma repositories, provider adapters, GitHub clients, jobs.
+- `infrastructure`: Prisma repositories, FastAPI AI clients, GitHub clients,
+  jobs.
 - `presentation`: controllers, request DTOs, response DTOs, guards, presenters.
 
 Do not add empty services, repositories, factories, or entities only to fill the

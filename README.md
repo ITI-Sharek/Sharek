@@ -6,7 +6,8 @@ Final backend setup decision:
 
 - Runtime: NestJS.
 - Architecture: feature-first modular monolith.
-- AI: inside NestJS through ports/adapters, using ready model APIs.
+- AI: external FastAPI AI service/repository called through backend
+  ports/adapters.
 - Database: PostgreSQL with pgvector.
 - ORM and migrations: Prisma.
 - Background jobs: BullMQ with Redis when asynchronous work is needed.
@@ -16,9 +17,9 @@ The frontend lives in a separate repository. This backend owns Share-k business
 state: users, GitHub connections, projects, contribution tasks, applications,
 approved skills, delivery reviews, reputation, admin decisions, and audit data.
 
-AI is not the final authority. AI adapters produce structured recommendations;
-backend use cases validate them, apply deterministic rules, and store final
-business decisions.
+AI is not the final authority. The FastAPI AI service produces structured
+recommendations; backend use cases validate them, apply deterministic rules,
+and store final business decisions.
 
 ## Start Here
 

@@ -19,13 +19,13 @@ scenarios.
 Primary backend scope:
 
 - `modules/ai`
-- AI ports and adapters used by `skill-profiles` and `applications`
+- FastAPI AI repository contracts used by `skill-profiles` and `applications`
 - Skill profile generation contracts.
 - Eligibility analyzer contracts.
 - Skill gap guidance contracts.
-- Embedding generation and pgvector usage.
+- Embedding request/response contracts and backend persistence coordination.
 - AI audit metadata.
-- Model output validation.
+- AI service output validation.
 
 M2 must not bypass backend business rules. AI produces recommendations only.
 
@@ -90,4 +90,3 @@ execution.
 - API changes must be communicated to frontend integration.
 - AI contract changes must be communicated to backend owners before merge.
 - Shared changes require extra review because they affect multiple modules.
-

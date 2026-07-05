@@ -11,7 +11,10 @@ AI-assisted skill profiling, project publishing, contribution tasks,
 AI-assisted application validation, delivery review, reputation, admin review,
 and future premium features.
 
-The team expects to use ready model APIs rather than train custom models.
+The team now plans to keep AI implementation work in a separate AI repository
+implemented with FastAPI. That repository owns model/provider calls,
+Python-specific AI tooling, prompt execution, embedding generation, and AI
+service-specific tests.
 
 The team also wants a setup that works well with AI coding agents and Docker
 local development.
@@ -20,7 +23,10 @@ local development.
 
 Use a NestJS feature-first modular monolith for the backend.
 
-Use AI inside NestJS through ports/adapters for the MVP.
+Integrate AI through a separate FastAPI AI service/repository. The NestJS
+backend calls that service through narrow ports/adapters and remains the owner
+of business state, database writes, authorization, audit snapshots, and final
+workflow decisions.
 
 Use PostgreSQL with pgvector as the main database.
 
@@ -35,9 +41,10 @@ Use Docker Compose for local development.
 A modular monolith keeps deployment, debugging, and transactions simpler than
 early microservices while still giving each business area a clear boundary.
 
-Keeping AI inside NestJS is appropriate because the MVP uses ready model APIs.
-This avoids a separate FastAPI service, duplicate DTO definitions, extra
-network hops, and contract drift during early development.
+Separating AI into a FastAPI repository lets the AI team use Python-native
+libraries and iterate on model orchestration without coupling provider logic to
+the NestJS business backend. The tradeoff is that the service contract must be
+kept explicit and tested to avoid DTO drift between repositories.
 
 PostgreSQL with pgvector reduces infrastructure count while supporting both
 relational data and MVP semantic search or matching. A dedicated vector database
@@ -49,14 +56,17 @@ can be introduced later if measured workload requires it.
 - Controllers must stay thin.
 - Business decisions remain in backend use cases and domain policies.
 - AI output is a recommendation, not the final authority.
-- Provider-specific AI code must stay behind adapters.
+- Provider-specific AI code belongs in the FastAPI AI repository.
+- NestJS AI adapters must call the FastAPI service, validate responses, apply
+  backend policy, and persist audit snapshots through owning modules.
 - Docker and tests are part of the foundation, not a final sprint activity.
+- Docker integration for the separate AI repository must be decided explicitly;
+  it is not added to this backend compose file by default in this ADR.
 
 ## Revisit This Decision When
 
-- Python-only AI tooling becomes required.
 - AI workload needs independent scaling.
 - The backend API is blocked by AI latency.
-- The AI boundary is stable enough to extract.
+- The service contract between NestJS and FastAPI drifts or becomes hard to
+  test.
 - pgvector no longer meets retrieval or performance needs.
-
