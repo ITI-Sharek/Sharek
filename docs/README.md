@@ -14,6 +14,7 @@ This folder is the operating manual for the backend repo.
 | `member-ownership.md` | Team member responsibilities and module ownership. |
 | `definition-of-done.md` | Checklist required before a backend task is considered complete. |
 | `local-development.md` | Docker, environment, database, Redis, tests, and local startup flow. |
+| `team-onboarding.md` | First-run checklist for teammates and safe `.env` sharing rules. |
 | `implementation-roadmap.md` | Practical build order mapped to the selected architecture. |
 | `database-plan.md` | PostgreSQL, pgvector, Prisma, ownership, and audit rules. |
 | `api-contracts.md` | API and FastAPI AI service contract rules. |
