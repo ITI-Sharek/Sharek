@@ -1,7 +1,15 @@
 # Module Skeleton Example
 
-Use this as the default shape for a business module. Do not fill every folder
-with classes before a real sprint task needs them.
+Use this as an expanded example for a business module after a real sprint task
+needs multiple boundaries. New modules should start smaller:
+
+```text
+module-name/
+  module-name.module.ts
+  README.md
+```
+
+Do not create the expanded tree until real files are ready to live inside it.
 
 ```text
 module-name/
@@ -66,4 +74,3 @@ applications/
 - Domain code protects invariants.
 - Infrastructure contains Prisma/provider/queue code.
 - Other modules consume public ports or services, not private infrastructure.
-

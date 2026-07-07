@@ -92,9 +92,10 @@ Most business modules are placeholders for now. This is intentional. The folder
 structure is ready, but business logic should be added only when a real sprint
 task needs it.
 
-Each business module now has a deeper ready skeleton for domain, application,
-infrastructure, and presentation code. These folders are tracked with
-`.gitkeep` files until real implementation files replace them.
+The module structure is now progressive. Empty layer folders were removed so the
+tree shows only real implementation files. Future tasks should add `domain`,
+`application`, `infrastructure`, or `presentation` folders only when the feature
+needs that boundary.
 
 ### Docker And Local Services
 
@@ -359,6 +360,6 @@ Expected response:
 
 The current repo is ready for foundation work. It is not a finished backend.
 
-The architecture is set, the skeleton is created, Docker is prepared, and the
-team can start Sprint 1. Business features should be implemented task by task
-from the backlog and PRD.
+The architecture is set, the progressive module structure is in place, Docker is
+prepared, and the team can continue Sprint 1. Business features should be
+implemented task by task from the backlog and PRD.

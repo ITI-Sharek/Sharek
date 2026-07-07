@@ -68,9 +68,18 @@ Use these module responsibilities:
   and shared AI ports.
 - `health`: operational health endpoint.
 
-## Module Layers
+## Progressive Module Structure
 
-Important modules may contain:
+Every module starts small:
+
+```text
+src/modules/<module-name>/
+  <module-name>.module.ts
+  README.md
+```
+
+Add folders only when the current feature needs them. Important modules may grow
+into this shape:
 
 ```text
 domain/
@@ -87,10 +96,11 @@ Use them like this:
   jobs.
 - `presentation`: controllers, request DTOs, response DTOs, guards, presenters.
 
-Do not add empty services, repositories, factories, or entities only to fill the
-folders. The folders are ready for real sprint tasks.
+Do not add empty folders, services, repositories, factories, or entities only to
+look architectural. Create a folder when adding the first real implementation
+file inside it.
 
-Most business modules now include this deeper skeleton:
+A larger module may eventually look like this:
 
 ```text
 domain/
@@ -118,8 +128,17 @@ presentation/
     presenters/
 ```
 
+A module does not have to use every layer.
+
+- `health` can stay flat because it is operational and simple.
+- `identity`, `github`, and `projects` may use deeper folders where real code
+  already needs them.
+- `applications`, `contribution-tasks`, `delivery-reviews`, `reputation`,
+  `skill-profiles`, `admin`, and `ai` should grow only as sprint tasks require
+  real business rules, adapters, or HTTP contracts.
+
 Use `docs/examples/module-skeleton.md` as the sample for adding the first real
-feature files.
+feature files, not as a command to pre-create every folder.
 
 ## Shared
 
