@@ -45,4 +45,4 @@ import { ObservabilityModule } from './shared/observability/observability.module
     AiModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
