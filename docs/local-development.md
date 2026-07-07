@@ -78,6 +78,7 @@ docker compose logs -f api
 docker compose exec api npm run lint
 docker compose exec api npm run test
 docker compose exec api npm run prisma:migrate
+docker compose exec api npx prisma db seed
 docker compose exec api npm run prisma:studio
 ```
 
@@ -87,7 +88,7 @@ docker compose exec api npm run prisma:studio
 2. Copy `.env.example` to `.env` when you need personal overrides.
 3. Fill local development values in `.env`.
 4. Run Prisma migrations.
-5. Run seed data if available.
+5. Run seed data with `docker compose exec api npx prisma db seed` if available.
 6. Open the health endpoint.
 7. Run tests.
 

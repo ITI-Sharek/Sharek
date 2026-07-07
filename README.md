@@ -26,12 +26,13 @@ and store final business decisions.
 Read these files in order before implementing backend code:
 
 1. `docs/README.md`
-2. `docs/current-state-and-next-steps.md`
-3. `docs/folder-structure.md`
-4. `docs/architecture.md`
-5. `docs/backend-conventions.md`
-6. `docs/ai-agent-rules.md`
-7. `docs/definition-of-done.md`
+2. `docs/team-onboarding.md`
+3. `docs/current-state-and-next-steps.md`
+4. `docs/folder-structure.md`
+5. `docs/architecture.md`
+6. `docs/backend-conventions.md`
+7. `docs/ai-agent-rules.md`
+8. `docs/definition-of-done.md`
 
 AI coding agents should also read `AGENTS.md` at the repo root.
 
