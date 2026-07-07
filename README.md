@@ -67,8 +67,9 @@ src/
   main.ts
 ```
 
-Do not create all folders blindly. Add layers when they protect real business
-rules, external integrations, or testable boundaries.
+Do not create all folders blindly. Start each module with the files needed for
+the current feature, then add layers when they protect real business rules,
+external integrations, or testable boundaries.
 
 ## First Implementation Target
 

@@ -2,7 +2,15 @@
 
 ## Module Structure
 
-Use feature-first folders:
+Use feature-first modules. Start with the smallest useful shape:
+
+```text
+src/modules/<module-name>/
+  <module-name>.module.ts
+  README.md
+```
+
+Add deeper folders only when real code needs a boundary:
 
 ```text
 src/modules/<module-name>/
@@ -15,6 +23,20 @@ src/modules/<module-name>/
 
 Use fewer folders for simple modules. Add structure when it protects a real
 rule, dependency, or test boundary.
+
+Use this decision rule:
+
+- Add `presentation/` when the module exposes controllers, request DTOs,
+  response DTOs, guards, or presenters.
+- Add `application/` when a controller would otherwise coordinate workflow,
+  authorization, multiple reads/writes, or cross-module calls.
+- Add `domain/` when there are business invariants such as status transitions,
+  limits, eligibility rules, reputation rules, or approval policies.
+- Add `infrastructure/` when the module has Prisma repositories, external API
+  clients, FastAPI AI adapters, queue jobs, or persistence mappers.
+
+Do not keep `.gitkeep` placeholder trees for future work. Future sprint tasks
+should create the needed folder and the first real file together.
 
 ## Controller Rules
 
