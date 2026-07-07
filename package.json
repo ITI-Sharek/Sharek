@@ -71,5 +71,8 @@
   },
   "overrides": {
     "multer": "^2.2.0"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   }
 }
