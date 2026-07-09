@@ -11,15 +11,15 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: ${PORT:-3000}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://sharek:sharek@postgres:5432/sharek?schema=public}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATABASE_URL: ${DATABASE_URL:-"postgresql://sharek:sharek@postgres:5432/sharek?schema=public"}
+      REDIS_URL: ${REDIS_URL:-"redis://redis:6379"}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-this-access-secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-secret}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-http://localhost:3000/github/oauth/callback}
+      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-"http://localhost:3000/github/oauth/callback"}
       GITHUB_TOKEN_ENCRYPTION_KEY: ${GITHUB_TOKEN_ENCRYPTION_KEY:-change-this-github-token-encryption-key-32-chars-min}
-      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://host.docker.internal:8000}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-"http://host.docker.internal:8000"}
       AI_SERVICE_TIMEOUT_MS: ${AI_SERVICE_TIMEOUT_MS:-5000}
       AI_SERVICE_AUTH_TOKEN: ${AI_SERVICE_AUTH_TOKEN:-}
       AI_LOW_CONFIDENCE_THRESHOLD: ${AI_LOW_CONFIDENCE_THRESHOLD:-0.70}

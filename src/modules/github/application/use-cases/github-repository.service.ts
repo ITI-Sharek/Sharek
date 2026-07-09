@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
+import { DatabaseService } from '../../../../shared/database/database.service';
+import { ApplicationError } from '../../../../shared/errors/application.error';
+import { GitHubTokenEncryptionService } from '../../infrastructure/security/github-token-encryption.service';
 import {
   GitHubRepositoryDto,
   GitHubRepositoryImportSnapshot,
 } from '../dto/github-repository.dto';
-import { DatabaseService } from '../../../../shared/database/database.service';
-import { ApplicationError } from '../../../../shared/errors/application.error';
-import { GitHubTokenEncryptionService } from '../../infrastructure/security/github-token-encryption.service';
 
 const GITHUB_API_URL = 'https://api.github.com';
 
@@ -38,7 +38,7 @@ export class GitHubRepositoryService {
   constructor(
     private readonly database: DatabaseService,
     private readonly tokenEncryption: GitHubTokenEncryptionService,
-  ) {}
+  ) { }
 
   async listRepositories(userId: string): Promise<GitHubRepositoryDto[]> {
     const accessToken = await this.getAccessToken(userId);
@@ -99,6 +99,78 @@ export class GitHubRepositoryService {
     });
   }
 
+  async getRepositoryReadme(userId: string, fullName: string): Promise<string | null> {
+    const normalizedFullName = fullName.trim();
+    const accessToken = await this.getAccessToken(userId);
+    return this.fetchRepositoryReadme(accessToken, normalizedFullName);
+  }
+
+  async getRepositoryDescription(userId: string, fullName: string): Promise<string | null> {
+    const normalizedFullName = fullName.trim();
+    const accessToken = await this.getAccessToken(userId);
+    const repository = await this.fetchGitHub<GitHubRepositoryPayload>(
+      `/repos/${encodeURIComponent(normalizedFullName).replace('%2F', '/')}`,
+      accessToken,
+    );
+    return repository.description ?? null;
+  }
+
+  async fetchRepositoryStatistics(userId: string, fullName: string): Promise<Record<string, unknown>> {
+    const normalizedFullName = fullName.trim();
+    const accessToken = await this.getAccessToken(userId);
+    const repository = await this.fetchGitHub<GitHubRepositoryPayload>(
+      `/repos/${encodeURIComponent(normalizedFullName).replace('%2F', '/')}`,
+      accessToken,
+    );
+    const languages = await this.fetchRepositoryLanguages(
+      accessToken,
+      repository.full_name,
+    );
+    const repositoryDto = this.toRepositoryDto(repository, languages);
+    return this.getRepositoryStatistics(repositoryDto);
+  }
+
+  async fetchContributionActivity(userId: string, fullName: string): Promise<unknown> {
+    const normalizedFullName = fullName.trim();
+    const accessToken = await this.getAccessToken(userId);
+    const rawData = await this.fetchGitHub<any[]>(
+      `/repos/${encodeURIComponent(normalizedFullName).replace('%2F', '/')}/stats/contributors`,
+      accessToken,
+    );
+
+    if (!Array.isArray(rawData)) {
+      return rawData;
+    }
+
+    return rawData.map((contributor) => ({
+      author: {
+        username: contributor.author?.login,
+        avatarUrl: contributor.author?.avatar_url,
+        profileUrl: contributor.author?.html_url,
+      },
+      totalCommits: contributor.total,
+      weeklyActivity: (contributor.weeks || []).map((week: any) => ({
+        weekStarting: new Date(week.w * 1000).toISOString(),
+        additions: week.a,
+        deletions: week.d,
+        commits: week.c,
+      })),
+    }));
+  }
+
+  async fetchCommitSignals(userId: string, fullName: string, author?: string): Promise<unknown> {
+    const normalizedFullName = fullName.trim();
+    const accessToken = await this.getAccessToken(userId);
+    let path = `/repos/${encodeURIComponent(normalizedFullName).replace('%2F', '/')}/commits`;
+    if (author) {
+      path += `?author=${encodeURIComponent(author)}`;
+    }
+    return this.fetchGitHub<unknown>(
+      path,
+      accessToken,
+    );
+  }
+
   private async getAccessToken(userId: string): Promise<string> {
     const account = await this.database.gitHubAccount.findUnique({
       where: {
@@ -156,10 +228,15 @@ export class GitHubRepositoryService {
     return response.text();
   }
 
-  private async fetchGitHub<T>(path: string, accessToken: string): Promise<T> {
+  private async fetchGitHub<T>(path: string, accessToken: string, retries = 3): Promise<T> {
     const response = await fetch(`${GITHUB_API_URL}${path}`, {
       headers: this.getGitHubHeaders(accessToken),
     });
+
+    if (response.status === 202 && retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return this.fetchGitHub<T>(path, accessToken, retries - 1);
+    }
 
     if (!response.ok) {
       throw new ApplicationError(

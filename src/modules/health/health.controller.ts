@@ -7,6 +7,7 @@ export class HealthController {
   @Get()
   check(): HealthResponse {
     return {
+      message: 'Service is healthy',
       status: 'ok',
     };
   }
