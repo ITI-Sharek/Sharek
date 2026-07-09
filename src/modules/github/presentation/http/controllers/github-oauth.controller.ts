@@ -8,19 +8,19 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
+import { AuthenticatedUser } from '../../../../../shared/auth/authenticated-request';
+import { CurrentUser } from '../../../../../shared/auth/current-user.decorator';
+import { AccessTokenGuard } from '../../../../../shared/auth/guards/access-token.guard';
 import { GitHubOAuthService } from '../../../application/use-cases/github-oauth.service';
 import { GitHubRepositoryService } from '../../../application/use-cases/github-repository.service';
 import { GitHubOAuthCallbackRequest } from '../requests/github-oauth-callback.request';
-import { AccessTokenGuard } from '../../../../../shared/auth/guards/access-token.guard';
-import { CurrentUser } from '../../../../../shared/auth/current-user.decorator';
-import { AuthenticatedUser } from '../../../../../shared/auth/authenticated-request';
 
 @Controller('github')
 export class GitHubOAuthController {
   constructor(
     private readonly gitHubOAuthService: GitHubOAuthService,
     private readonly gitHubRepositoryService: GitHubRepositoryService,
-  ) {}
+  ) { }
 
   @UseGuards(AccessTokenGuard)
   @Get('oauth/start')
@@ -51,6 +51,92 @@ export class GitHubOAuthController {
   @Get('repositories')
   listRepositories(@CurrentUser() user: AuthenticatedUser) {
     return this.gitHubRepositoryService.listRepositories(user.id);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('readme')
+  async getReadme(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('fullName') fullName: string,
+  ) {
+    if (!fullName) {
+      throw new Error('fullName query parameter is required');
+    }
+    const content = await this.gitHubRepositoryService.getRepositoryReadme(
+      user.id,
+      fullName,
+    );
+    return {
+      fullName,
+      content,
+      hasReadme: content !== null,
+    };
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('repository/description')
+  async getRepositoryDescription(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('fullName') fullName: string,
+  ) {
+    if (!fullName) {
+      throw new Error('fullName query parameter is required');
+    }
+    const description = await this.gitHubRepositoryService.getRepositoryDescription(
+      user.id,
+      fullName,
+    );
+    return {
+      fullName,
+      description,
+    };
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('repository/statistics')
+  async getRepositoryStatistics(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('fullName') fullName: string,
+  ) {
+    if (!fullName) {
+      throw new Error('fullName query parameter is required');
+    }
+    return this.gitHubRepositoryService.fetchRepositoryStatistics(
+      user.id,
+      fullName,
+    );
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('repository/contribution-activity')
+  async getContributionActivity(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('fullName') fullName: string,
+  ) {
+    if (!fullName) {
+      throw new Error('fullName query parameter is required');
+    }
+    return this.gitHubRepositoryService.fetchContributionActivity(
+      user.id,
+      fullName,
+    );
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Get('repository/commit-signals')
+  async getCommitSignals(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('fullName') fullName: string,
+    @Query('author') author?: string,
+  ) {
+    if (!fullName) {
+      throw new Error('fullName query parameter is required');
+    }
+    return this.gitHubRepositoryService.fetchCommitSignals(
+      user.id,
+      fullName,
+      author,
+    );
   }
 
   @UseGuards(AccessTokenGuard)

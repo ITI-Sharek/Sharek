@@ -1,4 +1,5 @@
 export interface HealthResponse {
-  status: 'ok';
+  message: string;
+  status: 'ok' | 'degraded' | 'offline';
 }
 

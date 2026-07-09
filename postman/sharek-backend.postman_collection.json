@@ -90,10 +90,10 @@
                                 "exec": [
                                     "const json = pm.response.json();",
                                     "if (json && json.tokens) {",
-                                    "  pm.collectionVariables.set('accessToken', json.tokens.accessToken);",
-                                    "  pm.collectionVariables.set('refreshToken', json.tokens.refreshToken);",
+                                    "  pm.environment.set('accessToken', json.tokens.accessToken);",
+                                    "  pm.environment.set('refreshToken', json.tokens.refreshToken);",
                                     "  if (json.user && json.user.id) {",
-                                    "    pm.collectionVariables.set('userId', json.user.id);",
+                                    "    pm.environment.set('userId', json.user.id);",
                                     "  }",
                                     "}"
                                 ],
@@ -355,6 +355,34 @@
                     }
                 },
                 {
+                    "name": "Get Repository README",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/github/readme?fullName={{githubRepoFullName}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "github",
+                                "readme"
+                            ],
+                            "query": [
+                                {
+                                    "key": "fullName",
+                                    "value": "{{repoFullName}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
                     "name": "Disconnect GitHub Account",
                     "request": {
                         "method": "DELETE",
@@ -372,6 +400,130 @@
                             "path": [
                                 "github",
                                 "account"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Repository Description",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/github/repository/description?fullName={{repoFullName}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "github",
+                                "repository",
+                                "description"
+                            ],
+                            "query": [
+                                {
+                                    "key": "fullName",
+                                    "value": "{{repoFullName}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Repository Statistics",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/github/repository/statistics?fullName={{repoFullName}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "github",
+                                "repository",
+                                "statistics"
+                            ],
+                            "query": [
+                                {
+                                    "key": "fullName",
+                                    "value": "{{repoFullName}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Contribution Activity",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/github/repository/contribution-activity?fullName={{repoFullName}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "github",
+                                "repository",
+                                "contribution-activity"
+                            ],
+                            "query": [
+                                {
+                                    "key": "fullName",
+                                    "value": "{{repoFullName}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Commit Signals",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/github/repository/commit-signals?fullName={{repoFullName}}&author=abdullah",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "github",
+                                "repository",
+                                "commit-signals"
+                            ],
+                            "query": [
+                                {
+                                    "key": "fullName",
+                                    "value": "{{repoFullName}}"
+                                },
+                                {
+                                    "key": "author",
+                                    "value": "abdullah"
+                                }
                             ]
                         }
                     }
