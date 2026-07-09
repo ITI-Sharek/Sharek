@@ -165,10 +165,23 @@ export class GitHubRepositoryService {
     if (author) {
       path += `?author=${encodeURIComponent(author)}`;
     }
-    return this.fetchGitHub<unknown>(
+    
+    const rawCommits = await this.fetchGitHub<any[]>(
       path,
       accessToken,
     );
+
+    if (!Array.isArray(rawCommits)) {
+      return rawCommits;
+    }
+
+    return rawCommits.map((commitData) => ({
+      sha: commitData.sha,
+      message: commitData.commit?.message,
+      authorName: commitData.commit?.author?.name || commitData.author?.login,
+      date: commitData.commit?.author?.date,
+      url: commitData.html_url,
+    }));
   }
 
   private async getAccessToken(userId: string): Promise<string> {
