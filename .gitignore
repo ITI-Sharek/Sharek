@@ -9,3 +9,6 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 API-Key.txt
+.locked-file-backups/
+*.locked-backup.*/
+.playwright-mcp/
