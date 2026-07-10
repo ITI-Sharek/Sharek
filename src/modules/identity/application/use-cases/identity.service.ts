@@ -1,17 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { LanguageCode, UserRole } from '@prisma/client';
+import { randomInt } from 'crypto';
 
 import { AuthSessionDto, AuthTokensDto, AuthUserDto } from '../dto/auth-session.dto';
+import { EmailVerificationRequiredDto } from '../dto/email-verification.dto';
 import { toAuthUserDto } from '../mappers/auth-user.mapper';
 import { RegisterRequest } from '../../presentation/http/requests/register.request';
 import { LoginRequest } from '../../presentation/http/requests/login.request';
+import { ResendEmailVerificationRequest } from '../../presentation/http/requests/resend-email-verification.request';
+import { VerifyEmailRequest } from '../../presentation/http/requests/verify-email.request';
+import { hashToken } from '../../../../shared/auth/token-hash';
 import { DatabaseService } from '../../../../shared/database/database.service';
 import { ApplicationError } from '../../../../shared/errors/application.error';
+import { EmailVerificationSender } from '../../infrastructure/integrations/email-verification.sender';
 import { PasswordHasher } from '../../infrastructure/security/password-hasher.service';
 import { SessionTokenService } from '../../infrastructure/security/session-token.service';
 
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const EMAIL_VERIFICATION_OTP_TTL_MS = 10 * 60 * 1000;
+const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
 
 interface RequestContext {
   userAgent?: string;
@@ -24,12 +32,13 @@ export class IdentityService {
     private readonly database: DatabaseService,
     private readonly passwordHasher: PasswordHasher,
     private readonly sessionTokenService: SessionTokenService,
+    private readonly emailVerificationSender: EmailVerificationSender,
   ) {}
 
   async register(
     input: RegisterRequest,
-    context: RequestContext,
-  ): Promise<AuthSessionDto> {
+    _context: RequestContext,
+  ): Promise<EmailVerificationRequiredDto> {
     const email = input.email.trim().toLowerCase();
     const existingUser = await this.database.user.findUnique({
       where: {
@@ -49,14 +58,138 @@ export class IdentityService {
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
         role: input.role,
-        status: 'active',
+        status: 'pending',
         preferred_language: input.preferredLanguage ?? LanguageCode.en,
+      },
+    });
+    const verification = await this.issueEmailVerificationOtp(user);
+
+    return {
+      user: toAuthUserDto(user),
+      emailVerificationRequired: true,
+      verificationExpiresAt: verification.expiresAt,
+    };
+  }
+
+  async verifyEmail(
+    input: VerifyEmailRequest,
+    context: RequestContext,
+  ): Promise<AuthSessionDto> {
+    const email = input.email.trim().toLowerCase();
+    const user = await this.database.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      throw new ApplicationError(
+        'Email verification code is invalid or expired',
+        'EMAIL_VERIFICATION_INVALID',
+        400,
+      );
+    }
+
+    if (user.status === 'active') {
+      throw new ApplicationError(
+        'Email is already verified',
+        'EMAIL_ALREADY_VERIFIED',
+        409,
+      );
+    }
+
+    const verification = await this.database.emailVerificationOtp.findFirst({
+      where: {
+        user_id: user.id,
+        consumed_at: null,
+        expires_at: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    if (!verification || verification.attempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS) {
+      throw new ApplicationError(
+        'Email verification code is invalid or expired',
+        'EMAIL_VERIFICATION_INVALID',
+        400,
+      );
+    }
+
+    if (verification.code_hash !== hashToken(input.code.trim())) {
+      await this.database.emailVerificationOtp.update({
+        where: {
+          id: verification.id,
+        },
+        data: {
+          attempts: {
+            increment: 1,
+          },
+        },
+      });
+
+      throw new ApplicationError(
+        'Email verification code is invalid or expired',
+        'EMAIL_VERIFICATION_INVALID',
+        400,
+      );
+    }
+
+    const updatedUser = await this.database.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        status: 'active',
+        last_login_at: new Date(),
+      },
+    });
+    await this.database.emailVerificationOtp.update({
+      where: {
+        id: verification.id,
+      },
+      data: {
+        consumed_at: new Date(),
       },
     });
 
     return {
+      user: toAuthUserDto(updatedUser),
+      tokens: await this.createSession(updatedUser.id, context),
+    };
+  }
+
+  async resendEmailVerification(
+    input: ResendEmailVerificationRequest,
+  ): Promise<EmailVerificationRequiredDto> {
+    const email = input.email.trim().toLowerCase();
+    const user = await this.database.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      throw new ApplicationError('User was not found', 'USER_NOT_FOUND', 404);
+    }
+
+    if (user.status === 'active') {
+      throw new ApplicationError(
+        'Email is already verified',
+        'EMAIL_ALREADY_VERIFIED',
+        409,
+      );
+    }
+
+    const verification = await this.issueEmailVerificationOtp(user);
+
+    return {
       user: toAuthUserDto(user),
-      tokens: await this.createSession(user.id, context),
+      emailVerificationRequired: true,
+      verificationExpiresAt: verification.expiresAt,
     };
   }
 
@@ -68,8 +201,20 @@ export class IdentityService {
       },
     });
 
-    if (!user || !(await this.passwordHasher.verify(input.password, user.password_hash))) {
+    if (
+      !user ||
+      !user.password_hash ||
+      !(await this.passwordHasher.verify(input.password, user.password_hash))
+    ) {
       throw new ApplicationError('Invalid email or password', 'INVALID_CREDENTIALS', 401);
+    }
+
+    if (user.status === 'pending') {
+      throw new ApplicationError(
+        'Email verification is required before login',
+        'EMAIL_VERIFICATION_REQUIRED',
+        403,
+      );
     }
 
     if (user.status !== 'active') {
@@ -180,6 +325,46 @@ export class IdentityService {
     });
 
     return toAuthUserDto(user);
+  }
+
+  private async issueEmailVerificationOtp(user: {
+    id: string;
+    email: string;
+    first_name: string;
+  }): Promise<{ expiresAt: Date }> {
+    const code = this.generateOtp();
+    const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_OTP_TTL_MS);
+
+    await this.database.emailVerificationOtp.updateMany({
+      where: {
+        user_id: user.id,
+        consumed_at: null,
+      },
+      data: {
+        consumed_at: new Date(),
+      },
+    });
+    await this.database.emailVerificationOtp.create({
+      data: {
+        user_id: user.id,
+        code_hash: hashToken(code),
+        expires_at: expiresAt,
+      },
+    });
+    await this.emailVerificationSender.sendOtp({
+      to: user.email,
+      firstName: user.first_name,
+      code,
+      expiresAt,
+    });
+
+    return {
+      expiresAt,
+    };
+  }
+
+  private generateOtp(): string {
+    return String(randomInt(0, 1_000_000)).padStart(6, '0');
   }
 
   private async createSession(
