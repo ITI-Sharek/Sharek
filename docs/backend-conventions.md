@@ -35,8 +35,11 @@ Use this decision rule:
 - Add `infrastructure/` when the module has Prisma repositories, external API
   clients, FastAPI AI adapters, queue jobs, or persistence mappers.
 
-Do not keep `.gitkeep` placeholder trees for future work. Future sprint tasks
-should create the needed folder and the first real file together.
+Do not keep placeholder trees for future work. Future sprint tasks should
+create the needed folder and the first real file together.
+
+For concrete file placement examples, read
+`docs/developer-architecture-guide.md`.
 
 ## Controller Rules
 

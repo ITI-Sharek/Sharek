@@ -41,8 +41,8 @@ bottleneck or retrieval requirements become specialized.
 Every table has one owning module:
 
 ```text
-identity              users, auth_sessions
-github                github_accounts, github_repositories, github_evidence
+identity              users, auth_sessions, auth_provider_accounts, auth_oauth_states, email_verification_otps
+github                github_accounts, github_oauth_states, github_repositories, github_evidence
 skill-profiles        skill_profiles, skills, skill_evidence, skill_reviews
 projects              projects, project_technologies, project_tags
 contribution-tasks    contribution_tasks, task_required_skills

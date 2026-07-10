@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sharek Backend Architect"
+  short_description: "Share-k backend module architecture guardrails"
+  default_prompt: "Use $sharek-backend-architect to implement a Share-k backend task with the correct module boundaries, docs updates, and checks."
