@@ -36,17 +36,25 @@ export class GitHubTokenEncryptionService {
       throw new ApplicationError('Invalid encrypted GitHub token format', 'GITHUB_TOKEN_DECRYPT_FAILED', 500);
     }
 
-    const decipher = createDecipheriv(
-      ALGORITHM,
-      this.getKey(),
-      Buffer.from(iv, 'base64url'),
-    );
-    decipher.setAuthTag(Buffer.from(authTag, 'base64url'));
+    try {
+      const decipher = createDecipheriv(
+        ALGORITHM,
+        this.getKey(),
+        Buffer.from(iv, 'base64url'),
+      );
+      decipher.setAuthTag(Buffer.from(authTag, 'base64url'));
 
-    return Buffer.concat([
-      decipher.update(Buffer.from(encrypted, 'base64url')),
-      decipher.final(),
-    ]).toString('utf8');
+      return Buffer.concat([
+        decipher.update(Buffer.from(encrypted, 'base64url')),
+        decipher.final(),
+      ]).toString('utf8');
+    } catch {
+      throw new ApplicationError(
+        'Stored GitHub token could not be decrypted. Reconnect GitHub.',
+        'GITHUB_TOKEN_DECRYPT_FAILED',
+        401,
+      );
+    }
   }
 
   private getKey(): Buffer {
