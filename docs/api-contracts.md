@@ -45,7 +45,15 @@ Implemented identity endpoints:
 
 ```text
 POST /auth/register
+POST /auth/verify-email
+POST /auth/verify-email/resend
 POST /auth/login
+GET /auth/google/start
+GET /auth/google/callback
+POST /auth/google/callback
+GET /auth/github/start
+GET /auth/github/callback
+POST /auth/github/callback
 POST /auth/refresh
 POST /auth/logout
 GET /auth/me
@@ -61,8 +69,32 @@ contributor
 
 `admin` is reserved for role assignment by an authenticated admin.
 
-Login and registration return opaque access and refresh tokens. Access tokens
-are sent to protected routes using:
+Email/password registration creates a `pending` user, sends a 6-digit email OTP,
+and returns the user plus `emailVerificationRequired: true` and
+`verificationExpiresAt`. It does not return tokens until email verification is
+complete.
+
+`POST /auth/verify-email` accepts:
+
+```json
+{
+  "email": "owner@example.com",
+  "code": "123456"
+}
+```
+
+If the latest unconsumed OTP is valid and unexpired, the backend activates the
+user and returns the normal auth session object: user plus access and refresh
+tokens. `POST /auth/verify-email/resend` accepts `{ "email": "..." }`, creates a
+new OTP, and sends it again when the account is still pending.
+
+Email OTP delivery uses SMTP settings. Gmail can be used by setting
+`SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=false`, `SMTP_USER`,
+`SMTP_PASS` to a Google App Password, and `EMAIL_FROM`. In non-production local
+development without SMTP config, the backend logs the OTP for manual testing.
+
+Login returns opaque access and refresh tokens only for active users. Access
+tokens are sent to protected routes using:
 
 ```text
 Authorization: Bearer <accessToken>
@@ -70,6 +102,17 @@ Authorization: Bearer <accessToken>
 
 Refresh rotates the stored session tokens. Logout revokes the current session.
 The backend stores only token hashes.
+
+Google and GitHub social auth are direct signup/signin flows. The frontend calls
+`GET /auth/{provider}/start?role=owner|contributor`, redirects the browser to
+`authorizationUrl`, then completes with the provider `code` and Share-k `state`
+through `GET` or `POST /auth/{provider}/callback`.
+
+The `role` query parameter is used only when the backend must create a new
+Share-k user. Existing users keep their saved role. Social auth links by
+provider account first, then by verified email. GitHub social auth also stores
+or refreshes the connected `GitHubAccount` token so contributor repository
+evidence can use the same consent.
 
 ## GitHub Connection Contracts
 
@@ -81,12 +124,20 @@ GET /github/oauth/callback
 POST /github/oauth/callback
 GET /github/account
 GET /github/repositories
+GET /github/readme
+GET /github/repository/description
+GET /github/repository/statistics
+GET /github/repository/contribution-activity
+GET /github/repository/commit-signals
 DELETE /github/account
 POST /projects/import/github
 ```
 
 `GET /github/oauth/start` requires an authenticated Share-k user. It stores a
-short-lived OAuth state and returns the GitHub authorization URL.
+short-lived OAuth state and returns the GitHub authorization URL. Contributor
+OAuth requests the GitHub `repo` scope so Share-k can read public and private
+repository evidence after explicit GitHub consent. Owner/admin OAuth keeps the
+lighter `public_repo` scope for the project-import shortcut.
 
 The callback validates the stored state, exchanges the GitHub code, fetches the
 GitHub profile, and stores the linked account. GitHub access tokens are never
@@ -94,8 +145,31 @@ returned in API responses. Stored GitHub access and refresh tokens are encrypted
 at rest with AES-256-GCM.
 
 `GET /github/repositories` requires an authenticated user with a connected
-GitHub account. It returns normalized public repository metadata fetched through
-the encrypted server-side GitHub token.
+GitHub account. It returns normalized repository metadata fetched through the
+encrypted server-side GitHub token. For contributors this can include public
+and private repositories because their OAuth connection uses the GitHub `repo`
+scope. Owner project import does not require this endpoint.
+
+The repository list is intentionally lightweight for picker screens. It includes
+repository identity, owner, description, URL, visibility flags, default branch,
+primary language, language byte counts, stars, forks, open issues, watchers,
+topics, `pushedAt`, and `updatedAt`.
+
+The focused repository evidence endpoints require a connected GitHub account and
+the query parameter `fullName=owner/repository`:
+
+```text
+GET /github/readme?fullName=owner/repository
+GET /github/repository/description?fullName=owner/repository
+GET /github/repository/statistics?fullName=owner/repository
+GET /github/repository/contribution-activity?fullName=owner/repository
+GET /github/repository/commit-signals?fullName=owner/repository&author=optional
+```
+
+They return normalized README, description, repository statistics,
+contribution-activity, or recent-commit signal views using the encrypted
+server-side GitHub token. Missing `fullName` returns
+`GITHUB_REPOSITORY_FULL_NAME_REQUIRED`.
 
 `POST /projects/import/github` requires an authenticated `owner` or `admin`
 and accepts:
@@ -106,11 +180,57 @@ and accepts:
 }
 ```
 
+or:
+
+```json
+{
+  "repoUrl": "https://github.com/owner/repository"
+}
+```
+
+Owner GitHub connection is not required for project import. The endpoint uses
+GitHub's public repository API, so private owner repositories are intentionally
+outside the MVP import path.
+
 The response is a draft project created or refreshed from GitHub metadata. The
 backend stores the GitHub repo URL, GitHub repo ID, language breakdown, topics,
-repository statistics, and README content snapshot. This is the handoff point
-for later repository ingestion/background jobs and FastAPI AI evidence
-generation.
+repository statistics, README content snapshot, contribution activity, and
+recent commit signals where GitHub exposes them. This is the handoff point for
+later repository ingestion/background jobs and FastAPI AI evidence generation.
+
+Normalized GitHub evidence currently contains:
+
+```json
+{
+  "repository": {
+    "fullName": "owner/repository",
+    "description": "Repository description",
+    "languages": {
+      "TypeScript": 1000
+    },
+    "topics": ["nestjs"],
+    "stars": 5,
+    "forks": 1
+  },
+  "readmeContent": "# Project README",
+  "contributionActivity": {
+    "totalContributors": 3,
+    "totalCommits": 42,
+    "lastYearCommitCount": 20,
+    "unavailableReason": null
+  },
+  "commitSignals": {
+    "recentCommitCount": 30,
+    "authors": ["owner-login"],
+    "unavailableReason": null
+  }
+}
+```
+
+`contributionActivity` and `commitSignals` are optional evidence areas. If
+GitHub returns pending, empty, missing, or unavailable stats, the backend keeps
+the import usable and records an `unavailableReason` instead of failing the
+project import.
 
 ## AI Service Contracts
 
