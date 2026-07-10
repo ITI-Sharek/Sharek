@@ -8,6 +8,8 @@ This folder is the operating manual for the backend repo.
 | --- | --- |
 | `current-state-and-next-steps.md` | What is done, what is prepared, what is not done, and what each member should do next. |
 | `architecture.md` | Final backend architecture decision and module boundaries. |
+| `developer-architecture-guide.md` | Practical teammate guide for where every backend file belongs and how to build features. |
+| `module-development-tracker.md` | Required module workflow, status dashboard, per-task checklist, and change records. |
 | `backend-conventions.md` | Coding, module, database, testing, and API conventions. |
 | `folder-structure.md` | Canonical repo folder layout and what belongs in each place. |
 | `ai-agent-rules.md` | Rules for AI coding agents working on backend tasks. |
@@ -20,6 +22,7 @@ This folder is the operating manual for the backend repo.
 | `api-contracts.md` | API and FastAPI AI service contract rules. |
 | `sprint-template.md` | Template for planning each sprint. |
 | `examples/module-skeleton.md` | Copyable sample module shape and example file names. |
+| `skills/sharek-backend-architect/` | Repo-local copy of the Codex skill that guides Share-k backend agents. |
 | `ai-agents/` | Role-specific prompts and scopes for coding agents. |
 
 ## Source of Truth Order
@@ -38,6 +41,9 @@ At the start of each sprint:
 
 1. Copy `sprint-template.md`.
 2. Fill in the sprint goal, tasks, owners, API changes, database changes, tests, and demo scenario.
-3. Assign each task to a human owner and an AI agent scope.
-4. Implement only inside the approved module boundaries.
-5. Review the task against `definition-of-done.md`.
+3. Read `developer-architecture-guide.md` before creating new backend files.
+4. Read `module-development-tracker.md` and copy its task checklist into the sprint or PR.
+5. Assign each task to a human owner and an AI agent scope.
+6. Implement only inside the approved module boundaries.
+7. Review the task against `definition-of-done.md`.
+8. Append a module change record to `module-development-tracker.md`.

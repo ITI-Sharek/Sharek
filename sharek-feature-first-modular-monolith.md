@@ -2,6 +2,12 @@
 
 > A detailed, beginner-friendly guide for organizing the Share-k NestJS backend as a feature-first modular monolith with lightweight Clean Architecture.
 
+For day-to-day work in the current backend repo, use
+`docs/developer-architecture-guide.md` after reading this document. That guide
+shows the current files, practical folder rules, and examples from implemented
+modules. The folder trees below are target shapes, not a command to create empty
+folders.
+
 ## 1. Final architecture decision
 
 The recommended backend architecture for Share-k is:

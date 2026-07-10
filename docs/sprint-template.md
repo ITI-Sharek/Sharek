@@ -40,6 +40,17 @@ Backlog tasks:
 - Deliverable 1.
 - Deliverable 2.
 
+## Module Tracker Plan
+
+For each backend task, copy the checklist from
+`docs/module-development-tracker.md` and record:
+
+- Owning module:
+- Module README updates required:
+- API docs updates required:
+- Database docs updates required:
+- Tracker change record owner:
+
 ## API Changes
 
 - Route:
@@ -62,6 +73,7 @@ Backlog tasks:
 
 ## Tests
 
+- Architecture: `npm run check:architecture`
 - Unit:
 - Use case:
 - Integration:
@@ -80,3 +92,4 @@ Describe the user-visible flow that proves the sprint works.
 
 Use `docs/definition-of-done.md`.
 
+Append completed module changes to `docs/module-development-tracker.md`.
