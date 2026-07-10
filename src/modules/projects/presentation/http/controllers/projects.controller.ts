@@ -19,6 +19,9 @@ export class ProjectsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: ImportGitHubProjectRequest,
   ) {
-    return this.projectImportService.importFromGitHub(user.id, body.fullName);
+    return this.projectImportService.importFromGitHub(
+      user.id,
+      body.repoUrl ?? body.fullName ?? '',
+    );
   }
 }

@@ -12,8 +12,7 @@ describe('ProjectImportService', () => {
     },
   };
   const gitHubRepositoryService = {
-    getImportSnapshot: jest.fn(),
-    markRepositoryImportPrepared: jest.fn(),
+    getPublicImportSnapshot: jest.fn(),
   };
   const service = new ProjectImportService(
     database as never,
@@ -22,7 +21,7 @@ describe('ProjectImportService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-    gitHubRepositoryService.getImportSnapshot.mockResolvedValue(getSnapshot());
+    gitHubRepositoryService.getPublicImportSnapshot.mockResolvedValue(getSnapshot());
   });
 
   it('blocks importing a repository already owned by another user', async () => {
@@ -49,8 +48,6 @@ describe('ProjectImportService', () => {
         ...data,
       }),
     );
-    gitHubRepositoryService.markRepositoryImportPrepared.mockResolvedValue(undefined);
-
     const project = await service.importFromGitHub(
       'user-id',
       'ITI-Sharek/sharek-api',
@@ -66,8 +63,8 @@ describe('ProjectImportService', () => {
         readme_content: '# Share-k API',
       }),
     });
-    expect(gitHubRepositoryService.markRepositoryImportPrepared).toHaveBeenCalledWith(
-      'user-id',
+    expect(gitHubRepositoryService.getPublicImportSnapshot).toHaveBeenCalledWith(
+      'ITI-Sharek/sharek-api',
     );
     expect(project).toMatchObject({
       id: 'project-id',
