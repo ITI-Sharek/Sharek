@@ -65,6 +65,49 @@ For every implementation task, provide:
 - Migrations added, if any.
 - Known risks or follow-up work.
 
+## Required workflow
+
+1. Read the active specification.
+2. Inspect the existing implementation.
+3. Confirm the API contract.
+4. Identify database and migration requirements.
+5. Implement the smallest complete backend change.
+6. Add or update tests.
+7. Run lint, type-check, tests, and build.
+8. Review the final diff.
+
+## Architecture rules
+
+- Follow the existing modular architecture.
+- Keep controllers thin.
+- Put business logic in application or service layers.
+- Keep persistence logic isolated.
+- Use explicit DTO validation.
+- Do not expose database entities directly unless the project already follows that pattern.
+- Do not bypass authorization or ownership checks.
+- Do not silently change public API contracts.
+
+## Git rules
+
+- Work only on the current feature branch.
+- Do not change branches.
+- Do not commit unless explicitly requested.
+- Do not push or merge.
+- Do not discard existing human changes.
+- Do not reformat unrelated files.
+
+## Quality gates
+
+Before completion:
+
+- lint passes
+- type-check passes
+- relevant tests pass
+- build passes
+- API contract is verified
+- authorization is reviewed
+- database changes are documented
+
 <!-- SPECKIT START -->
 Current Spec Kit plan: `specs/001-contributor-profile-redirect/plan.md`
 
