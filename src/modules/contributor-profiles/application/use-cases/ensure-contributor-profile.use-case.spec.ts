@@ -38,17 +38,15 @@ function createUseCase(overrides: {
     createForUser: jest.fn().mockResolvedValue(profile),
   };
 
+  const identityUsernameService = {
+    getUserById: jest
+      .fn()
+      .mockResolvedValue(overrides.user === undefined ? contributor : overrides.user),
+    ensureContributorUsernameForUser: jest.fn().mockResolvedValue(contributor),
+  };
+
   const useCase = new EnsureContributorProfileUseCase(
-    {
-      user: {
-        findUnique: jest.fn().mockResolvedValue(
-          overrides.user === undefined ? contributor : overrides.user,
-        ),
-      },
-    } as any,
-    {
-      ensureContributorUsernameForUser: jest.fn().mockResolvedValue(contributor),
-    } as any,
+    identityUsernameService as any,
     repository as any,
     {
       getStatusForUser: jest.fn().mockResolvedValue({
@@ -67,7 +65,11 @@ function createUseCase(overrides: {
     } as any,
   );
 
-  return { useCase, repository };
+  return {
+    useCase,
+    repository,
+    identityUsernameService,
+  };
 }
 
 describe('EnsureContributorProfileUseCase', () => {
@@ -98,7 +100,7 @@ describe('EnsureContributorProfileUseCase', () => {
   });
 
   it('rejects non-contributors', async () => {
-    const { useCase } = createUseCase({
+    const { useCase, repository, identityUsernameService } = createUseCase({
       user: {
         ...contributor,
         role: 'owner',
@@ -112,5 +114,27 @@ describe('EnsureContributorProfileUseCase', () => {
     ).rejects.toMatchObject({
       statusCode: 403,
     });
+    expect(identityUsernameService.ensureContributorUsernameForUser).not.toHaveBeenCalled();
+    expect(repository.createForUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects suspended contributors before username or profile writes', async () => {
+    const { useCase, repository, identityUsernameService } = createUseCase({
+      user: {
+        ...contributor,
+        username: null,
+        status: 'suspended',
+      } as User,
+    });
+
+    await expect(
+      useCase.execute({
+        viewerUserId: 'user-1',
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(identityUsernameService.ensureContributorUsernameForUser).not.toHaveBeenCalled();
+    expect(repository.createForUser).not.toHaveBeenCalled();
   });
 });

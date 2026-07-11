@@ -63,13 +63,11 @@ describe('contributor profile presenter', () => {
       },
       skills: [
         {
-          id: 'skill-1',
           name: 'NestJS',
           proficiencyLevel: 'advanced',
-          confidenceScore: 0.9,
+          confidence: 0.9,
           status: 'approved',
           evidenceSummary: null,
-          evidenceSources: null,
         },
       ],
       reputationSummary: {
@@ -80,5 +78,12 @@ describe('contributor profile presenter', () => {
 
     expect(output.completionPrompts).toEqual([]);
     expect(output.skills).toHaveLength(1);
+    expect(output.skills[0]).toEqual({
+      name: 'NestJS',
+      proficiencyLevel: 'advanced',
+      confidence: 0.9,
+      status: 'approved',
+      evidenceSummary: null,
+    });
   });
 });

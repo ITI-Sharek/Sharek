@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { UserRole, UserStatus } from '@prisma/client';
 
 import { IdentityUsernameService } from '../../../identity/application/use-cases/identity-username.service';
-import { DatabaseService } from '../../../../shared/database/database.service';
-import { NotFoundApplicationError } from '../../../../shared/errors/application.error';
 import { ContributorProfileDto } from '../dto/contributor-profile.dto';
 import { ContributorProfileRepository } from '../ports/contributor-profile.repository';
 import {
@@ -23,7 +21,6 @@ export interface EnsureContributorProfileInput {
 @Injectable()
 export class EnsureContributorProfileUseCase {
   constructor(
-    private readonly database: DatabaseService,
     private readonly identityUsernameService: IdentityUsernameService,
     private readonly profiles: ContributorProfileRepository,
     private readonly githubStatusReader: GitHubProfileStatusReader,
@@ -32,15 +29,7 @@ export class EnsureContributorProfileUseCase {
   ) {}
 
   async execute(input: EnsureContributorProfileInput): Promise<ContributorProfileDto> {
-    const user = await this.database.user.findUnique({
-      where: {
-        id: input.viewerUserId,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundApplicationError('User was not found', 'USER_NOT_FOUND');
-    }
+    const user = await this.identityUsernameService.getUserById(input.viewerUserId);
 
     assertCanEnsureContributorProfile({
       role: user.role as UserRole,

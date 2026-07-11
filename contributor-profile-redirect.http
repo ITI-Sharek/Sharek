@@ -1,0 +1,195 @@
+# Contributor Profile Redirect API - REST Client handoff
+#
+# Intended audience:
+# Frontend engineers implementing the post-login contributor redirect flow.
+#
+# Tool:
+# VS Code REST Client extension.
+#
+# Default local backend:
+# http://localhost:3000
+#
+# Frontend flow:
+# 1. POST /auth/login
+# 2. Store tokens.accessToken.
+# 3. If user.role === "contributor", call POST /contributors/profiles/me/ensure.
+# 4. Redirect to /profile/{ensureResponse.username}.
+# 5. Load the page with GET /contributors/profiles/{username}.
+#
+# Contract source:
+# specs/001-contributor-profile-redirect/contracts/contributor-profile-redirect.openapi.yaml
+
+@baseUrl = http://localhost:3000
+@contributorEmail = contributor@example.com
+@viewerEmail = viewer@example.com
+@ownerEmail = owner@example.com
+@password = Password123!
+@unknownUsername = missing-profile
+@malformedUsername = BadName
+
+
+### 00 - Health check
+GET {{baseUrl}}/health
+
+
+### 01 - Optional: register contributor test account
+# @name registerContributor
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{contributorEmail}}",
+  "password": "{{password}}",
+  "firstName": "Sharek",
+  "lastName": "Contributor",
+  "role": "contributor",
+  "preferredLanguage": "en"
+}
+
+
+### 02 - Login as contributor
+# @name contributorLogin
+#
+# Frontend expects:
+# - response.tokens.accessToken
+# - response.tokens.refreshToken
+# - response.user.username
+# - response.user.role
+# - response.user.status
+#
+# Public auth user fields:
+# id, email, username, firstName, lastName, avatarUrl, role, status,
+# preferredLanguage, createdAt, updatedAt, lastLoginAt
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{contributorEmail}}",
+  "password": "{{password}}"
+}
+
+
+### 03 - Get current authenticated contributor
+# @name contributorMe
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 04 - Ensure contributor profile
+# @name ensureContributorProfile
+#
+# Use after contributor login.
+# Idempotent: repeated calls return the same canonical profile.
+#
+# Frontend redirect target:
+# /profile/{{ensureContributorProfile.response.body.$.username}}
+POST {{baseUrl}}/contributors/profiles/me/ensure
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 05 - Load owner profile by ensured username
+# @name ownerProfileLookup
+#
+# Expected:
+# - viewerRelationship: "owner"
+# - completionPrompts: owner-only prompt list
+# - skills: all generated skills visible to owner
+GET {{baseUrl}}/contributors/profiles/{{ensureContributorProfile.response.body.$.username}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 06 - Optional: register second authenticated viewer
+# @name registerViewer
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{viewerEmail}}",
+  "password": "{{password}}",
+  "firstName": "Sharek",
+  "lastName": "Viewer",
+  "role": "owner",
+  "preferredLanguage": "en"
+}
+
+
+### 07 - Login as another authenticated viewer
+# @name viewerLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{viewerEmail}}",
+  "password": "{{password}}"
+}
+
+
+### 08 - Load contributor profile as authenticated non-owner
+# @name viewerProfileLookup
+#
+# Expected:
+# - viewerRelationship: "authenticated-viewer"
+# - completionPrompts: []
+# - skills: approved skills only
+GET {{baseUrl}}/contributors/profiles/{{ensureContributorProfile.response.body.$.username}}
+Authorization: Bearer {{viewerLogin.response.body.$.tokens.accessToken}}
+
+
+### 09 - Optional: register owner test account for forbidden ensure check
+# @name registerOwner
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{ownerEmail}}",
+  "password": "{{password}}",
+  "firstName": "Sharek",
+  "lastName": "Owner",
+  "role": "owner",
+  "preferredLanguage": "en"
+}
+
+
+### 10 - Login as owner
+# @name ownerLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{ownerEmail}}",
+  "password": "{{password}}"
+}
+
+
+### 11 - Forbidden: owner cannot ensure contributor profile
+# Expected: 403
+POST {{baseUrl}}/contributors/profiles/me/ensure
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 12 - Unauthorized: missing bearer token
+# Expected: 401
+POST {{baseUrl}}/contributors/profiles/me/ensure
+
+
+### 13 - Not found: unknown canonical username
+# Expected: 404
+GET {{baseUrl}}/contributors/profiles/{{unknownUsername}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 14 - Bad request: malformed username route param
+# Expected: 400
+GET {{baseUrl}}/contributors/profiles/{{malformedUsername}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 15 - Bad request: login password too short
+# Expected: 400 from DTO validation
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{contributorEmail}}",
+  "password": "short"
+}

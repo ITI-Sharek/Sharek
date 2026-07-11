@@ -14,6 +14,12 @@ export class IdentityUsernameService {
   constructor(private readonly database: DatabaseService) {}
 
   async ensureContributorUsername(userId: string): Promise<User> {
+    const user = await this.getUserById(userId);
+
+    return this.ensureContributorUsernameForUser(user);
+  }
+
+  async getUserById(userId: string): Promise<User> {
     const user = await this.database.user.findUnique({
       where: {
         id: userId,
@@ -24,7 +30,7 @@ export class IdentityUsernameService {
       throw new NotFoundApplicationError('User was not found', 'USER_NOT_FOUND');
     }
 
-    return this.ensureContributorUsernameForUser(user);
+    return user;
   }
 
   async ensureContributorUsernameForUser(user: User): Promise<User> {
