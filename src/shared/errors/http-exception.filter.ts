@@ -26,7 +26,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof ApplicationError) {
       response.status(exception.statusCode).json({
         statusCode: exception.statusCode,
-        error: exception.code,
+        code: exception.code,
         message: exception.message,
       });
       return;
@@ -35,7 +35,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     this.logger.error(exception);
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      error: 'INTERNAL_SERVER_ERROR',
+      code: 'INTERNAL_SERVER_ERROR',
       message: 'Unexpected server error',
     });
   }
