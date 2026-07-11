@@ -9,6 +9,7 @@ import { DatabaseService } from '../../../../shared/database/database.service';
 import { ApplicationError } from '../../../../shared/errors/application.error';
 import { PasswordHasher } from '../../infrastructure/security/password-hasher.service';
 import { SessionTokenService } from '../../infrastructure/security/session-token.service';
+import { IdentityUsernameService } from './identity-username.service';
 
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -24,6 +25,7 @@ export class IdentityService {
     private readonly database: DatabaseService,
     private readonly passwordHasher: PasswordHasher,
     private readonly sessionTokenService: SessionTokenService,
+    private readonly identityUsernameService: IdentityUsernameService,
   ) {}
 
   async register(
@@ -54,8 +56,10 @@ export class IdentityService {
       },
     });
 
+    const publicUser = await this.ensurePublicAuthUser(user);
+
     return {
-      user: toAuthUserDto(user),
+      user: toAuthUserDto(publicUser),
       tokens: await this.createSession(user.id, context),
     };
   }
@@ -72,7 +76,7 @@ export class IdentityService {
       throw new ApplicationError('Invalid email or password', 'INVALID_CREDENTIALS', 401);
     }
 
-    if (user.status !== 'active') {
+    if (!this.canAuthenticate(user)) {
       throw new ApplicationError('Account is not active', 'ACCOUNT_NOT_ACTIVE', 403);
     }
 
@@ -85,8 +89,10 @@ export class IdentityService {
       },
     });
 
+    const publicUser = await this.ensurePublicAuthUser(updatedUser);
+
     return {
-      user: toAuthUserDto(updatedUser),
+      user: toAuthUserDto(publicUser),
       tokens: await this.createSession(user.id, context),
     };
   }
@@ -106,9 +112,11 @@ export class IdentityService {
       },
     });
 
-    if (!session || session.user.status !== 'active') {
+    if (!session || !this.canAuthenticate(session.user)) {
       throw new ApplicationError('Invalid or expired refresh token', 'INVALID_REFRESH_TOKEN', 401);
     }
+
+    await this.ensurePublicAuthUser(session.user);
 
     const tokens = this.sessionTokenService.generate();
     const expiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_MS);
@@ -156,7 +164,9 @@ export class IdentityService {
       throw new ApplicationError('User was not found', 'USER_NOT_FOUND', 404);
     }
 
-    return toAuthUserDto(user);
+    const publicUser = await this.ensurePublicAuthUser(user);
+
+    return toAuthUserDto(publicUser);
   }
 
   async assignRole(userId: string, role: UserRole): Promise<AuthUserDto> {
@@ -208,5 +218,16 @@ export class IdentityService {
       expiresAt,
       refreshExpiresAt,
     };
+  }
+
+  private canAuthenticate(user: {
+    role: UserRole;
+    status: string;
+  }): boolean {
+    return user.status === 'active' || (user.role === 'contributor' && user.status === 'pending');
+  }
+
+  private async ensurePublicAuthUser(user: Parameters<typeof toAuthUserDto>[0]) {
+    return this.identityUsernameService.ensureContributorUsernameForUser(user);
   }
 }

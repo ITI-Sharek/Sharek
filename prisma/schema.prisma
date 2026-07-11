@@ -200,6 +200,7 @@ enum UserActionType {
 model User {
   id                     String                 @id @default(uuid()) @db.Uuid
   email                  String                 @unique @db.VarChar(255)
+  username               String?                @unique @db.VarChar(30)
   password_hash          String                 @db.VarChar(255)
   first_name             String                 @db.VarChar(100)
   last_name              String                 @db.VarChar(100)
@@ -220,6 +221,7 @@ model User {
   disputesFiled          Dispute[]              @relation("UserDisputesFiled")
   disputesResolved       Dispute[]              @relation("UserDisputesResolved")
   githubAccount          GitHubAccount?
+  contributorProfile     ContributorProfile?
   reputationRecord       ReputationRecord?
   skillProfiles          SkillProfile[]
   reviewedSkillProfiles  SkillProfile[]          @relation("SkillProfileReviewedBy")
@@ -232,6 +234,19 @@ model User {
   skillGapContributions  SkillGapGuidance[]      @relation("SkillGapContributor")
   authSessions           AuthSession[]
   githubOAuthStates      GitHubOAuthState[]
+}
+
+model ContributorProfile {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @unique @db.Uuid
+  bio           String?
+  availability  String?   @db.VarChar(100)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now()) @updatedAt
+
+  user          User      @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
 }
 
 model AuthSession {

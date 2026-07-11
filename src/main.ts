@@ -18,9 +18,19 @@ async function bootstrap(): Promise<void> {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
 
+  const corsOrigins = config
+    .get<string>('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: true,
+  });
+
   const port = config.get<number>('PORT', 3000);
   await app.listen(port);
 }
 
 void bootstrap();
-

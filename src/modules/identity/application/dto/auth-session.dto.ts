@@ -1,6 +1,7 @@
 export interface AuthUserDto {
   id: string;
   email: string;
+  username: string | null;
   firstName: string;
   lastName: string;
   avatarUrl: string | null;

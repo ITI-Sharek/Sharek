@@ -5,6 +5,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { ContributionTasksModule } from './modules/contribution-tasks/contribution-tasks.module';
+import { ContributorProfilesModule } from './modules/contributor-profiles/contributor-profiles.module';
 import { DeliveryReviewsModule } from './modules/delivery-reviews/delivery-reviews.module';
 import { GithubModule } from './modules/github/github.module';
 import { HealthModule } from './modules/health/health.module';
@@ -38,6 +39,7 @@ import { ObservabilityModule } from './shared/observability/observability.module
     SkillProfilesModule,
     ProjectsModule,
     ContributionTasksModule,
+    ContributorProfilesModule,
     ApplicationsModule,
     DeliveryReviewsModule,
     ReputationModule,

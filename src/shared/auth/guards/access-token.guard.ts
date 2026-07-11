@@ -9,6 +9,13 @@ import { DatabaseService } from '../../database/database.service';
 import { AuthenticatedRequest } from '../authenticated-request';
 import { hashToken } from '../token-hash';
 
+function canUseSession(user: {
+  role: string;
+  status: string;
+}): boolean {
+  return user.status === 'active' || (user.role === 'contributor' && user.status === 'pending');
+}
+
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
   constructor(private readonly database: DatabaseService) {}
@@ -34,7 +41,7 @@ export class AccessTokenGuard implements CanActivate {
       },
     });
 
-    if (!session || session.user.status !== 'active') {
+    if (!session || !canUseSession(session.user)) {
       throw new UnauthorizedException('Invalid or expired session');
     }
 

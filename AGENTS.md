@@ -64,3 +64,11 @@ For every implementation task, provide:
 - Tests added or updated.
 - Migrations added, if any.
 - Known risks or follow-up work.
+
+<!-- SPECKIT START -->
+Current Spec Kit plan: `specs/001-contributor-profile-redirect/plan.md`
+
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan before
+implementing feature work.
+<!-- SPECKIT END -->

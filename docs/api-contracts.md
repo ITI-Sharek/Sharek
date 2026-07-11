@@ -34,6 +34,7 @@ Expected API groups:
 /admin
 /deliveries
 /reputation
+/contributors/profiles
 /health
 ```
 
@@ -70,6 +71,90 @@ Authorization: Bearer <accessToken>
 
 Refresh rotates the stored session tokens. Logout revokes the current session.
 The backend stores only token hashes.
+
+`POST /auth/login` and `GET /auth/me` return a public user DTO with:
+
+```text
+id, email, username, firstName, lastName, avatarUrl, role, status,
+preferredLanguage, createdAt, updatedAt, lastLoginAt
+```
+
+Contributor usernames are stable URL-safe values matching:
+
+```text
+^[a-z0-9][a-z0-9_-]{2,29}$
+```
+
+Active users can authenticate normally. Pending contributors can authenticate
+for the contributor profile redirect flow. Suspended and deactivated users are
+blocked from session use.
+
+## Contributor Profile Redirect Contracts
+
+Implemented contributor profile endpoints:
+
+```text
+POST /contributors/profiles/me/ensure
+GET /contributors/profiles/:username
+```
+
+Both endpoints require:
+
+```text
+Authorization: Bearer <accessToken>
+```
+
+`POST /contributors/profiles/me/ensure` is idempotent. Active and pending
+contributors receive a public contributor profile response. Owner/admin users
+and suspended/deactivated contributors receive 403.
+
+`GET /contributors/profiles/:username` loads only canonical usernames matching
+the username pattern. Unknown, suspended, or deactivated contributor profiles
+return 404.
+
+Contributor profile response shape:
+
+```json
+{
+  "username": "jane-doe",
+  "displayName": "Jane Doe",
+  "avatarUrl": null,
+  "roleLabel": "Contributor",
+  "bio": null,
+  "skills": [],
+  "availability": null,
+  "githubStatus": {
+    "connected": false,
+    "username": null
+  },
+  "reputationSummary": {
+    "rating": null,
+    "reviewsCount": 0
+  },
+  "contributionHistory": [],
+  "completionPrompts": ["add_bio", "generate_skills", "connect_github"],
+  "viewerRelationship": "owner"
+}
+```
+
+Profile owners receive all generated skills, including pending or rejected
+skills. Other authenticated viewers receive approved skills only and an empty
+`completionPrompts` array.
+
+Protected error outcomes:
+
+```text
+401 invalid credentials or invalid/missing/expired/revoked token
+403 owner/admin ensure attempt or suspended/deactivated contributor ensure
+404 unknown profile username or hidden suspended/deactivated contributor
+409 unresolved username/profile uniqueness conflict
+422 valid request with invalid username/profile source data
+400 malformed request syntax, shape, or malformed username route parameter
+```
+
+Profile responses must not include password hashes, access/refresh tokens,
+token hashes, private session fields, OAuth credentials, or internal security
+metadata.
 
 ## GitHub Connection Contracts
 
