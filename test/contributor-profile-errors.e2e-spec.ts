@@ -71,7 +71,7 @@ describe('Contributor profile protected HTTP errors', () => {
       .get('/contributors/profiles/BadName')
       .expect(400)
       .expect(({ body }) => {
-        expect(body.error).toBe('MALFORMED_USERNAME');
+        expect(body.code).toBe('MALFORMED_USERNAME');
       });
   });
 
