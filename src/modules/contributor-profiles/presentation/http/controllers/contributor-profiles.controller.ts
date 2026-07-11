@@ -4,6 +4,9 @@ import { CurrentUser } from '../../../../../shared/auth/current-user.decorator';
 import {
   AuthenticatedUser,
 } from '../../../../../shared/auth/authenticated-request';
+import {
+  AllowInactiveAuthenticatedUsers,
+} from '../../../../../shared/auth/allow-inactive-authenticated-users.decorator';
 import { AccessTokenGuard } from '../../../../../shared/auth/guards/access-token.guard';
 import { BadRequestApplicationError } from '../../../../../shared/errors/application.error';
 import { USERNAME_PATTERN } from '../../../../identity/domain/username/username.policy';
@@ -19,6 +22,7 @@ export class ContributorProfilesController {
   ) {}
 
   @Post('me/ensure')
+  @AllowInactiveAuthenticatedUsers()
   ensure(@CurrentUser() user: AuthenticatedUser) {
     return this.ensureContributorProfile.execute({
       viewerUserId: user.id,

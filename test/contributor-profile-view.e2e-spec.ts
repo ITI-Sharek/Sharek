@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request = require('supertest');
+import * as request from 'supertest';
 
 import { ContributorProfilesController } from '../src/modules/contributor-profiles/presentation/http/controllers/contributor-profiles.controller';
 import { EnsureContributorProfileUseCase } from '../src/modules/contributor-profiles/application/use-cases/ensure-contributor-profile.use-case';
@@ -16,8 +16,11 @@ describe('Contributor profile authenticated viewer HTTP flow', () => {
       completionPrompts: [],
       skills: [
         {
-          id: 'skill-1',
+          name: 'NestJS',
+          proficiencyLevel: 'advanced',
+          confidence: 0.9,
           status: 'approved',
+          evidenceSummary: null,
         },
       ],
     }),
@@ -68,7 +71,15 @@ describe('Contributor profile authenticated viewer HTTP flow', () => {
       .expect(({ body }) => {
         expect(body.viewerRelationship).toBe('authenticated-viewer');
         expect(body.completionPrompts).toEqual([]);
-        expect(body.skills).toHaveLength(1);
+        expect(body.skills).toEqual([
+          {
+            name: 'NestJS',
+            proficiencyLevel: 'advanced',
+            confidence: 0.9,
+            status: 'approved',
+            evidenceSummary: null,
+          },
+        ]);
       });
   });
 });

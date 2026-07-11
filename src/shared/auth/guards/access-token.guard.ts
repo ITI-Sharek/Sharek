@@ -4,8 +4,12 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 
 import { DatabaseService } from '../../database/database.service';
+import {
+  ALLOW_INACTIVE_AUTHENTICATED_USERS_KEY,
+} from '../allow-inactive-authenticated-users.decorator';
 import { AuthenticatedRequest } from '../authenticated-request';
 import { hashToken } from '../token-hash';
 
@@ -18,7 +22,10 @@ function canUseSession(user: {
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -41,7 +48,13 @@ export class AccessTokenGuard implements CanActivate {
       },
     });
 
-    if (!session || !canUseSession(session.user)) {
+    const allowInactiveAuthenticatedUsers =
+      this.reflector.getAllAndOverride<boolean>(
+        ALLOW_INACTIVE_AUTHENTICATED_USERS_KEY,
+        [context.getHandler(), context.getClass()],
+      ) ?? false;
+
+    if (!session || (!allowInactiveAuthenticatedUsers && !canUseSession(session.user))) {
       throw new UnauthorizedException('Invalid or expired session');
     }
 

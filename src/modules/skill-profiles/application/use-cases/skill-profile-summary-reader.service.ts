@@ -27,13 +27,11 @@ export class SkillProfileSummaryReaderService {
     });
 
     return skills.map((skill) => ({
-      id: skill.id,
       name: skill.skill_name,
       proficiencyLevel: skill.proficiency_level,
-      confidenceScore: skill.confidence_score,
+      confidence: skill.confidence_score,
       status: skill.status,
       evidenceSummary: skill.evidence_summary,
-      evidenceSources: skill.evidence_sources,
     }));
   }
 }

@@ -1,11 +1,9 @@
 export interface ContributorProfileSkillDto {
-  id: string;
   name: string;
   proficiencyLevel: 'beginner' | 'intermediate' | 'advanced';
-  confidenceScore: number;
+  confidence: number;
   status: 'pending' | 'approved' | 'rejected' | 'disputed';
   evidenceSummary: string | null;
-  evidenceSources: unknown;
 }
 
 export interface ContributorProfileGitHubStatusDto {
