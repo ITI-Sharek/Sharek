@@ -6,6 +6,7 @@ export function toAuthUserDto(user: User): AuthUserDto {
   return {
     id: user.id,
     email: user.email,
+    username: user.username,
     firstName: user.first_name,
     lastName: user.last_name,
     avatarUrl: user.avatar_url,

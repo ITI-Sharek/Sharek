@@ -1,9 +1,13 @@
 node_modules
 dist
+build
 coverage
 .git
 .env
+.env.*
+*.log*
 npm-debug.log
 Dockerfile
+Dockerfile*
+.dockerignore
 docker-compose.yml
-

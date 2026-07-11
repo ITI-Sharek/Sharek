@@ -1,5 +1,9 @@
 import { Module } from '@nestjs/common';
 
-@Module({})
-export class SkillProfilesModule {}
+import { SkillProfileSummaryReaderService } from './application/use-cases/skill-profile-summary-reader.service';
 
+@Module({
+  providers: [SkillProfileSummaryReaderService],
+  exports: [SkillProfileSummaryReaderService],
+})
+export class SkillProfilesModule {}
