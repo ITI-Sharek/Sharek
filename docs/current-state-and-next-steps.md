@@ -37,6 +37,8 @@ Done:
 - Root backend overview: `README.md`
 - AI agent instructions: `AGENTS.md`
 - Architecture docs: `docs/architecture.md`
+- Developer architecture guide: `docs/developer-architecture-guide.md`
+- Module development tracker: `docs/module-development-tracker.md`
 - Coding conventions: `docs/backend-conventions.md`
 - AI coding rules: `docs/ai-agent-rules.md`
 - Team ownership: `docs/member-ownership.md`
@@ -67,6 +69,11 @@ Done:
   assignment endpoints.
 - GitHub OAuth start/callback/account/disconnect endpoints.
 - GitHub OAuth token encryption before database storage.
+- GitHub repository listing, project import snapshot, README/language fetch,
+  contribution activity normalization, and recent commit signal normalization.
+- GitHub Actions backend CI for architecture check, lint, unit tests, and build.
+- Automated HTTP smoke test for owner registration, GitHub OAuth callback with
+  mocked GitHub responses, repository listing, and GitHub project import.
 - Basic health controller test.
 
 ### Feature-First Module Structure
@@ -167,7 +174,7 @@ Not done yet:
 
 Not implemented yet:
 
-- GitHub repository ingestion.
+- Background GitHub repository ingestion after OAuth connect.
 - Skill profile generation.
 - Admin skill review.
 - Project publishing.
@@ -178,7 +185,6 @@ Not implemented yet:
 - Reputation.
 - Subscription and premium limits.
 - BullMQ worker.
-- CI pipeline.
 - Production deployment.
 
 ## Is The Worker Installed?
@@ -205,8 +211,9 @@ generation, skill profiling, or long AI validation.
 Yes, but each person should start from the sprint scope and stay inside their
 module boundaries.
 
-The immediate priority is Sprint 1 foundation verification before deep feature
-work.
+The immediate priority is to keep the foundation verified while building the
+next sprint features. Every module change should follow
+`docs/module-development-tracker.md`.
 
 ## What Each Member Should Do Next
 
@@ -298,7 +305,7 @@ Next work:
 - Verify Redis starts.
 - Run Prisma migration.
 - Run health endpoint test.
-- Prepare CI commands for lint and tests.
+- Keep CI commands aligned with local verification.
 - Add BullMQ only when a sprint needs background jobs.
 - Decide with M2/M4 how the separate FastAPI AI repository should run locally:
   independent process, shared Docker network, or compose override.

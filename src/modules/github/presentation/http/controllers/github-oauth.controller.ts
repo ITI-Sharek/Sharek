@@ -11,6 +11,7 @@ import {
 import { AuthenticatedUser } from '../../../../../shared/auth/authenticated-request';
 import { CurrentUser } from '../../../../../shared/auth/current-user.decorator';
 import { AccessTokenGuard } from '../../../../../shared/auth/guards/access-token.guard';
+import { ApplicationError } from '../../../../../shared/errors/application.error';
 import { GitHubOAuthService } from '../../../application/use-cases/github-oauth.service';
 import { GitHubRepositoryService } from '../../../application/use-cases/github-repository.service';
 import { GitHubOAuthCallbackRequest } from '../requests/github-oauth-callback.request';
@@ -59,9 +60,7 @@ export class GitHubOAuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('fullName') fullName: string,
   ) {
-    if (!fullName) {
-      throw new Error('fullName query parameter is required');
-    }
+    this.assertFullName(fullName);
     const content = await this.gitHubRepositoryService.getRepositoryReadme(
       user.id,
       fullName,
@@ -79,9 +78,7 @@ export class GitHubOAuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('fullName') fullName: string,
   ) {
-    if (!fullName) {
-      throw new Error('fullName query parameter is required');
-    }
+    this.assertFullName(fullName);
     const description = await this.gitHubRepositoryService.getRepositoryDescription(
       user.id,
       fullName,
@@ -98,9 +95,7 @@ export class GitHubOAuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('fullName') fullName: string,
   ) {
-    if (!fullName) {
-      throw new Error('fullName query parameter is required');
-    }
+    this.assertFullName(fullName);
     return this.gitHubRepositoryService.fetchRepositoryStatistics(
       user.id,
       fullName,
@@ -113,9 +108,7 @@ export class GitHubOAuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('fullName') fullName: string,
   ) {
-    if (!fullName) {
-      throw new Error('fullName query parameter is required');
-    }
+    this.assertFullName(fullName);
     return this.gitHubRepositoryService.fetchContributionActivity(
       user.id,
       fullName,
@@ -129,9 +122,7 @@ export class GitHubOAuthController {
     @Query('fullName') fullName: string,
     @Query('author') author?: string,
   ) {
-    if (!fullName) {
-      throw new Error('fullName query parameter is required');
-    }
+    this.assertFullName(fullName);
     return this.gitHubRepositoryService.fetchCommitSignals(
       user.id,
       fullName,
@@ -146,5 +137,15 @@ export class GitHubOAuthController {
     return {
       success: true,
     };
+  }
+
+  private assertFullName(fullName: string | undefined): void {
+    if (!fullName?.trim()) {
+      throw new ApplicationError(
+        'fullName query parameter is required',
+        'GITHUB_REPOSITORY_FULL_NAME_REQUIRED',
+        400,
+      );
+    }
   }
 }

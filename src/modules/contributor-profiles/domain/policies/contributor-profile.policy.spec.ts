@@ -1,5 +1,3 @@
-import { UserRole, UserStatus } from '@prisma/client';
-
 import {
   assertCanEnsureContributorProfile,
   getViewerRelationship,
@@ -7,37 +5,37 @@ import {
 } from './contributor-profile.policy';
 
 describe('contributor profile policy', () => {
-  it.each([UserStatus.active, UserStatus.pending])(
+  it.each(['active', 'pending'] as const)(
     'allows %s contributors to ensure a profile',
     (status) => {
       expect(() =>
         assertCanEnsureContributorProfile({
-          role: UserRole.contributor,
+          role: 'contributor',
           status,
         }),
       ).not.toThrow();
     },
   );
 
-  it.each([UserStatus.suspended, UserStatus.deactivated])(
+  it.each(['suspended', 'deactivated'] as const)(
     'blocks %s contributors from ensuring a profile',
     (status) => {
       expect(() =>
         assertCanEnsureContributorProfile({
-          role: UserRole.contributor,
+          role: 'contributor',
           status,
         }),
       ).toThrow('Contributor profile is not available');
     },
   );
 
-  it.each([UserRole.owner, UserRole.admin])(
+  it.each(['owner', 'admin'] as const)(
     'blocks %s accounts from ensuring contributor profiles',
     (role) => {
       expect(() =>
         assertCanEnsureContributorProfile({
           role,
-          status: UserStatus.active,
+          status: 'active',
         }),
       ).toThrow('Only contributors');
     },
@@ -46,8 +44,8 @@ describe('contributor profile policy', () => {
   it('hides inactive contributor profiles and resolves viewer relationship', () => {
     expect(
       isContributorProfileVisible({
-        role: UserRole.contributor,
-        status: UserStatus.deactivated,
+        role: 'contributor',
+        status: 'deactivated',
       }),
     ).toBe(false);
     expect(getViewerRelationship('viewer-1', 'viewer-1')).toBe('owner');

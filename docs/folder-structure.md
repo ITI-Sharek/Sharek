@@ -191,6 +191,15 @@ AGENTS.md
 docs/README.md
 docs/current-state-and-next-steps.md
 docs/architecture.md
+docs/developer-architecture-guide.md
+docs/module-development-tracker.md
 docs/backend-conventions.md
 docs/definition-of-done.md
 ```
+
+Use `docs/developer-architecture-guide.md` when you need practical placement
+rules such as where controllers, request DTOs, use cases, ports, repositories,
+domain policies, and tests should live.
+
+Use `docs/module-development-tracker.md` to track module status, per-task
+checklists, tests, documentation updates, and change records.

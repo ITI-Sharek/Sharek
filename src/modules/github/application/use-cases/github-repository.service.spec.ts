@@ -11,19 +11,23 @@ describe('GitHubRepositoryService', () => {
   const tokenEncryption = {
     decrypt: jest.fn(),
   };
+  const gitHubApiClient = {
+    listRepositories: jest.fn(),
+    getRepository: jest.fn(),
+    getRepositoryLanguages: jest.fn(),
+    getRepositoryReadme: jest.fn(),
+    getRepositoryContributionStats: jest.fn(),
+    getRepositoryCommitActivity: jest.fn(),
+    listRecentCommits: jest.fn(),
+  };
   const service = new GitHubRepositoryService(
     database as never,
     tokenEncryption as never,
+    gitHubApiClient as never,
   );
-  const originalFetch = global.fetch;
 
   beforeEach(() => {
     jest.resetAllMocks();
-    global.fetch = jest.fn();
-  });
-
-  afterAll(() => {
-    global.fetch = originalFetch;
   });
 
   it('requires a connected GitHub account before listing repositories', async () => {
@@ -40,8 +44,8 @@ describe('GitHubRepositoryService', () => {
       access_token: 'encrypted-token',
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
-    mockFetchJson([getRepositoryPayload()]);
-    mockFetchJson({
+    gitHubApiClient.listRepositories.mockResolvedValue([getRepositoryPayload()]);
+    gitHubApiClient.getRepositoryLanguages.mockResolvedValue({
       TypeScript: 1000,
     });
 
@@ -65,11 +69,28 @@ describe('GitHubRepositoryService', () => {
       access_token: 'encrypted-token',
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
-    mockFetchJson(getRepositoryPayload());
-    mockFetchJson({
+    gitHubApiClient.getRepository.mockResolvedValue(getRepositoryPayload());
+    gitHubApiClient.getRepositoryLanguages.mockResolvedValue({
       TypeScript: 1000,
     });
-    mockFetchText('# Share-k API');
+    gitHubApiClient.getRepositoryReadme.mockResolvedValue('# Share-k API');
+    gitHubApiClient.getRepositoryContributionStats.mockResolvedValue({
+      data: [getContributorStatsPayload()],
+      unavailableReason: null,
+    });
+    gitHubApiClient.getRepositoryCommitActivity.mockResolvedValue({
+      data: [
+        {
+          week: 1783296000,
+          total: 3,
+        },
+      ],
+      unavailableReason: null,
+    });
+    gitHubApiClient.listRecentCommits.mockResolvedValue({
+      data: [getCommitPayload()],
+      unavailableReason: null,
+    });
 
     const snapshot = await service.getImportSnapshot(
       'user-id',
@@ -85,8 +106,77 @@ describe('GitHubRepositoryService', () => {
       technologies: ['nestjs', 'TypeScript'],
       repoStatistics: {
         stars: 5,
+        contributionActivity: {
+          totalContributors: 1,
+          totalCommits: 3,
+        },
+        commitSignals: {
+          recentCommitCount: 1,
+          authors: ['sharek-dev'],
+        },
       },
       readmeContent: '# Share-k API',
+      contributionActivity: {
+        totalContributors: 1,
+        totalCommits: 3,
+        lastYearCommitCount: 3,
+      },
+      commitSignals: {
+        recentCommitCount: 1,
+        authors: ['sharek-dev'],
+      },
+    });
+  });
+
+  it('builds limited repository evidence for skill profiling', async () => {
+    database.gitHubAccount.findUnique.mockResolvedValue({
+      access_token: 'encrypted-token',
+    });
+    tokenEncryption.decrypt.mockReturnValue('plain-token');
+    gitHubApiClient.listRepositories.mockResolvedValue([
+      getRepositoryPayload(),
+      {
+        ...getRepositoryPayload(),
+        id: 456,
+        name: 'sharek-web',
+        full_name: 'ITI-Sharek/sharek-web',
+      },
+    ]);
+    gitHubApiClient.getRepositoryLanguages.mockResolvedValue({
+      TypeScript: 1000,
+    });
+    gitHubApiClient.getRepositoryReadme.mockResolvedValue('# Share-k API');
+    gitHubApiClient.getRepositoryContributionStats.mockResolvedValue({
+      data: [getContributorStatsPayload()],
+      unavailableReason: null,
+    });
+    gitHubApiClient.getRepositoryCommitActivity.mockResolvedValue({
+      data: [
+        {
+          week: 1783296000,
+          total: 3,
+        },
+      ],
+      unavailableReason: null,
+    });
+    gitHubApiClient.listRecentCommits.mockResolvedValue({
+      data: [getCommitPayload()],
+      unavailableReason: null,
+    });
+
+    const evidence = await service.getSkillProfilingEvidence('user-id', 1);
+
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]).toMatchObject({
+      repository: {
+        fullName: 'ITI-Sharek/sharek-api',
+      },
+      contributionActivity: {
+        totalCommits: 3,
+      },
+      commitSignals: {
+        recentCommitCount: 1,
+      },
     });
   });
 
@@ -131,16 +221,37 @@ function getRepositoryPayload() {
   };
 }
 
-function mockFetchJson(payload: unknown): void {
-  jest.mocked(global.fetch).mockResolvedValueOnce({
-    ok: true,
-    json: () => Promise.resolve(payload),
-  } as Response);
+function getContributorStatsPayload() {
+  return {
+    author: {
+      login: 'sharek-dev',
+      html_url: 'https://github.com/sharek-dev',
+    },
+    total: 3,
+    weeks: [
+      {
+        w: 1783296000,
+        a: 120,
+        d: 30,
+        c: 3,
+      },
+    ],
+  };
 }
 
-function mockFetchText(payload: string): void {
-  jest.mocked(global.fetch).mockResolvedValueOnce({
-    ok: true,
-    text: () => Promise.resolve(payload),
-  } as Response);
+function getCommitPayload() {
+  return {
+    sha: 'abc123',
+    html_url: 'https://github.com/ITI-Sharek/sharek-api/commit/abc123',
+    commit: {
+      message: 'Add GitHub evidence snapshot\n\nDetailed body',
+      author: {
+        name: 'Sharek Dev',
+        date: '2026-07-05T02:00:00Z',
+      },
+    },
+    author: {
+      login: 'sharek-dev',
+    },
+  };
 }

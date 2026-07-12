@@ -3,7 +3,15 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['node_modules/', 'dist/', 'build/', 'coverage/', '*.min.js'],
+    ignores: [
+      'node_modules/',
+      'dist/',
+      'build/',
+      'coverage/',
+      '*.min.js',
+      '**/*.locked-backup.*/**',
+      '.locked-file-backups/**',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

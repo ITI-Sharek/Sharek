@@ -22,6 +22,7 @@ import { ObservabilityModule } from './shared/observability/observability.module
 @Module({
   imports: [
     ConfigModule.forRoot({
+      envFilePath: ['.env.local', '.env'],
       isGlobal: true,
       validationSchema: envValidationSchema,
       validationOptions: {

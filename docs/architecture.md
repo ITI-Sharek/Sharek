@@ -97,6 +97,9 @@ presentation/
 Simple modules may start smaller. Do not create empty directories only to look
 architectural.
 
+For practical file-placement rules and examples from the current codebase, use
+`docs/developer-architecture-guide.md`.
+
 ## Dependency Rules
 
 - Controllers call use cases.
@@ -107,6 +110,8 @@ architectural.
   and queue workers.
 - Other modules consume public APIs, reader ports, or events.
 - Other modules do not import private repositories or infrastructure classes.
+- Cross-module dependency is allowed when it is explicit, narrow, and owned by
+  the provider module.
 
 ## AI Service Rule
 

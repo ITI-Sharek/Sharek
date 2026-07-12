@@ -58,7 +58,17 @@ JWT_REFRESH_SECRET=change-me
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 GITHUB_OAUTH_CALLBACK_URL=http://localhost:4000/github/oauth/callback
+GITHUB_AUTH_CALLBACK_URL=http://localhost:4000/auth/github/callback
 GITHUB_TOKEN_ENCRYPTION_KEY=change-this-github-token-encryption-key-32-chars-min
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_OAUTH_CALLBACK_URL=http://localhost:4000/auth/google/callback
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
+EMAIL_FROM=
 AI_SERVICE_URL=http://host.docker.internal:8000
 AI_SERVICE_TIMEOUT_MS=5000
 AI_SERVICE_AUTH_TOKEN=
@@ -66,6 +76,12 @@ AI_LOW_CONFIDENCE_THRESHOLD=0.70
 ```
 
 Secrets in `.env.example` must be placeholders only.
+
+For email verification, Gmail can be used through SMTP by setting
+`SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=false`,
+`SMTP_USER` to the Gmail address, `SMTP_PASS` to a Google App Password, and
+`EMAIL_FROM` to the sender address. Do not use or commit a normal Gmail account
+password.
 
 ## Standard Commands
 

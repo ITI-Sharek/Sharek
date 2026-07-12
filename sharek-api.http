@@ -4,13 +4,16 @@
 # 1. Install the VS Code extension: REST Client.
 # 2. Run the backend locally. Default URL is http://localhost:4000.
 # 3. Open this file and click "Send Request" above any request.
-# 4. Start with Health, then Register/Login, then protected requests.
+# 4. Start with Health, then Register, Verify Email, Login, then protected
+#    requests.
 # 5. Do not run every request blindly. Some requests are optional, like
 #    GitHub disconnect, admin role assignment, refresh, and logout.
 #
 # Important:
 # - Public endpoint: no Authorization header needed.
 # - Protected endpoint: must send "Authorization: Bearer <accessToken>".
+# - Values at the top are frontend/dev placeholders. Replace emails, OTPs,
+#   OAuth codes, and user ids with real values from your current environment.
 # - The login response returns:
 #   {
 #     "user": { ... },
@@ -22,21 +25,83 @@
 #     }
 #   }
 # - If register returns EMAIL_TAKEN, the user already exists. Run Login instead.
+# - Email/password register does not return tokens anymore. It sends a 6-digit
+#   OTP by SMTP/email. In local dev with no SMTP config, check the backend logs.
+#   Then call /auth/verify-email to activate the account and receive tokens.
 # - Keep Logout near the end. Logout revokes the session, so later protected
 #   requests with the same token will return 401.
 # - Refresh creates a new access token for the same session. After refresh,
 #   the old login access token is no longer the active token.
+#
+# Test account rules:
+# - You can register/login with email/password, Google, or GitHub.
+# - Direct Google/GitHub auth creates or logs into one Share-k user. If the
+#   provider email matches an existing user, the provider is linked to that user.
+# - The role in /auth/google/start or /auth/github/start is used only when a
+#   new user is created. Existing users keep their current role.
+# - You can create one owner user and one contributor user with different
+#   emails in this file.
+# - The same real GitHub account cannot be connected to both users at the same
+#   time. Use two GitHub accounts, disconnect first, or delete local test rows.
+# - Direct GitHub auth also stores/refreshes the connected GitHub account token.
+# - Contributor GitHub connect is the main skill-evidence flow for public and
+#   private repositories.
+# - Owner project import does not require connecting the owner GitHub account.
+#   The owner can paste a public GitHub repo URL/fullName in Step 11.
+#
+# Implemented/fixed endpoint status:
+# - [DONE] GET /health
+# - [DONE] POST /auth/register
+# - [DONE] POST /auth/verify-email
+# - [DONE] POST /auth/verify-email/resend
+# - [DONE] POST /auth/login
+# - [DONE] GET /auth/google/start
+# - [DONE] GET /auth/google/callback
+# - [DONE] POST /auth/google/callback
+# - [DONE] GET /auth/github/start
+# - [DONE] GET /auth/github/callback
+# - [DONE] POST /auth/github/callback
+# - [DONE] GET /auth/me
+# - [DONE] GET /github/oauth/start
+# - [DONE] GET /github/oauth/callback
+# - [DONE] POST /github/oauth/callback
+# - [DONE] GET /github/account
+# - [DONE] GET /github/repositories
+# - [DONE] GET /github/readme
+# - [DONE] GET /github/repository/description
+# - [DONE] GET /github/repository/statistics
+# - [DONE] GET /github/repository/contribution-activity
+# - [DONE] GET /github/repository/commit-signals
+# - [DONE] POST /projects/import/github
+# - [DONE] DELETE /github/account
+# - [DONE] PATCH /auth/users/:id/role
+# - [DONE] POST /auth/refresh
+# - [DONE] POST /auth/logout
+#
+# GitHub flow status:
+# - [DONE] Register/login with Share-k auth.
+# - [DONE] Register/login directly with Google or GitHub social auth.
+# - [DONE] Connect GitHub after login through OAuth.
+# - [DONE] List connected GitHub repositories. Contributors request GitHub
+#   `repo` consent so this can include public and private repositories for
+#   skill evidence. Owners/admins keep lighter public repository consent.
+# - [DONE] Import a GitHub project with README, languages, repository stats,
+#   contribution activity, and recent commit signals where GitHub exposes them.
+# - [MANUAL] Real browser OAuth still needs a real GitHub OAuth app/code.
 
 @baseUrl = http://localhost:4000
 @ownerEmail = owner@example.com
 @contributorEmail = contributor@example.com
 @adminEmail = admin@example.com
 @password = Password123!
+@ownerOtp = replace-with-owner-email-otp
+@contributorOtp = replace-with-contributor-email-otp
 @githubRepoFullName = openai/openai-node
+@githubRepoUrl = https://github.com/openai/openai-node
 @userIdToPromote = replace-with-real-user-id
 
 
-### 01 - Health check
+### 01 - DONE - Health check
 # What it does:
 # Checks if the backend server is alive.
 #
@@ -45,15 +110,16 @@
 #
 # Expected success response:
 # {
+#   "message": "Service is healthy",
 #   "status": "ok"
 # }
 GET {{baseUrl}}/health
 
 
-### 02 - Register owner user
+### 02 - DONE - Register owner user
 # @name ownerRegister
 # What it does:
-# Creates a new user with role "owner".
+# Creates a new pending user with role "owner" and sends an email OTP.
 #
 # Auth:
 # Public.
@@ -65,7 +131,8 @@ GET {{baseUrl}}/health
 # - preferredLanguage must be "en" or "ar".
 #
 # Expected success response:
-# Auth session object: user + tokens.
+# user + emailVerificationRequired + verificationExpiresAt.
+# No tokens are returned until Step 02B verifies the OTP.
 POST {{baseUrl}}/auth/register
 Content-Type: application/json
 
@@ -79,10 +146,27 @@ Content-Type: application/json
 }
 
 
-### 03 - Register contributor user
+### 02B - DONE - Verify owner email OTP
+# @name ownerVerifyEmail
+# What it does:
+# Activates the pending owner account and returns user + tokens.
+#
+# Where to find the code:
+# - In real SMTP/Gmail config, check the user's email inbox.
+# - In local dev without SMTP config, check backend logs for the OTP.
+POST {{baseUrl}}/auth/verify-email
+Content-Type: application/json
+
+{
+  "email": "{{ownerEmail}}",
+  "code": "{{ownerOtp}}"
+}
+
+
+### 03 - DONE - Register contributor user
 # @name contributorRegister
 # What it does:
-# Creates a normal contributor account.
+# Creates a pending contributor account and sends an email OTP.
 #
 # Auth:
 # Public.
@@ -99,10 +183,35 @@ Content-Type: application/json
 }
 
 
-### 04 - Login as owner
+### 03B - DONE - Verify contributor email OTP
+# @name contributorVerifyEmail
+# What it does:
+# Activates the pending contributor account and returns user + tokens.
+POST {{baseUrl}}/auth/verify-email
+Content-Type: application/json
+
+{
+  "email": "{{contributorEmail}}",
+  "code": "{{contributorOtp}}"
+}
+
+
+### 03C - DONE - Resend email OTP
+# What it does:
+# Sends a fresh OTP for a pending account. The latest OTP is the valid one.
+POST {{baseUrl}}/auth/verify-email/resend
+Content-Type: application/json
+
+{
+  "email": "{{ownerEmail}}"
+}
+
+
+### 04 - DONE - Login as owner
 # @name ownerLogin
 # What it does:
 # Logs in with email/password and returns user + tokens.
+# Login works only after Step 02B activates the account.
 #
 # Auth:
 # Public.
@@ -121,7 +230,95 @@ Content-Type: application/json
 }
 
 
-### 05 - Get current logged-in user
+### 04B - DONE - Login as contributor
+# @name contributorLogin
+# What it does:
+# Logs in with the contributor account and returns user + tokens.
+#
+# Why this exists:
+# The GitHub evidence flow below is contributor-first. Contributors connect
+# GitHub so Share-k can analyze public and private repositories for skills.
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{contributorEmail}}",
+  "password": "{{password}}"
+}
+
+
+### 04C - DONE - Start Google sign up/sign in
+# @name googleAuthStart
+# What it does:
+# Starts direct Google social auth. Use this for either signup or signin.
+#
+# Auth:
+# Public.
+#
+# Query:
+# - role: "owner" or "contributor". This is used only if a new Share-k user
+#   must be created. Existing users keep their saved role.
+#
+# Manual test:
+# 1. Click "Send Request".
+# 2. Open authorizationUrl in the browser.
+# 3. Approve Google.
+# 4. Google redirects to /auth/google/callback with code/state.
+# 5. Use that real code/state in Step 04D if your browser does not show JSON.
+GET {{baseUrl}}/auth/google/start?role=contributor
+
+
+### 04D - DONE - Complete Google sign up/sign in from frontend
+# What it does:
+# Exchanges the real Google OAuth code/state and returns the normal Share-k
+# AuthSessionDto: user + accessToken + refreshToken.
+#
+# Important:
+# code is one-time. If this fails once, run Step 04C again.
+POST {{baseUrl}}/auth/google/callback
+Content-Type: application/json
+
+{
+  "code": "replace-with-google-code",
+  "state": "{{googleAuthStart.response.body.$.state}}"
+}
+
+
+### 04E - DONE - Start GitHub sign up/sign in
+# @name githubAuthStart
+# What it does:
+# Starts direct GitHub social auth. This is different from Step 06:
+# - This endpoint logs a user in or creates a Share-k account.
+# - Step 06 connects GitHub for an already logged-in user.
+#
+# Auth:
+# Public.
+#
+# Role behavior:
+# - contributor: requests GitHub `repo` scope so skill evidence can include
+#   public and private repositories after consent.
+# - owner: requests lighter public repository consent.
+GET {{baseUrl}}/auth/github/start?role=contributor
+
+
+### 04F - DONE - Complete GitHub sign up/sign in from frontend
+# What it does:
+# Exchanges the real GitHub OAuth code/state and returns the normal Share-k
+# AuthSessionDto. Direct GitHub auth also stores the connected GitHub account
+# token for that user.
+#
+# Important:
+# code is one-time. If this fails once, run Step 04E again.
+POST {{baseUrl}}/auth/github/callback
+Content-Type: application/json
+
+{
+  "code": "replace-with-github-code",
+  "state": "{{githubAuthStart.response.body.$.state}}"
+}
+
+
+### 05 - DONE - Get current logged-in user
 # What it does:
 # Returns the profile of the user connected to the access token.
 #
@@ -147,9 +344,9 @@ GET {{baseUrl}}/auth/me
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 
-### 06 - Start GitHub OAuth connection
+### 06 - DONE - Start GitHub OAuth connection
 # What it does:
-# Starts GitHub connect flow for the logged-in user.
+# Starts GitHub connect flow for the logged-in contributor.
 #
 # Auth:
 # Protected.
@@ -163,11 +360,34 @@ Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 #
 # Frontend usage:
 # Redirect the browser to authorizationUrl.
+#
+# Role behavior:
+# - Contributor OAuth requests GitHub `repo` scope so Share-k can fetch public
+#   and private repositories for skill evidence after explicit consent.
+# - Owner/admin OAuth requests lighter public repository consent. This is now
+#   optional because owner project import can use a public repo URL/fullName.
+#
+# Manual test:
+# 1. Click "Send Request" for this request.
+# 2. Copy authorizationUrl from the response.
+# 3. Open that authorizationUrl in your browser.
+# 4. Approve access on GitHub.
+# 5. GitHub should redirect to /github/oauth/callback with real code/state.
+# 6. The callback response should be a GitHubAccountDto. If you do not see that
+#    success response, the GitHub account is not connected yet.
+#
+# If the callback returns GITHUB_ACCOUNT_TAKEN:
+# - You approved GitHub with an account already linked to another Share-k user
+#   in this local database.
+# - Step 09 will still return GITHUB_ACCOUNT_NOT_CONNECTED for the current
+#   contributor token because this contributor did not receive the connection.
+# - Fix by logging in as the Share-k user that already owns that GitHub account
+#   and running Step 12 to disconnect it, or use a different GitHub account.
 GET {{baseUrl}}/github/oauth/start
-Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 07 - GitHub OAuth callback from browser redirect
+### 07 - DONE - GitHub OAuth callback from browser redirect
 # What it does:
 # This is the redirect endpoint GitHub can call after the user approves access.
 #
@@ -177,10 +397,19 @@ Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 # Frontend note:
 # In a real browser flow, GitHub redirects to this URL with code and state.
 # Replace both values before testing manually.
+#
+# Important:
+# Do not click this request with the placeholder values below. It will not
+# connect GitHub. Use the browser redirect from Step 06, or paste the real
+# one-time code and exact state from GitHub.
+#
+# Expected success response:
+# GitHubAccountDto with username/githubId. After this succeeds, Step 09 should
+# return the same connected account for the same contributor token.
 GET {{baseUrl}}/github/oauth/callback?code=replace-with-github-code&state=replace-with-oauth-state
 
 
-### 08 - GitHub OAuth callback from frontend
+### 08 - DONE - GitHub OAuth callback from frontend
 # What it does:
 # Connects the GitHub account when the frontend receives code/state and sends
 # them to the backend.
@@ -191,6 +420,10 @@ GET {{baseUrl}}/github/oauth/callback?code=replace-with-github-code&state=replac
 # Body:
 # - code: value returned by GitHub.
 # - state: value returned by "06 - Start GitHub OAuth connection".
+#
+# Important:
+# Do not use placeholder values. The GitHub code is one-time and expires fast.
+# If this request fails once, run Step 06 again and use the new authorizationUrl.
 POST {{baseUrl}}/github/oauth/callback
 Content-Type: application/json
 
@@ -200,12 +433,21 @@ Content-Type: application/json
 }
 
 
-### 09 - Get connected GitHub account
+### 09 - DONE - Get connected GitHub account
 # What it does:
 # Returns the GitHub account connected to the logged-in user.
 #
 # Auth:
 # Protected.
+#
+# If this returns GITHUB_ACCOUNT_NOT_CONNECTED:
+# - Step 07/08 did not finish successfully.
+# - Or Step 06 was started with a different Share-k user token.
+# - Or the database was reset/restarted after connecting.
+# - Or Step 07/08 returned GITHUB_ACCOUNT_TAKEN, meaning the GitHub account is
+#   already linked to another Share-k user and was not connected to this token.
+# Run Step 06 again, open authorizationUrl in browser, approve GitHub, confirm
+# the callback returns GitHubAccountDto, then run Step 09 again.
 #
 # Expected success response:
 # GitHubAccountDto:
@@ -220,31 +462,88 @@ Content-Type: application/json
 #   "lastSyncedAt": null
 # }
 GET {{baseUrl}}/github/account
-Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 10 - List GitHub repositories
+### 10 - DONE - List GitHub repositories
 # What it does:
-# Lists repositories available from the connected GitHub account.
+# Lists repositories available from the connected contributor GitHub account.
+# With contributor `repo` consent, this can include public and private repos.
 #
 # Auth:
 # Protected.
 #
+# If this fails:
+# - GITHUB_ACCOUNT_NOT_CONNECTED means run steps 06 and 07/08 first.
+# - GITHUB_TOKEN_DECRYPT_FAILED means the local GITHUB_TOKEN_ENCRYPTION_KEY
+#   changed after connecting GitHub. Run step 12 if possible, then reconnect
+#   GitHub with steps 06 and 07/08.
+# - GITHUB_API_REQUEST_FAILED usually means the GitHub token is invalid,
+#   expired, missing scope, or GitHub rejected the request. Reconnect GitHub
+#   and verify the contributor OAuth screen includes repo access.
+# - GITHUB_REPOSITORY_LIST_INVALID_RESPONSE means GitHub did not return the
+#   expected repository array. Check backend logs and reconnect GitHub.
+#
 # Expected success response:
-# Array of GitHubRepositoryDto.
+# Array of GitHubRepositoryDto. This is the lightweight repository picker data:
+# identity, description, URL, visibility, default branch, languages, topics,
+# stars, forks, open issues, watchers, pushedAt, and updatedAt.
 GET {{baseUrl}}/github/repositories
-Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 11 - Import GitHub project
+### 10B - DONE - Get repository README
 # What it does:
-# Imports or refreshes a project from a GitHub repository full name.
+# Returns raw README content for a connected GitHub repository, if available.
+GET {{baseUrl}}/github/readme?fullName={{githubRepoFullName}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 10C - DONE - Get repository description
+# What it does:
+# Returns the GitHub repository description.
+GET {{baseUrl}}/github/repository/description?fullName={{githubRepoFullName}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 10D - DONE - Get repository statistics
+# What it does:
+# Returns normalized repo counters, contribution activity, and commit signals.
+GET {{baseUrl}}/github/repository/statistics?fullName={{githubRepoFullName}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 10E - DONE - Get repository contribution activity
+# What it does:
+# Returns contributor and weekly commit activity when GitHub exposes it.
+GET {{baseUrl}}/github/repository/contribution-activity?fullName={{githubRepoFullName}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 10F - DONE - Get repository commit signals
+# What it does:
+# Returns recent commit headlines/authors/dates. Optional author filters the
+# returned recent commits by author text.
+GET {{baseUrl}}/github/repository/commit-signals?fullName={{githubRepoFullName}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 11 - DONE - Import GitHub project
+# What it does:
+# Imports or refreshes a project from a public GitHub repository full name or URL.
 #
 # Auth:
 # Protected. Role must be "owner" or "admin".
 #
 # Body rules:
-# - fullName must look like "owner/repository".
+# Send either:
+# - fullName: GitHub repo full name in "owner/repository" format.
+# - repoUrl: public GitHub repo URL, like "https://github.com/owner/repo".
+#
+# Important:
+# Owner GitHub connect is not required for this step. The backend uses GitHub's
+# public repository API. Private owner repositories are not imported by this MVP
+# endpoint; the owner should choose a public project repo for contributors.
 #
 # Expected success response:
 # ImportedProjectDto:
@@ -258,24 +557,48 @@ Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 #   "languages": ...,
 #   "tags": ...,
 #   "technologies": ...,
-#   "repoStatistics": ...,
+#   "repoStatistics": {
+#     "stars": 5,
+#     "forks": 1,
+#     "contributionActivity": {
+#       "totalContributors": 3,
+#       "totalCommits": 42,
+#       "lastYearCommitCount": 20,
+#       "unavailableReason": null
+#     },
+#     "commitSignals": {
+#       "recentCommitCount": 30,
+#       "authors": ["owner-login"],
+#       "unavailableReason": null
+#     }
+#   },
 #   "status": "draft",
 #   "readmeContent": "...",
 #   "createdAt": "...",
 #   "updatedAt": "..."
 # }
+#
+# Notes:
+# - This owner import step is separate from the contributor skill-evidence
+#   flow above.
+# - Product direction: contributor GitHub is for skill evidence; owner project
+#   import is a public repo selection by URL/fullName.
+# - The backend also fetches README, contribution activity, and recent commit
+#   signals for the normalized snapshot.
+# - GitHub stats endpoints can return pending/unavailable. In that case import
+#   still succeeds and repoStatistics contains an unavailableReason.
 POST {{baseUrl}}/projects/import/github
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json
 
 {
-  "fullName": "{{githubRepoFullName}}"
+  "repoUrl": "{{githubRepoUrl}}"
 }
 
 
-### 12 - Disconnect GitHub account
+### 12 - DONE - Disconnect GitHub account
 # What it does:
-# Removes the connected GitHub account/token for the logged-in user.
+# Removes the connected GitHub account/token for the logged-in contributor.
 #
 # Auth:
 # Protected.
@@ -287,11 +610,12 @@ Content-Type: application/json
 #
 # Important:
 # Run this only when you really want to disconnect the test GitHub account.
+# To disconnect an owner GitHub link instead, change the token to ownerLogin.
 DELETE {{baseUrl}}/github/account
-Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 13 - Login as admin
+### 13 - DONE - Login as admin
 # @name adminLogin
 # What it does:
 # Logs in as an existing admin user.
@@ -308,7 +632,7 @@ Content-Type: application/json
 }
 
 
-### 14 - Assign user role
+### 14 - DONE - Assign user role
 # What it does:
 # Changes a user's role to owner, contributor, or admin.
 #
@@ -328,7 +652,7 @@ Content-Type: application/json
 }
 
 
-### 15 - Refresh owner tokens
+### 15 - DONE - Refresh owner tokens
 # @name ownerRefresh
 # What it does:
 # Takes a refresh token and returns a new accessToken + refreshToken.
@@ -348,14 +672,14 @@ Content-Type: application/json
 }
 
 
-### 16 - Get current user with refreshed token
+### 16 - DONE - Get current user with refreshed token
 # What it does:
 # Same as "05 - Get current logged-in user", but uses the refreshed accessToken.
 GET {{baseUrl}}/auth/me
 Authorization: Bearer {{ownerRefresh.response.body.$.accessToken}}
 
 
-### 17A - Logout owner session without refresh
+### 17A - DONE - Logout owner session without refresh
 # What it does:
 # Revokes the owner session using the original login access token.
 #
@@ -368,7 +692,7 @@ POST {{baseUrl}}/auth/logout
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 
-### 17B - Logout owner session after refresh
+### 17B - DONE - Logout owner session after refresh
 # What it does:
 # Revokes the owner session using the refreshed access token.
 #

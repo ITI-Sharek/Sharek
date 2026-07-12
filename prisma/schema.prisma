@@ -20,6 +20,11 @@ enum UserStatus {
   deactivated
 }
 
+enum AuthProvider {
+  google
+  github
+}
+
 enum LanguageCode {
   ar
   en
@@ -201,7 +206,7 @@ model User {
   id                     String                 @id @default(uuid()) @db.Uuid
   email                  String                 @unique @db.VarChar(255)
   username               String?                @unique @db.VarChar(30)
-  password_hash          String                 @db.VarChar(255)
+  password_hash          String?                @db.VarChar(255)
   first_name             String                 @db.VarChar(100)
   last_name              String                 @db.VarChar(100)
   avatar_url             String?                @db.VarChar(500)
@@ -233,7 +238,63 @@ model User {
   reportsReceived        Report[]                @relation("ReportReportedUser")
   skillGapContributions  SkillGapGuidance[]      @relation("SkillGapContributor")
   authSessions           AuthSession[]
+  authProviderAccounts   AuthProviderAccount[]
+  authOAuthStates        AuthOAuthState[]
   githubOAuthStates      GitHubOAuthState[]
+  emailVerificationOtps  EmailVerificationOtp[]
+}
+
+model AuthProviderAccount {
+  id                 String       @id @default(uuid()) @db.Uuid
+  user_id            String       @db.Uuid
+  provider           AuthProvider
+  provider_account_id String      @map("provider_user_id") @db.VarChar(100)
+  email              String?      @db.VarChar(255)
+  email_verified     Boolean      @default(false)
+  username           String?      @db.VarChar(100)
+  avatar_url         String?      @db.VarChar(500)
+  profile_url        String?      @db.VarChar(500)
+  raw_profile_data   Json?
+  created_at         DateTime     @default(now())
+  updated_at         DateTime     @default(now()) @updatedAt
+  last_login_at      DateTime?
+
+  user               User         @relation(fields: [user_id], references: [id])
+
+  @@unique([provider, provider_account_id])
+  @@unique([provider, user_id])
+  @@index([user_id])
+}
+
+model AuthOAuthState {
+  id             String       @id @default(uuid()) @db.Uuid
+  user_id        String?      @db.Uuid
+  provider       AuthProvider
+  state_hash     String       @unique @db.VarChar(128)
+  requested_role UserRole
+  expires_at     DateTime
+  consumed_at    DateTime?
+  created_at     DateTime     @default(now())
+
+  user           User?        @relation(fields: [user_id], references: [id])
+
+  @@index([provider])
+  @@index([requested_role])
+}
+
+model EmailVerificationOtp {
+  id          String    @id @default(uuid()) @db.Uuid
+  user_id     String    @db.Uuid
+  code_hash   String    @db.VarChar(128)
+  expires_at  DateTime
+  consumed_at DateTime?
+  attempts    Int       @default(0)
+  created_at  DateTime  @default(now())
+
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
 }
 
 model ContributorProfile {
