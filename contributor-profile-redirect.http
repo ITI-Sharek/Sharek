@@ -7,7 +7,7 @@
 # VS Code REST Client extension.
 #
 # Default local backend:
-# http://localhost:3000
+# http://localhost:4000
 #
 # Frontend flow:
 # 1. POST /auth/login
@@ -19,7 +19,7 @@
 # Contract source:
 # specs/001-contributor-profile-redirect/contracts/contributor-profile-redirect.openapi.yaml
 
-@baseUrl = http://localhost:3000
+@baseUrl = http://localhost:4000
 @contributorEmail = contributor@example.com
 @viewerEmail = viewer@example.com
 @ownerEmail = owner@example.com

@@ -44,7 +44,7 @@ At minimum, `.env.example` should document:
 
 ```text
 NODE_ENV=development
-PORT=3000
+PORT=4000
 PRISMA_STUDIO_PORT=5555
 DATABASE_URL=postgresql://sharek:sharek@postgres:5432/sharek?schema=public
 POSTGRES_USER=sharek
@@ -57,7 +57,7 @@ JWT_ACCESS_SECRET=change-me
 JWT_REFRESH_SECRET=change-me
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
-GITHUB_OAUTH_CALLBACK_URL=http://localhost:3000/github/oauth/callback
+GITHUB_OAUTH_CALLBACK_URL=http://localhost:4000/github/oauth/callback
 GITHUB_TOKEN_ENCRYPTION_KEY=change-this-github-token-encryption-key-32-chars-min
 AI_SERVICE_URL=http://host.docker.internal:8000
 AI_SERVICE_TIMEOUT_MS=5000
