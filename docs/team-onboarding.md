@@ -22,7 +22,7 @@ After Docker starts:
 
 docker compose exec api npm run prisma:migrate
 docker compose exec api npx prisma db seed
-curl http://localhost:3000/health
+curl http://localhost:4000/health
 
 If you need GitHub OAuth or AI-service secrets, ask in the private team channel.
 ```
@@ -56,7 +56,7 @@ In another terminal, after the containers are running:
 ```bash
 docker compose exec api npm run prisma:migrate
 docker compose exec api npx prisma db seed
-curl http://localhost:3000/health
+curl http://localhost:4000/health
 ```
 
 Expected health response:
@@ -98,7 +98,7 @@ client values privately, or ask each teammate to create their own local GitHub
 OAuth app. The callback URL should usually be:
 
 ```text
-http://localhost:3000/github/oauth/callback
+http://localhost:4000/github/oauth/callback
 ```
 
 For AI features, run the separate FastAPI AI repository and point
@@ -116,7 +116,7 @@ http://host.docker.internal:8000
 Change the host port in `.env`:
 
 ```text
-PORT=3001
+PORT=4001
 POSTGRES_PORT=5433
 REDIS_PORT=6380
 PRISMA_STUDIO_PORT=5556

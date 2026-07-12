@@ -6,11 +6,11 @@ services:
     container_name: sha-rek-api
     command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev"
     ports:
-      - "${API_HOST_PORT:-3000}:${PORT:-3000}"
+      - "${API_HOST_PORT:-4000}:${PORT:-4000}"
       - "${PRISMA_STUDIO_PORT:-5555}:5555"
     environment:
       NODE_ENV: ${NODE_ENV:-development}
-      PORT: ${PORT:-3000}
+      PORT: ${PORT:-4000}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
       DATABASE_URL: ${DATABASE_URL:-"postgresql://sharek:sharek@postgres:5432/sharek?schema=public"}
       REDIS_URL: ${REDIS_URL:-"redis://redis:6379"}
@@ -18,7 +18,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-secret}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-"http://localhost:3000/github/oauth/callback"}
+      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-"http://localhost:4000/github/oauth/callback"}
       GITHUB_TOKEN_ENCRYPTION_KEY: ${GITHUB_TOKEN_ENCRYPTION_KEY:-change-this-github-token-encryption-key-32-chars-min}
       AI_SERVICE_URL: ${AI_SERVICE_URL:-"http://host.docker.internal:8000"}
       AI_SERVICE_TIMEOUT_MS: ${AI_SERVICE_TIMEOUT_MS:-5000}

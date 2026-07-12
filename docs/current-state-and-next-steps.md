@@ -345,7 +345,7 @@ docker compose exec api npm run lint
 Health endpoint:
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:4000/health
 ```
 
 Expected response:
