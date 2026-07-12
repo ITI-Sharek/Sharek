@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import nodemailer, { Transporter } from 'nodemailer';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
 import { ApplicationError } from '../../../../shared/errors/application.error';
 
@@ -42,7 +43,11 @@ export class EmailVerificationSender {
         text: this.getTextBody(message),
         html: this.getHtmlBody(message),
       });
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email to ${message.to}`,
+        error instanceof Error ? error.stack : String(error),
+      );
       throw new ApplicationError(
         'Verification email could not be sent',
         'EMAIL_VERIFICATION_SEND_FAILED',

@@ -8,6 +8,7 @@ export const envValidationSchema = Joi.object({
   DATABASE_URL: Joi.string().required(),
   REDIS_URL: Joi.string().required(),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://localhost:3001'),
+  FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),
   JWT_REFRESH_SECRET: Joi.string().min(16).required(),
   GITHUB_CLIENT_ID: Joi.string().allow('').optional(),

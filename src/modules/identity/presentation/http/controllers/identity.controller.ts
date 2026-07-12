@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Request, Response } from 'express';
 
 import { IdentityService } from '../../../application/use-cases/identity.service';
 import { SocialAuthService } from '../../../application/use-cases/social-auth.service';
@@ -25,6 +26,7 @@ export class IdentityController {
   constructor(
     private readonly identityService: IdentityService,
     private readonly socialAuthService: SocialAuthService,
+    private readonly config: ConfigService,
   ) {}
 
   @Post('register')
@@ -60,13 +62,9 @@ export class IdentityController {
   @Get('google/callback')
   completeGoogleGet(
     @Query() query: SocialAuthCallbackRequest,
-    @Req() request: Request,
+    @Res() response: Response,
   ) {
-    return this.socialAuthService.completeGoogle({
-      code: query.code,
-      state: query.state,
-      context: this.getRequestContext(request),
-    });
+    return this.redirectSocialCallback('google', query, response);
   }
 
   @Post('google/callback')
@@ -89,13 +87,9 @@ export class IdentityController {
   @Get('github/callback')
   completeGitHubGet(
     @Query() query: SocialAuthCallbackRequest,
-    @Req() request: Request,
+    @Res() response: Response,
   ) {
-    return this.socialAuthService.completeGitHub({
-      code: query.code,
-      state: query.state,
-      context: this.getRequestContext(request),
-    });
+    return this.redirectSocialCallback('github', query, response);
   }
 
   @Post('github/callback')
@@ -142,5 +136,22 @@ export class IdentityController {
   private getUserAgent(request: Request): string | undefined {
     const userAgent = request.headers['user-agent'];
     return Array.isArray(userAgent) ? userAgent[0] : userAgent;
+  }
+
+  private redirectSocialCallback(
+    provider: 'github' | 'google',
+    query: SocialAuthCallbackRequest,
+    response: Response,
+  ): void {
+    const frontendUrl = this.config.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:3001',
+    );
+    const callbackUrl = new URL('/auth/callback', frontendUrl);
+    callbackUrl.searchParams.set('provider', provider);
+    callbackUrl.searchParams.set('code', query.code);
+    callbackUrl.searchParams.set('state', query.state);
+
+    response.redirect(callbackUrl.toString());
   }
 }
