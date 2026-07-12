@@ -23,16 +23,23 @@ and store final business decisions.
 
 ## Start Here
 
-Read these files in order before implementing backend code:
+For a quick developer path before changing code, read:
 
 1. `docs/README.md`
-2. `docs/team-onboarding.md`
-3. `docs/current-state-and-next-steps.md`
-4. `docs/folder-structure.md`
-5. `docs/architecture.md`
-6. `docs/backend-conventions.md`
-7. `docs/ai-agent-rules.md`
-8. `docs/definition-of-done.md`
+2. `docs/developer-architecture-guide.md`
+3. `docs/module-development-tracker.md`
+4. The README for the module you will change, such as
+   `src/modules/projects/README.md`
+5. `docs/definition-of-done.md`
+
+For full onboarding, also read:
+
+- `docs/team-onboarding.md`
+- `docs/current-state-and-next-steps.md`
+- `docs/architecture.md`
+- `docs/folder-structure.md`
+- `docs/backend-conventions.md`
+- `docs/ai-agent-rules.md`
 
 AI coding agents should also read `AGENTS.md` at the repo root.
 
@@ -68,19 +75,26 @@ src/
   main.ts
 ```
 
-Do not create all folders blindly. Start each module with the files needed for
-the current feature, then add layers when they protect real business rules,
-external integrations, or testable boundaries.
+Do not pre-create architecture folders for decoration. Start each module with
+the files needed for the current feature, then add layers when they protect real
+business rules, external integrations, or testable boundaries.
 
-## First Implementation Target
+For day-to-day development, use `docs/developer-architecture-guide.md`. It
+explains what each folder and file type means, when to create each layer, and
+how current modules such as identity, GitHub, and projects are wired.
 
-Sprint 1 should produce a runnable backend foundation:
+## Current Foundation Status
 
-- NestJS app starts in Docker.
-- PostgreSQL with pgvector starts in Docker.
-- Redis starts in Docker.
-- Prisma is configured.
+The backend foundation is partially implemented and should stay verified as
+feature work continues:
+
+- NestJS app scaffold exists.
+- PostgreSQL with pgvector and Redis are prepared in Docker Compose.
+- Prisma schema and migrations exist.
 - Health endpoint works.
 - Environment validation exists.
 - Global error handling exists.
-- Test runner and linting are wired.
+- Auth, GitHub OAuth/repository listing, and GitHub project import are started.
+
+Every module change must update `docs/module-development-tracker.md` with a
+short change record.

@@ -16,12 +16,12 @@ export class ProjectImportService {
 
   async importFromGitHub(
     ownerId: string,
-    fullName: string,
+    repositoryReference: string,
   ): Promise<ImportedProjectDto> {
-    const snapshot = await this.gitHubRepositoryService.getImportSnapshot(
-      ownerId,
-      fullName,
-    );
+    const snapshot =
+      await this.gitHubRepositoryService.getPublicImportSnapshot(
+        repositoryReference,
+      );
     const { repository } = snapshot;
 
     const existingProject = await this.database.project.findUnique({
@@ -69,8 +69,6 @@ export class ProjectImportService {
             readme_content: snapshot.readmeContent,
           },
         });
-
-    await this.gitHubRepositoryService.markRepositoryImportPrepared(ownerId);
 
     return toImportedProjectDto(project);
   }

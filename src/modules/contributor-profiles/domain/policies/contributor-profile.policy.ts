@@ -1,12 +1,16 @@
-import { UserRole, UserStatus } from '@prisma/client';
-
 import { ForbiddenApplicationError } from '../../../../shared/errors/application.error';
 
+export type ContributorProfileRole = 'owner' | 'contributor' | 'admin';
+export type ContributorProfileUserStatus =
+  | 'pending'
+  | 'active'
+  | 'suspended'
+  | 'deactivated';
 export type ViewerRelationship = 'owner' | 'authenticated-viewer';
 
 export function assertCanEnsureContributorProfile(user: {
-  role: UserRole;
-  status: UserStatus;
+  role: ContributorProfileRole;
+  status: ContributorProfileUserStatus;
 }): void {
   if (user.role !== 'contributor') {
     throw new ForbiddenApplicationError(
@@ -24,8 +28,8 @@ export function assertCanEnsureContributorProfile(user: {
 }
 
 export function isContributorProfileVisible(user: {
-  role: UserRole;
-  status: UserStatus;
+  role: ContributorProfileRole;
+  status: ContributorProfileUserStatus;
 }): boolean {
   return (
     user.role === 'contributor' &&

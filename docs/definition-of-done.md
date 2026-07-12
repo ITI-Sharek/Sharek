@@ -11,11 +11,16 @@ A backend task is done only when all relevant checks below pass.
 ## Architecture
 
 - Code is in the owning module.
+- New files follow `docs/developer-architecture-guide.md`.
+- The module task follows `docs/module-development-tracker.md`.
+- `npm run check:architecture` passes.
 - Controllers are thin.
 - Business rules live in use cases or domain code.
 - Domain code does not depend on NestJS, Prisma, HTTP clients, or provider SDKs.
 - External systems are accessed through ports/adapters.
-- No module imports another module's infrastructure.
+- Cross-module dependency, when needed, uses a public exported service, reader
+  port, or event.
+- No module imports another module's private infrastructure.
 - `shared/` is not used as a dumping ground.
 
 ## Database
@@ -54,6 +59,7 @@ A backend task is done only when all relevant checks below pass.
 
 ## Operations
 
+- `npm run check:architecture` passes.
 - Docker/local development still works.
 - Environment variables are documented in `.env.example` when added.
 - No secrets are committed.
@@ -68,4 +74,6 @@ Every PR or task summary should include:
 - Requirement/task IDs covered.
 - Tests run.
 - Migrations added.
+- Docs or README updates made, when the module shape or API changed.
+- Module tracker change record added.
 - Known risks.

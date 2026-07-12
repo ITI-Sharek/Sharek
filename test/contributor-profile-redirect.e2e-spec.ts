@@ -17,6 +17,8 @@ import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { DatabaseService } from '../src/shared/database/database.service';
 import { IdentityUsernameService } from '../src/modules/identity/application/use-cases/identity-username.service';
 import { IdentityService } from '../src/modules/identity/application/use-cases/identity.service';
+import { SocialAuthService } from '../src/modules/identity/application/use-cases/social-auth.service';
+import { EmailVerificationSender } from '../src/modules/identity/infrastructure/integrations/email-verification.sender';
 import { PasswordHasher } from '../src/modules/identity/infrastructure/security/password-hasher.service';
 import { SessionTokenService } from '../src/modules/identity/infrastructure/security/session-token.service';
 import { IdentityController } from '../src/modules/identity/presentation/http/controllers/identity.controller';
@@ -149,6 +151,21 @@ describe('Contributor profile redirect HTTP flow', () => {
           useValue: {
             verify: jest.fn().mockResolvedValue(true),
             hash: jest.fn().mockResolvedValue('hash'),
+          },
+        },
+        {
+          provide: EmailVerificationSender,
+          useValue: {
+            sendOtp: jest.fn(),
+          },
+        },
+        {
+          provide: SocialAuthService,
+          useValue: {
+            startGoogle: jest.fn(),
+            completeGoogle: jest.fn(),
+            startGitHub: jest.fn(),
+            completeGitHub: jest.fn(),
           },
         },
         {

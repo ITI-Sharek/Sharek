@@ -13,16 +13,22 @@ Every AI coding agent should receive:
 - Files it must not edit.
 - Required tests.
 - Definition of done.
+- Target module README.
+- `docs/module-development-tracker.md` checklist.
 
 ## Agent Workflow
 
-1. Read relevant docs and task context.
+1. Read relevant docs, including `developer-architecture-guide.md`, and task
+   context.
 2. Identify the owning module.
 3. Inspect existing files before editing.
 4. Make the smallest coherent change.
 5. Add or update tests.
-6. Run relevant checks.
-7. Summarize changed files, tests, and risks.
+6. Run `npm run check:architecture` and relevant tests/checks.
+7. Update module README and docs when behavior, API, schema, or module shape
+   changed.
+8. Append a short change record to `docs/module-development-tracker.md`.
+9. Summarize changed files, tests, docs, tracker updates, and risks.
 
 ## Scope Rules
 
@@ -32,11 +38,12 @@ shared change.
 If a task needs another module:
 
 - Use a public reader port.
-- Use a public application service.
+- Use a public exported application service.
 - Emit or consume an event.
 - Ask for a boundary decision if the dependency is unclear.
 
-Do not import another module's infrastructure.
+Do not import another module's private infrastructure or write another module's
+tables directly.
 
 ## AI Service Rules
 
@@ -71,3 +78,4 @@ Before accepting AI-generated code, verify:
 - AI output cannot directly change final business state.
 - Tests cover important behavior.
 - No secrets or debug-only code were added.
+- Module README and `docs/module-development-tracker.md` are current.
