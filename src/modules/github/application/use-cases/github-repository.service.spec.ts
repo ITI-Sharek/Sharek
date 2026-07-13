@@ -64,6 +64,28 @@ describe('GitHubRepositoryService', () => {
     expect(tokenEncryption.decrypt).toHaveBeenCalledWith('encrypted-token');
   });
 
+  it('isolates a single repository language-fetch failure instead of failing the whole list', async () => {
+    database.gitHubAccount.findUnique.mockResolvedValue({
+      access_token: 'encrypted-token',
+    });
+    tokenEncryption.decrypt.mockReturnValue('plain-token');
+    gitHubApiClient.listRepositories.mockResolvedValue([
+      getRepositoryPayload(),
+      { ...getRepositoryPayload(), id: 456, full_name: 'ITI-Sharek/other-repo' },
+    ]);
+    gitHubApiClient.getRepositoryLanguages
+      .mockRejectedValueOnce(new Error('connect timeout'))
+      .mockResolvedValueOnce({ TypeScript: 500 });
+
+    const repositories = await service.listRepositories('user-id');
+
+    expect(repositories).toHaveLength(2);
+    expect(repositories.map((repository) => repository.languages)).toEqual([
+      {},
+      { TypeScript: 500 },
+    ]);
+  });
+
   it('creates an import snapshot from a GitHub repository', async () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
