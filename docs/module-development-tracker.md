@@ -493,3 +493,21 @@ This keeps the system strong without making it heavy:
 - PR/sprint checklists force humans and agents to update docs after code.
 - `npm run check:architecture` catches missing module docs and basic boundary
   violations before review.
+
+### 2026-07-13 - Verify backend CI test dependency fix
+
+- Modules: `identity` (test wiring), `contributor-profiles` E2E flow coverage.
+- Requirement IDs: FR-026 (login -> ensure -> profile lookup redirect flow).
+- Change type: test stabilization.
+- Summary: Updated `test/contributor-profile-redirect.e2e-spec.ts` to provide
+  `ConfigService` when instantiating `IdentityController`, matching the
+  controller's constructor dependency and restoring CI test execution.
+- Code files changed: `test/contributor-profile-redirect.e2e-spec.ts`.
+- API changes: none.
+- Database changes: none.
+- Tests/checks: `npm test -- test/contributor-profile-redirect.e2e-spec.ts --runInBand`,
+  `npm run lint`, `npm run check:architecture`, `npm run build`,
+  `npm test -- --runInBand`.
+- Docs updated: `docs/module-development-tracker.md`.
+- Risks/follow-up: lint warnings from existing specs (`no-explicit-any`) remain
+  unchanged and pre-existing.
