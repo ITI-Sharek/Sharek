@@ -22,6 +22,7 @@ import { GitHubTokenEncryptionService } from '../../infrastructure/security/gith
 const DEFAULT_SKILL_PROFILING_REPOSITORY_LIMIT = 10;
 const MAX_SKILL_PROFILING_REPOSITORY_LIMIT = 30;
 const GITHUB_FULL_NAME_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const LANGUAGE_FETCH_CONCURRENCY = 8;
 
 @Injectable()
 export class GitHubRepositoryService {
@@ -35,16 +36,45 @@ export class GitHubRepositoryService {
     const accessToken = await this.getAccessToken(userId);
     const repositories = await this.gitHubApiClient.listRepositories(accessToken);
 
-    return Promise.all(
-      repositories.map(async (repository) => {
-        const languages = await this.gitHubApiClient.getRepositoryLanguages(
-          accessToken,
-          repository.full_name,
-        );
+    return this.mapWithConcurrencyLimit(
+      repositories,
+      LANGUAGE_FETCH_CONCURRENCY,
+      async (repository) => {
+        // GitHub's per-repo /languages call is fetched one-by-one for every
+        // repository in the account. Unbounded concurrency here previously
+        // opened 60-100+ simultaneous connections to api.github.com, which
+        // sporadically timed out under load and failed the whole list; a
+        // per-repo failure is now isolated instead of rejecting everything.
+        const languages = await this.gitHubApiClient
+          .getRepositoryLanguages(accessToken, repository.full_name)
+          .catch(() => ({}));
 
         return this.toRepositoryDto(repository, languages);
-      }),
+      },
     );
+  }
+
+  private async mapWithConcurrencyLimit<T, R>(
+    items: T[],
+    limit: number,
+    mapper: (item: T) => Promise<R>,
+  ): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let nextIndex = 0;
+
+    const worker = async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await mapper(items[currentIndex]);
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(limit, items.length) }, () => worker()),
+    );
+
+    return results;
   }
 
   async getImportSnapshot(
