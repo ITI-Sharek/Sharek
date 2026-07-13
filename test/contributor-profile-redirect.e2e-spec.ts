@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { User } from '@prisma/client';
 import * as request from 'supertest';
@@ -166,6 +167,12 @@ describe('Contributor profile redirect HTTP flow', () => {
             completeGoogle: jest.fn(),
             startGitHub: jest.fn(),
             completeGitHub: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('http://localhost:3001'),
           },
         },
         {
