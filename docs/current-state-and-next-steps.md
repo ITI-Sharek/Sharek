@@ -155,8 +155,8 @@ Prepared:
 - `SkillGapAdvisor` port.
 - `EmbeddingGenerator` port.
 - Runtime configuration placeholders for an external AI service:
-  `AI_SERVICE_URL`, `AI_SERVICE_TIMEOUT_MS`, and optional
-  `AI_SERVICE_AUTH_TOKEN`.
+  `AI_SERVICE_URL`, `AI_SERVICE_TIMEOUT_MS`, and the shared internal
+  `AI_SERVICE_AUTH_TOKEN` (required in production).
 
 Not done yet:
 

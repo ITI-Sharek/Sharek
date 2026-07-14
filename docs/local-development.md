@@ -15,7 +15,7 @@ redis      Redis for BullMQ jobs
 The FastAPI AI service lives in a separate repository. Until Docker wiring is
 agreed, run it separately and point this backend at it with `AI_SERVICE_URL`.
 When the backend runs inside Docker and FastAPI runs on the host machine, use
-`http://host.docker.internal:8000`.
+`http://host.docker.internal:8010`.
 
 Use the pgvector image for PostgreSQL:
 
@@ -53,11 +53,13 @@ POSTGRES_DB=sharek
 POSTGRES_PORT=5432
 REDIS_URL=redis://redis:6379
 REDIS_PORT=6379
+SKILL_PROFILE_QUEUE_ENABLED=true
+SKILL_PROFILE_QUEUE_CONCURRENCY=2
 JWT_ACCESS_SECRET=change-me
 JWT_REFRESH_SECRET=change-me
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
-GITHUB_OAUTH_CALLBACK_URL=http://localhost:4000/github/oauth/callback
+GITHUB_OAUTH_CALLBACK_URL=http://localhost:4000/auth/github/callback/repository
 GITHUB_AUTH_CALLBACK_URL=http://localhost:4000/auth/github/callback
 GITHUB_TOKEN_ENCRYPTION_KEY=change-this-github-token-encryption-key-32-chars-min
 GOOGLE_CLIENT_ID=
@@ -69,13 +71,23 @@ SMTP_SECURE=false
 SMTP_USER=
 SMTP_PASS=
 EMAIL_FROM=
-AI_SERVICE_URL=http://host.docker.internal:8000
-AI_SERVICE_TIMEOUT_MS=5000
-AI_SERVICE_AUTH_TOKEN=
+AI_SERVICE_URL=http://host.docker.internal:8010
+AI_SERVICE_TIMEOUT_MS=60000
+AI_SERVICE_AUTH_TOKEN=replace-with-the-same-long-random-token-used-by-fastapi
 AI_LOW_CONFIDENCE_THRESHOLD=0.70
 ```
 
 Secrets in `.env.example` must be placeholders only.
+
+Skill profiling requires Redis. BullMQ stores jobs durably, retries transient
+GitHub/AI failures three times, and recovers incomplete generation records when
+the backend restarts. Disable `SKILL_PROFILE_QUEUE_ENABLED` only in isolated
+tests that provide a fake queue.
+
+The FastAPI service must use the same `AI_SERVICE_AUTH_TOKEN`. Its `/health`
+route remains unauthenticated, while skill generation routes reject missing or
+incorrect bearer tokens. For host-run FastAPI on port `8010`, Dockerized NestJS
+uses `http://host.docker.internal:8010`.
 
 For email verification, Gmail can be used through SMTP by setting
 `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=false`,
@@ -97,6 +109,12 @@ docker compose exec api npm run prisma:migrate
 docker compose exec api npx prisma db seed
 docker compose exec api npm run prisma:studio
 ```
+
+Docker Compose uses `tsconfig.docker.json` and keeps the API container's watch
+output under `.docker-build/dist` in the `api_build` volume. This prevents the
+root-owned watch output inside the container from overwriting the host user's
+`dist/` directory, so host commands such as `npm run build` do not fail with
+`EACCES: permission denied, unlink`.
 
 ## First Run Flow
 
@@ -128,11 +146,17 @@ If migrations fail, check:
 - Prisma schema validity.
 - Whether pgvector extension is enabled.
 
+If an older checkout already has a root-owned host `dist/`, stop the API,
+restore that directory to the host user's ownership once, and recreate the API
+container. New Docker watch output remains isolated in `api_build`.
+
 If AI service calls fail locally, check:
 
 - The separate FastAPI AI repository is running.
 - `AI_SERVICE_URL` points to the right local URL from the process/container.
-- `AI_SERVICE_AUTH_TOKEN` matches the AI service if auth is enabled.
+- `AI_SERVICE_AUTH_TOKEN` is non-empty and exactly matches the FastAPI service.
+- Redis is reachable and the `skill-profile-generation` worker starts without
+  connection errors.
 - Timeout settings.
 - Response schema validation.
 - Fallback to mock FastAPI client adapters for local tests.

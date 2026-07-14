@@ -95,10 +95,16 @@ These values usually need teammate-specific setup:
 
 For GitHub OAuth, either create a shared development OAuth app and share its
 client values privately, or ask each teammate to create their own local GitHub
-OAuth app. The callback URL should usually be:
+OAuth app. The GitHub OAuth App authorization callback URL should usually be:
 
 ```text
-http://localhost:4000/github/oauth/callback
+http://localhost:4000/auth/github/callback
+```
+
+Use this repository-connect callback in `.env`:
+
+```text
+http://localhost:4000/auth/github/callback/repository
 ```
 
 For AI features, run the separate FastAPI AI repository and point
@@ -106,8 +112,12 @@ For AI features, run the separate FastAPI AI repository and point
 on the host machine, use:
 
 ```text
-http://host.docker.internal:8000
+http://host.docker.internal:8010
 ```
+
+Set the same long random `AI_SERVICE_AUTH_TOKEN` in both repositories. Skill
+profiling also requires the Redis service because generation runs through the
+durable BullMQ worker.
 
 ## Common Problems
 
@@ -145,7 +155,10 @@ Check:
 
 - `GITHUB_CLIENT_ID` is set.
 - `GITHUB_CLIENT_SECRET` is set.
-- The OAuth app callback URL matches `GITHUB_OAUTH_CALLBACK_URL`.
+- The OAuth app callback URL is the parent GitHub auth callback
+  `http://localhost:4000/auth/github/callback`; the repository connect callback
+  uses `GITHUB_OAUTH_CALLBACK_URL` as a subpath so both GitHub flows can share
+  one local OAuth App.
 - The backend is reachable at the same host and port used in the callback URL.
 
 ### AI Calls Not Working

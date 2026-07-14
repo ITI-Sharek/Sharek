@@ -46,6 +46,7 @@ Implemented identity endpoints:
 
 ```text
 POST /auth/register
+GET /auth/username-availability
 POST /auth/verify-email
 POST /auth/verify-email/resend
 POST /auth/login
@@ -74,6 +75,43 @@ Email/password registration creates a `pending` user, sends a 6-digit email OTP,
 and returns the user plus `emailVerificationRequired: true` and
 `verificationExpiresAt`. It does not return tokens until email verification is
 complete.
+
+`POST /auth/register` requires:
+
+```json
+{
+  "email": "owner@example.com",
+  "password": "Password123!",
+  "username": "sharek-owner",
+  "firstName": "Sharek",
+  "lastName": "Owner",
+  "role": "owner",
+  "preferredLanguage": "en"
+}
+```
+
+The `username` value is stored on `User.username`, must be unique, cannot be a
+reserved platform name, and must be a lowercase URL-safe value matching:
+
+```text
+^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$
+```
+
+`GET /auth/username-availability?username=sharek-owner` returns:
+
+```json
+{
+  "available": false,
+  "suggestion": "sharek-owner-1",
+  "reason": "taken"
+}
+```
+
+`reason` is `invalid_format`, `reserved`, `taken`, or `null`. `suggestion` is
+only returned when the name is taken and a deterministic free suffix is found.
+GitHub direct auth signup does not require a username field; for new GitHub
+users the backend tries to assign the normalized GitHub login when it is valid
+and free, otherwise the user can set a profile username later.
 
 `POST /auth/verify-email` accepts:
 
@@ -114,7 +152,7 @@ preferredLanguage, createdAt, updatedAt, lastLoginAt
 Contributor usernames are stable URL-safe values matching:
 
 ```text
-^[a-z0-9][a-z0-9_-]{2,29}$
+^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$
 ```
 
 Active users can authenticate normally. Pending contributors can authenticate
@@ -195,9 +233,11 @@ through `GET` or `POST /auth/{provider}/callback`.
 
 The `role` query parameter is used only when the backend must create a new
 Share-k user. Existing users keep their saved role. Social auth links by
-provider account first, then by verified email. GitHub social auth also stores
-or refreshes the connected `GitHubAccount` token so contributor repository
-evidence can use the same consent.
+provider account first, then by verified email. GitHub social auth is identity
+only and requests the minimal GitHub `read:user user:email` scope. It must not
+request private repository access or mark the repository-evidence connection as
+complete. Contributors grant repository access later through
+`GET /github/oauth/start` during onboarding/profile setup.
 
 ## GitHub Connection Contracts
 
@@ -207,6 +247,7 @@ Implemented GitHub connection endpoints:
 GET /github/oauth/start
 GET /github/oauth/callback
 POST /github/oauth/callback
+GET /auth/github/callback/repository
 GET /github/account
 GET /github/repositories
 GET /github/readme
@@ -219,7 +260,10 @@ POST /projects/import/github
 ```
 
 `GET /github/oauth/start` requires an authenticated Share-k user. It stores a
-short-lived OAuth state and returns the GitHub authorization URL. Contributor
+short-lived OAuth state and returns the GitHub authorization URL. Browser flows
+use `GET /auth/github/callback/repository` as the GitHub redirect URI; that
+endpoint forwards the browser to the frontend `/auth/callback` page so the SPA
+can complete the connection with `POST /github/oauth/callback`. Contributor
 OAuth requests the GitHub `repo` scope so Share-k can read public and private
 repository evidence after explicit GitHub consent. Owner/admin OAuth keeps the
 lighter `public_repo` scope for the project-import shortcut.
@@ -229,11 +273,25 @@ GitHub profile, and stores the linked account. GitHub access tokens are never
 returned in API responses. Stored GitHub access and refresh tokens are encrypted
 at rest with AES-256-GCM.
 
-`GET /github/repositories` requires an authenticated user with a connected
-GitHub account. It returns normalized repository metadata fetched through the
-encrypted server-side GitHub token. For contributors this can include public
-and private repositories because their OAuth connection uses the GitHub `repo`
-scope. Owner project import does not require this endpoint.
+`GET /github/repositories?page=1&perPage=12` requires an authenticated user
+with a connected GitHub account. It returns normalized repository metadata
+fetched through the encrypted server-side GitHub token. For contributors this
+can include public and private repositories because their OAuth connection uses
+the GitHub `repo` scope. Owner project import does not require this endpoint.
+
+Repository list responses are paginated:
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "perPage": 12,
+  "hasNextPage": false
+}
+```
+
+`page` starts at `1`. `perPage` defaults to `12` and is capped at `50`.
+`hasNextPage` is detected by asking GitHub for one extra repository.
 
 The repository list is intentionally lightweight for picker screens. It includes
 repository identity, owner, description, URL, visibility flags, default branch,
@@ -317,6 +375,109 @@ GitHub returns pending, empty, missing, or unavailable stats, the backend keeps
 the import usable and records an `unavailableReason` instead of failing the
 project import.
 
+## Skill Profile Contracts
+
+Implemented contributor skill profile generation endpoints:
+
+```text
+POST /skill-profiles/me/generations
+GET /skill-profiles/me/generations/:generationId
+```
+
+Both endpoints require an authenticated contributor. Pending contributors may
+use these endpoints during onboarding. Owner/admin users and suspended or
+deactivated contributors cannot start generation.
+
+`POST /skill-profiles/me/generations` accepts selected repositories from the
+existing GitHub repository picker:
+
+```json
+{
+  "repositories": [
+    { "fullName": "owner/repository" }
+  ]
+}
+```
+
+Rules:
+
+- `repositories` must contain at least one item.
+- At most 10 repositories can be selected for one generation.
+- `fullName` must use `owner/repository` format.
+- Every selection must appear in GitHub's authenticated `GET /user/repos`
+  result for the connected account. Supplying an arbitrary public repository
+  name is rejected.
+- Repository evidence records commits/additions attributable to the exact
+  connected GitHub login. Repository-wide activity is not treated as personal
+  authorship.
+
+The endpoint creates a durable generation record and enqueues a BullMQ job. The
+initial response is shaped like:
+
+```json
+{
+  "generationId": "generation-uuid",
+  "status": "queued",
+  "progress": {
+    "selectedRepositoryCount": 1,
+    "snapshottedRepositoryCount": 0
+  },
+  "failureReason": null,
+  "selectedRepositories": [
+    { "fullName": "owner/repository" }
+  ],
+  "skills": [],
+  "fraudSignals": [],
+  "evidenceQuality": null,
+  "provider": null,
+  "model": null,
+  "promptVersion": null,
+  "schemaVersion": null,
+  "serviceVersion": null,
+  "createdAt": "2026-07-14T00:00:00.000Z",
+  "updatedAt": "2026-07-14T00:00:00.000Z",
+  "completedAt": null
+}
+```
+
+`GET /skill-profiles/me/generations/:generationId` returns the same shape with
+current status. Status values are:
+
+```text
+queued
+collecting_evidence
+analyzing
+pending_review
+needs_more_evidence
+failed
+```
+
+`needs_more_evidence` is terminal. It means Share-k could not establish enough
+contributor-authored evidence to create reviewable skill candidates. The
+frontend should ask the contributor to select repositories with clearer code
+contributions; it must not present this state as pending admin approval.
+
+When generation succeeds, generated skill candidates are stored as
+`SkillProfile.status = pending` and appear in the response:
+
+```json
+{
+  "skills": [
+    {
+      "id": "skill-profile-uuid",
+      "name": "TypeScript",
+      "proficiency": "intermediate",
+      "confidence": 0.9,
+      "status": "pending",
+      "evidenceSummary": "Authored TypeScript API code."
+    }
+  ]
+}
+```
+
+Pending generated skills are reviewable evidence only. They must not qualify a
+contributor for application eligibility until an admin approves them.
+
 ## AI Service Contracts
 
 AI implementation lives in a separate FastAPI AI repository. The NestJS backend
@@ -341,6 +502,22 @@ POST /skill-gap/generate
 POST /embeddings/generate
 GET /health
 ```
+
+`POST /skill-profiles/generate` receives backend-selected repository evidence
+capsules, not a raw GitHub username for the AI service to crawl on its own.
+The response must include generated skill candidates with evidence IDs plus
+provider, model, prompt version, schema version, and service version metadata.
+Every evidence ID must exactly match a capsule from the request. The NestJS
+adapter rejects unknown IDs, malformed recommendation/evidence-quality values,
+or oversized audit metadata.
+
+Weak but valid evidence returns `needs_more_evidence`. Provider timeouts,
+unavailable services, and malformed model output are service failures so the
+BullMQ worker retries them before recording a safe `failed` state.
+
+All skill-profile AI routes require `Authorization: Bearer <internal-token>`.
+`AI_SERVICE_AUTH_TOKEN` must contain the same long random value in NestJS and
+FastAPI. Keep FastAPI on an internal network; only `/health` is public.
 
 The exact FastAPI route names may evolve, but the request/response schemas must
 be documented and versioned across both repositories before implementation.

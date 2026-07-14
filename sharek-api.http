@@ -52,6 +52,7 @@
 # Implemented/fixed endpoint status:
 # - [DONE] GET /health
 # - [DONE] POST /auth/register
+# - [DONE] GET /auth/username-availability
 # - [DONE] POST /auth/verify-email
 # - [DONE] POST /auth/verify-email/resend
 # - [DONE] POST /auth/login
@@ -93,6 +94,8 @@
 @ownerEmail = owner@example.com
 @contributorEmail = contributor@example.com
 @adminEmail = admin@example.com
+@ownerUsername = sharek-owner
+@contributorUsername = sharek-contributor
 @password = Password123!
 @ownerOtp = replace-with-owner-email-otp
 @contributorOtp = replace-with-contributor-email-otp
@@ -127,6 +130,7 @@ GET {{baseUrl}}/health
 # Body rules:
 # - email must be valid.
 # - password must be at least 8 characters.
+# - username must be unique, not reserved, and match lowercase URL-safe rules.
 # - role must be "owner" or "contributor".
 # - preferredLanguage must be "en" or "ar".
 #
@@ -139,11 +143,29 @@ Content-Type: application/json
 {
   "email": "{{ownerEmail}}",
   "password": "{{password}}",
+  "username": "{{ownerUsername}}",
   "firstName": "Sharek",
   "lastName": "Owner",
   "role": "owner",
   "preferredLanguage": "en"
 }
+
+
+### 02A - DONE - Check username availability
+# @name usernameAvailability
+# What it does:
+# Checks the same username policy used by POST /auth/register.
+#
+# Auth:
+# Public.
+#
+# Expected success response:
+# {
+#   "available": true,
+#   "suggestion": null,
+#   "reason": null
+# }
+GET {{baseUrl}}/auth/username-availability?username={{ownerUsername}}
 
 
 ### 02B - DONE - Verify owner email OTP
@@ -176,6 +198,7 @@ Content-Type: application/json
 {
   "email": "{{contributorEmail}}",
   "password": "{{password}}",
+  "username": "{{contributorUsername}}",
   "firstName": "Sharek",
   "lastName": "Contributor",
   "role": "contributor",
@@ -295,17 +318,21 @@ Content-Type: application/json
 # Public.
 #
 # Role behavior:
-# - contributor: requests GitHub `repo` scope so skill evidence can include
-#   public and private repositories after consent.
-# - owner: requests lighter public repository consent.
+# - role is used only when a new Share-k user must be created.
+# - this social auth endpoint requests only GitHub identity scope:
+#   `read:user user:email`.
+# - it does not request private repository access and does not complete the
+#   repository-evidence connection.
+# - after signup/login, contributors should use Step 06 to explicitly connect
+#   GitHub repositories from profile/onboarding.
 GET {{baseUrl}}/auth/github/start?role=contributor
 
 
 ### 04F - DONE - Complete GitHub sign up/sign in from frontend
 # What it does:
 # Exchanges the real GitHub OAuth code/state and returns the normal Share-k
-# AuthSessionDto. Direct GitHub auth also stores the connected GitHub account
-# token for that user.
+# AuthSessionDto. Direct GitHub auth only proves identity and links the auth
+# provider account. Repository access is a separate consent step in Step 06.
 #
 # Important:
 # code is one-time. If this fails once, run Step 04E again.
@@ -372,9 +399,10 @@ Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 # 2. Copy authorizationUrl from the response.
 # 3. Open that authorizationUrl in your browser.
 # 4. Approve access on GitHub.
-# 5. GitHub should redirect to /github/oauth/callback with real code/state.
-# 6. The callback response should be a GitHubAccountDto. If you do not see that
-#    success response, the GitHub account is not connected yet.
+# 5. GitHub should redirect to /auth/github/callback/repository, which forwards
+#    the browser to the frontend /auth/callback route with real code/state.
+# 6. The frontend then calls Step 08 to finish the connection. If Step 08 does
+#    not succeed, the GitHub account is not connected yet.
 #
 # If the callback returns GITHUB_ACCOUNT_TAKEN:
 # - You approved GitHub with an account already linked to another Share-k user
@@ -387,26 +415,27 @@ GET {{baseUrl}}/github/oauth/start
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 07 - DONE - GitHub OAuth callback from browser redirect
+### 07 - DONE - GitHub OAuth browser redirect to frontend
 # What it does:
-# This is the redirect endpoint GitHub can call after the user approves access.
+# This is the redirect endpoint GitHub can call after the user approves
+# repository access. It forwards the browser to the frontend /auth/callback
+# page with code/state.
 #
 # Auth:
 # Public. The security check is the OAuth state value.
 #
 # Frontend note:
-# In a real browser flow, GitHub redirects to this URL with code and state.
-# Replace both values before testing manually.
+# In a real browser flow, GitHub redirects to this URL with code and state,
+# then the frontend calls Step 08.
 #
 # Important:
 # Do not click this request with the placeholder values below. It will not
-# connect GitHub. Use the browser redirect from Step 06, or paste the real
-# one-time code and exact state from GitHub.
+# connect GitHub by itself. Use the browser redirect from Step 06 and let the
+# frontend call Step 08.
 #
-# Expected success response:
-# GitHubAccountDto with username/githubId. After this succeeds, Step 09 should
-# return the same connected account for the same contributor token.
-GET {{baseUrl}}/github/oauth/callback?code=replace-with-github-code&state=replace-with-oauth-state
+# Expected response:
+# 302 redirect to http://localhost:3001/auth/callback?provider=github&code=...
+GET {{baseUrl}}/auth/github/callback/repository?code=replace-with-github-code&state=replace-with-oauth-state
 
 
 ### 08 - DONE - GitHub OAuth callback from frontend
@@ -484,11 +513,22 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 # - GITHUB_REPOSITORY_LIST_INVALID_RESPONSE means GitHub did not return the
 #   expected repository array. Check backend logs and reconnect GitHub.
 #
+# Query:
+# - page: starts at 1.
+# - perPage: defaults to 12 and is capped at 50.
+#
 # Expected success response:
-# Array of GitHubRepositoryDto. This is the lightweight repository picker data:
-# identity, description, URL, visibility, default branch, languages, topics,
-# stars, forks, open issues, watchers, pushedAt, and updatedAt.
-GET {{baseUrl}}/github/repositories
+# Paginated GitHubRepositoryDto picker data:
+# {
+#   "items": [ ... ],
+#   "page": 1,
+#   "perPage": 12,
+#   "hasNextPage": false
+# }
+# Each item includes identity, description, URL, visibility, default branch,
+# languages, topics, stars, forks, open issues, watchers, pushedAt, and
+# updatedAt.
+GET {{baseUrl}}/github/repositories?page=1&perPage=12
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
@@ -596,7 +636,52 @@ Content-Type: application/json
 }
 
 
-### 12 - DONE - Disconnect GitHub account
+### 12 - NEW - Start contributor skill profile generation
+# @name skillProfileGeneration
+# What it does:
+# Starts selected-repository AI skill profiling for the logged-in contributor.
+# The generated skills are saved as pending and do not qualify for tasks until
+# admin review approves them.
+# Selections must come from the connected account repository list. Public
+# repositories that are not in that authenticated list are rejected.
+#
+# Auth:
+# Protected. Use a contributor token with GitHub repository access connected.
+#
+# Expected success response:
+# {
+#   "generationId": "...",
+#   "status": "queued",
+#   "progress": {
+#     "selectedRepositoryCount": 1,
+#     "snapshottedRepositoryCount": 0
+#   },
+#   "skills": []
+# }
+POST {{baseUrl}}/skill-profiles/me/generations
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "repositories": [
+    { "fullName": "{{githubRepoFullName}}" }
+  ]
+}
+
+
+### 13 - NEW - Get contributor skill profile generation status
+# What it does:
+# Polls the generation status after starting selected-repository skill
+# profiling.
+# Terminal states:
+# - pending_review: reviewable pending skills were created.
+# - needs_more_evidence: no sufficiently attributable evidence was available.
+# - failed: retries were exhausted; failureReason contains a safe message.
+GET {{baseUrl}}/skill-profiles/me/generations/{{skillProfileGeneration.response.body.$.generationId}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 14 - DONE - Disconnect GitHub account
 # What it does:
 # Removes the connected GitHub account/token for the logged-in contributor.
 #
@@ -615,7 +700,7 @@ DELETE {{baseUrl}}/github/account
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 13 - DONE - Login as admin
+### 15 - DONE - Login as admin
 # @name adminLogin
 # What it does:
 # Logs in as an existing admin user.
@@ -632,7 +717,7 @@ Content-Type: application/json
 }
 
 
-### 14 - DONE - Assign user role
+### 16 - DONE - Assign user role
 # What it does:
 # Changes a user's role to owner, contributor, or admin.
 #
@@ -652,7 +737,7 @@ Content-Type: application/json
 }
 
 
-### 15 - DONE - Refresh owner tokens
+### 17 - DONE - Refresh owner tokens
 # @name ownerRefresh
 # What it does:
 # Takes a refresh token and returns a new accessToken + refreshToken.
@@ -672,14 +757,14 @@ Content-Type: application/json
 }
 
 
-### 16 - DONE - Get current user with refreshed token
+### 18 - DONE - Get current user with refreshed token
 # What it does:
 # Same as "05 - Get current logged-in user", but uses the refreshed accessToken.
 GET {{baseUrl}}/auth/me
 Authorization: Bearer {{ownerRefresh.response.body.$.accessToken}}
 
 
-### 17A - DONE - Logout owner session without refresh
+### 19A - DONE - Logout owner session without refresh
 # What it does:
 # Revokes the owner session using the original login access token.
 #
@@ -692,7 +777,7 @@ POST {{baseUrl}}/auth/logout
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 
-### 17B - DONE - Logout owner session after refresh
+### 19B - DONE - Logout owner session after refresh
 # What it does:
 # Revokes the owner session using the refreshed access token.
 #
