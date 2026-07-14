@@ -12,7 +12,7 @@ import { randomBytes } from 'crypto';
 import { hashToken } from '../../../../shared/auth/token-hash';
 import { DatabaseService } from '../../../../shared/database/database.service';
 import { ApplicationError } from '../../../../shared/errors/application.error';
-import { GitHubOAuthService, GitHubSocialIdentity } from '../../../github/application/use-cases/github-oauth.service';
+import { GitHubOAuthService } from '../../../github/application/use-cases/github-oauth.service';
 import { GoogleOAuthClient } from '../../infrastructure/integrations/google-oauth.client';
 import { SessionTokenService } from '../../infrastructure/security/session-token.service';
 import { AuthSessionDto, AuthTokensDto } from '../dto/auth-session.dto';
@@ -22,6 +22,7 @@ import {
   SocialAuthStartDto,
 } from '../dto/social-auth.dto';
 import { toAuthUserDto } from '../mappers/auth-user.mapper';
+import { IdentityUsernameService } from './identity-username.service';
 
 const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -39,7 +40,6 @@ interface ProviderIdentity {
   avatarUrl?: string;
   profileUrl?: string;
   rawProfileData: Prisma.InputJsonObject;
-  gitHubIdentity?: GitHubSocialIdentity;
 }
 
 @Injectable()
@@ -49,6 +49,7 @@ export class SocialAuthService {
     private readonly googleOAuthClient: GoogleOAuthClient,
     private readonly gitHubOAuthService: GitHubOAuthService,
     private readonly sessionTokenService: SessionTokenService,
+    private readonly identityUsernameService: IdentityUsernameService,
   ) {}
 
   async start(
@@ -158,13 +159,6 @@ export class SocialAuthService {
 
     await this.assertProviderCanLinkToUser(identity, user.id);
 
-    if (identity.provider === AuthProvider.github && identity.gitHubIdentity) {
-      await this.gitHubOAuthService.upsertConnectedAccountFromSocial(
-        user.id,
-        identity.gitHubIdentity,
-      );
-    }
-
     await this.upsertProviderAccount(identity, user.id);
 
     const updatedUser = await this.database.user.update({
@@ -192,7 +186,7 @@ export class SocialAuthService {
       return this.googleOAuthClient.getAuthorizationUrl(state);
     }
 
-    return this.gitHubOAuthService.getSocialAuthorizationUrl(role, state);
+    return this.gitHubOAuthService.getSocialAuthorizationUrl(state);
   }
 
   private async exchangeIdentity(
@@ -203,13 +197,7 @@ export class SocialAuthService {
       return this.googleOAuthClient.exchangeCodeForIdentity(code);
     }
 
-    const gitHubIdentity =
-      await this.gitHubOAuthService.exchangeCodeForSocialIdentity(code);
-
-    return {
-      ...gitHubIdentity,
-      gitHubIdentity,
-    };
+    return this.gitHubOAuthService.exchangeCodeForSocialIdentity(code);
   }
 
   private async resolveUser(
@@ -261,10 +249,12 @@ export class SocialAuthService {
     }
 
     const name = this.getNameParts(identity);
+    const username = await this.getSocialSignupUsername(identity);
 
     return this.database.user.create({
       data: {
         email: identity.email,
+        username,
         password_hash: null,
         first_name: name.firstName,
         last_name: name.lastName,
@@ -274,6 +264,16 @@ export class SocialAuthService {
         preferred_language: LanguageCode.en,
       },
     });
+  }
+
+  private getSocialSignupUsername(identity: ProviderIdentity): Promise<string | null> {
+    if (identity.provider !== AuthProvider.github) {
+      return Promise.resolve(null);
+    }
+
+    return this.identityUsernameService.getAvailableUsernameOrNull(
+      identity.username,
+    );
   }
 
   private async activatePendingUserIfEmailVerified(

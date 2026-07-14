@@ -1,4 +1,14 @@
-import { IsEmail, IsIn, IsOptional, IsString, Length, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  MinLength,
+} from 'class-validator';
+
+import { USERNAME_PATTERN } from '../../../domain/username/username.policy';
 
 export class RegisterRequest {
   @IsEmail()
@@ -7,6 +17,11 @@ export class RegisterRequest {
   @IsString()
   @MinLength(8)
   password: string;
+
+  @IsString()
+  @Length(3, 30)
+  @Matches(USERNAME_PATTERN)
+  username: string;
 
   @IsString()
   @Length(1, 100)

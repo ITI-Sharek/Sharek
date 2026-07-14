@@ -16,6 +16,7 @@ Identity answers these questions:
 Implemented endpoints:
 
 - `POST /auth/register`
+- `GET /auth/username-availability`
 - `POST /auth/verify-email`
 - `POST /auth/verify-email/resend`
 - `POST /auth/login`
@@ -34,8 +35,19 @@ Contributor redirect notes:
 
 - `POST /auth/login` and `GET /auth/me` include `username` in the public user
   DTO.
-- Contributor usernames are generated from name/email source data, normalized
-  to `^[a-z0-9][a-z0-9_-]{2,29}$`, and retried with deterministic suffixes.
+- Email/password registration requires a unique username. The username is
+  validated by `IdentityUsernameService`, rejects reserved platform names, and
+  is stored directly on `User.username`.
+- `GET /auth/username-availability` exposes the same username policy for the
+  signup UI and returns `invalid_format`, `reserved`, `taken`, or `null`.
+- Contributor usernames are generated from name/email source data when an older
+  contributor has no username, normalized to
+  `^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$`, and retried with deterministic
+  suffixes.
+- GitHub direct auth signup does not require username input. New GitHub users
+  receive the normalized GitHub login only when it is valid and free; otherwise
+  the account is still created and profile/onboarding can collect a username
+  later.
 - Active users can authenticate; pending contributors can authenticate for the
   redirect/profile flow; suspended and deactivated users remain blocked.
 - Username writes stay in identity and are exposed through
@@ -61,6 +73,7 @@ identity/
   presentation/
     http/controllers/identity.controller.ts
     http/requests/register.request.ts
+    http/requests/username-availability.request.ts
     http/requests/verify-email.request.ts
     http/requests/resend-email-verification.request.ts
     http/requests/login.request.ts
@@ -127,9 +140,11 @@ Google and GitHub direct auth return the same `AuthSessionDto` as email/password
 login after the provider has verified the user's email. The requested `role` is
 used only when a new user is created; existing users keep their saved role. If a
 pending email/password user later signs in with a provider that proves the same
-verified email, Identity activates that pending user. GitHub direct auth may
-also refresh the user's connected GitHub account token, but Identity still does
-not own GitHub token encryption or repository evidence.
+verified email, Identity activates that pending user. GitHub direct auth is
+identity-only: it requests `read:user user:email`, links the auth provider
+account, and does not create or refresh the repository-evidence GitHub
+connection. Contributors grant repository access later through the GitHub
+module's authenticated `/github/oauth/start` profile/onboarding flow.
 
 ## Where To Put New Files
 

@@ -41,6 +41,73 @@ describe('IdentityUsernameService', () => {
     await expect(service.ensureContributorUsernameForUser(user)).resolves.toBe(user);
   });
 
+  it('reports an available username', async () => {
+    const findUnique = jest.fn().mockResolvedValue(null);
+    const service = createService({ findUnique });
+
+    await expect(service.checkAvailability('jane-doe')).resolves.toEqual({
+      available: true,
+      suggestion: null,
+      reason: null,
+    });
+    expect(findUnique).toHaveBeenCalledWith({
+      where: {
+        username: 'jane-doe',
+      },
+    });
+  });
+
+  it('reports invalid and reserved usernames without querying the database', async () => {
+    const findUnique = jest.fn();
+    const service = createService({ findUnique });
+
+    await expect(service.checkAvailability('Jane')).resolves.toMatchObject({
+      available: false,
+      reason: 'invalid_format',
+    });
+    await expect(service.checkAvailability('admin')).resolves.toMatchObject({
+      available: false,
+      reason: 'reserved',
+    });
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it('reports taken usernames with a suggested alternative', async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(baseUser)
+      .mockResolvedValueOnce(null);
+    const service = createService({ findUnique });
+
+    await expect(service.checkAvailability('jane-doe')).resolves.toEqual({
+      available: false,
+      suggestion: 'jane-doe-1',
+      reason: 'taken',
+    });
+  });
+
+  it('returns a normalized OAuth username only when it is available', async () => {
+    const findUnique = jest.fn().mockResolvedValue(null);
+    const service = createService({ findUnique });
+
+    await expect(service.getAvailableUsernameOrNull('JaneDoe')).resolves.toBe(
+      'janedoe',
+    );
+    await expect(service.getAvailableUsernameOrNull('Admin')).resolves.toBeNull();
+  });
+
+  it('returns a suffixed suggestion when an OAuth username is taken', async () => {
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(baseUser)
+      .mockResolvedValueOnce(null);
+    const service = createService({ findUnique });
+
+    await expect(service.getAvailableUsernameOrNull('JaneDoe')).resolves.toBe(
+      'janedoe-1',
+    );
+  });
+
   it('retries deterministic suffixes after username collisions', async () => {
     const findUnique = jest.fn().mockResolvedValue(baseUser);
     const update = jest

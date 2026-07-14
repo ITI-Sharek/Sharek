@@ -11,6 +11,7 @@ import { RefreshSessionRequest } from '../requests/refresh-session.request';
 import { AssignRoleRequest } from '../requests/assign-role.request';
 import { SocialAuthCallbackRequest } from '../requests/social-auth-callback.request';
 import { SocialAuthStartRequest } from '../requests/social-auth-start.request';
+import { UsernameAvailabilityRequest } from '../requests/username-availability.request';
 import { VerifyEmailRequest } from '../requests/verify-email.request';
 import { AccessTokenGuard } from '../../../../../shared/auth/guards/access-token.guard';
 import { RolesGuard } from '../../../../../shared/auth/guards/roles.guard';
@@ -32,6 +33,11 @@ export class IdentityController {
   @Post('register')
   register(@Body() body: RegisterRequest, @Req() request: Request) {
     return this.identityService.register(body, this.getRequestContext(request));
+  }
+
+  @Get('username-availability')
+  checkUsernameAvailability(@Query() query: UsernameAvailabilityRequest) {
+    return this.identityService.checkUsernameAvailability(query.username);
   }
 
   @Post('verify-email')

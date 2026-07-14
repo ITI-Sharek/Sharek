@@ -2,7 +2,7 @@ export interface ContributorProfileSkillDto {
   name: string;
   proficiencyLevel: 'beginner' | 'intermediate' | 'advanced';
   confidence: number;
-  status: 'pending' | 'approved' | 'rejected' | 'disputed';
+  status: 'pending' | 'approved' | 'rejected' | 'disputed' | 'superseded';
   evidenceSummary: string | null;
 }
 

@@ -36,6 +36,8 @@ function createService() {
     hash: jest.fn().mockReturnValue('refresh-token-hash'),
   };
   const identityUsernameService = {
+    assertAvailable: jest.fn().mockResolvedValue(undefined),
+    checkAvailability: jest.fn(),
     ensureContributorUsernameForUser: jest.fn().mockImplementation((user: User) =>
       Promise.resolve(
         user.role === UserRole.contributor
@@ -84,6 +86,7 @@ describe('IdentityService', () => {
       {
         email: 'Owner@Example.com',
         password: 'Password123!',
+        username: 'sharek-owner',
         firstName: 'Sharek',
         lastName: 'Owner',
         role: UserRole.owner,
@@ -95,6 +98,7 @@ describe('IdentityService', () => {
     expect(database.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         email: 'owner@example.com',
+        username: 'sharek-owner',
         password_hash: 'hashed-password',
         status: UserStatus.pending,
       }),
@@ -120,6 +124,37 @@ describe('IdentityService', () => {
       },
     });
     expect(result).not.toHaveProperty('tokens');
+  });
+
+  it('rejects register when the username is already taken', async () => {
+    const { database, identityUsernameService, passwordHasher, service } =
+      createService();
+
+    database.user.findUnique.mockResolvedValue(null);
+    identityUsernameService.assertAvailable.mockRejectedValue({
+      code: 'USERNAME_TAKEN',
+      statusCode: 409,
+    });
+
+    await expect(
+      service.register(
+        {
+          email: 'owner@example.com',
+          password: 'Password123!',
+          username: 'sharek-owner',
+          firstName: 'Sharek',
+          lastName: 'Owner',
+          role: UserRole.owner,
+          preferredLanguage: LanguageCode.en,
+        },
+        {},
+      ),
+    ).rejects.toMatchObject({
+      code: 'USERNAME_TAKEN',
+      statusCode: 409,
+    });
+    expect(passwordHasher.hash).not.toHaveBeenCalled();
+    expect(database.user.create).not.toHaveBeenCalled();
   });
 
   it('verifies a valid OTP, activates the user, and creates a session', async () => {
