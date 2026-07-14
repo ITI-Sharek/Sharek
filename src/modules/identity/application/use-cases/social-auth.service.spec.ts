@@ -35,16 +35,19 @@ describe('SocialAuthService', () => {
     getSocialAuthorizationUrl: jest.fn(),
     exchangeCodeForSocialIdentity: jest.fn(),
     findLinkedUserId: jest.fn(),
-    upsertConnectedAccountFromSocial: jest.fn(),
   };
   const sessionTokenService = {
     generate: jest.fn(),
+  };
+  const identityUsernameService = {
+    getAvailableUsernameOrNull: jest.fn(),
   };
   const service = new SocialAuthService(
     database as never,
     googleOAuthClient as never,
     gitHubOAuthService as never,
     sessionTokenService as never,
+    identityUsernameService as never,
   );
 
   beforeEach(() => {
@@ -55,6 +58,7 @@ describe('SocialAuthService', () => {
       accessTokenHash: 'access-token-hash',
       refreshTokenHash: 'refresh-token-hash',
     });
+    identityUsernameService.getAvailableUsernameOrNull.mockResolvedValue(null);
   });
 
   it('starts Google auth with a hashed state and requested role', async () => {
@@ -80,6 +84,27 @@ describe('SocialAuthService', () => {
       role: UserRole.contributor,
       authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     });
+  });
+
+  it('starts GitHub auth without requesting repository consent', async () => {
+    gitHubOAuthService.getSocialAuthorizationUrl.mockReturnValue(
+      'https://github.com/login/oauth/authorize?scope=read%3Auser+user%3Aemail',
+    );
+
+    const result = await service.start(AuthProvider.github, UserRole.contributor);
+
+    expect(database.authOAuthState.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        provider: AuthProvider.github,
+        requested_role: UserRole.contributor,
+        state_hash: expect.any(String),
+        expires_at: expect.any(Date),
+      }),
+    });
+    expect(gitHubOAuthService.getSocialAuthorizationUrl).toHaveBeenCalledWith(
+      result.state,
+    );
+    expect(result.authorizationUrl).toContain('scope=read%3Auser+user%3Aemail');
   });
 
   it('creates a contributor from a verified Google identity', async () => {
@@ -209,14 +234,85 @@ describe('SocialAuthService', () => {
       context: {},
     });
 
-    expect(gitHubOAuthService.upsertConnectedAccountFromSocial).toHaveBeenCalledWith(
-      'linked-user-id',
-      githubIdentity,
-    );
     expect(database.user.create).not.toHaveBeenCalled();
+    expect(database.authProviderAccount.upsert).toHaveBeenCalledWith({
+      where: {
+        provider_provider_account_id: {
+          provider: AuthProvider.github,
+          provider_account_id: '192692935',
+        },
+      },
+      create: expect.objectContaining({
+        user_id: 'linked-user-id',
+        provider: AuthProvider.github,
+        provider_account_id: '192692935',
+      }),
+      update: expect.any(Object),
+    });
     expect(result.user).toMatchObject({
       id: 'linked-user-id',
       role: UserRole.owner,
+    });
+  });
+
+  it('suggests an available GitHub login as the new social user username', async () => {
+    database.authOAuthState.findFirst.mockResolvedValue({
+      id: 'state-id',
+      requested_role: UserRole.contributor,
+    });
+    gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
+      provider: AuthProvider.github,
+      providerUserId: 'github-123',
+      email: 'github@example.com',
+      emailVerified: true,
+      username: 'Root12335',
+      displayName: 'Root Owner',
+      avatarUrl: 'https://github.com/avatar.png',
+      profileUrl: 'https://github.com/Root12335',
+      rawProfileData: {
+        id: 123,
+        login: 'Root12335',
+      },
+    });
+    database.authProviderAccount.findUnique.mockResolvedValue(null);
+    gitHubOAuthService.findLinkedUserId.mockResolvedValue(null);
+    database.user.findUnique.mockResolvedValue(null);
+    identityUsernameService.getAvailableUsernameOrNull.mockResolvedValue(
+      'root12335',
+    );
+    database.user.create.mockResolvedValue(
+      getUser({
+        id: 'github-user-id',
+        email: 'github@example.com',
+        username: 'root12335',
+        role: UserRole.contributor,
+      }),
+    );
+    database.user.update.mockResolvedValue(
+      getUser({
+        id: 'github-user-id',
+        email: 'github@example.com',
+        username: 'root12335',
+        role: UserRole.contributor,
+        last_login_at: new Date('2026-07-08T12:00:00Z'),
+      }),
+    );
+
+    await service.complete({
+      provider: AuthProvider.github,
+      code: 'oauth-code',
+      state: 'oauth-state',
+      context: {},
+    });
+
+    expect(
+      identityUsernameService.getAvailableUsernameOrNull,
+    ).toHaveBeenCalledWith('Root12335');
+    expect(database.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        email: 'github@example.com',
+        username: 'root12335',
+      }),
     });
   });
 });
@@ -224,12 +320,14 @@ describe('SocialAuthService', () => {
 function getUser(overrides: {
   id: string;
   email: string;
+  username?: string | null;
   role: UserRole;
   last_login_at?: Date | null;
 }) {
   return {
     id: overrides.id,
     email: overrides.email,
+    username: overrides.username ?? null,
     password_hash: null,
     first_name: 'Sharek',
     last_name: 'User',

@@ -3,7 +3,9 @@ import { Response } from 'express';
 import { IdentityController } from './identity.controller';
 
 describe('IdentityController social auth callbacks', () => {
-  const identityService = {};
+  const identityService = {
+    checkUsernameAvailability: jest.fn(),
+  };
   const socialAuthService = {
     completeGitHub: jest.fn(),
     completeGoogle: jest.fn(),
@@ -50,6 +52,25 @@ describe('IdentityController social auth callbacks', () => {
       'http://localhost:3001/auth/callback?provider=google&code=google-code&state=google-state-value',
     );
     expect(socialAuthService.completeGoogle).not.toHaveBeenCalled();
+  });
+
+  it('delegates username availability checks to identity service', () => {
+    identityService.checkUsernameAvailability.mockReturnValue({
+      available: true,
+      suggestion: null,
+      reason: null,
+    });
+
+    expect(
+      controller.checkUsernameAvailability({ username: 'sara-dev' }),
+    ).toEqual({
+      available: true,
+      suggestion: null,
+      reason: null,
+    });
+    expect(identityService.checkUsernameAvailability).toHaveBeenCalledWith(
+      'sara-dev',
+    );
   });
 });
 

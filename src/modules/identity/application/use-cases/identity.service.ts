@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LanguageCode, UserRole } from '@prisma/client';
+import { LanguageCode, Prisma, UserRole } from '@prisma/client';
 import { randomInt } from 'crypto';
 
 import { AuthSessionDto, AuthTokensDto, AuthUserDto } from '../dto/auth-session.dto';
@@ -52,18 +52,11 @@ export class IdentityService {
       throw new ApplicationError('Email is already registered', 'EMAIL_TAKEN', 409);
     }
 
+    const username = input.username.trim();
+    await this.identityUsernameService.assertAvailable(username);
+
     const passwordHash = await this.passwordHasher.hash(input.password);
-    const user = await this.database.user.create({
-      data: {
-        email,
-        password_hash: passwordHash,
-        first_name: input.firstName.trim(),
-        last_name: input.lastName.trim(),
-        role: input.role,
-        status: 'pending',
-        preferred_language: input.preferredLanguage ?? LanguageCode.en,
-      },
-    });
+    const user = await this.createRegisteredUser(input, email, username, passwordHash);
     const verification = await this.issueEmailVerificationOtp(user);
 
     return {
@@ -71,6 +64,78 @@ export class IdentityService {
       emailVerificationRequired: true,
       verificationExpiresAt: verification.expiresAt,
     };
+  }
+
+  checkUsernameAvailability(username: string) {
+    return this.identityUsernameService.checkAvailability(username);
+  }
+
+  private async createRegisteredUser(
+    input: RegisterRequest,
+    email: string,
+    username: string,
+    passwordHash: string,
+  ) {
+    try {
+      return await this.database.user.create({
+        data: {
+          email,
+          username,
+          password_hash: passwordHash,
+          first_name: input.firstName.trim(),
+          last_name: input.lastName.trim(),
+          role: input.role,
+          status: 'pending',
+          preferred_language: input.preferredLanguage ?? LanguageCode.en,
+        },
+      });
+    } catch (error) {
+      if (this.isUniqueConstraintError(error, 'username')) {
+        throw new ApplicationError(
+          'Username is already taken',
+          'USERNAME_TAKEN',
+          409,
+        );
+      }
+
+      if (this.isUniqueConstraintError(error, 'email')) {
+        throw new ApplicationError(
+          'Email is already registered',
+          'EMAIL_TAKEN',
+          409,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  private isUniqueConstraintError(error: unknown, field: string): boolean {
+    if (
+      !(
+        error instanceof Prisma.PrismaClientKnownRequestError ||
+        (typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'P2002')
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'meta' in error &&
+      typeof error.meta === 'object' &&
+      error.meta !== null &&
+      'target' in error.meta
+    ) {
+      const target = error.meta.target;
+      return Array.isArray(target) && target.includes(field);
+    }
+
+    return true;
   }
 
   async verifyEmail(
