@@ -12,8 +12,23 @@ Skill profiles answers these questions:
 
 Current state:
 
-- The module is registered but skill profile workflows are not implemented yet.
-- Add folders only when a sprint task creates real files.
+- Contributors can start selected-repository skill profile generation.
+- Generation state is persisted in `SkillProfileGeneration`.
+- The backend snapshots selected GitHub evidence through the GitHub module,
+  calls the FastAPI AI service through the `SkillProfileGenerator` port, and
+  stores high-confidence generated skills as `pending`.
+- Generated skills do not qualify contributors until admin review changes them
+  to `approved`.
+
+Implemented endpoints:
+
+- `POST /skill-profiles/me/generations`
+- `GET /skill-profiles/me/generations/:generationId`
+
+Owned tables:
+
+- `SkillProfile`
+- `SkillProfileGeneration`
 
 Use this module for:
 
@@ -23,6 +38,67 @@ Use this module for:
 - Linking skill claims to GitHub evidence.
 
 AI can propose skills, but this module owns the final skill state.
+
+## Current Generation Flow
+
+```text
+SkillProfilesController
+  -> StartSkillProfileGenerationUseCase
+  -> SkillProfileGenerationRepository
+  -> BullMqSkillProfileGenerationQueue
+  -> SkillProfileGenerationWorker
+  -> SkillProfileGenerationProcessorService
+  -> GitHubRepositoryService selected evidence snapshots
+  -> SkillProfileGenerator port
+  -> pending SkillProfile records
+```
+
+`BullMqSkillProfileGenerationQueue` durably enqueues work in Redis.
+`SkillProfileGenerationWorker` retries transient failures, limits concurrency,
+and recovers incomplete generation records after backend restarts.
+
+Generation statuses:
+
+```text
+queued
+collecting_evidence
+analyzing
+pending_review
+needs_more_evidence
+failed
+```
+
+Individual skill statuses remain:
+
+```text
+pending
+approved
+rejected
+disputed
+superseded
+```
+
+Frontend callers submit selected repositories:
+
+```json
+{
+  "repositories": [
+    { "fullName": "owner/repo" }
+  ]
+}
+```
+
+The backend validates contributor authorization, repository name format, and
+the selection limit before creating the generation. The GitHub module then
+requires every repository to appear in the authenticated repository list and
+adds contributor-specific authorship evidence for the connected login.
+
+The backend treats FastAPI output as a recommendation. Unknown evidence IDs,
+weak evidence, `needs_more_evidence`, and empty high-confidence candidates do
+not create pending skills. Repeated pending aliases are canonicalized and older
+rows are marked `superseded`; approved rows are not automatically changed.
+Transient GitHub or AI service errors fail the BullMQ attempt so retries occur;
+only genuinely insufficient evidence reaches `needs_more_evidence`.
 
 ## Where To Put New Files
 
@@ -48,3 +124,14 @@ must not directly approve skills in Share-k.
 
 Applications may read approved skills for eligibility. They must not write skill
 approval state.
+
+The GitHub module owns GitHub tokens and repository reads. This module requests
+normalized evidence through `GitHubRepositoryService`; it must not decrypt
+tokens or call GitHub directly.
+
+## Follow-Up Work
+
+- Add admin pending-skill review endpoints and UI integration.
+- Add contract tests against the FastAPI AI repository.
+- Add file-level authored-code/dependency analysis and fraud evaluation
+  fixtures before claiming the full `FR-028` evidence depth.

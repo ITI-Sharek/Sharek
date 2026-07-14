@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: sha-rek-api
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev"
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev:docker"
     ports:
       - "${API_HOST_PORT:-4000}:${PORT:-4000}"
       - "${PRISMA_STUDIO_PORT:-5555}:5555"
@@ -14,12 +14,14 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
       DATABASE_URL: ${DATABASE_URL:-postgresql://sharek:sharek@postgres:5432/sharek?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      SKILL_PROFILE_QUEUE_ENABLED: ${SKILL_PROFILE_QUEUE_ENABLED:-true}
+      SKILL_PROFILE_QUEUE_CONCURRENCY: ${SKILL_PROFILE_QUEUE_CONCURRENCY:-2}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-this-access-secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-secret}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-http://localhost:4000/github/oauth/callback}
+      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL:-http://localhost:4000/auth/github/callback/repository}
       GITHUB_AUTH_CALLBACK_URL: ${GITHUB_AUTH_CALLBACK_URL:-http://localhost:4000/auth/github/callback}
       GITHUB_TOKEN_ENCRYPTION_KEY: ${GITHUB_TOKEN_ENCRYPTION_KEY:-change-this-github-token-encryption-key-32-chars-min}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -31,8 +33,8 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
-      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://host.docker.internal:8000}
-      AI_SERVICE_TIMEOUT_MS: ${AI_SERVICE_TIMEOUT_MS:-5000}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://host.docker.internal:8010}
+      AI_SERVICE_TIMEOUT_MS: ${AI_SERVICE_TIMEOUT_MS:-60000}
       AI_SERVICE_AUTH_TOKEN: ${AI_SERVICE_AUTH_TOKEN:-}
       AI_LOW_CONFIDENCE_THRESHOLD: ${AI_LOW_CONFIDENCE_THRESHOLD:-0.70}
     extra_hosts:
@@ -40,6 +42,7 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
+      - api_build:/usr/src/app/.docker-build
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,7 +55,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: sha-rek-postgres
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-sharek}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sharek}
@@ -77,6 +80,7 @@ services:
 
 volumes:
   postgres_data:
+  api_build:
 
 networks:
   sha-rek-network:
