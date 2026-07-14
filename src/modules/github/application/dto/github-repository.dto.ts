@@ -20,6 +20,13 @@ export interface GitHubRepositoryDto {
   updatedAt: Date | null;
 }
 
+export interface GitHubRepositoryPageDto {
+  items: GitHubRepositoryDto[];
+  page: number;
+  perPage: number;
+  hasNextPage: boolean;
+}
+
 export interface GitHubRepositoryContributorDto {
   login: string | null;
   profileUrl: string | null;
@@ -59,6 +66,17 @@ export interface GitHubRepositoryCommitSignalsDto {
   unavailableReason: string | null;
 }
 
+export interface GitHubRepositoryAuthorshipDto {
+  githubLogin: string;
+  repositoryOwned: boolean;
+  recentCommitCount: number;
+  totalCommits: number;
+  additions: number;
+  deletions: number;
+  contributionDetected: boolean;
+  matchedRecentCommitShas: string[];
+}
+
 export interface GitHubRepositoryImportSnapshot {
   repository: GitHubRepositoryDto;
   technologies: string[];
@@ -66,4 +84,16 @@ export interface GitHubRepositoryImportSnapshot {
   readmeContent: string | null;
   contributionActivity: GitHubRepositoryContributionActivityDto;
   commitSignals: GitHubRepositoryCommitSignalsDto;
+  authorship: GitHubRepositoryAuthorshipDto | null;
+  evidenceFailures: string[];
+}
+
+export interface GitHubSelectedRepositoryEvidenceFailureDto {
+  fullName: string;
+  code: string;
+}
+
+export interface GitHubSelectedSkillProfilingEvidenceDto {
+  snapshots: GitHubRepositoryImportSnapshot[];
+  failures: GitHubSelectedRepositoryEvidenceFailureDto[];
 }

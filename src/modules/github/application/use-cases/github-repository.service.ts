@@ -5,7 +5,9 @@ import {
   GitHubRepositoryContributionActivityDto,
   GitHubRepositoryDto,
   GitHubRepositoryImportSnapshot,
+  GitHubRepositoryPageDto,
   GitHubRepositoryRecentCommitDto,
+  GitHubSelectedSkillProfilingEvidenceDto,
 } from '../dto/github-repository.dto';
 import { DatabaseService } from '../../../../shared/database/database.service';
 import { ApplicationError } from '../../../../shared/errors/application.error';
@@ -23,6 +25,10 @@ const DEFAULT_SKILL_PROFILING_REPOSITORY_LIMIT = 10;
 const MAX_SKILL_PROFILING_REPOSITORY_LIMIT = 30;
 const GITHUB_FULL_NAME_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const LANGUAGE_FETCH_CONCURRENCY = 8;
+const DEFAULT_REPOSITORY_PAGE = 1;
+const DEFAULT_REPOSITORY_PER_PAGE = 12;
+const MAX_REPOSITORY_PER_PAGE = 50;
+const MAX_SELECTED_SKILL_PROFILING_REPOSITORIES = 10;
 
 @Injectable()
 export class GitHubRepositoryService {
@@ -36,6 +42,48 @@ export class GitHubRepositoryService {
     const accessToken = await this.getAccessToken(userId);
     const repositories = await this.gitHubApiClient.listRepositories(accessToken);
 
+    return this.mapRepositoryPayloads(accessToken, repositories);
+  }
+
+  async listRepositoryPage(
+    userId: string,
+    {
+      page = DEFAULT_REPOSITORY_PAGE,
+      perPage = DEFAULT_REPOSITORY_PER_PAGE,
+    }: {
+      page?: number;
+      perPage?: number;
+    } = {},
+  ): Promise<GitHubRepositoryPageDto> {
+    const normalizedPage = Math.max(DEFAULT_REPOSITORY_PAGE, Math.trunc(page));
+    const normalizedPerPage = Math.max(
+      1,
+      Math.min(Math.trunc(perPage), MAX_REPOSITORY_PER_PAGE),
+    );
+    const accessToken = await this.getAccessToken(userId);
+    const repositoryPage = await this.gitHubApiClient.listRepositoryPage(
+      accessToken,
+      {
+        page: normalizedPage,
+        perPage: normalizedPerPage,
+      },
+    );
+
+    return {
+      items: await this.mapRepositoryPayloads(
+        accessToken,
+        repositoryPage.repositories,
+      ),
+      page: normalizedPage,
+      perPage: normalizedPerPage,
+      hasNextPage: repositoryPage.hasNextPage,
+    };
+  }
+
+  private mapRepositoryPayloads(
+    accessToken: string,
+    repositories: GitHubRepositoryPayload[],
+  ): Promise<GitHubRepositoryDto[]> {
     return this.mapWithConcurrencyLimit(
       repositories,
       LANGUAGE_FETCH_CONCURRENCY,
@@ -122,6 +170,73 @@ export class GitHubRepositoryService {
     );
   }
 
+  async getSelectedSkillProfilingEvidence(
+    userId: string,
+    fullNames: string[],
+  ): Promise<GitHubSelectedSkillProfilingEvidenceDto> {
+    const selectedFullNames = this.normalizeSelectedRepositoryFullNames(fullNames);
+    const accessToken = await this.getAccessToken(userId);
+    const githubLogin = await this.getConnectedUsername(userId);
+    const repositories = await this.gitHubApiClient.findRepositoriesByFullNames(
+      accessToken,
+      selectedFullNames,
+    );
+
+    if (repositories.length !== selectedFullNames.length) {
+      throw new ApplicationError(
+        'One or more repositories are not available through the connected GitHub account',
+        'GITHUB_REPOSITORY_SELECTION_NOT_ALLOWED',
+        403,
+      );
+    }
+
+    const settledSnapshots = await Promise.allSettled(
+      repositories.map((repository) =>
+        this.buildRepositorySnapshot(accessToken, repository, githubLogin),
+      ),
+    );
+    const snapshots: GitHubRepositoryImportSnapshot[] = [];
+    const failures: GitHubSelectedSkillProfilingEvidenceDto['failures'] = [];
+
+    settledSnapshots.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        snapshots.push(result.value);
+        return;
+      }
+
+      failures.push({
+        fullName: repositories[index].full_name,
+        code:
+          result.reason instanceof ApplicationError
+            ? result.reason.code
+            : 'GITHUB_REPOSITORY_EVIDENCE_UNAVAILABLE',
+      });
+    });
+
+    return { snapshots, failures };
+  }
+
+  async getConnectedUsername(userId: string): Promise<string> {
+    const account = await this.database.gitHubAccount.findUnique({
+      where: {
+        user_id: userId,
+      },
+      select: {
+        username: true,
+      },
+    });
+
+    if (!account) {
+      throw new ApplicationError(
+        'GitHub account is not connected',
+        'GITHUB_ACCOUNT_NOT_CONNECTED',
+        404,
+      );
+    }
+
+    return account.username;
+  }
+
   async markRepositoryImportPrepared(userId: string): Promise<void> {
     await this.database.gitHubAccount.update({
       where: {
@@ -199,7 +314,7 @@ export class GitHubRepositoryService {
 
     const normalizedAuthor = author.toLowerCase();
     const recentCommits = commitSignals.recentCommits.filter((commit) =>
-      commit.authorLogin?.toLowerCase().includes(normalizedAuthor),
+      commit.authorLogin?.toLowerCase() === normalizedAuthor,
     );
     const authoredDates = recentCommits
       .map((commit) => commit.authoredAt)
@@ -235,17 +350,36 @@ export class GitHubRepositoryService {
     return this.tokenEncryption.decrypt(account.access_token);
   }
 
+  private normalizeSelectedRepositoryFullNames(fullNames: string[]): string[] {
+    const selectedFullNames = this.getUniqueSortedValues(
+      fullNames.map((fullName) => this.normalizeRepositoryReference(fullName)),
+    );
+
+    if (selectedFullNames.length === 0) {
+      throw new ApplicationError(
+        'At least one repository must be selected',
+        'GITHUB_REPOSITORY_SELECTION_REQUIRED',
+        400,
+      );
+    }
+
+    if (selectedFullNames.length > MAX_SELECTED_SKILL_PROFILING_REPOSITORIES) {
+      throw new ApplicationError(
+        `Select at most ${MAX_SELECTED_SKILL_PROFILING_REPOSITORIES} repositories`,
+        'GITHUB_REPOSITORY_SELECTION_LIMIT_EXCEEDED',
+        400,
+      );
+    }
+
+    return selectedFullNames;
+  }
+
   private async buildRepositorySnapshot(
     accessToken: string | null,
     repository: GitHubRepositoryPayload,
+    githubLogin?: string,
   ): Promise<GitHubRepositoryImportSnapshot> {
-    const [
-      languages,
-      readmeContent,
-      contributionStats,
-      commitActivity,
-      recentCommits,
-    ] = await Promise.all([
+    const settledEvidence = await Promise.allSettled([
       this.gitHubApiClient.getRepositoryLanguages(
         accessToken,
         repository.full_name,
@@ -267,6 +401,45 @@ export class GitHubRepositoryService {
         repository.full_name,
       ),
     ]);
+    const evidenceFailures: string[] = [];
+    const [
+      languages,
+      readmeContent,
+      contributionStats,
+      commitActivity,
+      recentCommits,
+    ] = [
+      this.readSettledEvidence(
+        settledEvidence[0],
+        {},
+        'languages_unavailable',
+        evidenceFailures,
+      ),
+      this.readSettledEvidence(
+        settledEvidence[1],
+        null,
+        'readme_unavailable',
+        evidenceFailures,
+      ),
+      this.readSettledEvidence(
+        settledEvidence[2],
+        { data: null, unavailableReason: 'github_request_failed' },
+        'contributor_stats_unavailable',
+        evidenceFailures,
+      ),
+      this.readSettledEvidence(
+        settledEvidence[3],
+        { data: null, unavailableReason: 'github_request_failed' },
+        'commit_activity_unavailable',
+        evidenceFailures,
+      ),
+      this.readSettledEvidence(
+        settledEvidence[4],
+        { data: null, unavailableReason: 'github_request_failed' },
+        'recent_commits_unavailable',
+        evidenceFailures,
+      ),
+    ];
     const repositoryDto = this.toRepositoryDto(repository, languages);
     const contributionActivity = this.toContributionActivity(
       contributionStats,
@@ -285,6 +458,59 @@ export class GitHubRepositoryService {
       readmeContent,
       contributionActivity,
       commitSignals,
+      authorship: githubLogin
+        ? this.toRepositoryAuthorship(
+            repositoryDto,
+            githubLogin,
+            contributionStats,
+            commitSignals,
+          )
+        : null,
+      evidenceFailures,
+    };
+  }
+
+  private readSettledEvidence<T>(
+    result: PromiseSettledResult<T>,
+    fallback: T,
+    failureCode: string,
+    failures: string[],
+  ): T {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+
+    failures.push(failureCode);
+    return fallback;
+  }
+
+  private toRepositoryAuthorship(
+    repository: GitHubRepositoryDto,
+    githubLogin: string,
+    contributionStats: GitHubOptionalResult<GitHubContributorStatsPayload[]>,
+    commitSignals: GitHubRepositoryCommitSignalsDto,
+  ) {
+    const normalizedLogin = githubLogin.toLowerCase();
+    const contributor = (contributionStats.data ?? []).find(
+      (candidate) => candidate.author?.login?.toLowerCase() === normalizedLogin,
+    );
+    const weeks = contributor?.weeks ?? [];
+    const recentCommits = commitSignals.recentCommits.filter(
+      (commit) => commit.authorLogin?.toLowerCase() === normalizedLogin,
+    );
+    const totalCommits =
+      contributor?.total ??
+      weeks.reduce((total, week) => total + (week.c ?? 0), 0);
+
+    return {
+      githubLogin,
+      repositoryOwned: repository.owner.toLowerCase() === normalizedLogin,
+      recentCommitCount: recentCommits.length,
+      totalCommits,
+      additions: weeks.reduce((total, week) => total + (week.a ?? 0), 0),
+      deletions: weeks.reduce((total, week) => total + (week.d ?? 0), 0),
+      contributionDetected: totalCommits > 0 || recentCommits.length > 0,
+      matchedRecentCommitShas: recentCommits.map((commit) => commit.sha),
     };
   }
 
@@ -377,11 +603,7 @@ export class GitHubRepositoryService {
       sha: commit.sha,
       htmlUrl: commit.html_url ?? null,
       messageHeadline: this.getMessageHeadline(commit.commit?.message),
-      authorLogin:
-        commit.author?.login ??
-        commit.committer?.login ??
-        commit.commit?.author?.name ??
-        null,
+      authorLogin: commit.author?.login ?? null,
       authoredAt: this.parseOptionalDate(
         commit.commit?.author?.date ?? commit.commit?.committer?.date,
       ),

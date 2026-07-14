@@ -16,19 +16,65 @@ describe('GitHubApiClient', () => {
     jest.mocked(global.fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
+      headers: new Headers(),
       json: () => Promise.resolve([]),
     } as Response);
 
     await client.listRepositories('plain-token');
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://api.github.com/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&per_page=100',
+      'https://api.github.com/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&page=1&per_page=100',
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer plain-token',
         }),
       }),
     );
+  });
+
+  it('uses the GitHub Link header without skipping repositories between pages', async () => {
+    jest.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        link: '<https://api.github.com/user/repos?page=3>; rel="next"',
+      }),
+      json: () =>
+        Promise.resolve([
+          { id: 1, name: 'one', full_name: 'sharek/one' },
+          { id: 2, name: 'two', full_name: 'sharek/two' },
+        ]),
+    } as Response);
+
+    await expect(
+      client.listRepositoryPage('plain-token', { page: 2, perPage: 2 }),
+    ).resolves.toMatchObject({
+      repositories: [
+        { id: 1, full_name: 'sharek/one' },
+        { id: 2, full_name: 'sharek/two' },
+      ],
+      hasNextPage: true,
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.github.com/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&page=2&per_page=2',
+      expect.any(Object),
+    );
+  });
+
+  it('treats a headerless repository response as the final page', async () => {
+    jest.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([{ id: 1, full_name: 'sharek/one' }]),
+    } as Response);
+
+    await expect(
+      client.listRepositoryPage('plain-token', { page: 1, perPage: 100 }),
+    ).resolves.toMatchObject({
+      repositories: [{ id: 1, full_name: 'sharek/one' }],
+      hasNextPage: false,
+    });
   });
 
   it('returns null when a repository README is unavailable', async () => {
@@ -63,6 +109,7 @@ describe('GitHubApiClient', () => {
     jest.mocked(global.fetch).mockResolvedValueOnce({
       ok: true,
       status: 200,
+      headers: new Headers(),
       json: () =>
         Promise.resolve([
           {

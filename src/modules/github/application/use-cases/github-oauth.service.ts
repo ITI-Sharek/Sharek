@@ -14,12 +14,12 @@ const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 const GITHUB_USER_URL = 'https://api.github.com/user';
 const GITHUB_EMAILS_URL = 'https://api.github.com/user/emails';
+const SOCIAL_AUTH_OAUTH_SCOPE = 'read:user user:email';
 const CONTRIBUTOR_OAUTH_SCOPE = 'read:user user:email repo';
 const DEFAULT_OAUTH_SCOPE = 'read:user user:email public_repo';
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 type GitHubOAuthUserRole = 'owner' | 'contributor' | 'admin';
-export type GitHubSocialAuthRole = 'owner' | 'contributor';
 
 interface GitHubTokenPayload {
   accessToken: string;
@@ -92,13 +92,13 @@ export class GitHubOAuthService {
     };
   }
 
-  getSocialAuthorizationUrl(role: GitHubSocialAuthRole, state: string): string {
+  getSocialAuthorizationUrl(state: string): string {
     const clientId = this.getRequiredConfig('GITHUB_CLIENT_ID');
     const callbackUrl = this.getSocialCallbackUrl();
     const authorizationUrl = new URL(GITHUB_AUTHORIZE_URL);
     authorizationUrl.searchParams.set('client_id', clientId);
     authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
-    authorizationUrl.searchParams.set('scope', this.getOAuthScope(role));
+    authorizationUrl.searchParams.set('scope', SOCIAL_AUTH_OAUTH_SCOPE);
     authorizationUrl.searchParams.set('state', state);
 
     return authorizationUrl.toString();
@@ -245,77 +245,6 @@ export class GitHubOAuthService {
     });
 
     return account?.user_id ?? null;
-  }
-
-  async upsertConnectedAccountFromSocial(
-    userId: string,
-    identity: GitHubSocialIdentity,
-  ): Promise<GitHubAccountDto> {
-    const linkedAccount = await this.database.gitHubAccount.findUnique({
-      where: {
-        github_id: identity.providerUserId,
-      },
-    });
-
-    if (linkedAccount && linkedAccount.user_id !== userId) {
-      throw new ApplicationError(
-        'GitHub account is already linked to another user',
-        'GITHUB_ACCOUNT_TAKEN',
-        409,
-      );
-    }
-
-    const currentUserAccount = await this.database.gitHubAccount.findUnique({
-      where: {
-        user_id: userId,
-      },
-    });
-
-    if (
-      currentUserAccount &&
-      currentUserAccount.github_id !== identity.providerUserId
-    ) {
-      throw new ApplicationError(
-        'User already has a different GitHub account connected',
-        'GITHUB_ACCOUNT_ALREADY_CONNECTED',
-        409,
-      );
-    }
-
-    const account = await this.database.gitHubAccount.upsert({
-      where: {
-        user_id: userId,
-      },
-      create: {
-        user_id: userId,
-        github_id: identity.providerUserId,
-        username: identity.username,
-        access_token: this.tokenEncryption.encrypt(identity.accessToken),
-        refresh_token: identity.refreshToken
-          ? this.tokenEncryption.encrypt(identity.refreshToken)
-          : null,
-        avatar_url: identity.avatarUrl,
-        profile_url: identity.profileUrl,
-        raw_profile_data: identity.rawProfileData,
-        token_expires_at: identity.tokenExpiresAt,
-        connected_at: new Date(),
-        last_synced_at: new Date(),
-      },
-      update: {
-        username: identity.username,
-        access_token: this.tokenEncryption.encrypt(identity.accessToken),
-        refresh_token: identity.refreshToken
-          ? this.tokenEncryption.encrypt(identity.refreshToken)
-          : null,
-        avatar_url: identity.avatarUrl,
-        profile_url: identity.profileUrl,
-        raw_profile_data: identity.rawProfileData,
-        token_expires_at: identity.tokenExpiresAt,
-        last_synced_at: new Date(),
-      },
-    });
-
-    return toGitHubAccountDto(account);
   }
 
   private async exchangeCodeForToken(

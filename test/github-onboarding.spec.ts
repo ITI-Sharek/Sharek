@@ -16,7 +16,10 @@ describe('GitHub onboarding flow', () => {
     process.env.GITHUB_CLIENT_ID = 'test-github-client-id';
     process.env.GITHUB_CLIENT_SECRET = 'test-github-client-secret';
     process.env.GITHUB_OAUTH_CALLBACK_URL =
-      'http://localhost:3000/github/oauth/callback';
+      'http://localhost:4000/auth/github/callback/repository';
+    process.env.GITHUB_AUTH_CALLBACK_URL =
+      'http://localhost:4000/auth/github/callback';
+    process.env.FRONTEND_URL = 'http://localhost:3001';
     process.env.GITHUB_TOKEN_ENCRYPTION_KEY =
       'test-github-token-encryption-key-32-chars-min';
 
@@ -68,6 +71,7 @@ describe('GitHub onboarding flow', () => {
       .send({
         email: 'owner@example.com',
         password: 'Password123!',
+        username: 'sharek-owner',
         firstName: 'Sharek',
         lastName: 'Owner',
         role: 'owner',
@@ -149,12 +153,17 @@ describe('GitHub onboarding flow', () => {
     });
 
     await request(app.getHttpServer())
-      .get('/github/repositories')
+      .get('/github/repositories?page=1&perPage=12')
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200)
       .expect(({ body }) => {
-        expect(body).toHaveLength(1);
-        expect(body[0]).toMatchObject({
+        expect(body).toMatchObject({
+          page: 1,
+          perPage: 12,
+          hasNextPage: false,
+        });
+        expect(body.items).toHaveLength(1);
+        expect(body.items[0]).toMatchObject({
           fullName: 'ITI-Sharek/sharek-api',
           primaryLanguage: 'TypeScript',
           languages: {
@@ -206,12 +215,23 @@ describe('GitHub onboarding flow', () => {
       });
   });
 
+  it('redirects repository OAuth browser callbacks to the frontend callback route', async () => {
+    await request(app.getHttpServer())
+      .get('/auth/github/callback/repository?code=github-oauth-code&state=github-oauth-state')
+      .expect(302)
+      .expect(
+        'Location',
+        'http://localhost:3001/auth/callback?provider=github&code=github-oauth-code&state=github-oauth-state',
+      );
+  });
+
   it('requests private repository OAuth scope for contributors', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send({
         email: 'contributor-scope@example.com',
         password: 'Password123!',
+        username: 'contributor-scope',
         firstName: 'Sharek',
         lastName: 'Contributor',
         role: 'contributor',
@@ -235,11 +255,25 @@ describe('GitHub onboarding flow', () => {
       new URL(startResponse.body.authorizationUrl).searchParams.get('scope'),
     ).toBe('read:user user:email repo');
   });
+
+  it('uses minimal GitHub scope for social signup before repository consent', async () => {
+    const startResponse = await request(app.getHttpServer())
+      .get('/auth/github/start?role=contributor')
+      .expect(200);
+
+    const scope = new URL(
+      startResponse.body.authorizationUrl,
+    ).searchParams.get('scope');
+
+    expect(scope).toBe('read:user user:email');
+    expect(scope).not.toContain('repo');
+  });
 });
 
 type UserRecord = {
   id: string;
   email: string;
+  username: string | null;
   password_hash: string;
   first_name: string;
   last_name: string;
@@ -282,6 +316,15 @@ type GitHubOAuthStateRecord = {
   consumed_at: Date | null;
 };
 
+type AuthOAuthStateRecord = {
+  id: string;
+  provider: 'google' | 'github';
+  state_hash: string;
+  requested_role: 'owner' | 'contributor';
+  expires_at: Date;
+  consumed_at: Date | null;
+};
+
 type GitHubAccountRecord = {
   id: string;
   user_id: string;
@@ -319,15 +362,20 @@ class InMemoryDatabase {
   private users: UserRecord[] = [];
   private authSessions: AuthSessionRecord[] = [];
   private emailVerificationOtps: EmailVerificationOtpRecord[] = [];
+  private authOAuthStates: AuthOAuthStateRecord[] = [];
   private gitHubOAuthStates: GitHubOAuthStateRecord[] = [];
   private gitHubAccounts: GitHubAccountRecord[] = [];
   private projects: ProjectRecord[] = [];
 
   user = {
-    findUnique: jest.fn(({ where }: { where: { email?: string; id?: string } }) =>
+    findUnique: jest.fn(
+      ({ where }: { where: { email?: string; id?: string; username?: string } }) =>
       Promise.resolve(
         this.users.find(
-          (user) => user.email === where.email || user.id === where.id,
+          (user) =>
+            user.email === where.email ||
+            user.id === where.id ||
+            user.username === where.username,
         ) ?? null,
       ),
     ),
@@ -336,6 +384,7 @@ class InMemoryDatabase {
       const user: UserRecord = {
         id: `user-${this.users.length + 1}`,
         email: data.email ?? '',
+        username: data.username ?? null,
         password_hash: data.password_hash ?? '',
         first_name: data.first_name ?? '',
         last_name: data.last_name ?? '',
@@ -516,6 +565,22 @@ class InMemoryDatabase {
         return Promise.resolve(record);
       },
     ),
+  };
+
+  authOAuthState = {
+    create: jest.fn(({ data }: { data: Partial<AuthOAuthStateRecord> }) => {
+      const state: AuthOAuthStateRecord = {
+        id: `auth-oauth-state-${this.authOAuthStates.length + 1}`,
+        provider: data.provider ?? 'github',
+        state_hash: data.state_hash ?? '',
+        requested_role: data.requested_role ?? 'contributor',
+        expires_at: data.expires_at ?? new Date(Date.now() + 60_000),
+        consumed_at: null,
+      };
+
+      this.authOAuthStates.push(state);
+      return Promise.resolve(state);
+    }),
   };
 
   gitHubOAuthState = {
