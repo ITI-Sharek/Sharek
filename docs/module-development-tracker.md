@@ -163,16 +163,16 @@ needs workflow code.
 | Module | Current State | Main Implemented Files | Next Expected Work | Tracker Rule |
 | --- | --- | --- | --- | --- |
 | `identity` | Implemented auth/session endpoints | controller, request DTOs, auth service, mappers, security services | account-state policies, password reset, stronger persistence boundary if needed | Update when auth endpoints, user/session rules, roles, or account status change |
-| `github` | Implemented OAuth/account/repository listing/import snapshot and normalized evidence support | GitHub controller, OAuth service, repository service, DTOs, GitHub API client, token encryption | repository ingestion jobs, webhook/sync handling, persistent skill-profile evidence snapshots | Update when GitHub scopes, token handling, repo evidence, or import behavior changes |
+| `github` | Implemented OAuth/account/repository listing and contributor-attributed evidence snapshots | GitHub controller, OAuth service, repository service, DTOs, GitHub API client, token encryption | webhook/sync handling and normalized persistent evidence tables if JSON snapshots no longer scale | Update when GitHub scopes, token handling, repo evidence, or import behavior changes |
 | `projects` | Implemented GitHub project import | projects controller, import request, project import service, project mapper | update draft, publish/archive, project discovery | Update when project lifecycle, visibility, metadata, or project APIs change |
 | `contributor-profiles` | Implemented authenticated profile ensure and profile-by-username reads | controller, use cases, Prisma repository, presenter, domain policy | richer profile editing and public profile sections as product scope expands | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
-| `skill-profiles` | Registered placeholder module | module README and module file | skill generation, pending skills, admin approval/rejection | Update when skill state, evidence, AI generation, or approval rules are added |
+| `skill-profiles` | Implemented durable selected-repository generation and pending-candidate policy | generation controller/use cases, BullMQ queue/worker, Prisma repository, canonical skill policy | admin approval/rejection/adjustment APIs and file-level evidence evaluation | Update when skill state, evidence, AI generation, or approval rules are added |
 | `contribution-tasks` | Registered placeholder module | module README and module file | task create/update/open/close and task discovery | Update when task lifecycle, required skills, capacity, deadlines, or owner limits are added |
 | `applications` | Registered placeholder module | module README and module file | apply-to-task, eligibility recommendation, manual review, owner decision | Update when application status, AI decision handling, or application APIs are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Registered placeholder module | module README and module file | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
 | `admin` | Registered placeholder module | module README and module file | manual review queues, disputes, reports, moderation views | Update when admin queues, review actions, moderation, or audit views are added |
-| `ai` | AI ports prepared | AI module and application ports | FastAPI client adapters, schema validation, timeout/retry policy | Update when AI ports, schemas, adapters, audit metadata, or service behavior changes |
+| `ai` | Implemented authenticated FastAPI skill-profile adapter | AI port, strict FastAPI client adapter, response validation tests | eligibility/guidance/embedding adapters and broader contract tests | Update when AI ports, schemas, adapters, audit metadata, or service behavior changes |
 | `health` | Implemented health endpoint | health controller, response, module, test | readiness checks for database/Redis/external dependencies if needed | Update when health response shape or readiness checks change |
 
 ## Per-Task Checklist
@@ -429,6 +429,28 @@ records short and factual. Do not paste full diffs.
   `sudo chown -R amr18:amr18 /opt/Sharek_Backend/Backend/dist` or remove `dist/`
   from a terminal with permission, then rerun `npm run build`.
 
+### 2026-07-13 - Local Postgres port and build artifact recovery
+
+- Modules: all backend modules.
+- Change type: local development configuration and generated artifact recovery.
+- Summary: Aligned fresh Docker Compose Postgres host-port defaults with the
+  local npm script expectation of `localhost:5433`, moved the locked generated
+  `dist/` output aside, regenerated Prisma Client, and verified the backend can
+  compile and initialize against the healthy Docker Postgres service.
+- Code files changed: none.
+- API changes: none.
+- Database changes: none.
+- Tests/checks: `npm run check:architecture`, `npx prisma generate`,
+  `npm run build`, `docker compose ps`,
+  `docker compose exec -T postgres pg_isready -U sharek -d sharek`,
+  `PORT=3001 npm run start:dev`.
+- Architecture check: passed.
+- Docs updated: `.env.example`, `.gitignore`, `docker-compose.yml`,
+  `docs/module-development-tracker.md`.
+- Risks/follow-up: `PORT=3001 npm run start:dev` now reaches Nest startup and
+  database initialization, but port `3001` was already occupied on the host; use
+  another `PORT` value or stop the process currently listening on `3001`.
+
 ## Agent Handoff Template
 
 Every agent should finish with this shape:
@@ -511,3 +533,250 @@ This keeps the system strong without making it heavy:
 - Docs updated: `docs/module-development-tracker.md`.
 - Risks/follow-up: lint warnings from existing specs (`no-explicit-any`) remain
   unchanged and pre-existing.
+
+### 2026-07-14 - Split GitHub social auth from repository consent
+
+- Modules: `identity`, `github`.
+- Requirement IDs: `TASK-1-04`, `TASK-1-05`, `FR-011`, `FR-012`,
+  `FR-027`, `FR-090`.
+- Change type: backend behavior, API contract documentation, and tests.
+- Summary: Changed GitHub social signup/signin to request only identity scope
+  (`read:user user:email`) and stopped social auth from creating the
+  repository-evidence GitHub connection. The authenticated
+  `/github/oauth/start` flow remains the explicit contributor repository
+  consent step and still requests `repo` for contributor evidence.
+- Code files changed:
+  `src/modules/github/application/use-cases/github-oauth.service.ts`,
+  `src/modules/identity/application/use-cases/social-auth.service.ts`,
+  `src/modules/identity/application/use-cases/social-auth.service.spec.ts`,
+  `test/github-onboarding.spec.ts`.
+- API changes: no route shape change. `GET /auth/github/start` now returns an
+  authorization URL with minimal identity scope; `GET /github/oauth/start`
+  keeps role-aware repository consent.
+- Database changes: none.
+- Tests/checks: `npm test -- src/modules/identity/application/use-cases/social-auth.service.spec.ts --runInBand`,
+  `npm test -- test/github-onboarding.spec.ts --runInBand`,
+  `npm run check:architecture`, `npm run lint`, `npm run build`,
+  `npm test -- --runInBand`.
+- Architecture check: passed.
+- Docs updated: `docs/api-contracts.md`, `sharek-api.http`,
+  `src/modules/identity/README.md`, `src/modules/github/README.md`,
+  `docs/module-development-tracker.md`.
+- Risks/follow-up: existing lint warnings in unrelated specs remain. The
+  frontend should show repository access as a post-signup profile/onboarding
+  consent step before calling `/github/oauth/start`.
+
+### 2026-07-14 - Fix GitHub repository OAuth browser callback
+
+- Modules: `github`.
+- Requirement IDs: `TASK-1-05`, `FR-027`, `FR-090`.
+- Change type: backend callback routing, local OAuth configuration, docs, and
+  tests.
+- Summary: Added a browser repository-connect callback at
+  `/auth/github/callback/repository` that forwards GitHub `code`/`state` to the
+  frontend `/auth/callback` route. Updated the repository OAuth callback URL
+  defaults so the GitHub OAuth App can keep the parent
+  `/auth/github/callback` registration while repository consent uses a child
+  redirect path.
+- Code files changed:
+  `src/modules/github/presentation/http/controllers/github-oauth.controller.ts`,
+  `src/modules/github/github.module.ts`, `test/github-onboarding.spec.ts`,
+  `test/setup-env.ts`.
+- API changes: added `GET /auth/github/callback/repository` as the browser
+  redirect endpoint for repository OAuth. Existing `POST /github/oauth/callback`
+  still performs the connection and token storage.
+- Database changes: none.
+- Tests/checks: `npm test -- test/github-onboarding.spec.ts --runInBand`,
+  `npm run check:architecture`, `npm run build`, `npm run lint`,
+  `npm test -- --runInBand`, frontend `npm run lint`,
+  `curl -I http://localhost:4000/auth/github/callback/repository?...`.
+- Architecture check: passed.
+- Docs updated: `.env.example`, `docker-compose.yml`, `docs/api-contracts.md`,
+  `docs/local-development.md`, `docs/team-onboarding.md`,
+  `sharek-api.http`, `src/modules/github/README.md`,
+  `docs/module-development-tracker.md`.
+- Risks/follow-up: the local GitHub OAuth App must have authorization callback
+  URL `http://localhost:4000/auth/github/callback`, and the running API
+  container must be recreated after `.env` changes.
+
+### 2026-07-14 - Paginate contributor GitHub repository picker
+
+- Modules: `github`.
+- Requirement IDs: `TASK-1-05`, `FR-027`, `FR-090`.
+- Change type: backend API contract, frontend repository picker UX, docs, and
+  tests.
+- Summary: Added page/perPage handling to the GitHub repository picker so
+  contributors can browse public and private repositories in organized pages
+  instead of loading one unbounded list. The backend requests one extra GitHub
+  repository to detect `hasNextPage`; the frontend renders previous/next page
+  controls and page metadata.
+- Code files changed:
+  `src/modules/github/application/dto/github-repository.dto.ts`,
+  `src/modules/github/application/use-cases/github-repository.service.ts`,
+  `src/modules/github/infrastructure/integrations/github-api.client.ts`,
+  `src/modules/github/presentation/http/controllers/github-oauth.controller.ts`,
+  `src/modules/github/presentation/http/requests/github-repositories-query.request.ts`,
+  `test/github-onboarding.spec.ts`.
+- API changes: `GET /github/repositories` now accepts optional `page` and
+  `perPage` query params and returns `{ items, page, perPage, hasNextPage }`
+  for the repository picker.
+- Database changes: none.
+- Tests/checks: `npm test -- src/modules/github/application/use-cases/github-repository.service.spec.ts --runInBand`,
+  `npm test -- src/modules/github/infrastructure/integrations/github-api.client.spec.ts --runInBand`,
+  `npm test -- test/github-onboarding.spec.ts --runInBand`,
+  `npm run check:architecture`, `npm run lint`, `npm run build`,
+  `npm test -- --runInBand`, frontend focused GitHub tests, frontend
+  `npm run lint`, frontend `npm test`, frontend `npm run build`.
+- Architecture check: passed.
+- Docs updated: `docs/api-contracts.md`, `sharek-api.http`,
+  `src/modules/github/README.md`, `docs/module-development-tracker.md`.
+- Risks/follow-up: GitHub does not expose a cheap total count for all visible
+  repositories on this endpoint, so the UI shows page navigation with
+  `hasNextPage` rather than total pages.
+
+### 2026-07-14 - Require usernames during email/password registration
+
+- Modules: `identity`.
+- Requirement IDs: `TASK-1-04`, `FR-011`.
+- Change type: backend API contract, frontend signup integration, docs, and
+  tests.
+- Summary: Added register-time usernames to `POST /auth/register`, exposed
+  `GET /auth/username-availability`, centralized invalid/reserved/taken checks
+  in `IdentityUsernameService`, and enabled the frontend username field against
+  the real backend endpoint. GitHub direct auth signup remains non-blocking and
+  only assigns the normalized GitHub login when it is valid and free.
+- Code files changed:
+  `src/modules/identity/domain/username/username.policy.ts`,
+  `src/modules/identity/application/use-cases/identity-username.service.ts`,
+  `src/modules/identity/application/use-cases/identity.service.ts`,
+  `src/modules/identity/application/use-cases/social-auth.service.ts`,
+  `src/modules/identity/presentation/http/controllers/identity.controller.ts`,
+  `src/modules/identity/presentation/http/requests/register.request.ts`,
+  `src/modules/identity/presentation/http/requests/username-availability.request.ts`.
+- API changes: `POST /auth/register` now requires `username`; added public
+  `GET /auth/username-availability?username=...` returning
+  `{ available, suggestion, reason }`.
+- Database changes: none; the existing nullable unique `User.username` column
+  is used.
+- Tests/checks: focused identity unit tests, `test/github-onboarding.spec.ts`,
+  frontend username availability tests, `npm run check:architecture`,
+  `npm run lint`, `npm test -- --runInBand`, `npm run build`, frontend
+  `npm run lint`, frontend `npm test`, frontend `npm run build`, and
+  `git diff --check` passed.
+- Architecture check: passed.
+- Docs updated: `docs/api-contracts.md`, `sharek-api.http`,
+  `src/modules/identity/README.md`, `docs/module-development-tracker.md`.
+- Risks/follow-up: profile/onboarding username editing still needs a dedicated
+  endpoint if a GitHub OAuth signup cannot take the suggested GitHub login.
+
+### 2026-07-14 - Document selected-repository AI skill profiling plan
+
+- Modules: `skill-profiles`, `github`, `ai`, future `admin`, and frontend
+  integration.
+- Requirement IDs: `TASK-1-05`, `TASK-2-04`, `TASK-2-05`, `TASK-3-03`,
+  `TASK-3-04`, `TASK-3-06`, `TASK-7-03`, `TASK-8-03`, `FR-012`, `FR-014`,
+  `FR-027` through `FR-033`, `FR-083` through `FR-094`, `NFR-001`, `NFR-002`.
+- Change type: implementation planning documentation and tracker update.
+- Summary: Added a concrete handoff plan for the flow where contributors select
+  repositories, the backend snapshots evidence, BullMQ runs AI skill
+  profiling, generated skills are stored as pending, and admins approve or
+  reject skills before eligibility use.
+- Code files changed: none.
+- API changes: none implemented. Proposed future APIs are documented in
+  `docs/selected-repos-ai-skill-profiling-plan.md`.
+- Database changes: none implemented. The plan calls out a future Prisma
+  migration for durable skill-profile generation state.
+- Tests/checks: `npm run check:architecture`, `git diff --check`.
+- Architecture check: passed.
+- Docs updated: `docs/selected-repos-ai-skill-profiling-plan.md`,
+  `docs/module-development-tracker.md`.
+- Risks/follow-up: backend, FastAPI AI repo, admin review, and frontend
+  integration still need implementation after this planning artifact.
+
+### 2026-07-14 - Implement backend selected-repository skill generation
+
+- Modules: `skill-profiles`, `github`, `ai`.
+- Requirement IDs: `TASK-1-05`, `TASK-3-03`, `TASK-3-04`, `FR-012`,
+  `FR-014`, `FR-027` through `FR-033`, `FR-083` through `FR-094`,
+  `NFR-001`, `NFR-002`.
+- Change type: backend API, Prisma schema/migration, FastAPI AI adapter,
+  GitHub evidence service, docs, and tests.
+- Summary: Added contributor skill profile generation from selected GitHub
+  repositories. The backend creates durable generation records, collects
+  selected repository evidence through the GitHub module, calls the FastAPI
+  `SkillProfileGenerator` adapter, stores high-confidence generated skills as
+  `pending`, and exposes a polling endpoint for generation status.
+- Code files changed:
+  `prisma/schema.prisma`,
+  `prisma/migrations/20260714100000_skill_profile_generations/migration.sql`,
+  `src/modules/ai/application/ports/skill-profile-generator.port.ts`,
+  `src/modules/ai/infrastructure/integrations/fastapi-skill-profile-generator.client.ts`,
+  `src/modules/github/application/use-cases/github-repository.service.ts`,
+  `src/modules/skill-profiles/**`.
+- API changes: added `POST /skill-profiles/me/generations` and
+  `GET /skill-profiles/me/generations/:generationId`.
+- Database changes: added `SkillProfileGenerationStatus`,
+  `SkillProfileGeneration`, and optional `SkillProfile.generation_id`.
+- Tests/checks: `npx prisma generate`, `npx prisma validate`,
+  `npm run check:architecture`, focused skill profile generation use-case
+  tests, `npm test -- --runInBand`, `npm run lint`, `npm run build`,
+  `git diff --check`.
+- Architecture check: passed.
+- Docs updated: `docs/api-contracts.md`, `docs/database-plan.md`,
+  `sharek-api.http`, `src/modules/ai/README.md`,
+  `src/modules/skill-profiles/README.md`,
+  `docs/module-development-tracker.md`.
+- Historical follow-up: this initial version ran in-process. The hardening entry
+  below supersedes that implementation with BullMQ, retries, restart recovery,
+  and frontend multi-select/progress integration. Admin approval endpoints
+  remain separate backlog work.
+
+### 2026-07-14 - Harden selected-repository skill profiling after review
+
+- Modules: `skill-profiles`, `github`, `ai`, FastAPI AI repository, and
+  frontend GitHub repository picker.
+- Requirement IDs covered: `TASK-1-05`, `TASK-3-02`, `TASK-3-03`, `FR-012`,
+  `FR-014`, `FR-029`, `FR-030`, `FR-032`, `FR-033`, `FR-083`, `FR-084`,
+  `FR-088`, `FR-090`, `FR-094`, `NFR-001`, `NFR-002`, `NFR-003`.
+- Partial requirement: `FR-028` currently covers repository metadata, README,
+  languages, contributor activity, commit signals, and exact-login authorship;
+  file-level authored code/manifests/static analysis remain future work.
+- Explicitly not claimed: automatic post-OAuth trigger (`FR-027`), admin review
+  actions (`TASK-2-04`, `TASK-3-04`, `FR-031`), RAG indexing, observability,
+  and production evaluation fixtures.
+- Summary: Replaced in-process generation with BullMQ/Redis jobs, retries, and
+  restart recovery. Repository selections are now checked against authenticated
+  `/user/repos`; evidence includes exact contributor authorship and safe partial
+  failure codes. FastAPI requires internal bearer authentication and returns
+  exact evidence citations. NestJS validates citations and applies deterministic
+  weak-evidence policy. Repeated pending skills are canonicalized and superseded.
+  Frontend selections persist across pages, enforce the 10-repository maximum,
+  and display `needs_more_evidence` as a terminal state. Docker Compose now
+  uses a Docker-only TypeScript output path in the `api_build` volume so host
+  builds no longer collide with root-owned `dist/` files.
+- API changes: generation status now includes `needs_more_evidence`; malformed
+  generation IDs return validation errors; failure messages are user-safe.
+- Database changes: added `needs_more_evidence`, `superseded`, `skill_key`, and
+  `superseded_at` in
+  `prisma/migrations/20260714120000_harden_skill_profile_generations/migration.sql`;
+  `20260714130000_normalize_skill_profile_keys` normalizes historical aliases.
+- Dependencies: added `bullmq` to the NestJS backend and `pytest` to the AI
+  service requirements.
+- Tests added/updated: GitHub pagination/membership/authorship, strict FastAPI
+  adapter citations, queue enqueue failure, weak-evidence policy, canonical
+  names, AI endpoint authentication/attribution, and frontend cross-page/limit
+  behavior.
+- Final verification: architecture check passed for 12 modules; backend lint
+  passed with 0 errors (14 existing test-only warnings); 26 backend suites and
+  94 tests passed; backend build passed while Docker watch was active; all 9
+  Prisma migrations are applied; backend `/health` returned 200; 6 FastAPI
+  tests passed; frontend lint, 11 suites/70 tests, and production build passed;
+  all three repositories passed `git diff --check`.
+- Docs updated: API contracts, database plan, current-state guide, local
+  development guide, REST Client guide, selected-repository plan, and `github`, `ai`, and
+  `skill-profiles` READMEs; AI repository now includes README and env example.
+- Risks/follow-up: admin review and file-level authored-code evidence remain
+  separate backlog work. GitHub attribution gaps intentionally degrade to
+  `needs_more_evidence` rather than optimistic confidence. Rotate the exposed
+  Groq credential and set the replacement only in the ignored AI `.env` before
+  performing a live model call; no exposed key is stored in these repositories.

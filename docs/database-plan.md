@@ -43,7 +43,7 @@ Every table has one owning module:
 ```text
 identity              users, auth_sessions, auth_provider_accounts, auth_oauth_states, email_verification_otps
 github                github_accounts, github_oauth_states, github_repositories, github_evidence
-skill-profiles        skill_profiles, skills, skill_evidence, skill_reviews
+skill-profiles        skill_profiles, skill_profile_generations, skills, skill_evidence, skill_reviews
 projects              projects, project_technologies, project_tags
 contribution-tasks    contribution_tasks, task_required_skills
 applications          applications, application_eligibility_results, application_status_history
@@ -76,6 +76,19 @@ For AI-generated or AI-assisted results, store:
 - Created timestamp.
 
 This is required for debugging, admin review, and trust.
+
+`SkillProfileGeneration.status` separates queue/analysis lifecycle from skill
+review lifecycle. Terminal generation states are `pending_review`,
+`needs_more_evidence`, and `failed`.
+
+`SkillProfile.skill_key` stores the canonical comparison key used to merge
+aliases and prevent repeated pending claims. When a later generation proposes
+the same canonical skill, older pending rows become `superseded`; approved
+skills are never automatically replaced by AI output. Generation snapshots
+remain available for audit.
+
+Migration `20260714130000_normalize_skill_profile_keys` aligns historical
+aliases such as `ts`, `js`, and `c sharp` with the same canonical policy.
 
 ## Vector Rules
 
