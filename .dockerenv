@@ -1,0 +1,1 @@
+DATABASE_URL:=postgresql://sharek:sharek@postgres:5432/sharek?schema=public
