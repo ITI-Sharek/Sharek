@@ -7,6 +7,11 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(4000),
   DATABASE_URL: Joi.string().required(),
   REDIS_URL: Joi.string().required(),
+  SKILL_PROFILE_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  SKILL_PROFILE_QUEUE_CONCURRENCY: Joi.number().integer().min(1).max(10).default(2),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://localhost:3001'),
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),
@@ -25,8 +30,14 @@ export const envValidationSchema = Joi.object({
   SMTP_USER: Joi.string().allow('').optional(),
   SMTP_PASS: Joi.string().allow('').optional(),
   EMAIL_FROM: Joi.string().allow('').optional(),
-  AI_SERVICE_URL: Joi.string().uri().default('http://localhost:8000'),
-  AI_SERVICE_TIMEOUT_MS: Joi.number().integer().min(100).default(5000),
-  AI_SERVICE_AUTH_TOKEN: Joi.string().allow('').optional(),
+  AI_SERVICE_URL: Joi.string().uri().default('http://localhost:8010'),
+  AI_SERVICE_TIMEOUT_MS: Joi.number().integer().min(100).default(60000),
+  AI_SERVICE_AUTH_TOKEN: Joi.string()
+    .min(32)
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.required(),
+      otherwise: Joi.allow('').optional(),
+    }),
   AI_LOW_CONFIDENCE_THRESHOLD: Joi.number().min(0).max(1).default(0.7),
 });

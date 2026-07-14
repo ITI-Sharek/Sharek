@@ -1,5 +1,6 @@
 node_modules
 dist
+.docker-build
 build
 coverage
 .git

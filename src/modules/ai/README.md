@@ -19,7 +19,18 @@ ai/
     ports/eligibility-analyzer.port.ts
     ports/embedding-generator.port.ts
     ports/skill-gap-advisor.port.ts
+  infrastructure/
+    integrations/fastapi-skill-profile-generator.client.ts
 ```
+
+Implemented adapters:
+
+- `FastApiSkillProfileGeneratorClient` calls
+  `POST {AI_SERVICE_URL}/skill-profiles/generate`, validates the structured
+  response, and exposes it through the `SkillProfileGenerator` port.
+- The client sends `AI_SERVICE_AUTH_TOKEN` as an internal bearer credential.
+- Every returned evidence ID must belong to a submitted repository capsule;
+  unknown citations and malformed policy fields reject the whole response.
 
 Use this module for:
 
@@ -70,3 +81,8 @@ NestJS module.
 
 Do not let this module approve skills, accept applications, or update
 reputation. It only provides a safe gateway and contracts.
+
+The adapter validates confidence, exact evidence IDs, recommendation,
+evidence quality, fraud-signal repository names, and bounded audit metadata.
+The `skill-profiles` module still owns final storage, status, confidence policy,
+retry outcome, and review workflow.

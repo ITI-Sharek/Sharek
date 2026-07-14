@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist.locked-*/
+.docker-build/
 build/
 coverage/
 .env
@@ -13,4 +15,5 @@ yarn-error.log*
 API-Key.txt
 .locked-file-backups/
 *.locked-backup.*/
+*.locked-backup-*/
 .playwright-mcp/

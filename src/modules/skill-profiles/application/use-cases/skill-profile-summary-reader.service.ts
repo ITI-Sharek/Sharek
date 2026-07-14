@@ -16,7 +16,11 @@ export class SkillProfileSummaryReaderService {
       where: {
         user_id: userId,
         ...(options.includeGenerated
-          ? {}
+          ? {
+              status: {
+                not: SkillProfileStatus.superseded,
+              },
+            }
           : {
               status: SkillProfileStatus.approved,
             }),
