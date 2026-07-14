@@ -14,6 +14,7 @@ Implemented endpoints:
 - `GET /github/oauth/start`
 - `GET /github/oauth/callback`
 - `POST /github/oauth/callback`
+- `GET /auth/github/callback/repository`
 - `GET /github/account`
 - `GET /github/repositories`
 - `GET /github/readme`
@@ -55,6 +56,12 @@ GitHubOAuthController
   -> GitHubAccountDto
 ```
 
+Browser repository-connect callbacks use
+`/auth/github/callback/repository`. That path redirects the browser back to the
+frontend `/auth/callback` route with the GitHub `code` and Share-k `state`.
+The frontend then completes the stored repository-connect flow through
+`POST /github/oauth/callback`.
+
 Repository flow:
 
 ```text
@@ -87,9 +94,14 @@ application services. They should not call GitHub SDKs directly.
 
 Repository import behavior:
 
-- `GET /github/repositories` lists repositories available through the connected
-  GitHub token. Contributors grant the stronger GitHub `repo` scope so this can
-  include private repositories for skill evidence. Owner/admin GitHub connect is
+- `GET /auth/github/start` belongs to identity/social auth and requests only
+  GitHub identity scope (`read:user user:email`). It does not mark repository
+  evidence access as connected.
+- `GET /github/repositories?page=1&perPage=12` lists repositories available
+  through the connected GitHub token. Responses are paginated as
+  `{ items, page, perPage, hasNextPage }`, and `perPage` is capped at `50`.
+  Contributors grant the stronger GitHub `repo` scope so this can include
+  private repositories for skill evidence. Owner/admin GitHub connect is
   optional and uses lighter public repository consent.
 - `POST /projects/import/github` is owner/admin-only and creates or refreshes a
   draft `Project` from public GitHub repository metadata by `owner/repo` or
@@ -113,12 +125,19 @@ Normalized evidence currently includes:
   available.
 - recent commit signals: commit headline, author login, commit URL, and authored
   date.
+- contributor-specific authorship: exact connected login, attributable commit
+  count, additions/deletions, matched recent commit SHAs, and ownership as a
+  separate non-authorship signal.
+- per-repository evidence failure codes so optional GitHub failures do not
+  discard all successfully collected repositories.
 - `unavailableReason` values for optional activity/commit data when GitHub
   returns pending, empty, missing, or unavailable stats.
 
 Public application service methods:
 
-- `listRepositories(userId)` for the frontend repository picker.
+- `listRepositoryPage(userId, pagination)` for the frontend repository picker.
+- `listRepositories(userId)` for internal callers that need the first GitHub
+  repository page as an array.
 - `getRepositoryReadme(userId, fullName)` for authenticated README preview.
 - `getRepositoryDescription(userId, fullName)` for authenticated description
   lookup.
@@ -134,6 +153,9 @@ Public application service methods:
   import without a connected owner GitHub account.
 - `getSkillProfilingEvidence(userId, repositoryLimit)` for future contributor
   skill-profile generation orchestration.
+- `getSelectedSkillProfilingEvidence(userId, fullNames)` for validated selected
+  evidence. It rejects names absent from authenticated `/user/repos` and
+  returns successful snapshots plus safe per-repository failures.
 - `markRepositoryImportPrepared(userId)` to mark the connected account as ready
   for later ingestion work.
 

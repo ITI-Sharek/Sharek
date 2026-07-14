@@ -13,6 +13,8 @@ describe('GitHubRepositoryService', () => {
   };
   const gitHubApiClient = {
     listRepositories: jest.fn(),
+    listRepositoryPage: jest.fn(),
+    findRepositoriesByFullNames: jest.fn(),
     getRepository: jest.fn(),
     getRepositoryLanguages: jest.fn(),
     getRepositoryReadme: jest.fn(),
@@ -62,6 +64,46 @@ describe('GitHubRepositoryService', () => {
       stars: 5,
     });
     expect(tokenEncryption.decrypt).toHaveBeenCalledWith('encrypted-token');
+  });
+
+  it('lists a paginated repository page for the picker', async () => {
+    database.gitHubAccount.findUnique.mockResolvedValue({
+      access_token: 'encrypted-token',
+    });
+    tokenEncryption.decrypt.mockReturnValue('plain-token');
+    gitHubApiClient.listRepositoryPage.mockResolvedValue({
+      repositories: [getRepositoryPayload()],
+      hasNextPage: true,
+    });
+    gitHubApiClient.getRepositoryLanguages.mockResolvedValue({
+      TypeScript: 1000,
+    });
+
+    const page = await service.listRepositoryPage('user-id', {
+      page: 2,
+      perPage: 12,
+    });
+
+    expect(gitHubApiClient.listRepositoryPage).toHaveBeenCalledWith(
+      'plain-token',
+      {
+        page: 2,
+        perPage: 12,
+      },
+    );
+    expect(page).toMatchObject({
+      page: 2,
+      perPage: 12,
+      hasNextPage: true,
+      items: [
+        {
+          fullName: 'ITI-Sharek/sharek-api',
+          languages: {
+            TypeScript: 1000,
+          },
+        },
+      ],
+    });
   });
 
   it('isolates a single repository language-fetch failure instead of failing the whole list', async () => {
@@ -199,6 +241,95 @@ describe('GitHubRepositoryService', () => {
       commitSignals: {
         recentCommitCount: 1,
       },
+    });
+  });
+
+  it('only profiles repositories returned by the authenticated repository list', async () => {
+    database.gitHubAccount.findUnique.mockResolvedValue({
+      access_token: 'encrypted-token',
+      username: 'sharek-dev',
+    });
+    tokenEncryption.decrypt.mockReturnValue('plain-token');
+    gitHubApiClient.findRepositoriesByFullNames.mockResolvedValue([]);
+
+    await expect(
+      service.getSelectedSkillProfilingEvidence('user-id', [
+        'someone-else/public-repo',
+      ]),
+    ).rejects.toMatchObject({
+      code: 'GITHUB_REPOSITORY_SELECTION_NOT_ALLOWED',
+      statusCode: 403,
+    });
+  });
+
+  it('adds contributor-specific authorship to selected evidence', async () => {
+    database.gitHubAccount.findUnique.mockResolvedValue({
+      access_token: 'encrypted-token',
+      username: 'sharek-dev',
+    });
+    tokenEncryption.decrypt.mockReturnValue('plain-token');
+    gitHubApiClient.findRepositoriesByFullNames.mockResolvedValue([
+      getRepositoryPayload(),
+    ]);
+    gitHubApiClient.getRepositoryLanguages.mockResolvedValue({ TypeScript: 1000 });
+    gitHubApiClient.getRepositoryReadme.mockResolvedValue('# Share-k API');
+    gitHubApiClient.getRepositoryContributionStats.mockResolvedValue({
+      data: [getContributorStatsPayload()],
+      unavailableReason: null,
+    });
+    gitHubApiClient.getRepositoryCommitActivity.mockResolvedValue({
+      data: [],
+      unavailableReason: null,
+    });
+    gitHubApiClient.listRecentCommits.mockResolvedValue({
+      data: [getCommitPayload()],
+      unavailableReason: null,
+    });
+
+    const result = await service.getSelectedSkillProfilingEvidence('user-id', [
+      'ITI-Sharek/sharek-api',
+    ]);
+
+    expect(result.failures).toEqual([]);
+    expect(result.snapshots[0].authorship).toMatchObject({
+      githubLogin: 'sharek-dev',
+      totalCommits: 3,
+      recentCommitCount: 1,
+      contributionDetected: true,
+    });
+  });
+
+  it('does not treat an unlinked Git author name as a GitHub login', async () => {
+    database.gitHubAccount.findUnique.mockResolvedValue({
+      access_token: 'encrypted-token',
+    });
+    tokenEncryption.decrypt.mockReturnValue('plain-token');
+    gitHubApiClient.listRecentCommits.mockResolvedValue({
+      data: [
+        {
+          ...getCommitPayload(),
+          author: null,
+          commit: {
+            ...getCommitPayload().commit,
+            author: {
+              name: 'sharek-dev',
+              date: '2026-07-05T02:00:00Z',
+            },
+          },
+        },
+      ],
+      unavailableReason: null,
+    });
+
+    await expect(
+      service.fetchCommitSignals(
+        'user-id',
+        'ITI-Sharek/sharek-api',
+        'sharek-dev',
+      ),
+    ).resolves.toMatchObject({
+      recentCommitCount: 0,
+      recentCommits: [],
     });
   });
 

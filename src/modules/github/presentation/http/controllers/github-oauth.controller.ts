@@ -5,8 +5,11 @@ import {
   Get,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Response } from 'express';
 
 import { AuthenticatedUser } from '../../../../../shared/auth/authenticated-request';
 import { CurrentUser } from '../../../../../shared/auth/current-user.decorator';
@@ -15,6 +18,7 @@ import { ApplicationError } from '../../../../../shared/errors/application.error
 import { GitHubOAuthService } from '../../../application/use-cases/github-oauth.service';
 import { GitHubRepositoryService } from '../../../application/use-cases/github-repository.service';
 import { GitHubOAuthCallbackRequest } from '../requests/github-oauth-callback.request';
+import { GitHubRepositoriesQueryRequest } from '../requests/github-repositories-query.request';
 
 @Controller('github')
 export class GitHubOAuthController {
@@ -50,8 +54,14 @@ export class GitHubOAuthController {
 
   @UseGuards(AccessTokenGuard)
   @Get('repositories')
-  listRepositories(@CurrentUser() user: AuthenticatedUser) {
-    return this.gitHubRepositoryService.listRepositories(user.id);
+  listRepositories(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: GitHubRepositoriesQueryRequest,
+  ) {
+    return this.gitHubRepositoryService.listRepositoryPage(user.id, {
+      page: query.page,
+      perPage: query.perPage,
+    });
   }
 
   @UseGuards(AccessTokenGuard)
@@ -147,5 +157,38 @@ export class GitHubOAuthController {
         400,
       );
     }
+  }
+}
+
+@Controller('auth/github/callback')
+export class GitHubOAuthBrowserCallbackController {
+  constructor(private readonly config: ConfigService) {}
+
+  @Get('repository')
+  redirectRepositoryConnectCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') error: string | undefined,
+    @Query('error_description') errorDescription: string | undefined,
+    @Res() response: Response,
+  ): void {
+    const frontendUrl = this.config.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:3001',
+    );
+    const callbackUrl = new URL('/auth/callback', frontendUrl);
+    callbackUrl.searchParams.set('provider', 'github');
+
+    if (error) {
+      callbackUrl.searchParams.set('error', error);
+      if (errorDescription) {
+        callbackUrl.searchParams.set('error_description', errorDescription);
+      }
+    } else {
+      if (code) callbackUrl.searchParams.set('code', code);
+      if (state) callbackUrl.searchParams.set('state', state);
+    }
+
+    response.redirect(callbackUrl.toString());
   }
 }

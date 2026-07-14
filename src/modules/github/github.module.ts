@@ -5,10 +5,13 @@ import { GitHubProfileStatusReaderService } from './application/use-cases/github
 import { GitHubRepositoryService } from './application/use-cases/github-repository.service';
 import { GitHubApiClient } from './infrastructure/integrations/github-api.client';
 import { GitHubTokenEncryptionService } from './infrastructure/security/github-token-encryption.service';
-import { GitHubOAuthController } from './presentation/http/controllers/github-oauth.controller';
+import {
+  GitHubOAuthBrowserCallbackController,
+  GitHubOAuthController,
+} from './presentation/http/controllers/github-oauth.controller';
 
 @Module({
-  controllers: [GitHubOAuthController],
+  controllers: [GitHubOAuthController, GitHubOAuthBrowserCallbackController],
   providers: [
     GitHubOAuthService,
     GitHubProfileStatusReaderService,

@@ -76,13 +76,47 @@ export interface GitHubOptionalResult<T> {
   unavailableReason: string | null;
 }
 
+export interface GitHubRepositoryPagePayload {
+  repositories: GitHubRepositoryPayload[];
+  hasNextPage: boolean;
+}
+
 @Injectable()
 export class GitHubApiClient {
   async listRepositories(accessToken: string): Promise<GitHubRepositoryPayload[]> {
-    const repositories = await this.fetchGitHub<unknown>(
-      '/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&per_page=100',
+    const repositories: GitHubRepositoryPayload[] = [];
+    let pageNumber = 1;
+
+    while (true) {
+      const page = await this.listRepositoryPage(accessToken, {
+        page: pageNumber,
+        perPage: 100,
+      });
+      repositories.push(...page.repositories);
+
+      if (!page.hasNextPage) {
+        return repositories;
+      }
+
+      pageNumber += 1;
+    }
+  }
+
+  async listRepositoryPage(
+    accessToken: string,
+    {
+      page,
+      perPage,
+    }: {
+      page: number;
+      perPage: number;
+    },
+  ): Promise<GitHubRepositoryPagePayload> {
+    const response = await this.fetchGitHubResponse(
+      `/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&page=${page}&per_page=${perPage}`,
       accessToken,
     );
+    const repositories = (await response.json()) as unknown;
 
     if (!Array.isArray(repositories)) {
       throw new ApplicationError(
@@ -92,7 +126,44 @@ export class GitHubApiClient {
       );
     }
 
-    return repositories as GitHubRepositoryPayload[];
+    return {
+      repositories: repositories as GitHubRepositoryPayload[],
+      hasNextPage: this.hasNextLink(response.headers?.get?.('link') ?? null),
+    };
+  }
+
+  async findRepositoriesByFullNames(
+    accessToken: string,
+    fullNames: string[],
+  ): Promise<GitHubRepositoryPayload[]> {
+    const remaining = new Set(fullNames.map((fullName) => fullName.toLowerCase()));
+    const matches = new Map<string, GitHubRepositoryPayload>();
+    let page = 1;
+
+    while (remaining.size > 0) {
+      const repositoryPage = await this.listRepositoryPage(accessToken, {
+        page,
+        perPage: 100,
+      });
+
+      for (const repository of repositoryPage.repositories) {
+        const key = repository.full_name.toLowerCase();
+        if (remaining.delete(key)) {
+          matches.set(key, repository);
+        }
+      }
+
+      if (!repositoryPage.hasNextPage) {
+        break;
+      }
+      page += 1;
+    }
+
+    return fullNames
+      .map((fullName) => matches.get(fullName.toLowerCase()))
+      .filter((repository): repository is GitHubRepositoryPayload =>
+        repository !== undefined,
+      );
   }
 
   getRepository(
@@ -186,6 +257,15 @@ export class GitHubApiClient {
     path: string,
     accessToken: string | null,
   ): Promise<T> {
+    const response = await this.fetchGitHubResponse(path, accessToken);
+
+    return (await response.json()) as T;
+  }
+
+  private async fetchGitHubResponse(
+    path: string,
+    accessToken: string | null,
+  ): Promise<Response> {
     const response = await fetch(`${GITHUB_API_URL}${path}`, {
       headers: this.getGitHubHeaders(accessToken),
     });
@@ -198,7 +278,7 @@ export class GitHubApiClient {
       );
     }
 
-    return (await response.json()) as T;
+    return response;
   }
 
   private async fetchOptionalGitHub<T>(
@@ -268,5 +348,9 @@ export class GitHubApiClient {
 
   private encodeFullName(fullName: string): string {
     return fullName.split('/').map(encodeURIComponent).join('/');
+  }
+
+  private hasNextLink(linkHeader: string | null): boolean {
+    return linkHeader?.split(',').some((link) => link.includes('rel="next"')) ?? false;
   }
 }
