@@ -50,6 +50,8 @@ GET /auth/username-availability
 POST /auth/verify-email
 POST /auth/verify-email/resend
 POST /auth/login
+POST /auth/forgot-password
+POST /auth/reset-password
 GET /auth/google/start
 GET /auth/google/callback
 POST /auth/google/callback
@@ -481,16 +483,17 @@ contributor for application eligibility until an admin approves them.
 ## AI Service Contracts
 
 AI implementation lives in a separate FastAPI AI repository. The NestJS backend
-calls that service through ports/adapters and owns all business decisions,
+calls that service through `AiService` and integration clients and owns all business decisions,
 database writes, and user-facing API responses.
 
-Expected NestJS ports:
+Expected NestJS service contracts:
 
 ```text
-SkillProfileGenerator
-EligibilityAnalyzer
-SkillGapAdvisor
-EmbeddingGenerator
+AiService
+  -> skill profile generation client
+  -> eligibility client
+  -> skill gap client
+  -> embedding client
 ```
 
 Expected FastAPI service endpoints:
