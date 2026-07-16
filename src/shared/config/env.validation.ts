@@ -21,9 +21,7 @@ export const envValidationSchema = Joi.object({
   GITHUB_OAUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
   GITHUB_AUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
   GITHUB_TOKEN_ENCRYPTION_KEY: Joi.string().min(32).allow('').optional(),
-  GOOGLE_CLIENT_ID: Joi.string().allow('').optional(),
-  GOOGLE_CLIENT_SECRET: Joi.string().allow('').optional(),
-  GOOGLE_OAUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
+
   SMTP_HOST: Joi.string().allow('').optional(),
   SMTP_PORT: Joi.number().port().default(587),
   SMTP_SECURE: Joi.boolean().truthy('true').falsy('false').default(false),

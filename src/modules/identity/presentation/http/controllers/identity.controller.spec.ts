@@ -8,7 +8,6 @@ describe('IdentityController social auth callbacks', () => {
   };
   const socialAuthService = {
     completeGitHub: jest.fn(),
-    completeGoogle: jest.fn(),
   };
   const config = {
     get: jest.fn(),
@@ -40,19 +39,6 @@ describe('IdentityController social auth callbacks', () => {
     expect(socialAuthService.completeGitHub).not.toHaveBeenCalled();
   });
 
-  it('redirects browser Google callbacks to the frontend handoff route', () => {
-    const response = makeRedirectResponse();
-
-    controller.completeGoogleGet(
-      { code: 'google-code', state: 'google-state-value' },
-      response,
-    );
-
-    expect(response.redirect).toHaveBeenCalledWith(
-      'http://localhost:3001/auth/callback?provider=google&code=google-code&state=google-state-value',
-    );
-    expect(socialAuthService.completeGoogle).not.toHaveBeenCalled();
-  });
 
   it('delegates username availability checks to identity service', () => {
     identityService.checkUsernameAvailability.mockReturnValue({

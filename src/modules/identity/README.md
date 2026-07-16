@@ -20,9 +20,7 @@ Implemented endpoints:
 - `POST /auth/verify-email`
 - `POST /auth/verify-email/resend`
 - `POST /auth/login`
-- `GET /auth/google/start`
-- `GET /auth/google/callback`
-- `POST /auth/google/callback`
+
 - `GET /auth/github/start`
 - `GET /auth/github/callback`
 - `POST /auth/github/callback`
@@ -67,7 +65,7 @@ identity/
     use-cases/social-auth.service.ts
   infrastructure/
     integrations/email-verification.sender.ts
-    integrations/google-oauth.client.ts
+
     security/password-hasher.service.ts
     security/session-token.service.ts
   presentation/
@@ -131,12 +129,12 @@ Social auth flow:
 IdentityController
   -> SocialAuthService
   -> AuthOAuthState and AuthProviderAccount tables
-  -> GoogleOAuthClient or GitHubOAuthService
+  -> GitHubOAuthService
   -> SessionTokenService
   -> AuthSessionDto
 ```
 
-Google and GitHub direct auth return the same `AuthSessionDto` as email/password
+GitHub direct auth returns the same `AuthSessionDto` as email/password
 login after the provider has verified the user's email. The requested `role` is
 used only when a new user is created; existing users keep their saved role. If a
 pending email/password user later signs in with a provider that proves the same
