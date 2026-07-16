@@ -1,79 +1,46 @@
 # Definition Of Done
 
-A backend task is done only when all relevant checks below pass.
+A backend change is done only when the applicable items below are complete.
 
-## Product Alignment
+## Behavior
 
-- The task maps to a backlog task ID.
-- The task maps to PRD requirement IDs when applicable.
-- Acceptance criteria are implemented or explicitly deferred.
+- Requirement/task IDs are identified.
+- Route, request, response, status, and error contracts are verified.
+- Authorization, ownership, and inactive-account behavior are reviewed.
+- The owning module makes all final business decisions and writes only its tables.
+- AI recommendations are validated before they affect business state.
 
-## Architecture
+## Structure
 
-- Code is in the owning module.
-- New files follow `docs/developer-architecture-guide.md`.
-- The module task follows `docs/module-development-tracker.md`.
+- Controllers delegate to focused services.
+- DTO validation is explicit.
+- Cross-module calls use exported services only.
+- Optional folders exist only when needed.
+- No legacy layer folders, use-case classes, ports, or decorative abstractions exist.
+- Module README reflects new workflows and public services.
+
+## Data And Security
+
+- Prisma schema changes include migrations and generated-client validation.
+- Transactions protect multi-write decisions where required.
+- Public DTOs exclude secrets and private persistence fields.
+- Provider keys, tokens, URLs, and model secrets are configuration-driven.
+- Logs do not leak credentials or sensitive payloads.
+
+## Tests And Gates
+
+- Focused unit tests cover success, authorization, validation, and failure paths.
+- Relevant HTTP/E2E tests cover public contracts.
 - `npm run check:architecture` passes.
-- Controllers are thin.
-- Business rules live in use cases or domain code.
-- Domain code does not depend on NestJS, Prisma, HTTP clients, or provider SDKs.
-- External systems are accessed through ports/adapters.
-- Cross-module dependency, when needed, uses a public exported service, reader
-  port, or event.
-- No module imports another module's private infrastructure.
-- `shared/` is not used as a dumping ground.
+- `npm run lint` passes without new warnings.
+- `npx tsc --noEmit` passes.
+- Relevant tests and the full test suite pass.
+- `npm run build` passes.
+- `npx prisma validate` passes when Prisma is relevant.
 
-## Database
+## Documentation And Handoff
 
-- Prisma schema is updated when needed.
-- Migration is added when schema changes.
-- Table ownership is respected.
-- Important state changes have status history or audit data when required.
-- AI decisions store provider, model, schema version, service version,
-  confidence, and evidence metadata when they affect business workflows.
-
-## API
-
-- Request DTO validation exists.
-- Response DTO shape is stable.
-- Authorization and ownership checks exist in use cases.
-- Errors map to appropriate HTTP responses.
-- List endpoints include pagination where needed.
-
-## AI
-
-- AI output is validated before use.
-- Low-confidence or malformed output routes to retry or manual review.
-- AI does not directly approve skills, accept applications, or update
-  reputation.
-- Provider-specific logic stays in the separate FastAPI AI repository.
-- NestJS calls the AI service through ports/adapters and validates responses.
-
-## Tests
-
-- Domain rules have unit tests.
-- Use cases have tests with fake ports where useful.
-- Repository or adapter behavior has integration tests when risky.
-- Important status transitions are tested.
-- E2E coverage exists for core user flows when the feature is user-visible.
-
-## Operations
-
-- `npm run check:architecture` passes.
-- Docker/local development still works.
-- Environment variables are documented in `.env.example` when added.
-- No secrets are committed.
-- Logs include useful context without leaking sensitive data.
-- CI checks pass.
-
-## Review Output
-
-Every PR or task summary should include:
-
-- Files changed.
-- Requirement/task IDs covered.
-- Tests run.
-- Migrations added.
-- Docs or README updates made, when the module shape or API changed.
-- Module tracker change record added.
-- Known risks.
+- API/database documentation is updated when contracts change.
+- `docs/module-development-tracker.md` contains a short change record.
+- The final report lists changed files, requirement IDs, tests, architecture
+  result, migrations, known risks, and follow-up work.

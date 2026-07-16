@@ -318,7 +318,7 @@ load generation
   -> fetch selected GitHub snapshots
   -> create compact evidence capsules
   -> mark analyzing
-  -> call SkillProfileGenerator port
+  -> call AiService skill-profile integration
   -> validate output schema
   -> apply backend confidence/evidence policy
   -> write pending SkillProfile records
@@ -335,10 +335,10 @@ Failure flow:
 - Partial repository failures: continue if enough evidence remains and surface
   missing evidence to admin.
 
-### Phase 4 - AI Port And FastAPI Contract
+### Phase 4 - AI Service And FastAPI Contract
 
-Update the backend `SkillProfileGenerator` port from evidence IDs only to
-backend-provided evidence capsules.
+Update the backend `AiService` skill-profile integration from evidence IDs only
+to backend-provided evidence capsules.
 
 Suggested input:
 
@@ -483,7 +483,7 @@ Backend tests:
 - GitHub ownership/visibility: selected repos must be visible to connected
   token.
 - queue enqueue: generation status becomes `queued`.
-- worker happy path: snapshots evidence, calls AI port, stores pending skills.
+- worker happy path: snapshots evidence, calls `AiService`, stores pending skills.
 - worker partial evidence: missing README/stats does not fail everything.
 - malformed AI output: generation fails or routes to manual review.
 - weak evidence: no approved skills are created automatically.
@@ -536,7 +536,7 @@ Success criteria:
 1. Backend docs/contracts and schema design.
 2. Backend generation table, repository selection endpoint, and queue skeleton.
 3. GitHub selected evidence snapshot method.
-4. AI port update and FastAPI adapter.
+4. `AiService` integration update and FastAPI client.
 5. Worker implementation with mocked AI tests.
 6. AI repo endpoint update for selected evidence capsules.
 7. Frontend multi-select and progress UI.
@@ -557,7 +557,7 @@ authorship, citation, confidence, or review policy.
 
 Read AGENTS.md and the required backend docs first. Keep final state ownership
 inside skill-profiles. Use github only through public application services for
-selected repository evidence. Use ai only through ports/adapters to the FastAPI
+selected repository evidence. Use AI only through `AiService` and clients to the FastAPI
 AI service. Do not let AI output directly approve skills or qualify
 contributors.
 

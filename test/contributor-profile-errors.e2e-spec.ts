@@ -2,9 +2,8 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 
-import { ContributorProfilesController } from '../src/modules/contributor-profiles/presentation/http/controllers/contributor-profiles.controller';
-import { EnsureContributorProfileUseCase } from '../src/modules/contributor-profiles/application/use-cases/ensure-contributor-profile.use-case';
-import { GetContributorProfileUseCase } from '../src/modules/contributor-profiles/application/use-cases/get-contributor-profile.use-case';
+import { ContributorProfilesController } from '../src/modules/contributor-profiles/contributor-profiles.controller';
+import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
 import {
@@ -20,20 +19,15 @@ describe('Contributor profile protected HTTP errors', () => {
       controllers: [ContributorProfilesController],
       providers: [
         {
-          provide: EnsureContributorProfileUseCase,
+          provide: ContributorProfilesService,
           useValue: {
-            execute: jest.fn().mockRejectedValue(
+            ensure: jest.fn().mockRejectedValue(
               new ForbiddenApplicationError(
                 'Only contributors can create contributor profiles',
                 'CONTRIBUTOR_PROFILE_FORBIDDEN',
               ),
             ),
-          },
-        },
-        {
-          provide: GetContributorProfileUseCase,
-          useValue: {
-            execute: jest.fn().mockRejectedValue(
+            getByUsername: jest.fn().mockRejectedValue(
               new NotFoundApplicationError(
                 'Contributor profile was not found',
                 'PROFILE_NOT_FOUND',

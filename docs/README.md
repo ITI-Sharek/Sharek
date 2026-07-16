@@ -20,6 +20,7 @@ This folder is the operating manual for the backend repo.
 | `implementation-roadmap.md` | Practical build order mapped to the selected architecture. |
 | `database-plan.md` | PostgreSQL, pgvector, Prisma, ownership, and audit rules. |
 | `api-contracts.md` | API and FastAPI AI service contract rules. |
+| `postman-api-guide.md` | Complete Postman request catalog and local endpoint test flow. |
 | `sprint-template.md` | Template for planning each sprint. |
 | `examples/module-skeleton.md` | Copyable sample module shape and example file names. |
 | `skills/sharek-backend-architect/` | Repo-local copy of the Codex skill that guides Share-k backend agents. |
@@ -31,7 +32,7 @@ When documents conflict, use this order:
 
 1. Current sprint/task brief.
 2. PRD requirement IDs in `bmad/_bmad-output/planning-artifacts/prds/prd-Grad_Project-2026-06-17/prd.md`.
-3. Architecture ADR in `bmad/_bmad-output/planning-artifacts/architecture/`.
+3. ADR-002 in `bmad/_bmad-output/planning-artifacts/architecture/`.
 4. Backend docs in this folder.
 5. Older notes or informal chat history.
 

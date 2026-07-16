@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { EmailVerificationSender } from '../src/modules/identity/infrastructure/integrations/email-verification.sender';
+import { EmailVerificationSender } from '../src/modules/identity/integrations/email-verification.sender';
 import { DatabaseService } from '../src/shared/database/database.service';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
 describe('GitHub onboarding flow', () => {
