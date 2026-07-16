@@ -1,166 +1,126 @@
 ---
 name: sharek-backend-architect
-description: Share-k backend architecture workflow for NestJS feature-first modular monolith tasks. Use when Codex works in the Share-k backend repo on modules, APIs/endpoints, controllers, DTOs, use cases, domain rules, Prisma/database changes, FastAPI AI integration, tests, docs, tracker updates, PR handoff, or architecture review. Triggers include requests like "build an endpoint", "add a module feature", "review backend architecture", "update module README", "check module boundaries", "make the agent follow the backend rules", or any Share-k backend implementation task.
+description: Share-k backend architecture workflow for standard NestJS feature-first modular monolith tasks. Use for modules, endpoints, controllers, services, DTOs, Prisma changes, FastAPI AI integration, jobs, tests, docs, tracker updates, handoff, or architecture review in the Share-k backend.
 ---
 
 # Share-k Backend Architect
 
-Use this skill to keep Share-k backend work aligned with the repo's modular
-monolith architecture, module boundaries, documentation workflow, and automated
-checks.
+Use this skill to keep Share-k backend changes aligned with ADR-002, module
+ownership, public service boundaries, documentation, and verification.
 
-This skill does not replace the repo docs. Treat the repo docs and scripts as
-the source of truth.
+## Backend Root
 
-## Find The Backend Root
-
-Work from the backend root: the directory containing `package.json`,
-`AGENTS.md`, `src/modules`, and `docs/module-development-tracker.md`.
-
-In this checkout it is usually:
-
-```text
-/opt/Sharek_Backend/Backend
-```
-
-If the current directory is `/opt/Sharek_Backend`, use `Backend/` for repo
-commands.
+Work from the directory containing `package.json`, `AGENTS.md`,
+`src/modules`, and `docs/module-development-tracker.md`. In the normal
+checkout this is `/opt/Sharek_Backend/Backend`.
 
 ## Required Reading
 
-Before editing implementation code, read:
+Before implementation:
 
 1. `AGENTS.md`
-2. `docs/developer-architecture-guide.md`
-3. `docs/module-development-tracker.md`
-4. `docs/backend-conventions.md`
-5. `docs/definition-of-done.md`
-6. The target module README under `src/modules/<module>/README.md`
+2. `docs/architecture.md`
+3. `docs/developer-architecture-guide.md`
+4. `docs/module-development-tracker.md`
+5. `docs/backend-conventions.md`
+6. `docs/definition-of-done.md`
+7. The target module README
 
-Also read when relevant:
+Read API contracts, Prisma/database docs, active spec, backlog, and PRD when
+relevant. Inspect current code and `git status`; do not work from memory alone.
 
-- `docs/api-contracts.md` and `sharek-api.http` for frontend-facing API work.
-- `docs/database-plan.md` and `prisma/schema.prisma` for persistence changes.
-- `docs/architecture.md` for architecture review or boundary questions.
-- The relevant sprint/backlog/PRD files when the task mentions requirements.
+## Architecture Choice
 
-Do not start coding from memory alone. Inspect existing files first.
+Share-k is a NestJS feature-first modular monolith using standard controllers,
+services, DTOs, and Prisma. Do not introduce Clean Architecture layer folders,
+use-case classes, reader ports, or one-implementation abstract repositories.
 
-## Core Rule
+Small module:
 
-Cross-module dependency is allowed only through explicit boundaries:
+```text
+feature.module.ts
+feature.controller.ts
+feature.service.ts
+feature.service.spec.ts
+dto/
+README.md
+```
 
-- public exported application service
-- reader port/interface
-- event
+Larger modules may use `controllers/` and `services/`. Add `integrations/`,
+`repositories/`, `jobs/`, `events/`, `security/`, `mappers/`,
+`validators/`, or `utils/` only when real implementation needs them.
 
-Do not:
+## Boundaries
 
-- import another module's private `infrastructure/`
-- write another module's owned tables directly
-- put module-specific business logic in `shared/`
-- put business logic in controllers
-- put NestJS, Prisma, HTTP clients, config, or model SDKs in domain code
-- create empty architecture folders for decoration
+- The module that owns final business state owns the workflow and writes.
+- Controllers bind HTTP input/output and delegate.
+- Services own authorization, workflow, validation, and final decisions.
+- A module writes only its own tables.
+- Cross-module calls use services exported by the provider NestJS module.
+- Never import another module's repository, integration client, security class,
+  job, controller, mapper, validator, or utility.
+- Keep `shared/` technical.
+- Export services as public APIs; keep technical internals private.
+- Use events for completed facts when a synchronous response is unnecessary.
 
-## Decide The Owning Module
+## Module Ownership
 
-Choose the module that owns the final business state:
-
-- users, roles, sessions -> `identity`
+- users, roles, sessions, social identity -> `identity`
 - GitHub OAuth/account/repository evidence -> `github`
-- project drafts/publication -> `projects`
+- projects and publication -> `projects`
+- contributor profile records/views -> `contributor-profiles`
 - contribution task lifecycle -> `contribution-tasks`
-- contributor application status -> `applications`
-- skill candidates/approved skills -> `skill-profiles`
-- delivery review/ratings -> `delivery-reviews`
+- applications and eligibility state -> `applications`
+- skill generations/candidates/approval -> `skill-profiles`
+- delivery/reviews/ratings -> `delivery-reviews`
 - reputation score/history -> `reputation`
-- admin queues/moderation -> `admin`
-- FastAPI AI contracts/adapters -> `ai`
+- moderation/disputes/reports -> `admin`
+- NestJS AI facade/FastAPI clients -> `ai`
 - health checks -> `health`
-
-If multiple modules are involved, the owning module contains the main use case.
-Other modules expose data or reactions through public services, reader ports, or
-events.
-
-## Create Folders Only When Needed
-
-For a requested API/endpoint:
-
-- Add/use `presentation/http/controllers` for the controller.
-- Add/use `presentation/http/requests` when request validation is needed.
-- Add/use `presentation/http/responses` when a stable response shape is needed.
-- Add/use `application/use-cases` when there is workflow, authorization,
-  multiple reads/writes, or cross-module dependency.
-- Add/use `domain/entities` or `domain/policies` when there are real business
-  invariants, status transitions, limits, eligibility rules, approval rules, or
-  reputation rules.
-- Add/use `infrastructure/persistence`, `infrastructure/integrations`,
-  `infrastructure/jobs`, or `infrastructure/security` for Prisma repositories,
-  external clients, queue workers, token/encryption helpers, or provider
-  adapters.
-
-Keep simple work simple. Do not add `domain`, `application`, `infrastructure`,
-or `presentation` just because the architecture supports them.
 
 ## Implementation Flow
 
-For normal HTTP work:
-
 ```text
-controller -> request DTO -> use case -> domain/policy -> repository/port/public service -> response DTO
+controller -> DTO validation -> service -> Prisma
+                                  -> exported module service
+                                  -> integration client
 ```
 
-For AI-backed work:
+AI-backed work:
 
 ```text
-use case -> deterministic checks -> AI port -> FastAPI adapter -> validated recommendation -> backend decision -> audit snapshot
+owning service -> deterministic checks -> AiService -> FastAPI client
+  -> structured recommendation -> backend validation/final decision -> audit snapshot
 ```
 
-For reactions after facts happen:
+AI output never directly mutates final business state.
 
-```text
-module A emits event -> module B reacts -> module B writes only its own tables
-```
+## Workflow
 
-## Documentation And Tracker
-
-After code changes, update the docs that changed meaning:
-
-- Module README for new workflows, endpoints, folders, public services, or
-  boundaries.
-- `docs/api-contracts.md` and `sharek-api.http` for frontend-facing API changes.
-- `docs/database-plan.md` for schema/migration ownership changes.
-- `src/modules/ai/README.md` and API contracts for AI contract changes.
-- `docs/module-development-tracker.md` with a short module change record.
-
-If docs do not need updates, say why in the handoff.
+1. Confirm requirement/task IDs and API contract.
+2. Identify owning module and table ownership.
+3. Review authorization and migration impact.
+4. Implement the smallest complete service workflow.
+5. Add thin controller/DTO changes when needed.
+6. Add focused tests and relevant HTTP/E2E coverage.
+7. Update module README and `docs/module-development-tracker.md`.
+8. Run checks and review the final diff.
 
 ## Required Checks
 
-Run:
-
 ```bash
 npm run check:architecture
+npm run lint
+npx tsc --noEmit
+npm test -- --runInBand
+npm run build
 ```
 
-Also run:
-
-- `npm run lint` when TypeScript code changed.
-- `npm test -- --runInBand` or focused tests when behavior changed.
-- `git diff --check` or `git diff --check --cached` before handoff.
-
-If a command cannot run, report why.
+Run Prisma validation/generation for relevant persistence work. Report blocked or
+pre-existing failures precisely.
 
 ## Handoff
 
-Finish with:
-
-- files changed
-- owning module
-- architecture/boundary notes
-- API changes
-- database changes
-- tests/checks run
-- docs/tracker updates
-- known risks and next improvements
+Report changed files, owning modules, requirement IDs, API and database changes,
+authorization review, tests/checks, documentation/tracker updates, migrations,
+known risks, and follow-up work.

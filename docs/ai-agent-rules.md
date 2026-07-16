@@ -1,81 +1,49 @@
-# AI Coding Agent Rules
+# AI Agent Rules
 
-These rules keep AI-generated backend work consistent and reviewable.
+## Before Editing
 
-## Required Context Pack
+1. Read `AGENTS.md`, `docs/architecture.md`, and the relevant module README.
+2. Read the active PRD/task and inspect the current implementation.
+3. Check `git status` and preserve human changes.
+4. Confirm route, DTO, authorization, table ownership, and migration impact.
 
-Every AI coding agent should receive:
+## Implementation
 
-- Task ID from the backlog.
-- Requirement IDs from the PRD.
-- Allowed module scope.
-- Files it may edit.
-- Files it must not edit.
-- Required tests.
-- Definition of done.
-- Target module README.
-- `docs/module-development-tracker.md` checklist.
+- Follow standard NestJS module structure: controller, service, DTO, Prisma.
+- Do not introduce Clean Architecture layers, use-case classes, ports, or
+  abstract repositories without multiple real implementations.
+- Keep controllers thin and services responsible for workflow and decisions.
+- Use only exported services for cross-module calls.
+- Never import another module's private technical files or write its tables.
+- Add optional folders only for real code.
+- Keep secrets and environment-specific values out of tracked source.
+- Do not silently change public routes or response/error contracts.
 
-## Agent Workflow
+## AI Features
 
-1. Read relevant docs, including `developer-architecture-guide.md`, and task
-   context.
-2. Identify the owning module.
-3. Inspect existing files before editing.
-4. Make the smallest coherent change.
-5. Add or update tests.
-6. Run `npm run check:architecture` and relevant tests/checks.
-7. Update module README and docs when behavior, API, schema, or module shape
-   changed.
-8. Append a short change record to `docs/module-development-tracker.md`.
-9. Summarize changed files, tests, docs, tracker updates, and risks.
+- Call the separate FastAPI service through `AiService` and module-local clients.
+- Keep deterministic checks and final decisions in NestJS services.
+- Validate structured AI output before use.
+- Persist evidence/model/prompt audit metadata through the owning module.
+- Define timeout, retry, fallback, and failure behavior.
 
-## Scope Rules
+## Verification
 
-Agents must stay in their assigned module unless the task explicitly requires a
-shared change.
+Run:
 
-If a task needs another module:
+```bash
+npm run check:architecture
+npm run lint
+npx tsc --noEmit
+npm test -- --runInBand
+npm run build
+```
 
-- Use a public reader port.
-- Use a public exported application service.
-- Emit or consume an event.
-- Ask for a boundary decision if the dependency is unclear.
+Also validate Prisma when schema or generated-client behavior is relevant. Review
+the final diff for stale paths, accidental contract changes, and unrelated edits.
 
-Do not import another module's private infrastructure or write another module's
-tables directly.
+## Handoff
 
-## AI Service Rules
-
-For AI-backed workflows:
-
-- Call the separate FastAPI AI service through backend ports/adapters.
-- Use structured inputs and outputs.
-- Include confidence, reasoning summary, evidence IDs, provider, model, and
-  schema/service version where relevant.
-- Validate AI service output before using it.
-- Save audit snapshots for business decisions.
-- Fall back to retry or manual review on timeout, malformed output, or low
-  confidence.
-
-## Contract Rules
-
-- Keep FastAPI request and response schemas strict and versioned.
-- Do not embed secrets in prompts, payloads, logs, or docs.
-- Add tests for malformed or incomplete AI service output.
-- Make AI service integration changes through adapters, not use cases.
-- Provider-specific prompts and model calls belong in the FastAPI AI repository,
-  not this NestJS backend.
-
-## Review Checklist For AI Output
-
-Before accepting AI-generated code, verify:
-
-- It is in the correct module.
-- Controllers are thin.
-- Business rules are in use cases or domain.
-- Database writes belong to the owning module.
-- AI output cannot directly change final business state.
-- Tests cover important behavior.
-- No secrets or debug-only code were added.
-- Module README and `docs/module-development-tracker.md` are current.
+Report requirement IDs, changed files, tests, architecture-check result,
+migrations, API/authorization review, documentation updates, and remaining risk.
+Append the task record to `docs/module-development-tracker.md`.

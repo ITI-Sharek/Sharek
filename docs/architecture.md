@@ -2,141 +2,106 @@
 
 ## Decision
 
-Share-k backend uses:
+Share-k uses a **NestJS feature-first modular monolith with standard controllers,
+services, DTOs, and Prisma**. It does not use Clean Architecture layers.
+
+ADR-002 is the authoritative decision record:
+`bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`.
+
+## Runtime Shape
+
+- NestJS owns HTTP APIs, authentication, authorization, workflows, final
+  business decisions, database writes, and audit snapshots.
+- PostgreSQL with pgvector is the primary database.
+- Prisma owns schema, generated client, and migrations.
+- Redis and BullMQ handle asynchronous jobs when needed.
+- A separate FastAPI repository owns AI provider calls, prompts, Python tooling,
+  and model-specific implementation.
+- Docker Compose is the default local development path.
+
+## Request Flow
 
 ```text
-NestJS feature-first modular monolith
-External FastAPI AI service through backend ports/adapters
-PostgreSQL + pgvector
-Prisma
-BullMQ + Redis for async jobs
-Docker Compose for local development
+Controller -> request DTO validation -> Service -> Prisma
+                                      -> exported module service
+                                      -> integration client
 ```
 
-The frontend is a separate Next.js repository. The backend remains one deployable
-NestJS application for the MVP.
+Controllers translate HTTP input and output. Services perform authorization,
+workflow coordination, validation, and business decisions. Services may use
+Prisma directly for straightforward persistence. A concrete repository is
+allowed when a module has a large, cohesive set of complex queries.
 
-## Why This Choice
+## Module Shape
 
-This setup is the best fit because Share-k needs strong business consistency
-across users, skills, tasks, applications, delivery, reputation, and admin
-review. A modular monolith keeps deployment and debugging simple while still
-protecting module boundaries.
-
-AI runs in a separate FastAPI repository. That service owns model/provider
-calls, prompt execution, Python AI tooling, embedding generation, and AI
-service-specific tests. The NestJS backend calls it through explicit contracts
-and remains the owner of authorization, business state, database writes, audit
-snapshots, and final workflow decisions.
-
-PostgreSQL with pgvector is enough for MVP semantic search and matching while
-avoiding an extra vector database service for backend-owned persisted vectors.
-If vector workload becomes large or specialized, the vector adapter can later
-move to Pinecone, Qdrant, or another service.
-
-## Target Modules
+Small module:
 
 ```text
-identity
-github
-skill-profiles
-projects
-contribution-tasks
-applications
-delivery-reviews
-reputation
-admin
-ai
+projects/
+  projects.module.ts
+  projects.controller.ts
+  projects.service.ts
+  projects.service.spec.ts
+  dto/
+  mappers/             # only when needed
+  README.md
 ```
 
-## Module Responsibilities
-
-`identity` owns users, roles, authentication, sessions, and account state.
-
-`github` owns OAuth connection metadata, token references, GitHub ingestion, and
-normalized repository evidence.
-
-`skill-profiles` owns AI-generated skill candidates, approved skills, evidence,
-confidence, and review state.
-
-`projects` owns project drafts, published projects, discovery metadata, and
-owner-controlled project state.
-
-`contribution-tasks` owns project tasks, required skills, difficulty, task
-status, deadlines, and owner limits.
-
-`applications` owns contributor applications, validation state, AI
-recommendation snapshots, manual review, owner acceptance, and status history.
-
-`delivery-reviews` owns PR link submission, delivery state, owner review,
-ratings, and feedback.
-
-`reputation` owns reputation profiles, score history, verified completion
-counts, and reputation calculations.
-
-`admin` owns admin queues, review workflows, disputes, reports, moderation
-actions, and audit views. It does not own the underlying business entities from
-other modules.
-
-`ai` owns the NestJS-side AI service gateway: request/response contracts,
-FastAPI client adapters, response validation, timeout/retry behavior, and
-reusable AI integration errors. Provider-specific prompts and model clients
-belong in the FastAPI AI repository.
-
-## Layering Rule
-
-Important modules may use:
+Larger module:
 
 ```text
-domain/
-application/
-infrastructure/
-presentation/
+identity/
+  identity.module.ts
+  controllers/
+  services/
+  dto/
+  integrations/
+  security/
+  validators/
+  README.md
 ```
 
-Simple modules may start smaller. Do not create empty directories only to look
-architectural.
+Optional folders are `events/`, `integrations/`, `jobs/`, `mappers/`,
+`repositories/`, `security/`, `utils/`, and `validators/`. Create them only for
+real files. Do not create empty architecture placeholders.
 
-For practical file-placement rules and examples from the current codebase, use
-`docs/developer-architecture-guide.md`.
+## Module Boundaries
 
-## Dependency Rules
+1. Each business capability has one owning module.
+2. A module writes only its own tables.
+3. Cross-module calls use services exported from the provider's NestJS module.
+4. Never import another module's repository, client, security implementation,
+   job, controller, mapper, validator, or utility.
+5. `shared/` contains technical cross-cutting code only: configuration,
+   database bootstrap, auth guards/decorators, errors, logging, and similar code.
+6. Events describe completed facts and let each listener update its own state.
 
-- Controllers call use cases.
-- Use cases coordinate business rules and ports.
-- Domain code does not import NestJS, Prisma, HTTP clients, model SDKs, or AI
-  service clients.
-- Infrastructure implements repositories, FastAPI AI clients, GitHub clients,
-  and queue workers.
-- Other modules consume public APIs, reader ports, or events.
-- Other modules do not import private repositories or infrastructure classes.
-- Cross-module dependency is allowed when it is explicit, narrow, and owned by
-  the provider module.
-
-## AI Service Rule
-
-The FastAPI AI service returns recommendations. Backend use cases make final
-decisions.
-
-For example:
+## AI Flow
 
 ```text
-FastAPI recommendation: manual_review, confidence 0.68
-Backend decision: store manual_review, create audit snapshot, route to admin
+Owning service
+  -> deterministic eligibility and authorization checks
+  -> AiService
+  -> FastAPI integration client
+  -> structured recommendation
+  -> backend validation and final decision
+  -> owning module writes state and audit snapshot
 ```
 
-Never allow AI output to directly approve skills, accept applications, reject
-contributors without policy checks, or update reputation.
+AI never writes final business state directly. Provider keys and prompt/model
+implementation stay outside business modules and outside tracked configuration.
 
-## FastAPI Boundary
+## Current Examples
 
-The FastAPI AI repository should expose stable HTTP contracts for:
+- `projects`: root controller/service for a small module.
+- `identity`: multiple controllers and focused auth, session, password-reset,
+  username, and social-auth services.
+- `skill-profiles`: HTTP service plus a background generation service, concrete
+  repository, BullMQ queue, and worker.
+- `ai`: `AiService` facade plus FastAPI integration client.
 
-- skill profile generation
-- eligibility analysis
-- skill gap guidance
-- embeddings or retrieval assistance
+## Enforcement
 
-The backend should call the AI service through ports, validate all responses,
-store audit metadata, and use deterministic policy before changing business
-state.
+`npm run check:architecture` rejects legacy layer folders, use-case/port
+filenames, private cross-module imports, persistence in controllers, external
+HTTP calls in controllers, missing module READMEs, and stale canonical guidance.

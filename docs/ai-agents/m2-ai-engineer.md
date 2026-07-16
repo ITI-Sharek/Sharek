@@ -27,7 +27,7 @@ Allowed primary areas:
 - Do not approve skills directly.
 - Do not accept or reject applications directly.
 - Do not write another module's business tables unless through that module's
-  public use case or repository owned by the current task.
+  exported service or an event owned by the current task.
 - Do not put provider-specific logic in the NestJS backend.
 - Do not commit model API keys, AI service URLs with secrets, or service tokens.
 
