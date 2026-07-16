@@ -1,9 +1,8 @@
 # Share-k Backend AI Agent Instructions
 
-These instructions apply to every AI coding agent working in this backend repo.
-
-If the environment supports Codex skills, use `$sharek-backend-architect` before
-backend implementation, architecture review, or module-boundary work.
+These instructions apply to every coding agent working in this repository.
+Use `$sharek-backend-architect` before backend implementation, architecture
+review, or module-boundary work when Codex skills are available.
 
 ## Required Reading
 
@@ -15,116 +14,105 @@ Before editing code, read:
 4. `docs/backend-conventions.md`
 5. `docs/ai-agent-rules.md`
 6. `docs/definition-of-done.md`
-7. The relevant module README under `src/modules/<module>/README.md`
+7. The relevant `src/modules/<module>/README.md`
 8. The relevant sprint/task in `bmad/_bmad-output/sharek-backlog.md`
-9. The relevant requirements in `bmad/_bmad-output/planning-artifacts/prds/prd-Grad_Project-2026-06-17/prd.md`
+9. The relevant PRD requirement under `bmad/_bmad-output/planning-artifacts/prds/`
 
 ## Architecture Facts
 
-- Backend is a NestJS feature-first modular monolith.
-- AI implementation lives in a separate FastAPI AI repository.
-- The backend calls the FastAPI AI service through ports/adapters and owns final
-  business decisions.
-- PostgreSQL with pgvector is the main database.
-- Prisma owns schema and migrations.
-- BullMQ and Redis are used for async jobs when needed.
+- The backend is a NestJS feature-first modular monolith.
+- Modules use standard NestJS controllers, services, DTOs, and Prisma.
+- Clean Architecture layer folders are not used.
+- FastAPI AI implementation lives in a separate repository.
+- PostgreSQL with pgvector is the main database; Prisma owns schema and migrations.
+- BullMQ and Redis are used for asynchronous jobs when needed.
 - Docker Compose is the default local development path.
+
+## Standard Module Shape
+
+Small module:
+
+```text
+src/modules/projects/
+  projects.module.ts
+  projects.controller.ts
+  projects.service.ts
+  projects.service.spec.ts
+  dto/
+  integrations/       # only when needed
+  README.md
+```
+
+Larger modules may use `controllers/` and `services/`. Add `jobs/`, `events/`,
+`mappers/`, `repositories/`, `security/`, `integrations/`, `validators/`, or
+`utils/` only when real files need them.
 
 ## Hard Rules
 
-- Do not put business logic in controllers.
-- Do not let AI output directly change final business state.
-- Cross-module dependency is allowed only through public exported application
-  services, reader ports, or events.
-- Do not import another module's private infrastructure.
-- Do not write another module's tables directly.
-- Do not place module-specific code in `shared/`.
-- Do not add empty architecture layers for decoration.
+- Controllers handle HTTP input/output and delegate to services.
+- Services own authorization, workflows, and business decisions.
+- A module writes only its own database tables.
+- Cross-module calls use services exported by the provider NestJS module.
+- Never import another module's repositories, integrations, security, jobs,
+  controllers, mappers, validators, or utilities.
+- Keep `shared/` technical and reusable; do not put module business logic there.
+- Do not add `application/`, `domain/`, `infrastructure/`, or `presentation/` layers.
+- Do not add use-case classes, ports, or abstract repositories as architecture ceremony.
+- Split a service when its responsibilities are difficult to understand or test.
+- AI output is a recommendation. A NestJS service validates it, makes the final
+  decision, and stores the audit snapshot.
 - Do not hardcode secrets, model keys, URLs, or tokens.
 - Do not bypass Prisma migrations for schema changes.
 
-## Normal Flow
-
-Use this path for HTTP features:
+## Normal Flows
 
 ```text
-controller -> request DTO validation -> use case -> domain/policy -> port/repository -> response DTO
+Controller -> DTO validation -> Service -> Prisma
+                                    -> exported service from another module
+                                    -> integration client
 ```
-
-Use this path for AI-backed decisions:
 
 ```text
-use case -> deterministic checks -> AI port -> FastAPI AI client -> structured recommendation -> backend decision -> audit snapshot
+SkillProfilesController -> SkillProfilesService -> AiService
+  -> FastAPI client -> validated recommendation -> backend decision -> Prisma
 ```
 
-Use events for reactions after facts have happened:
+Use events for reactions after facts have happened, such as
+`DeliveryApproved -> ReputationService` updating reputation-owned records.
 
-```text
-DeliveryApproved -> Reputation updates its own records
-```
+## Required Workflow
 
-## Output Expected From Agents
+1. Read the active specification and relevant module README.
+2. Inspect the existing implementation and public API contract.
+3. Identify authorization, ownership, database, and migration impact.
+4. Implement the smallest complete change in the owning module.
+5. Add or update focused tests.
+6. Run architecture check, lint, type-check, tests, and build.
+7. Review the final diff and update module documentation.
 
-For every implementation task, provide:
+## Expected Handoff
 
-- Files changed.
-- Requirement or task IDs covered.
-- Tests added or updated.
-- `npm run check:architecture` result.
-- Migrations added, if any.
-- Module README and tracker updates.
-- Known risks or follow-up work.
+Report files changed, requirement/task IDs, tests, architecture-check result,
+migrations, README/tracker updates, and known risks.
 
-## Required workflow
+## Git Rules
 
-1. Read the active specification.
-2. Inspect the existing implementation.
-3. Confirm the API contract.
-4. Identify database and migration requirements.
-5. Implement the smallest complete backend change.
-6. Add or update tests.
-7. Run lint, type-check, tests, and build.
-8. Review the final diff.
+- Work only on the current feature branch; do not switch branches.
+- Do not commit, push, merge, discard human changes, or reformat unrelated files
+  unless explicitly requested.
 
-## Architecture rules
+## Quality Gates
 
-- Follow the existing modular architecture.
-- Keep controllers thin.
-- Put business logic in application or service layers.
-- Keep persistence logic isolated.
-- Use explicit DTO validation.
-- Do not expose database entities directly unless the project already follows that pattern.
-- Do not bypass authorization or ownership checks.
-- Do not silently change public API contracts.
-
-## Git rules
-
-- Work only on the current feature branch.
-- Do not change branches.
-- Do not commit unless explicitly requested.
-- Do not push or merge.
-- Do not discard existing human changes.
-- Do not reformat unrelated files.
-
-## Quality gates
-
-Before completion:
-
-- lint passes
-- type-check passes
-- relevant tests pass
-- build passes
-- API contract is verified
-- authorization is reviewed
-- database changes are documented
+- `npm run check:architecture`
+- `npm run lint`
+- `npx tsc --noEmit`
+- relevant tests and full tests when feasible
+- `npm run build`
+- API contract, authorization, and database impact reviewed
 
 <!-- SPECKIT START -->
 Current Spec Kit plan: `specs/001-contributor-profile-redirect/plan.md`
-
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan before
-implementing feature work.
 <!-- SPECKIT END -->
 
-Before finishing, append a short change record to
+Before finishing a code change, append a short record to
 `docs/module-development-tracker.md` unless the task was read-only.

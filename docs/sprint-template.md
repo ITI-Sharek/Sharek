@@ -75,7 +75,7 @@ For each backend task, copy the checklist from
 
 - Architecture: `npm run check:architecture`
 - Unit:
-- Use case:
+- Workflow/service:
 - Integration:
 - E2E:
 

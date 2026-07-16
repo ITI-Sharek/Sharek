@@ -1,44 +1,28 @@
 # Backend Modules
 
-Business code is organized by feature, not by global technical layer.
+Business code is organized by feature. Each module owns a capability, its
+business decisions, and its database writes.
 
-Each module owns its own business capability and database tables. Use
-`domain/`, `application/`, `infrastructure/`, and `presentation/` when they add
-real value. Do not fill these folders with empty classes just to satisfy the
-architecture.
-
-The module tree is progressive. Start with the module file and README, then add
-folders only when a real task needs real files inside them.
-
-## Current Modules
-
-| Module | Current State | Owns |
+| Module | State | Ownership |
 | --- | --- | --- |
-| `identity` | Implemented auth endpoints and session handling | Users, roles, sessions, authentication state |
-| `github` | Implemented OAuth, account, repository listing, and import snapshot support | GitHub connection metadata and normalized repository data |
-| `projects` | Implemented GitHub project import | Project drafts, publication state, owner-controlled metadata |
-| `skill-profiles` | Placeholder for upcoming sprint work | Skill candidates, approved skills, evidence, review state |
-| `contribution-tasks` | Placeholder for upcoming sprint work | Project contribution tasks and task requirements |
-| `applications` | Placeholder for upcoming sprint work | Contributor applications and eligibility state |
-| `delivery-reviews` | Placeholder for upcoming sprint work | PR delivery, owner review, ratings, feedback |
-| `reputation` | Placeholder for upcoming sprint work | Reputation profile, score history, verified completion signals |
-| `admin` | Placeholder for upcoming sprint work | Admin queues, disputes, reports, moderation views |
-| `ai` | Prepared ports for FastAPI AI integration | NestJS-side AI contracts, ports, validation, client adapters |
-| `health` | Implemented operational health endpoint | Backend health checks |
+| `identity` | implemented | users, auth, sessions, roles, social identity |
+| `github` | implemented | GitHub OAuth, account connection, repository evidence |
+| `projects` | implemented | project import and project-owned state |
+| `contributor-profiles` | implemented | contributor profile creation and views |
+| `skill-profiles` | implemented | asynchronous skill generation and candidate state |
+| `reputation` | partial | reputation summaries and future history |
+| `health` | implemented | backend health endpoint |
+| `contribution-tasks` | planned | project task requirements and lifecycle |
+| `applications` | planned | contributor applications and eligibility |
+| `delivery-reviews` | planned | deliveries, reviews, ratings, feedback |
+| `admin` | planned | moderation, disputes, reports, queues |
+| `ai` | implemented facade | FastAPI client contracts and AI facade |
 
-## How To Add A Feature
+Small modules use root controller/service files. Larger modules use
+`controllers/` and `services/`. Optional folders are created only for real code.
 
-1. Choose the owning module by asking which module owns the final business
-   state.
-2. Add `presentation/` only for HTTP controllers and request/response DTOs.
-3. Add `application/` for use cases, ports, mappers, and workflow DTOs.
-4. Add `domain/` for important business rules such as status transitions,
-   limits, approval rules, and reputation policies.
-5. Add `infrastructure/` for Prisma repositories, external clients, queues,
-   encryption, and provider-specific technical code.
-6. Update the module README when the module gains a new workflow or public API.
+Choose the module that owns the final state. Call another module only through an
+exported service, and never write its tables or import its private technical files.
 
-For the full teammate guide, read `docs/developer-architecture-guide.md`.
-For the module status dashboard and task checklist, read
-`docs/module-development-tracker.md`.
-For a copyable example, see `docs/examples/module-skeleton.md`.
+Read `docs/developer-architecture-guide.md`, the module README, and
+`docs/module-development-tracker.md` before implementation.
