@@ -1,8 +1,11 @@
 # ADR-001: Backend Architecture
 
-Status: accepted
+Status: superseded by ADR-002
 
 Date: 2026-07-03
+
+ADR-002 keeps the feature-first modular monolith decision but replaces the
+Clean Architecture implementation style with standard NestJS modules.
 
 ## Context
 

@@ -1,28 +1,24 @@
 import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { User } from '@prisma/client';
 import * as request from 'supertest';
 
-import { ContributorProfileRepository } from '../src/modules/contributor-profiles/application/ports/contributor-profile.repository';
-import {
-  GitHubProfileStatusReader,
-  ReputationSummaryReader,
-  SkillProfileSummaryReader,
-} from '../src/modules/contributor-profiles/application/ports/profile-readers.port';
-import { EnsureContributorProfileUseCase } from '../src/modules/contributor-profiles/application/use-cases/ensure-contributor-profile.use-case';
-import { GetContributorProfileUseCase } from '../src/modules/contributor-profiles/application/use-cases/get-contributor-profile.use-case';
-import { PrismaContributorProfileRepository } from '../src/modules/contributor-profiles/infrastructure/persistence/prisma-contributor-profile.repository';
-import { ContributorProfilesController } from '../src/modules/contributor-profiles/presentation/http/controllers/contributor-profiles.controller';
+import { ContributorProfilesController } from '../src/modules/contributor-profiles/contributor-profiles.controller';
+import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
+import { GitHubAccountService } from '../src/modules/github/services/github-account.service';
+import { ManualAuthController } from '../src/modules/identity/controllers/manual-auth.controller';
+import { EmailVerificationSender } from '../src/modules/identity/integrations/email-verification.sender';
+import { PasswordHasher } from '../src/modules/identity/security/password-hasher.service';
+import { SessionTokenService } from '../src/modules/identity/security/session-token.service';
+import { AuthService } from '../src/modules/identity/services/auth.service';
+import { IdentityUsernameService } from '../src/modules/identity/services/identity-username.service';
+import { PasswordResetService } from '../src/modules/identity/services/password-reset.service';
+import { SessionService } from '../src/modules/identity/services/session.service';
+import { ReputationService } from '../src/modules/reputation/reputation.service';
+import { SkillProfileSummaryService } from '../src/modules/skill-profiles/services/skill-profile-summary.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { DatabaseService } from '../src/shared/database/database.service';
-import { IdentityUsernameService } from '../src/modules/identity/application/use-cases/identity-username.service';
-import { IdentityService } from '../src/modules/identity/application/use-cases/identity.service';
-import { SocialAuthService } from '../src/modules/identity/application/use-cases/social-auth.service';
-import { EmailVerificationSender } from '../src/modules/identity/infrastructure/integrations/email-verification.sender';
-import { PasswordHasher } from '../src/modules/identity/infrastructure/security/password-hasher.service';
-import { SessionTokenService } from '../src/modules/identity/infrastructure/security/session-token.service';
-import { IdentityController } from '../src/modules/identity/presentation/http/controllers/identity.controller';
 
 describe('Contributor profile redirect HTTP flow', () => {
   let app: INestApplication;
@@ -34,29 +30,22 @@ describe('Contributor profile redirect HTTP flow', () => {
 
     const database = {
       user: {
-        findUnique: jest.fn(({ where }: { where: { id?: string; email?: string } }) => {
-          if (where.id === contributor.id || where.email === contributor.email) {
-            return Promise.resolve({ ...contributor });
-          }
-
-          return Promise.resolve(null);
-        }),
-        update: jest.fn(
-          ({
-            where,
-            data,
-          }: {
-            where: { id: string };
-            data: Partial<User>;
-          }) => {
-            if (where.id !== contributor.id) {
-              return Promise.resolve(null);
+        findUnique: jest.fn(
+          ({ where }: { where: { id?: string; email?: string; username?: string } }) => {
+            if (
+              where.id === contributor.id ||
+              where.email === contributor.email ||
+              (where.username && where.username === contributor.username)
+            ) {
+              return Promise.resolve({ ...contributor });
             }
-
-            Object.assign(contributor, data, {
-              updated_at: new Date(),
-            });
-
+            return Promise.resolve(null);
+          },
+        ),
+        update: jest.fn(
+          ({ where, data }: { where: { id: string }; data: Partial<User> }) => {
+            if (where.id !== contributor.id) return Promise.resolve(null);
+            Object.assign(contributor, data, { updated_at: new Date() });
             return Promise.resolve({ ...contributor });
           },
         ),
@@ -67,53 +56,38 @@ describe('Contributor profile redirect HTTP flow', () => {
             id: 'session-1',
             ...data,
             revoked_at: null,
-            user: contributor,
+            user: { ...contributor },
           };
           authSessions.push(session);
           return Promise.resolve(session);
         }),
-        findFirst: jest.fn(({ where }: { where: { access_token_hash?: string } }) => {
-          const session = authSessions.find(
-            (candidate) =>
-              candidate.access_token_hash === where.access_token_hash &&
-              candidate.revoked_at === null,
-          );
-
-          return Promise.resolve(
-            session
-              ? {
-                  ...session,
-                  user: { ...contributor },
-                }
-              : null,
-          );
-        }),
+        findFirst: jest.fn(
+          ({ where }: { where: { access_token_hash?: string } }) => {
+            const session = authSessions.find(
+              (candidate) =>
+                candidate.access_token_hash === where.access_token_hash &&
+                candidate.revoked_at === null,
+            );
+            return Promise.resolve(
+              session ? { ...session, user: { ...contributor } } : null,
+            );
+          },
+        ),
       },
       contributorProfile: {
-        findUnique: jest.fn(({ where }: { where: { user_id: string } }) => {
-          if (contributorProfile?.user_id !== where.user_id) {
-            return Promise.resolve(null);
-          }
-
-          return Promise.resolve({
-            ...contributorProfile,
-            user: { ...contributor },
-          });
-        }),
-        findFirst: jest.fn(
-          ({ where }: { where: { user: { username: string } } }) => {
-            if (
-              contributorProfile === null ||
-              contributor.username !== where.user.username
-            ) {
-              return Promise.resolve(null);
-            }
-
-            return Promise.resolve({
-              ...contributorProfile,
-              user: { ...contributor },
-            });
-          },
+        findUnique: jest.fn(({ where }: { where: { user_id: string } }) =>
+          Promise.resolve(
+            contributorProfile?.user_id === where.user_id
+              ? { ...contributorProfile, user: { ...contributor } }
+              : null,
+          ),
+        ),
+        findFirst: jest.fn(() =>
+          Promise.resolve(
+            contributorProfile
+              ? { ...contributorProfile, user: { ...contributor } }
+              : null,
+          ),
         ),
         create: jest.fn(({ data }: { data: { user_id: string } }) => {
           contributorProfile = {
@@ -124,7 +98,6 @@ describe('Contributor profile redirect HTTP flow', () => {
             created_at: new Date(),
             updated_at: new Date(),
           };
-
           return Promise.resolve({
             ...contributorProfile,
             user: { ...contributor },
@@ -134,19 +107,16 @@ describe('Contributor profile redirect HTTP flow', () => {
     };
 
     const moduleRef = await Test.createTestingModule({
-      controllers: [IdentityController, ContributorProfilesController],
+      controllers: [ManualAuthController, ContributorProfilesController],
       providers: [
+        Reflector,
         AccessTokenGuard,
-        IdentityService,
+        AuthService,
+        SessionService,
         IdentityUsernameService,
         SessionTokenService,
-        EnsureContributorProfileUseCase,
-        GetContributorProfileUseCase,
-        PrismaContributorProfileRepository,
-        {
-          provide: DatabaseService,
-          useValue: database,
-        },
+        ContributorProfilesService,
+        { provide: DatabaseService, useValue: database },
         {
           provide: PasswordHasher,
           useValue: {
@@ -154,33 +124,10 @@ describe('Contributor profile redirect HTTP flow', () => {
             hash: jest.fn().mockResolvedValue('hash'),
           },
         },
+        { provide: PasswordResetService, useValue: {} },
+        { provide: EmailVerificationSender, useValue: { sendOtp: jest.fn() } },
         {
-          provide: EmailVerificationSender,
-          useValue: {
-            sendOtp: jest.fn(),
-          },
-        },
-        {
-          provide: SocialAuthService,
-          useValue: {
-            startGoogle: jest.fn(),
-            completeGoogle: jest.fn(),
-            startGitHub: jest.fn(),
-            completeGitHub: jest.fn(),
-          },
-        },
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockReturnValue('http://localhost:3001'),
-          },
-        },
-        {
-          provide: ContributorProfileRepository,
-          useExisting: PrismaContributorProfileRepository,
-        },
-        {
-          provide: GitHubProfileStatusReader,
+          provide: GitHubAccountService,
           useValue: {
             getStatusForUser: jest.fn().mockResolvedValue({
               connected: false,
@@ -189,13 +136,11 @@ describe('Contributor profile redirect HTTP flow', () => {
           },
         },
         {
-          provide: SkillProfileSummaryReader,
-          useValue: {
-            listSkillsForProfile: jest.fn().mockResolvedValue([]),
-          },
+          provide: SkillProfileSummaryService,
+          useValue: { listSkillsForProfile: jest.fn().mockResolvedValue([]) },
         },
         {
-          provide: ReputationSummaryReader,
+          provide: ReputationService,
           useValue: {
             getSummaryForUser: jest.fn().mockResolvedValue({
               rating: null,
@@ -223,7 +168,7 @@ describe('Contributor profile redirect HTTP flow', () => {
       })
       .expect(201);
 
-    const accessToken = loginResponse.body.tokens.accessToken;
+    const accessToken = loginResponse.body.tokens.accessToken as string;
     expect(loginResponse.body.user).toMatchObject({
       username: 'contributor-one',
       role: 'contributor',

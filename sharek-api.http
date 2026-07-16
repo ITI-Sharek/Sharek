@@ -56,6 +56,8 @@
 # - [DONE] POST /auth/verify-email
 # - [DONE] POST /auth/verify-email/resend
 # - [DONE] POST /auth/login
+# - [DONE] POST /auth/forgot-password
+# - [DONE] POST /auth/reset-password
 # - [DONE] GET /auth/google/start
 # - [DONE] GET /auth/google/callback
 # - [DONE] POST /auth/google/callback
@@ -74,6 +76,10 @@
 # - [DONE] GET /github/repository/contribution-activity
 # - [DONE] GET /github/repository/commit-signals
 # - [DONE] POST /projects/import/github
+# - [DONE] POST /contributors/profiles/me/ensure
+# - [DONE] GET /contributors/profiles/:username
+# - [DONE] POST /skill-profiles/me/generations
+# - [DONE] GET /skill-profiles/me/generations/:generationId
 # - [DONE] DELETE /github/account
 # - [DONE] PATCH /auth/users/:id/role
 # - [DONE] POST /auth/refresh
@@ -99,6 +105,7 @@
 @password = Password123!
 @ownerOtp = replace-with-owner-email-otp
 @contributorOtp = replace-with-contributor-email-otp
+@passwordResetOtp = replace-with-password-reset-otp
 @githubRepoFullName = openai/openai-node
 @githubRepoUrl = https://github.com/openai/openai-node
 @userIdToPromote = replace-with-real-user-id
@@ -230,6 +237,31 @@ Content-Type: application/json
 }
 
 
+### 03D - DONE - Request password reset OTP
+# What it does:
+# Creates a password-reset OTP for an existing account and sends it by email.
+# In local development without SMTP, inspect the backend logs for the OTP.
+POST {{baseUrl}}/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "{{ownerEmail}}"
+}
+
+
+### 03E - DONE - Reset password with OTP
+# What it does:
+# Replaces the account password using the latest valid six-digit reset OTP.
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "{{ownerEmail}}",
+  "code": "{{passwordResetOtp}}",
+  "newPassword": "NewPassword123!"
+}
+
+
 ### 04 - DONE - Login as owner
 # @name ownerLogin
 # What it does:
@@ -291,6 +323,16 @@ Content-Type: application/json
 GET {{baseUrl}}/auth/google/start?role=contributor
 
 
+### 04C-B - DONE - Google browser callback to frontend
+# What it does:
+# Forwards the real Google provider callback to the frontend callback page.
+#
+# Manual only:
+# Use the one-time code and state returned by Google. Placeholder values will
+# not complete authentication.
+GET {{baseUrl}}/auth/google/callback?code=replace-with-google-code&state=replace-with-google-state
+
+
 ### 04D - DONE - Complete Google sign up/sign in from frontend
 # What it does:
 # Exchanges the real Google OAuth code/state and returns the normal Share-k
@@ -326,6 +368,15 @@ Content-Type: application/json
 # - after signup/login, contributors should use Step 06 to explicitly connect
 #   GitHub repositories from profile/onboarding.
 GET {{baseUrl}}/auth/github/start?role=contributor
+
+
+### 04E-B - DONE - GitHub identity browser callback to frontend
+# What it does:
+# Forwards the real GitHub identity callback to the frontend callback page.
+#
+# Manual only:
+# Use the one-time code and state returned by GitHub.
+GET {{baseUrl}}/auth/github/callback?code=replace-with-github-code&state=replace-with-github-state
 
 
 ### 04F - DONE - Complete GitHub sign up/sign in from frontend
@@ -410,9 +461,20 @@ Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 # - Step 09 will still return GITHUB_ACCOUNT_NOT_CONNECTED for the current
 #   contributor token because this contributor did not receive the connection.
 # - Fix by logging in as the Share-k user that already owns that GitHub account
-#   and running Step 12 to disconnect it, or use a different GitHub account.
+#   and running Step 14 to disconnect it, or use a different GitHub account.
 GET {{baseUrl}}/github/oauth/start
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 06B - DONE - GitHub repository provider callback
+# What it does:
+# Completes the repository OAuth flow directly from a provider redirect.
+# Most frontend flows use the browser callback below and then POST the values
+# from the frontend instead.
+#
+# Manual only:
+# Use the one-time code and state returned by GitHub.
+GET {{baseUrl}}/github/oauth/callback?code=replace-with-github-code&state=replace-with-oauth-state
 
 
 ### 07 - DONE - GitHub OAuth browser redirect to frontend
@@ -505,7 +567,7 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 # If this fails:
 # - GITHUB_ACCOUNT_NOT_CONNECTED means run steps 06 and 07/08 first.
 # - GITHUB_TOKEN_DECRYPT_FAILED means the local GITHUB_TOKEN_ENCRYPTION_KEY
-#   changed after connecting GitHub. Run step 12 if possible, then reconnect
+#   changed after connecting GitHub. Run step 14 if possible, then reconnect
 #   GitHub with steps 06 and 07/08.
 # - GITHUB_API_REQUEST_FAILED usually means the GitHub token is invalid,
 #   expired, missing scope, or GitHub rejected the request. Reconnect GitHub
@@ -636,7 +698,28 @@ Content-Type: application/json
 }
 
 
-### 12 - NEW - Start contributor skill profile generation
+### 11B - DONE - Ensure my contributor profile
+# What it does:
+# Creates or returns the authenticated contributor profile. This is idempotent.
+#
+# Auth:
+# Protected. Use a contributor token. Pending contributors are allowed during
+# onboarding; owners and admins receive 403.
+POST {{baseUrl}}/contributors/profiles/me/ensure
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 11C - DONE - Get contributor profile by username
+# What it does:
+# Returns the authenticated view of a canonical contributor profile username.
+#
+# Auth:
+# Protected.
+GET {{baseUrl}}/contributors/profiles/{{contributorUsername}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 12 - DONE - Start contributor skill profile generation
 # @name skillProfileGeneration
 # What it does:
 # Starts selected-repository AI skill profiling for the logged-in contributor.
@@ -669,7 +752,7 @@ Content-Type: application/json
 }
 
 
-### 13 - NEW - Get contributor skill profile generation status
+### 13 - DONE - Get contributor skill profile generation status
 # What it does:
 # Polls the generation status after starting selected-repository skill
 # profiling.
@@ -726,7 +809,7 @@ Content-Type: application/json
 #
 # Important:
 # - Replace @userIdToPromote at the top with a real user id.
-# - This uses the token from "13 - Login as admin".
+# - This uses the token from "15 - Login as admin".
 # - If you use an owner/contributor token, the backend should return 403.
 PATCH {{baseUrl}}/auth/users/{{userIdToPromote}}/role
 Authorization: Bearer {{adminLogin.response.body.$.tokens.accessToken}}
@@ -772,7 +855,7 @@ Authorization: Bearer {{ownerRefresh.response.body.$.accessToken}}
 # Protected.
 #
 # Important:
-# Use this request only if you did NOT run "15 - Refresh owner tokens".
+# Use this request only if you did NOT run "17 - Refresh owner tokens".
 POST {{baseUrl}}/auth/logout
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
@@ -785,7 +868,7 @@ Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 # Protected.
 #
 # Important:
-# Use this request only if you DID run "15 - Refresh owner tokens".
+# Use this request only if you DID run "17 - Refresh owner tokens".
 # After logout, protected requests using this session return 401.
 POST {{baseUrl}}/auth/logout
 Authorization: Bearer {{ownerRefresh.response.body.$.accessToken}}

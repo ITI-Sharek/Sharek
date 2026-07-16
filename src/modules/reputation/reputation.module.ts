@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 
-import { ReputationSummaryReaderService } from './application/use-cases/reputation-summary-reader.service';
+import { ReputationService } from './reputation.service';
 
 @Module({
-  providers: [ReputationSummaryReaderService],
-  exports: [ReputationSummaryReaderService],
+  providers: [ReputationService],
+  exports: [ReputationService],
 })
 export class ReputationModule {}

@@ -63,8 +63,7 @@ Ask which module owns the final state:
 - health checks -> `health`
 
 If two modules are involved, the module that owns the final database state owns
-the main use case. Other modules should expose a public service, reader port, or
-event.
+the main service workflow. Other modules expose an exported service or event.
 
 ### 3. Inspect Existing Files
 
@@ -72,10 +71,8 @@ Before editing, inspect:
 
 - module README
 - module `.module.ts`
-- existing controller/request/response files
-- existing use cases, DTOs, mappers, ports
-- existing domain rules or policies
-- existing infrastructure adapters or repositories
+- existing controllers, services, and DTOs
+- existing validators, mappers, repositories, integrations, and jobs
 - related tests
 - relevant Prisma models
 
@@ -87,26 +84,23 @@ ready to edit.
 Use the normal direction:
 
 ```text
-controller -> request DTO -> use case -> domain/policy -> repository/port -> response DTO
+controller -> request DTO -> service -> Prisma/exported service/integration client -> response DTO
 ```
 
 For AI-backed decisions:
 
 ```text
-use case -> deterministic checks -> AI port -> FastAPI adapter -> validated recommendation -> backend decision -> audit snapshot
+service -> deterministic checks -> AiService -> FastAPI client -> validated recommendation -> backend decision -> audit snapshot
 ```
 
 Hard rules:
 
 - Controllers stay thin.
-- Business rules stay in use cases or domain.
-- Domain code does not import NestJS, Prisma, HTTP clients, config, or model
-  SDKs.
-- Infrastructure contains Prisma repositories, external clients, queues, and
-  security adapters.
-- Cross-module dependency is allowed through public exported services, reader
-  ports, or events.
-- No module imports another module's private infrastructure.
+- Services own authorization, workflow, validation, and business decisions.
+- Controllers do not access Prisma or external clients.
+- Cross-module dependency uses exported NestJS services or events.
+- No module imports another module's private repository, integration, security,
+  job, controller, mapper, validator, or utility.
 - No module writes another module's tables directly.
 - `shared/` is technical only.
 - AI output never directly approves skills, accepts applications, or updates
@@ -120,7 +114,7 @@ After code changes, update the docs that changed meaning:
 | --- | --- |
 | New endpoint or API response changed | module README, `docs/api-contracts.md`, `sharek-api.http` when useful |
 | New module workflow | module README and this tracker |
-| New folder/layer in a module | module README and this tracker |
+| New optional folder in a module | module README and this tracker |
 | Database schema or migration changed | `docs/database-plan.md`, module README, this tracker |
 | AI contract changed | `docs/api-contracts.md`, `src/modules/ai/README.md`, this tracker |
 | New env var | `.env.example`, `docs/local-development.md`, this tracker |
@@ -135,8 +129,8 @@ Run the smallest checks that prove the change:
 
 - `npm run check:architecture` for every backend change
 - formatting/lint when code changed
-- unit tests for changed services, policies, or adapters
-- use-case tests when workflow changed
+- unit tests for changed services, validators, repositories, or clients
+- service tests when workflow changed
 - integration/E2E tests when API or persistence behavior changed
 - `git diff --check` for docs-only changes
 
@@ -162,17 +156,17 @@ needs workflow code.
 
 | Module | Current State | Main Implemented Files | Next Expected Work | Tracker Rule |
 | --- | --- | --- | --- | --- |
-| `identity` | Implemented auth/session endpoints | controller, request DTOs, auth service, mappers, security services | account-state policies, password reset, stronger persistence boundary if needed | Update when auth endpoints, user/session rules, roles, or account status change |
+| `identity` | Implemented auth/session endpoints | controllers, DTOs, auth/session/password-reset/social-auth services, mappers, security | account management and security hardening | Update when auth endpoints, user/session rules, roles, or account status change |
 | `github` | Implemented OAuth/account/repository listing and contributor-attributed evidence snapshots | GitHub controller, OAuth service, repository service, DTOs, GitHub API client, token encryption | webhook/sync handling and normalized persistent evidence tables if JSON snapshots no longer scale | Update when GitHub scopes, token handling, repo evidence, or import behavior changes |
-| `projects` | Implemented GitHub project import | projects controller, import request, project import service, project mapper | update draft, publish/archive, project discovery | Update when project lifecycle, visibility, metadata, or project APIs change |
-| `contributor-profiles` | Implemented authenticated profile ensure and profile-by-username reads | controller, use cases, Prisma repository, presenter, domain policy | richer profile editing and public profile sections as product scope expands | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
-| `skill-profiles` | Implemented durable selected-repository generation and pending-candidate policy | generation controller/use cases, BullMQ queue/worker, Prisma repository, canonical skill policy | admin approval/rejection/adjustment APIs and file-level evidence evaluation | Update when skill state, evidence, AI generation, or approval rules are added |
+| `projects` | Implemented GitHub project import | root controller/service, DTOs, mapper | update draft, publish/archive, project discovery | Update when project lifecycle, visibility, metadata, or project APIs change |
+| `contributor-profiles` | Implemented authenticated profile ensure and profile-by-username reads | root controller/service, DTO, presenter, validator | richer profile editing and public profile sections as product scope expands | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
+| `skill-profiles` | Implemented durable selected-repository generation and pending-candidate policy | controller/service, generation service, BullMQ queue/worker, concrete repository | admin approval/rejection/adjustment APIs and file-level evidence evaluation | Update when skill state, evidence, AI generation, or approval rules are added |
 | `contribution-tasks` | Registered placeholder module | module README and module file | task create/update/open/close and task discovery | Update when task lifecycle, required skills, capacity, deadlines, or owner limits are added |
 | `applications` | Registered placeholder module | module README and module file | apply-to-task, eligibility recommendation, manual review, owner decision | Update when application status, AI decision handling, or application APIs are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
-| `reputation` | Registered placeholder module | module README and module file | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
+| `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
 | `admin` | Registered placeholder module | module README and module file | manual review queues, disputes, reports, moderation views | Update when admin queues, review actions, moderation, or audit views are added |
-| `ai` | Implemented authenticated FastAPI skill-profile adapter | AI port, strict FastAPI client adapter, response validation tests | eligibility/guidance/embedding adapters and broader contract tests | Update when AI ports, schemas, adapters, audit metadata, or service behavior changes |
+| `ai` | Implemented FastAPI skill-profile facade | `AiService`, DTOs, strict FastAPI client, response validation tests | eligibility/guidance/embedding clients and broader contract tests | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `health` | Implemented health endpoint | health controller, response, module, test | readiness checks for database/Redis/external dependencies if needed | Update when health response shape or readiness checks change |
 
 ## Per-Task Checklist
@@ -188,15 +182,15 @@ Copy this checklist into the sprint task or PR description.
 - [ ] `docs/developer-architecture-guide.md` was read.
 - [ ] `docs/module-development-tracker.md` was read.
 - [ ] Target module README was read.
-- [ ] Existing controller/use-case/domain/infrastructure/test files were inspected.
+- [ ] Existing controllers, services, DTOs, optional technical files, and tests were inspected.
 - [ ] Prisma models were inspected when persistence is touched.
 - [ ] API docs were inspected when frontend-facing contracts are touched.
 - [ ] Implementation stays inside module boundaries.
 - [ ] Controllers are thin.
-- [ ] Business rules are in use cases or domain.
-- [ ] External systems are behind ports/adapters.
-- [ ] Cross-module dependency, if needed, uses a public exported service, reader port, or event.
-- [ ] No module imports another module's private infrastructure.
+- [ ] Business rules and final decisions are in services or focused validators.
+- [ ] External systems are behind module-local integration clients.
+- [ ] Cross-module dependency, if needed, uses an exported service or event.
+- [ ] No module imports another module's private technical files.
 - [ ] No module writes another module's owned tables directly.
 - [ ] Tests/checks were run and listed.
 - [ ] `npm run check:architecture` passed.
@@ -780,3 +774,58 @@ This keeps the system strong without making it heavy:
   `needs_more_evidence` rather than optimistic confidence. Rotate the exposed
   Groq credential and set the replacement only in the ignored AI `.env` before
   performing a live model call; no exposed key is stored in these repositories.
+
+### 2026-07-16 - Standard NestJS module architecture migration
+
+- Modules: all 12 backend modules, with implementation changes in `identity`,
+  `github`, `projects`, `contributor-profiles`, `skill-profiles`, `ai`, and
+  `reputation`.
+- Requirement IDs: architecture migration plan, ADR-002, and preserved active
+  contributor-profile redirect contracts.
+- Change type: architecture, module layout, service boundaries, tests, docs, and
+  architecture tooling.
+- Summary: Replaced Clean Architecture layer folders, use-case classes, reader
+  ports, and one-implementation abstract repositories with standard NestJS
+  controllers, services, DTOs, concrete repositories, integrations, and jobs.
+  Split identity into auth/session/password-reset/social-auth services and GitHub
+  into OAuth/account/repository/evidence services. Added `AiService` and kept
+  final AI decisions in owning backend services.
+- API changes: none; existing routes and response contracts were preserved.
+- Database changes: none; existing Prisma models and migrations were preserved.
+- Tests/checks: architecture check, lint, type-check, focused service tests,
+  full Jest suite, build, Prisma validation, and `git diff --check`.
+- Docs updated: ADR-002, `AGENTS.md`, architecture guides, conventions,
+  skeleton, module READMEs, Spec Kit plan/tasks, tracker, and both backend skill
+  copies.
+- Risks/follow-up: the existing Prisma schema exposes only the `github` auth
+  provider enum while Google OAuth code uses a compatibility cast; this
+  pre-existing schema/code mismatch should be resolved in a separate migration.
+
+### 2026-07-16 - Runtime and endpoint documentation parity review
+
+- Modules: `health`, `identity`, `github`, `projects`, `contributor-profiles`,
+  and `skill-profiles`; documentation index and current-state guides.
+- Requirement IDs: endpoint testability, route/documentation parity, and the
+  standard NestJS module architecture decision.
+- Change type: runtime verification and API documentation.
+- Summary: Started the Docker Compose backend, verified the API container,
+  PostgreSQL migration execution, Redis connectivity configuration, NestJS
+  route registration, validation behavior, and protected-route behavior. Added
+  a complete Postman-oriented endpoint guide and aligned the REST Client file
+  with every currently registered endpoint, including password reset,
+  contributor profiles, and skill-profile generation.
+- API changes: none; all 35 registered backend routes remain unchanged.
+- Database changes: none; Docker applied the existing pending password-reset
+  migration and reported no startup migration failure.
+- Tests/checks: `npm run check:architecture` passed for 12 modules; lint passed
+  with 5 existing warnings and 0 errors; type-check passed; 26 Jest suites and
+  86 tests passed with `--detectOpenHandles`; build passed; live `GET /health`
+  returned 200; `git diff --check` passed.
+- Docs updated: `docs/postman-api-guide.md`, `docs/api-contracts.md`,
+  `sharek-api.http`, `docs/README.md`, `README.md`,
+  `docs/current-state-and-next-steps.md`, selected AI planning/agent docs, and
+  this tracker.
+- Risks/follow-up: real Google/GitHub OAuth, SMTP OTP delivery, and the
+  separate FastAPI AI service require their external credentials/services for
+  full end-to-end testing. Prisma still reports the package.json configuration
+  deprecation warning for a future Prisma 7 config migration.

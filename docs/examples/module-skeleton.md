@@ -1,76 +1,54 @@
-# Module Skeleton Example
+# Module Skeleton
 
-Use this as an expanded example for a business module after a real sprint task
-needs multiple boundaries. New modules should start smaller:
+## Small Module
 
 ```text
-module-name/
-  module-name.module.ts
+projects/
+  projects.module.ts
+  projects.controller.ts
+  projects.service.ts
+  projects.service.spec.ts
+  dto/
+    import-project.dto.ts
+    project-response.dto.ts
+  mappers/
+    project.mapper.ts
   README.md
 ```
 
-Do not create the expanded tree until real files are ready to live inside it.
-
 ```text
-module-name/
-  module-name.module.ts
-  README.md
-  domain/
-    entities/
-    value-objects/
-    events/
-    exceptions/
-    policies/
-    contracts/
-  application/
-    use-cases/
-    dto/
-    ports/
-    mappers/
-  infrastructure/
-    persistence/
-    integrations/
-    jobs/
-  presentation/
-    http/
-      controllers/
-      requests/
-      responses/
-      guards/
-      presenters/
+ProjectsController -> ProjectsService -> DatabaseService
+                                    -> GitHubRepositoryService
 ```
 
-## Example: Applications Module
-
-When implementing `ApplyToTask`, the files may look like this:
+## Larger Module
 
 ```text
-applications/
-  domain/
-    entities/application.entity.ts
-    enums/application-status.enum.ts
-    exceptions/application-already-exists.error.ts
-    exceptions/invalid-application-transition.error.ts
-  application/
-    use-cases/apply-to-task.use-case.ts
-    dto/apply-to-task.input.ts
-    dto/application.result.ts
-    ports/contribution-task.reader.ts
-    ports/approved-skills.reader.ts
-  infrastructure/
-    persistence/application.repository.prisma.ts
-    persistence/application.persistence-mapper.ts
-  presentation/
-    http/
-      controllers/applications.controller.ts
-      requests/apply-to-task.request.ts
-      responses/application.response.ts
+identity/
+  identity.module.ts
+  controllers/
+    manual-auth.controller.ts
+    session.controller.ts
+    github-auth.controller.ts
+    google-auth.controller.ts
+  services/
+    auth.service.ts
+    session.service.ts
+    password-reset.service.ts
+    social-auth.service.ts
+    identity-username.service.ts
+  dto/
+  integrations/
+  security/
+  validators/
+  README.md
 ```
 
 ## Rules
 
-- Controllers call use cases.
-- Use cases coordinate business rules.
-- Domain code protects invariants.
-- Infrastructure contains Prisma/provider/queue code.
-- Other modules consume public ports or services, not private infrastructure.
+- Start with module, controller, service, DTOs, tests, and README.
+- Group controllers/services only when there are multiple files.
+- Add repositories, integrations, jobs, events, mappers, security, validators,
+  or utilities only for real implementation needs.
+- Export services as the module public API; keep technical internals private.
+- Preserve controller -> service -> Prisma/exported service/client flow.
