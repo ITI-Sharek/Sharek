@@ -2,15 +2,15 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 
-import { ContributorProfilesController } from '../src/modules/contributor-profiles/presentation/http/controllers/contributor-profiles.controller';
-import { EnsureContributorProfileUseCase } from '../src/modules/contributor-profiles/application/use-cases/ensure-contributor-profile.use-case';
-import { GetContributorProfileUseCase } from '../src/modules/contributor-profiles/application/use-cases/get-contributor-profile.use-case';
+import { ContributorProfilesController } from '../src/modules/contributor-profiles/contributor-profiles.controller';
+import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 
 describe('Contributor profile authenticated viewer HTTP flow', () => {
   let app: INestApplication;
-  const getUseCase = {
-    execute: jest.fn().mockResolvedValue({
+  const contributorProfilesService = {
+    ensure: jest.fn(),
+    getByUsername: jest.fn().mockResolvedValue({
       username: 'contributor-one',
       viewerRelationship: 'authenticated-viewer',
       completionPrompts: [],
@@ -31,14 +31,8 @@ describe('Contributor profile authenticated viewer HTTP flow', () => {
       controllers: [ContributorProfilesController],
       providers: [
         {
-          provide: EnsureContributorProfileUseCase,
-          useValue: {
-            execute: jest.fn(),
-          },
-        },
-        {
-          provide: GetContributorProfileUseCase,
-          useValue: getUseCase,
+          provide: ContributorProfilesService,
+          useValue: contributorProfilesService,
         },
       ],
     })
