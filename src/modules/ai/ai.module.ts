@@ -1,16 +1,10 @@
 import { Module } from '@nestjs/common';
 
-import { SkillProfileGenerator } from './application/ports/skill-profile-generator.port';
-import { FastApiSkillProfileGeneratorClient } from './infrastructure/integrations/fastapi-skill-profile-generator.client';
+import { AiService } from './ai.service';
+import { FastApiSkillProfileClient } from './integrations/fastapi-skill-profile.client';
 
 @Module({
-  providers: [
-    FastApiSkillProfileGeneratorClient,
-    {
-      provide: SkillProfileGenerator,
-      useExisting: FastApiSkillProfileGeneratorClient,
-    },
-  ],
-  exports: [SkillProfileGenerator],
+  providers: [AiService, FastApiSkillProfileClient],
+  exports: [AiService],
 })
 export class AiModule {}

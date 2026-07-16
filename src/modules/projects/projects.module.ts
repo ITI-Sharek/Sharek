@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 
 import { GithubModule } from '../github/github.module';
-import { ProjectImportService } from './application/use-cases/project-import.service';
-import { ProjectsController } from './presentation/http/controllers/projects.controller';
+import { ProjectsController } from './projects.controller';
+import { ProjectsService } from './projects.service';
 
 @Module({
   imports: [GithubModule],
   controllers: [ProjectsController],
-  providers: [ProjectImportService],
+  providers: [ProjectsService],
 })
 export class ProjectsModule {}

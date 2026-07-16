@@ -1,24 +1,31 @@
 import { Module } from '@nestjs/common';
 
-import { GitHubOAuthService } from './application/use-cases/github-oauth.service';
-import { GitHubProfileStatusReaderService } from './application/use-cases/github-profile-status-reader.service';
-import { GitHubRepositoryService } from './application/use-cases/github-repository.service';
-import { GitHubApiClient } from './infrastructure/integrations/github-api.client';
-import { GitHubTokenEncryptionService } from './infrastructure/security/github-token-encryption.service';
+import { GitHubOAuthService } from './services/github-oauth.service';
+import { GitHubAccountService } from './services/github-account.service';
+import { GitHubEvidenceService } from './services/github-evidence.service';
+import { GitHubRepositoryService } from './services/github-repository.service';
+import { GitHubApiClient } from './integrations/github-api.client';
+import { GitHubTokenEncryptionService } from './security/github-token-encryption.service';
 import {
   GitHubOAuthBrowserCallbackController,
   GitHubOAuthController,
-} from './presentation/http/controllers/github-oauth.controller';
+} from './controllers/github-oauth.controller';
 
 @Module({
   controllers: [GitHubOAuthController, GitHubOAuthBrowserCallbackController],
   providers: [
     GitHubOAuthService,
-    GitHubProfileStatusReaderService,
+    GitHubAccountService,
+    GitHubEvidenceService,
     GitHubRepositoryService,
     GitHubApiClient,
     GitHubTokenEncryptionService,
   ],
-  exports: [GitHubOAuthService, GitHubRepositoryService, GitHubProfileStatusReaderService],
+  exports: [
+    GitHubOAuthService,
+    GitHubAccountService,
+    GitHubEvidenceService,
+    GitHubRepositoryService,
+  ],
 })
 export class GithubModule {}
