@@ -27,10 +27,7 @@ describe('SocialAuthService', () => {
       create: jest.fn(),
     },
   };
-  const googleOAuthClient = {
-    getAuthorizationUrl: jest.fn(),
-    exchangeCodeForIdentity: jest.fn(),
-  };
+
   const gitHubOAuthService = {
     getSocialAuthorizationUrl: jest.fn(),
     exchangeCodeForSocialIdentity: jest.fn(),
@@ -44,7 +41,6 @@ describe('SocialAuthService', () => {
   };
   const service = new SocialAuthService(
     database as never,
-    googleOAuthClient as never,
     gitHubOAuthService as never,
     sessionTokenService as never,
     identityUsernameService as never,
@@ -61,30 +57,6 @@ describe('SocialAuthService', () => {
     identityUsernameService.getAvailableUsernameOrNull.mockResolvedValue(null);
   });
 
-  it('starts Google auth with a hashed state and requested role', async () => {
-    googleOAuthClient.getAuthorizationUrl.mockReturnValue(
-      'https://accounts.google.com/o/oauth2/v2/auth',
-    );
-
-    const result = await service.start(AuthProvider.google, UserRole.contributor);
-
-    expect(database.authOAuthState.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        provider: AuthProvider.google,
-        requested_role: UserRole.contributor,
-        state_hash: expect.any(String),
-        expires_at: expect.any(Date),
-      }),
-    });
-    expect(googleOAuthClient.getAuthorizationUrl).toHaveBeenCalledWith(
-      result.state,
-    );
-    expect(result).toMatchObject({
-      provider: AuthProvider.google,
-      role: UserRole.contributor,
-      authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
-    });
-  });
 
   it('starts GitHub auth without requesting repository consent', async () => {
     gitHubOAuthService.getSocialAuthorizationUrl.mockReturnValue(
@@ -107,88 +79,6 @@ describe('SocialAuthService', () => {
     expect(result.authorizationUrl).toContain('scope=read%3Auser+user%3Aemail');
   });
 
-  it('creates a contributor from a verified Google identity', async () => {
-    database.authOAuthState.findFirst.mockResolvedValue({
-      id: 'state-id',
-      requested_role: UserRole.contributor,
-    });
-    googleOAuthClient.exchangeCodeForIdentity.mockResolvedValue({
-      provider: AuthProvider.google,
-      providerUserId: 'google-123',
-      email: 'contributor@example.com',
-      emailVerified: true,
-      firstName: 'Connie',
-      lastName: 'Contributor',
-      avatarUrl: 'https://example.com/avatar.png',
-      rawProfileData: {
-        sub: 'google-123',
-      },
-    });
-    database.authProviderAccount.findUnique.mockResolvedValue(null);
-    database.user.findUnique.mockResolvedValue(null);
-    database.user.create.mockResolvedValue(
-      getUser({
-        id: 'new-user-id',
-        email: 'contributor@example.com',
-        role: UserRole.contributor,
-      }),
-    );
-    database.user.update.mockResolvedValue(
-      getUser({
-        id: 'new-user-id',
-        email: 'contributor@example.com',
-        role: UserRole.contributor,
-        last_login_at: new Date('2026-07-08T12:00:00Z'),
-      }),
-    );
-
-    const result = await service.complete({
-      provider: AuthProvider.google,
-      code: 'oauth-code',
-      state: 'oauth-state',
-      context: {
-        userAgent: 'jest',
-        ipAddress: '127.0.0.1',
-      },
-    });
-
-    expect(database.user.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        email: 'contributor@example.com',
-        password_hash: null,
-        first_name: 'Connie',
-        last_name: 'Contributor',
-        role: UserRole.contributor,
-        status: UserStatus.active,
-        preferred_language: LanguageCode.en,
-      }),
-    });
-    expect(database.authProviderAccount.upsert).toHaveBeenCalledWith({
-      where: {
-        provider_provider_account_id: {
-          provider: AuthProvider.google,
-          provider_account_id: 'google-123',
-        },
-      },
-      create: expect.objectContaining({
-        user_id: 'new-user-id',
-        provider: AuthProvider.google,
-        provider_account_id: 'google-123',
-      }),
-      update: expect.any(Object),
-    });
-    expect(database.authSession.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        user_id: 'new-user-id',
-        access_token_hash: 'access-token-hash',
-        refresh_token_hash: 'refresh-token-hash',
-      }),
-    });
-    expect(result.tokens).toMatchObject({
-      accessToken: 'access-token',
-      refreshToken: 'refresh-token',
-    });
-  });
 
   it('logs in the user already connected to a GitHub account', async () => {
     const githubIdentity = {

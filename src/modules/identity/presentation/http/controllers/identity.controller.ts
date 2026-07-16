@@ -72,31 +72,6 @@ export class IdentityController {
     return this.identityService.resetPassword(body);
   }
 
-  @Get('google/start')
-  startGoogle(@Query() query: SocialAuthStartRequest) {
-    return this.socialAuthService.startGoogle(query.role);
-  }
-
-  @Get('google/callback')
-  completeGoogleGet(
-    @Query() query: SocialAuthCallbackRequest,
-    @Res() response: Response,
-  ) {
-    return this.redirectSocialCallback('google', query, response);
-  }
-
-  @Post('google/callback')
-  completeGooglePost(
-    @Body() body: SocialAuthCallbackRequest,
-    @Req() request: Request,
-  ) {
-    return this.socialAuthService.completeGoogle({
-      code: body.code,
-      state: body.state,
-      context: this.getRequestContext(request),
-    });
-  }
-
   @Get('github/start')
   startGitHub(@Query() query: SocialAuthStartRequest) {
     return this.socialAuthService.startGitHub(query.role);
@@ -157,7 +132,7 @@ export class IdentityController {
   }
 
   private redirectSocialCallback(
-    provider: 'github' | 'google',
+    provider: 'github',
     query: SocialAuthCallbackRequest,
     response: Response,
   ): void {

@@ -13,7 +13,7 @@ import { hashToken } from '../../../../shared/auth/token-hash';
 import { DatabaseService } from '../../../../shared/database/database.service';
 import { ApplicationError } from '../../../../shared/errors/application.error';
 import { GitHubOAuthService } from '../../../github/application/use-cases/github-oauth.service';
-import { GoogleOAuthClient } from '../../infrastructure/integrations/google-oauth.client';
+
 import { SessionTokenService } from '../../infrastructure/security/session-token.service';
 import { AuthSessionDto, AuthTokensDto } from '../dto/auth-session.dto';
 import {
@@ -46,7 +46,6 @@ interface ProviderIdentity {
 export class SocialAuthService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly googleOAuthClient: GoogleOAuthClient,
     private readonly gitHubOAuthService: GitHubOAuthService,
     private readonly sessionTokenService: SessionTokenService,
     private readonly identityUsernameService: IdentityUsernameService,
@@ -80,21 +79,8 @@ export class SocialAuthService {
     };
   }
 
-  startGoogle(role: SocialAuthRole): Promise<SocialAuthStartDto> {
-    return this.start(AuthProvider.google, role);
-  }
-
   startGitHub(role: SocialAuthRole): Promise<SocialAuthStartDto> {
     return this.start(AuthProvider.github, role);
-  }
-
-  completeGoogle(
-    input: Omit<SocialAuthCallbackInput, 'provider'>,
-  ): Promise<AuthSessionDto> {
-    return this.complete({
-      ...input,
-      provider: AuthProvider.google,
-    });
   }
 
   completeGitHub(
@@ -182,9 +168,7 @@ export class SocialAuthService {
     role: SocialAuthRole,
     state: string,
   ): string {
-    if (provider === AuthProvider.google) {
-      return this.googleOAuthClient.getAuthorizationUrl(state);
-    }
+
 
     return this.gitHubOAuthService.getSocialAuthorizationUrl(state);
   }
@@ -193,9 +177,7 @@ export class SocialAuthService {
     provider: AuthProvider,
     code: string,
   ): Promise<ProviderIdentity> {
-    if (provider === AuthProvider.google) {
-      return this.googleOAuthClient.exchangeCodeForIdentity(code);
-    }
+
 
     return this.gitHubOAuthService.exchangeCodeForSocialIdentity(code);
   }
@@ -407,7 +389,7 @@ export class SocialAuthService {
   }
 
   private assertSupportedProvider(provider: AuthProvider): void {
-    if (![AuthProvider.google, AuthProvider.github].includes(provider)) {
+    if (provider !== AuthProvider.github) {
       throw new ApplicationError(
         'Unsupported auth provider',
         'SOCIAL_AUTH_PROVIDER_UNSUPPORTED',

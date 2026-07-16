@@ -5,7 +5,7 @@ import { IdentityService } from './application/use-cases/identity.service';
 import { IdentityUsernameService } from './application/use-cases/identity-username.service';
 import { SocialAuthService } from './application/use-cases/social-auth.service';
 import { EmailVerificationSender } from './infrastructure/integrations/email-verification.sender';
-import { GoogleOAuthClient } from './infrastructure/integrations/google-oauth.client';
+
 import { PasswordHasher } from './infrastructure/security/password-hasher.service';
 import { SessionTokenService } from './infrastructure/security/session-token.service';
 import { IdentityController } from './presentation/http/controllers/identity.controller';
@@ -18,7 +18,6 @@ import { IdentityController } from './presentation/http/controllers/identity.con
     IdentityUsernameService,
     SocialAuthService,
     EmailVerificationSender,
-    GoogleOAuthClient,
     PasswordHasher,
     SessionTokenService,
   ],
