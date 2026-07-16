@@ -126,5 +126,15 @@ shell commands, and other important information, read the current plan before
 implementing feature work.
 <!-- SPECKIT END -->
 
+## Agent skills
+
+### Issue tracker
+
+GitHub (`ITI-Sharek/Backend`) is the source of truth for issues; `.scratch/<feature-slug>/` holds draft/working notes before publishing. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
 Before finishing, append a short change record to
 `docs/module-development-tracker.md` unless the task was read-only.
