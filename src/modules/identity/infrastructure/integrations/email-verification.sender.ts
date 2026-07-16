@@ -56,6 +56,43 @@ export class EmailVerificationSender {
     }
   }
 
+  async sendPasswordResetOtp(message: EmailVerificationMessage): Promise<void> {
+    if (!this.isConfigured()) {
+      if (this.config.get<string>('NODE_ENV') === 'production') {
+        throw new ApplicationError(
+          'Email delivery is not configured',
+          'EMAIL_DELIVERY_NOT_CONFIGURED',
+          500,
+        );
+      }
+
+      this.logger.warn(
+        `Password reset OTP for ${message.to}: ${message.code}`,
+      );
+      return;
+    }
+
+    try {
+      await this.getTransporter().sendMail({
+        from: this.getFromAddress(),
+        to: message.to,
+        subject: 'Reset your Share-k password',
+        text: this.getPasswordResetTextBody(message),
+        html: this.getPasswordResetHtmlBody(message),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send password reset email to ${message.to}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ApplicationError(
+        'Password reset email could not be sent',
+        'PASSWORD_RESET_EMAIL_SEND_FAILED',
+        502,
+      );
+    }
+  }
+
   private getTransporter(): Transporter {
     if (this.transporter) {
       return this.transporter;
@@ -126,6 +163,27 @@ export class EmailVerificationSender {
       <p><strong style="font-size: 24px; letter-spacing: 4px;">${message.code}</strong></p>
       <p>This code expires at ${message.expiresAt.toISOString()}.</p>
       <p>If you did not create a Share-k account, you can ignore this email.</p>
+    `;
+  }
+
+  private getPasswordResetTextBody(message: EmailVerificationMessage): string {
+    return [
+      `Hi ${message.firstName},`,
+      '',
+      `Your Share-k password reset code is ${message.code}.`,
+      `It expires at ${message.expiresAt.toISOString()}.`,
+      '',
+      'If you did not request a password reset, you can ignore this email.',
+    ].join('\n');
+  }
+
+  private getPasswordResetHtmlBody(message: EmailVerificationMessage): string {
+    return `
+      <p>Hi ${this.escapeHtml(message.firstName)},</p>
+      <p>Your Share-k password reset code is:</p>
+      <p><strong style="font-size: 24px; letter-spacing: 4px;">${message.code}</strong></p>
+      <p>This code expires at ${message.expiresAt.toISOString()}.</p>
+      <p>If you did not request a password reset, you can ignore this email.</p>
     `;
   }
 

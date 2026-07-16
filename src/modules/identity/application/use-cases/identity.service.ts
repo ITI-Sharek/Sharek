@@ -7,6 +7,8 @@ import { EmailVerificationRequiredDto } from '../dto/email-verification.dto';
 import { toAuthUserDto } from '../mappers/auth-user.mapper';
 import { RegisterRequest } from '../../presentation/http/requests/register.request';
 import { LoginRequest } from '../../presentation/http/requests/login.request';
+import { ForgotPasswordRequest } from '../../presentation/http/requests/forgot-password.request';
+import { ResetPasswordRequest } from '../../presentation/http/requests/reset-password.request';
 import { ResendEmailVerificationRequest } from '../../presentation/http/requests/resend-email-verification.request';
 import { VerifyEmailRequest } from '../../presentation/http/requests/verify-email.request';
 import { hashToken } from '../../../../shared/auth/token-hash';
@@ -21,6 +23,8 @@ const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const EMAIL_VERIFICATION_OTP_TTL_MS = 10 * 60 * 1000;
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
+const PASSWORD_RESET_OTP_TTL_MS = 10 * 60 * 1000;
+const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 
 interface RequestContext {
   userAgent?: string;
@@ -365,6 +369,126 @@ export class IdentityService {
     });
   }
 
+  async forgotPassword(
+    input: ForgotPasswordRequest,
+  ): Promise<{ message: string; resetExpiresAt: Date }> {
+    const email = input.email.trim().toLowerCase();
+    const user = await this.database.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    // Always return success to prevent email enumeration
+    if (!user || !user.password_hash) {
+      return {
+        message: 'If an account with that email exists, a reset code has been sent',
+        resetExpiresAt: new Date(Date.now() + PASSWORD_RESET_OTP_TTL_MS),
+      };
+    }
+
+    const { expiresAt } = await this.issuePasswordResetOtp(user);
+
+    return {
+      message: 'If an account with that email exists, a reset code has been sent',
+      resetExpiresAt: expiresAt,
+    };
+  }
+
+  async resetPassword(
+    input: ResetPasswordRequest,
+  ): Promise<{ message: string }> {
+    const email = input.email.trim().toLowerCase();
+    const user = await this.database.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      throw new ApplicationError(
+        'Password reset code is invalid or expired',
+        'PASSWORD_RESET_INVALID',
+        400,
+      );
+    }
+
+    const resetOtp = await this.database.passwordResetOtp.findFirst({
+      where: {
+        user_id: user.id,
+        consumed_at: null,
+        expires_at: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    if (!resetOtp || resetOtp.attempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
+      throw new ApplicationError(
+        'Password reset code is invalid or expired',
+        'PASSWORD_RESET_INVALID',
+        400,
+      );
+    }
+
+    if (resetOtp.code_hash !== hashToken(input.code.trim())) {
+      await this.database.passwordResetOtp.update({
+        where: {
+          id: resetOtp.id,
+        },
+        data: {
+          attempts: {
+            increment: 1,
+          },
+        },
+      });
+
+      throw new ApplicationError(
+        'Password reset code is invalid or expired',
+        'PASSWORD_RESET_INVALID',
+        400,
+      );
+    }
+
+    const passwordHash = await this.passwordHasher.hash(input.newPassword);
+
+    await this.database.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        password_hash: passwordHash,
+      },
+    });
+
+    await this.database.passwordResetOtp.update({
+      where: {
+        id: resetOtp.id,
+      },
+      data: {
+        consumed_at: new Date(),
+      },
+    });
+
+    // Revoke all existing sessions for security
+    await this.database.authSession.updateMany({
+      where: {
+        user_id: user.id,
+        revoked_at: null,
+      },
+      data: {
+        revoked_at: new Date(),
+      },
+    });
+
+    return {
+      message: 'Password has been reset successfully',
+    };
+  }
+
   async getCurrentUser(userId: string): Promise<AuthUserDto> {
     const user = await this.database.user.findUnique({
       where: {
@@ -429,6 +553,42 @@ export class IdentityService {
       },
     });
     await this.emailVerificationSender.sendOtp({
+      to: user.email,
+      firstName: user.first_name,
+      code,
+      expiresAt,
+    });
+
+    return {
+      expiresAt,
+    };
+  }
+
+  private async issuePasswordResetOtp(user: {
+    id: string;
+    email: string;
+    first_name: string;
+  }): Promise<{ expiresAt: Date }> {
+    const code = this.generateOtp();
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_OTP_TTL_MS);
+
+    await this.database.passwordResetOtp.updateMany({
+      where: {
+        user_id: user.id,
+        consumed_at: null,
+      },
+      data: {
+        consumed_at: new Date(),
+      },
+    });
+    await this.database.passwordResetOtp.create({
+      data: {
+        user_id: user.id,
+        code_hash: hashToken(code),
+        expires_at: expiresAt,
+      },
+    });
+    await this.emailVerificationSender.sendPasswordResetOtp({
       to: user.email,
       firstName: user.first_name,
       code,
