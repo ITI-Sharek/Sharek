@@ -6,6 +6,8 @@ import { IdentityService } from '../../../application/use-cases/identity.service
 import { SocialAuthService } from '../../../application/use-cases/social-auth.service';
 import { RegisterRequest } from '../requests/register.request';
 import { LoginRequest } from '../requests/login.request';
+import { ForgotPasswordRequest } from '../requests/forgot-password.request';
+import { ResetPasswordRequest } from '../requests/reset-password.request';
 import { ResendEmailVerificationRequest } from '../requests/resend-email-verification.request';
 import { RefreshSessionRequest } from '../requests/refresh-session.request';
 import { AssignRoleRequest } from '../requests/assign-role.request';
@@ -58,6 +60,16 @@ export class IdentityController {
   @Post('refresh')
   refresh(@Body() body: RefreshSessionRequest) {
     return this.identityService.refresh(body.refreshToken);
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() body: ForgotPasswordRequest) {
+    return this.identityService.forgotPassword(body);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() body: ResetPasswordRequest) {
+    return this.identityService.resetPassword(body);
   }
 
   @Get('google/start')
