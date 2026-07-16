@@ -11,7 +11,7 @@ The selected backend setup is:
 ```text
 Frontend repo: Next.js
 Backend repo: NestJS feature-first modular monolith
-AI repo: separate FastAPI service called through backend ports/adapters
+AI repo: separate FastAPI service called through `AiService` and integration clients
 Database: PostgreSQL + pgvector
 ORM: Prisma
 Async jobs: BullMQ + Redis when needed
@@ -47,9 +47,10 @@ Done:
 - Implementation roadmap: `docs/implementation-roadmap.md`
 - Database plan: `docs/database-plan.md`
 - API and AI contract rules: `docs/api-contracts.md`
+- Postman endpoint guide: `docs/postman-api-guide.md`
 - Sprint template: `docs/sprint-template.md`
 - Sprint 1 foundation plan: `docs/sprints/sprint-01-backend-foundation.md`
-- Architecture ADR: `bmad/_bmad-output/planning-artifacts/architecture/adr-001-backend-architecture.md`
+- Architecture ADR: `bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`
 
 ### NestJS Skeleton
 
@@ -66,11 +67,13 @@ Done:
 - Global error filter in `src/shared/errors/http-exception.filter.ts`
 - Health endpoint in `src/modules/health`
 - Identity registration, login, refresh, logout, current-user, and admin role
-  assignment endpoints.
+  assignment endpoints, plus email verification and password reset.
 - GitHub OAuth start/callback/account/disconnect endpoints.
 - GitHub OAuth token encryption before database storage.
 - GitHub repository listing, project import snapshot, README/language fetch,
   contribution activity normalization, and recent commit signal normalization.
+- Contributor profile ensure/read endpoints.
+- Selected-repository skill profile generation and status polling endpoints.
 - GitHub Actions backend CI for architecture check, lint, unit tests, and build.
 - Automated HTTP smoke test for owner registration, GitHub OAuth callback with
   mocked GitHub responses, repository listing, and GitHub project import.
@@ -93,16 +96,15 @@ src/modules/
   admin/
   ai/
   health/
+  contributor-profiles/
 ```
 
-Most business modules are placeholders for now. This is intentional. The folder
-structure is ready, but business logic should be added only when a real sprint
-task needs it.
-
-The module structure is now progressive. Empty layer folders were removed so the
-tree shows only real implementation files. Future tasks should add `domain`,
-`application`, `infrastructure`, or `presentation` folders only when the feature
-needs that boundary.
+Some business modules remain placeholders for now. This is intentional. The
+folder structure is ready, but business logic should be added only when a real
+sprint task needs it. Implemented modules use the same standard shape:
+controllers, services, DTOs, and only the technical folders they actually need
+such as integrations, security, repositories, mappers, or jobs. Clean
+Architecture layer folders are not part of this backend decision.
 
 ### Docker And Local Services
 
@@ -121,8 +123,8 @@ postgres with pgvector
 redis
 ```
 
-This still needs to be run and verified on a machine with Docker and npm
-available.
+Docker Compose has been verified locally. The API is published on port `4000`,
+PostgreSQL on host port `5433`, and Redis on host port `6379` by default.
 
 ### Database Foundation
 
@@ -138,11 +140,16 @@ Prepared:
 - Additional session/OAuth migration:
   `prisma/migrations/20260705012000_auth_sessions_and_github_oauth_state/migration.sql`
 
+Verified:
+
+- Docker migration execution, including the password-reset and skill-generation
+  migrations.
+- Prisma schema validation and generated client.
+
 Not done yet:
 
-- Verified migration execution in the local Docker database.
 - Seed data.
-- Repository/use-case code for the remaining business workflows.
+- Service code for the remaining business workflows.
 - Any additional migration needed for pgvector extension or future embedding
   tables after the AI service contract is finalized.
 
@@ -150,24 +157,21 @@ Not done yet:
 
 Prepared:
 
-- `SkillProfileGenerator` port.
-- `EligibilityAnalyzer` port.
-- `SkillGapAdvisor` port.
-- `EmbeddingGenerator` port.
+- `AiService` facade and FastAPI integration client for skill-profile
+  generation.
+- Extension points for eligibility, skill-gap, and embedding service clients.
 - Runtime configuration placeholders for an external AI service:
   `AI_SERVICE_URL`, `AI_SERVICE_TIMEOUT_MS`, and the shared internal
   `AI_SERVICE_AUTH_TOKEN` (required in production).
 
 Not done yet:
 
-- FastAPI AI client implementation in NestJS.
 - Shared request/response schema tests between this backend and the FastAPI AI
   repository.
 - AI service authentication policy.
 - Prompt versions inside the FastAPI AI repository.
-- AI audit write flow in backend use cases.
+- AI audit write flow in owning backend services.
 - Embedding persistence contract and ownership.
-- Skill profiling workflow.
 - Eligibility validation workflow.
 
 ## What Is Not Done Yet
@@ -175,7 +179,6 @@ Not done yet:
 Not implemented yet:
 
 - Background GitHub repository ingestion after OAuth connect.
-- Skill profile generation.
 - Admin skill review.
 - Project publishing.
 - Contribution task creation.
@@ -184,27 +187,28 @@ Not implemented yet:
 - Delivery review.
 - Reputation.
 - Subscription and premium limits.
-- BullMQ worker.
 - Production deployment.
 
 ## Is The Worker Installed?
 
-No.
+Yes, for selected-repository skill-profile generation.
 
-Redis is prepared in Docker Compose, but BullMQ worker code is not implemented
-yet.
+Redis runs in Docker Compose, and the skill-profiles module owns a concrete
+BullMQ queue and worker. The worker delegates generation processing to
+`SkillProfileGenerationService`, retries operational failures, and persists
+terminal states. Other asynchronous workflows are still future work.
 
 Current state:
 
 ```text
-Redis service: prepared
-BullMQ package: not added yet
-Worker module: not created yet
-Jobs: not implemented yet
+Redis service: running in Docker Compose
+BullMQ package: installed
+Skill-profile queue: implemented
+Skill-profile worker: implemented
+Other jobs: not implemented yet
 ```
 
-Add BullMQ when a real async need appears, such as GitHub ingestion, embedding
-generation, skill profiling, or long AI validation.
+Add additional queues only when a real async workflow needs them.
 
 ## Can Everyone Start Working?
 
@@ -235,14 +239,14 @@ Next work:
 
 - Own the FastAPI AI repository and the backend-facing AI contracts in
   `src/modules/ai`.
-- Convert AI ports into service contracts for:
+- Extend `AiService` service contracts for:
   - skill profile generation
   - eligibility analysis
   - skill gap guidance
   - embeddings
 - Define FastAPI endpoint paths, DTOs, schema versions, and error responses.
 - Decide initial model provider inside the FastAPI AI repository.
-- Create mock FastAPI client adapters for backend tests before using the real
+- Create mock FastAPI integration clients for backend tests before using the real
   service.
 - Define prompt version names and output schemas in the AI repository.
 - Plan AI audit fields with M4.
@@ -268,17 +272,13 @@ M3 should not call AI providers directly from frontend.
 
 Next work:
 
-- Verify NestJS app boots.
-- Verify Docker local setup with M6.
-- Implement identity foundation:
-  - users table
-  - roles
-  - auth module
-  - JWT/session foundation
-- Own application workflow later:
+- Extend the implemented identity/session services only when a backlog task needs
+  a new auth workflow.
+- Own the application workflow:
   - application status transitions
   - eligibility state
   - manual review fallback
+- Coordinate admin review and AI decision boundaries with M2.
 
 M4 should protect business rules and keep controllers thin.
 
@@ -306,7 +306,7 @@ Next work:
 - Run Prisma migration.
 - Run health endpoint test.
 - Keep CI commands aligned with local verification.
-- Add BullMQ only when a sprint needs background jobs.
+- Add queues only when a sprint needs another background workflow.
 - Decide with M2/M4 how the separate FastAPI AI repository should run locally:
   independent process, shared Docker network, or compose override.
 
@@ -326,7 +326,7 @@ Do these before feature work gets heavy:
 8. Confirm `AI_SERVICE_URL` points to a local FastAPI service or documented
    mock target before AI workflows are implemented.
 9. Add CI command plan.
-10. Start identity/auth foundation.
+10. Continue identity, admin review, and application workflows from the backlog.
 
 ## Commands To Verify Locally
 
@@ -367,6 +367,7 @@ Expected response:
 
 The current repo is ready for foundation work. It is not a finished backend.
 
-The architecture is set, the progressive module structure is in place, Docker is
-prepared, and the team can continue Sprint 1. Business features should be
-implemented task by task from the backlog and PRD.
+The architecture is set, the standard feature-first module structure is in
+place, Docker has a verified local path, and the team can continue Sprint 1.
+Remaining business features should be implemented task by task from the backlog
+and PRD.
