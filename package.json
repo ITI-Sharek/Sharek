@@ -1,0 +1,15 @@
+{
+  "name": "sharek-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}
