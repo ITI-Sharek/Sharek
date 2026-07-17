@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-checks:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Verify frozen workspace lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify required frontend scripts
+        run: >-
+          node -e "const scripts=require('./frontend/package.json').scripts||{};
+          const required=['lint','typecheck','test','build'];
+          const missing=required.filter((name)=>!scripts[name]);
+          if(missing.length){console.error('Missing frontend scripts: '+missing.join(', '));process.exit(1)}"
+
+      - name: Lint
+        run: pnpm --filter ./frontend lint
+
+      - name: Type-check
+        run: pnpm --filter ./frontend typecheck
+
+      - name: Test
+        run: pnpm --filter ./frontend test
+
+      - name: Build
+        run: pnpm --filter ./frontend build
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter ./backend exec prisma generate
+
+      - name: Lint
+        run: pnpm --filter ./backend lint
+
+      - name: Type-check
+        run: pnpm --filter ./backend exec tsc --noEmit
+
+      - name: Unit tests
+        run: pnpm --filter ./backend test --runInBand --testPathPattern=src
+
+      - name: Integration and E2E tests
+        run: pnpm --filter ./backend test --runInBand --testPathPattern=test
+
+      - name: Check architecture
+        run: pnpm --filter ./backend check:architecture
+
+      - name: Validate Prisma schema
+        run: pnpm --filter ./backend exec prisma validate
+
+      - name: Build
+        run: pnpm --filter ./backend build
+
+  ci-gate:
+    name: ci-gate
+    if: ${{ always() }}
+    needs:
+      - repository-checks
+      - frontend
+      - backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every CI job
+        env:
+          REPOSITORY_CHECKS_RESULT: ${{ needs.repository-checks.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+        run: |
+          for result in "$REPOSITORY_CHECKS_RESULT" "$FRONTEND_RESULT" "$BACKEND_RESULT"; do
+            if [ "$result" != "success" ]; then
+              echo "A required CI job did not succeed: $result"
+              exit 1
+            fi
+          done

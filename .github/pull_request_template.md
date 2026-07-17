@@ -1,48 +1,47 @@
-# Backend PR Checklist
+## Linked issue
 
-## Context
+Closes #
 
-- Task ID:
-- Product requirement/decision IDs:
-- Owning module:
-- Delivery-plan slice:
+## Scope summary
 
-## Required Reading
+Describe the user-visible or operational outcome and the implementation boundary.
 
-- [ ] `AGENTS.md`
-- [ ] `docs/operations/engineering-guide.md`
-- [ ] `docs/audits/codebase-gap-report.md`
-- [ ] Target module README
-- [ ] Relevant API/database docs when touched
+## Tests run
 
-## Architecture
+List every command and result. Explain any required gate that was not run.
 
-- [ ] Code is inside the owning module.
-- [ ] Controllers are thin.
-- [ ] Business rules live in the owning service/domain workflow.
-- [ ] External systems are isolated behind integration clients.
-- [ ] Cross-module dependency, if needed, uses a public exported service or completed-fact event.
-- [ ] No module imports another module's private infrastructure.
-- [ ] No module writes another module's owned tables directly.
-- [ ] `shared/` contains only technical cross-module infrastructure.
+```text
+command — result
+```
 
-## Tests And Checks
+## Security notes
 
-- [ ] `npm run check:architecture` passed.
-- [ ] Relevant tests were added or updated.
-- [ ] Relevant checks were run.
-- [ ] Commands run are listed in the PR.
+Describe authorization, privacy, secret handling, untrusted input, external API,
+and public-data implications. Write `None` when unaffected.
 
-## Documentation
+## Migration notes
 
-- [ ] Module README updated, or not needed.
-- [ ] `docs/api-contracts.md` updated, or not needed.
-- [ ] `sharek-api.http` updated, or not needed.
-- [ ] `docs/architecture.md` updated, or not needed.
-- [ ] `docs/audits/codebase-gap-report.md` updated when current implementation evidence changed.
-- [ ] Planned work remains in `docs/delivery-plan.md`.
+Describe schema/data changes, compatibility, deployment order, rollback or
+forward-recovery behavior. Write `None` when unaffected.
 
-## Risks
+## UI screenshots
 
-- Known risks:
-- Follow-up work:
+Add before/after screenshots or recordings when the change affects UI. Write
+`Not applicable` otherwise. Do not include private or sensitive data.
+
+## Documentation updates
+
+List canonical, API, module, operations, and audit documents updated, or explain
+why none are required.
+
+## Review checklist
+
+- [ ] The linked issue contains acceptance criteria and required tests.
+- [ ] The scope summary matches the linked issue.
+- [ ] Tests above cover successful, failure, and forbidden paths as applicable.
+- [ ] Security and authorization impact was reviewed.
+- [ ] Migration and API compatibility impact was reviewed.
+- [ ] UI screenshots are included when applicable.
+- [ ] Documentation and current-state audit evidence are updated when required.
+- [ ] Unrelated changes are excluded from this pull request.
+- [ ] No secrets, tokens, private repository content, or unnecessary personal data are included.
