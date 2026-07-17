@@ -1,0 +1,2 @@
+pnpm --filter ./frontend lint
+pnpm --filter ./frontend typecheck

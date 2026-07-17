@@ -1,0 +1,120 @@
+name: Implementation task
+description: Plan a small, assignable ShareK implementation outcome.
+title: "[Task]: "
+labels:
+  - type:feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep the task independently reviewable. Use XS, S, or M when possible;
+        normally split L work before assignment, and always split XL work before
+        assignment.
+
+  - type: textarea
+    id: user-value
+    attributes:
+      label: User value
+      description: Who benefits, and what value will they receive?
+      placeholder: As a ..., I can ..., so that ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: Describe the observable result, not only the code change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: List the behavior and systems included in this task.
+    validations:
+      required: true
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: State what this task deliberately does not implement.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Use testable checkboxes for successful, failure, and forbidden behavior.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link blocking issues, decisions, services, or external access. Write None when there are none.
+    validations:
+      required: true
+
+  - type: textarea
+    id: authorization
+    attributes:
+      label: Authorization implications
+      description: Identify actors, object-level permissions, status gates, and forbidden paths. Write None when unaffected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: data-migration
+    attributes:
+      label: Data or migration implications
+      description: Describe persistence, compatibility, rollback/forward recovery, and sensitive-data impact. Write None when unaffected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-impact
+    attributes:
+      label: API impact
+      description: List routes, DTOs, errors, compatibility, and external contracts. Write None when unaffected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: frontend-impact
+    attributes:
+      label: Frontend impact
+      description: List routes, states, accessibility, responsiveness, and contract dependencies. Write None when unaffected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: test-plan
+    attributes:
+      label: Test plan
+      description: List exact unit, integration, contract, UI, security, and E2E cases required.
+    validations:
+      required: true
+
+  - type: textarea
+    id: documentation-impact
+    attributes:
+      label: Documentation impact
+      description: Identify canonical, module, operations, API, and audit updates. Write None when unaffected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: demo-proof
+    attributes:
+      label: Demo proof
+      description: State the evidence that will demonstrate the completed outcome.
+    validations:
+      required: true

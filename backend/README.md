@@ -15,22 +15,25 @@ recommendations; the owning NestJS service validates and decides.
 
 ## Start Here
 
-1. `docs/architecture.md`
-2. `docs/developer-architecture-guide.md`
-3. `docs/module-development-tracker.md`
-4. The relevant `src/modules/<module>/README.md`
-5. `docs/definition-of-done.md`
+1. `docs/README.md`
+2. `docs/product-spec.md`
+3. `docs/architecture.md`
+4. `docs/api-contracts.md`
+5. `docs/delivery-plan.md`
+6. `docs/operations/engineering-guide.md`
+7. The relevant `src/modules/<module>/README.md`
 
-For endpoint testing, use [`docs/postman-api-guide.md`](docs/postman-api-guide.md)
+For endpoint testing, use [`docs/operations/postman-api-guide.md`](../docs/operations/postman-api-guide.md)
 or the runnable REST Client requests in [`sharek-api.http`](sharek-api.http).
 
 Agents must also read `AGENTS.md`.
 
 ## Architecture Source
 
-- Current ADR: `bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`
-- PRD: `bmad/_bmad-output/planning-artifacts/prds/prd-Grad_Project-2026-06-17/prd.md`
-- Backlog: `bmad/_bmad-output/sharek-backlog.md`
+- Canonical architecture and domain model: `docs/architecture.md`
+- Product requirements: `docs/product-spec.md`
+- Vertical slices: `docs/delivery-plan.md`
+- Current repository gaps: `docs/audits/codebase-gap-report.md`
 
 ```text
 src/
@@ -55,4 +58,5 @@ npm test -- --runInBand
 npm run build
 ```
 
-Every code task updates `docs/module-development-tracker.md`.
+Update `docs/audits/codebase-gap-report.md` only when verified implementation
+state changes. Planned work belongs in `docs/delivery-plan.md`.

@@ -1,190 +1,81 @@
-# API Contracts
+# ShareK — API Contracts
 
-## Public API Direction
+**Status:** PROPOSED — current routes and target contracts are marked separately
+**Date:** 2026-07-17
+**Depends on:** `decision-log.md`, `product-spec.md`, `architecture.md`
 
-The frontend calls the NestJS backend only.
+The real, implemented routes below do not use a `/v1` URL segment. The human-approved target public-profile contract is `GET /api/v1/profiles/:username` (`decision-log.md` API-001); reconciling that target with the current unversioned route is explicit implementation work, not an implemented claim.
 
-```text
-Next.js frontend -> NestJS backend -> database/GitHub/FastAPI AI service
-```
+---
 
-The frontend should not call model providers or the FastAPI AI service directly.
-
-## REST Guidelines
-
-- Use stable request and response DTOs.
-- Validate every request.
-- Return domain-safe responses, not raw Prisma rows.
-- Use pagination for lists.
-- Use explicit status values.
-- Return useful error codes and safe error messages.
-
-## Core API Areas
-
-Expected API groups:
+## 0. Direction
 
 ```text
-/auth
-/users
-/github
-/projects
-/contribution-tasks
-/applications
-/skill-profiles
-/admin
-/deliveries
-/reputation
-/contributors/profiles
-/health
+Frontend (frontend/**) -> NestJS backend (backend/**) -> database / GitHub / bounded FastAPI AI service
 ```
 
-Exact route naming can evolve, but ownership must stay aligned with modules.
+The frontend never calls a model provider or AI service directly. NestJS owns authorization and business state and may call the bounded FastAPI service for approved AI workloads (`decision-log.md` AD-001); see `architecture.md` §1/§3.
 
-## Identity And Session Contracts
+## 1. Conventions
 
-Implemented identity endpoints:
+- Stable request/response DTOs — never raw Prisma rows.
+- Every request validated.
+- Pagination shape (already real, keep as-is): `{ items, page, perPage, hasNextPage }`, `page` starts at `1`.
+- Standard error envelope (target — not yet consistently implemented):
+
+```json
+{
+  "code": "APPLICATION_NOT_ALLOWED",
+  "message": "You cannot apply to this task.",
+  "details": { "reason": "TASK_CLOSED" },
+  "correlationId": "req_123"
+}
+```
+
+## 2. Identity and session — `IMPLEMENTED`, with one confirmed gap
+
+Real, working endpoints (`backend/src/modules/identity/`):
 
 ```text
 POST /auth/register
-GET /auth/username-availability
+GET  /auth/username-availability
 POST /auth/verify-email
 POST /auth/verify-email/resend
 POST /auth/login
 POST /auth/forgot-password
 POST /auth/reset-password
-GET /auth/google/start
-GET /auth/google/callback
+GET  /auth/google/start
+GET  /auth/google/callback
 POST /auth/google/callback
-GET /auth/github/start
-GET /auth/github/callback
+GET  /auth/github/start
+GET  /auth/github/callback
 POST /auth/github/callback
 POST /auth/refresh
 POST /auth/logout
-GET /auth/me
+GET  /auth/me
 PATCH /auth/users/:id/role
 ```
 
-Registration supports these public roles:
+**Confirmed gap:** `POST /auth/register` currently requires `"role": "owner" | "contributor"` as a field on the request, persisted directly to `User.role` (a fixed enum). Target: no product-role field in the registration payload — `OWNER`/`CONTRIBUTOR`/`APPLICANT` are contextual capabilities (`architecture.md` §11), and account-level role administration is limited to `ADMIN`.
 
-```text
-owner
-contributor
-```
+**Current behavior, not an admin gate:** registration creates a `pending`-status user and sends an email OTP. The status currently represents email verification, not admin portfolio approval. Target persistence must preserve SEC-002 while keeping email verification, contextual capabilities, and profile trust separate.
 
-`admin` is reserved for role assignment by an authenticated admin.
+**Confirmed gap:** `POST /auth/refresh` reads `refreshToken` from the request body (`RefreshSessionRequest` DTO), not the proposed httpOnly-cookie transport in ADR-005.
 
-Email/password registration creates a `pending` user, sends a 6-digit email OTP,
-and returns the user plus `emailVerificationRequired: true` and
-`verificationExpiresAt`. It does not return tokens until email verification is
-complete.
+`GET /auth/me` / `POST /auth/login` response fields: `id, email, username, firstName, lastName, avatarUrl, role, status, preferredLanguage, createdAt, updatedAt, lastLoginAt` — drop `role` once FR-07 lands.
 
-`POST /auth/register` requires:
+Username rule (real, keep): lowercase, URL-safe, `^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$`. `GET /auth/username-availability` returns `{ available, suggestion, reason }` where `reason` is `invalid_format | reserved | taken | null`.
 
-```json
-{
-  "email": "owner@example.com",
-  "password": "Password123!",
-  "username": "sharek-owner",
-  "firstName": "Sharek",
-  "lastName": "Owner",
-  "role": "owner",
-  "preferredLanguage": "en"
-}
-```
+## 3. Public contributor profile — current authenticated shape, target public contract
 
-The `username` value is stored on `User.username`, must be unique, cannot be a
-reserved platform name, and must be a lowercase URL-safe value matching:
-
-```text
-^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$
-```
-
-`GET /auth/username-availability?username=sharek-owner` returns:
-
-```json
-{
-  "available": false,
-  "suggestion": "sharek-owner-1",
-  "reason": "taken"
-}
-```
-
-`reason` is `invalid_format`, `reserved`, `taken`, or `null`. `suggestion` is
-only returned when the name is taken and a deterministic free suffix is found.
-GitHub direct auth signup does not require a username field; for new GitHub
-users the backend tries to assign the normalized GitHub login when it is valid
-and free, otherwise the user can set a profile username later.
-
-`POST /auth/verify-email` accepts:
-
-```json
-{
-  "email": "owner@example.com",
-  "code": "123456"
-}
-```
-
-If the latest unconsumed OTP is valid and unexpired, the backend activates the
-user and returns the normal auth session object: user plus access and refresh
-tokens. `POST /auth/verify-email/resend` accepts `{ "email": "..." }`, creates a
-new OTP, and sends it again when the account is still pending.
-
-Email OTP delivery uses SMTP settings. Gmail can be used by setting
-`SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURE=false`, `SMTP_USER`,
-`SMTP_PASS` to a Google App Password, and `EMAIL_FROM`. In non-production local
-development without SMTP config, the backend logs the OTP for manual testing.
-
-Login returns opaque access and refresh tokens only for active users. Access
-tokens are sent to protected routes using:
-
-```text
-Authorization: Bearer <accessToken>
-```
-
-Refresh rotates the stored session tokens. Logout revokes the current session.
-The backend stores only token hashes.
-
-`POST /auth/login` and `GET /auth/me` return a public user DTO with:
-
-```text
-id, email, username, firstName, lastName, avatarUrl, role, status,
-preferredLanguage, createdAt, updatedAt, lastLoginAt
-```
-
-Contributor usernames are stable URL-safe values matching:
-
-```text
-^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$
-```
-
-Active users can authenticate normally. Pending contributors can authenticate
-for the contributor profile redirect flow. Suspended and deactivated users are
-blocked from session use.
-
-## Contributor Profile Redirect Contracts
-
-Implemented contributor profile endpoints:
+Real endpoints (`backend/src/modules/contributor-profiles/`, `skill-profiles/`):
 
 ```text
 POST /contributors/profiles/me/ensure
-GET /contributors/profiles/:username
+GET  /contributors/profiles/:username
 ```
 
-Both endpoints require:
-
-```text
-Authorization: Bearer <accessToken>
-```
-
-`POST /contributors/profiles/me/ensure` is idempotent. Active and pending
-contributors receive a public contributor profile response. Owner/admin users
-and suspended/deactivated contributors receive 403.
-
-`GET /contributors/profiles/:username` loads only canonical usernames matching
-the username pattern. Unknown, suspended, or deactivated contributor profiles
-return 404.
-
-Contributor profile response shape:
+Current response shape:
 
 ```json
 {
@@ -195,382 +86,175 @@ Contributor profile response shape:
   "bio": null,
   "skills": [],
   "availability": null,
-  "githubStatus": {
-    "connected": false,
-    "username": null
-  },
-  "reputationSummary": {
-    "rating": null,
-    "reviewsCount": 0
-  },
+  "githubStatus": { "connected": false, "username": null },
+  "reputationSummary": { "rating": null, "reviewsCount": 0 },
   "contributionHistory": [],
   "completionPrompts": ["add_bio", "generate_skills", "connect_github"],
   "viewerRelationship": "owner"
 }
 ```
 
-Profile owners receive all generated skills, including pending or rejected
-skills. Other authenticated viewers receive approved skills only and an empty
-`completionPrompts` array.
+**Target gaps:** `roleLabel` must not imply a fixed product role. `skills[]` must expose evidence source, human-review status, verification tier, and evidence mappings independently. The profile must expose source-explained trust signals and visible external projects; it must not reduce trust to one `verified` boolean. `reputationSummary` needs per-dimension breakdown and sample size. `contributionHistory[]` needs evidence references, GitHub source state, attribution, and verification tier.
 
-Protected error outcomes:
+Errors (current behavior): `401` bad/missing/expired token, `403` owner/admin calling `ensure` or suspended/deactivated contributor, `404` unknown/hidden profile, `409` username conflict, `422` invalid username/profile data, `400` malformed request. **Target gap:** `GET /api/v1/profiles/:username` must be usable without authentication; the class-level guard/current-user dependency on the current route must be removed from the public contract (`decision-log.md` API-001).
 
-```text
-401 invalid credentials or invalid/missing/expired/revoked token
-403 owner/admin ensure attempt or suspended/deactivated contributor ensure
-404 unknown profile username or hidden suspended/deactivated contributor
-409 unresolved username/profile uniqueness conflict
-422 valid request with invalid username/profile source data
-400 malformed request syntax, shape, or malformed username route parameter
-```
+## 4. GitHub integration — `IMPLEMENTED`, with an MVP scope gap
 
-Profile responses must not include password hashes, access/refresh tokens,
-token hashes, private session fields, OAuth credentials, or internal security
-metadata.
-
-Google and GitHub social auth are direct signup/signin flows. The frontend calls
-`GET /auth/{provider}/start?role=owner|contributor`, redirects the browser to
-`authorizationUrl`, then completes with the provider `code` and Share-k `state`
-through `GET` or `POST /auth/{provider}/callback`.
-
-The `role` query parameter is used only when the backend must create a new
-Share-k user. Existing users keep their saved role. Social auth links by
-provider account first, then by verified email. GitHub social auth is identity
-only and requests the minimal GitHub `read:user user:email` scope. It must not
-request private repository access or mark the repository-evidence connection as
-complete. Contributors grant repository access later through
-`GET /github/oauth/start` during onboarding/profile setup.
-
-## GitHub Connection Contracts
-
-Implemented GitHub connection endpoints:
+Real endpoints (`backend/src/modules/github/`):
 
 ```text
-GET /github/oauth/start
-GET /github/oauth/callback
-POST /github/oauth/callback
-GET /auth/github/callback/repository
-GET /github/account
-GET /github/repositories
-GET /github/readme
-GET /github/repository/description
-GET /github/repository/statistics
-GET /github/repository/contribution-activity
-GET /github/repository/commit-signals
+GET    /github/oauth/start
+GET    /github/oauth/callback
+POST   /github/oauth/callback
+GET    /auth/github/callback/repository
+GET    /github/account
+GET    /github/repositories
+GET    /github/readme
+GET    /github/repository/description
+GET    /github/repository/statistics
+GET    /github/repository/contribution-activity
+GET    /github/repository/commit-signals
 DELETE /github/account
-POST /projects/import/github
+POST   /projects/import/github
 ```
 
-`GET /github/oauth/start` requires an authenticated Share-k user. It stores a
-short-lived OAuth state and returns the GitHub authorization URL. Browser flows
-use `GET /auth/github/callback/repository` as the GitHub redirect URI; that
-endpoint forwards the browser to the frontend `/auth/callback` page so the SPA
-can complete the connection with `POST /github/oauth/callback`. Contributor
-OAuth requests the GitHub `repo` scope so Share-k can read public and private
-repository evidence after explicit GitHub consent. Owner/admin OAuth keeps the
-lighter `public_repo` scope for the project-import shortcut.
+**Confirmed gap:** contributor accounts currently receive `CONTRIBUTOR_OAUTH_SCOPE = 'read:user user:email repo'`; the owner/admin default is `'read:user user:email public_repo'`. The contributor scope includes private-repository access and repository write capability, which conflicts with the approved public-evidence-only AI inference boundary and least-privilege requirement. OAuth scope reduction and any resulting repository-selection behavior are implementation work; this document does not claim they are already fixed.
 
-The callback validates the stored state, exchanges the GitHub code, fetches the
-GitHub profile, and stores the linked account. GitHub access tokens are never
-returned in API responses. Stored GitHub access and refresh tokens are encrypted
-at rest with AES-256-GCM.
+Repository list response (real, keep): `{ items, page, perPage, hasNextPage }`, `perPage` default `12` / cap `50`. Focused evidence endpoints take `?fullName=owner/repository`, return normalized README/description/stats/contribution-activity/commit-signals, each with an `unavailableReason` fallback instead of failing the whole import.
 
-`GET /github/repositories?page=1&perPage=12` requires an authenticated user
-with a connected GitHub account. It returns normalized repository metadata
-fetched through the encrypted server-side GitHub token. For contributors this
-can include public and private repositories because their OAuth connection uses
-the GitHub `repo` scope. Owner project import does not require this endpoint.
+## 5. Skill profiling — `IMPLEMENTED`, gaps around eligibility language
 
-Repository list responses are paginated:
-
-```json
-{
-  "items": [],
-  "page": 1,
-  "perPage": 12,
-  "hasNextPage": false
-}
-```
-
-`page` starts at `1`. `perPage` defaults to `12` and is capped at `50`.
-`hasNextPage` is detected by asking GitHub for one extra repository.
-
-The repository list is intentionally lightweight for picker screens. It includes
-repository identity, owner, description, URL, visibility flags, default branch,
-primary language, language byte counts, stars, forks, open issues, watchers,
-topics, `pushedAt`, and `updatedAt`.
-
-The focused repository evidence endpoints require a connected GitHub account and
-the query parameter `fullName=owner/repository`:
-
-```text
-GET /github/readme?fullName=owner/repository
-GET /github/repository/description?fullName=owner/repository
-GET /github/repository/statistics?fullName=owner/repository
-GET /github/repository/contribution-activity?fullName=owner/repository
-GET /github/repository/commit-signals?fullName=owner/repository&author=optional
-```
-
-They return normalized README, description, repository statistics,
-contribution-activity, or recent-commit signal views using the encrypted
-server-side GitHub token. Missing `fullName` returns
-`GITHUB_REPOSITORY_FULL_NAME_REQUIRED`.
-
-`POST /projects/import/github` requires an authenticated `owner` or `admin`
-and accepts:
-
-```json
-{
-  "fullName": "owner/repository"
-}
-```
-
-or:
-
-```json
-{
-  "repoUrl": "https://github.com/owner/repository"
-}
-```
-
-Owner GitHub connection is not required for project import. The endpoint uses
-GitHub's public repository API, so private owner repositories are intentionally
-outside the MVP import path.
-
-The response is a draft project created or refreshed from GitHub metadata. The
-backend stores the GitHub repo URL, GitHub repo ID, language breakdown, topics,
-repository statistics, README content snapshot, contribution activity, and
-recent commit signals where GitHub exposes them. This is the handoff point for
-later repository ingestion/background jobs and FastAPI AI evidence generation.
-
-Normalized GitHub evidence currently contains:
-
-```json
-{
-  "repository": {
-    "fullName": "owner/repository",
-    "description": "Repository description",
-    "languages": {
-      "TypeScript": 1000
-    },
-    "topics": ["nestjs"],
-    "stars": 5,
-    "forks": 1
-  },
-  "readmeContent": "# Project README",
-  "contributionActivity": {
-    "totalContributors": 3,
-    "totalCommits": 42,
-    "lastYearCommitCount": 20,
-    "unavailableReason": null
-  },
-  "commitSignals": {
-    "recentCommitCount": 30,
-    "authors": ["owner-login"],
-    "unavailableReason": null
-  }
-}
-```
-
-`contributionActivity` and `commitSignals` are optional evidence areas. If
-GitHub returns pending, empty, missing, or unavailable stats, the backend keeps
-the import usable and records an `unavailableReason` instead of failing the
-project import.
-
-## Skill Profile Contracts
-
-Implemented contributor skill profile generation endpoints:
+Real endpoints (`backend/src/modules/skill-profiles/`):
 
 ```text
 POST /skill-profiles/me/generations
-GET /skill-profiles/me/generations/:generationId
+GET  /skill-profiles/me/generations/:generationId
 ```
 
-Both endpoints require an authenticated contributor. Pending contributors may
-use these endpoints during onboarding. Owner/admin users and suspended or
-deactivated contributors cannot start generation.
+Request: `{ repositories: [{ fullName: "owner/repository" }] }` — 1 to 10 items, each must appear in the connected account's own `GET /user/repos` (rejects arbitrary public repos). Status lifecycle (real): `queued -> collecting_evidence -> analyzing -> pending_review | needs_more_evidence | failed`.
 
-`POST /skill-profiles/me/generations` accepts selected repositories from the
-existing GitHub repository picker:
+**Target rules:** the existing `pending_review`/`needs_more_evidence` values describe the generation job lifecycle only. They must not gate participation. The target skill representation keeps `AI_INFERRED` as the evidence source and records human review separately; admin review does not overwrite the evidence source. AI inference is required in MVP, uses public evidence only, exposes confidence, uncertainty, freshness, and evidence references, and supports contributor dispute (`decision-log.md` AI-001, DM-003, DM-004).
 
-```json
-{
-  "repositories": [
-    { "fullName": "owner/repository" }
-  ]
-}
-```
+## 6. AI integration — approved boundary and target behavior
 
-Rules:
-
-- `repositories` must contain at least one item.
-- At most 10 repositories can be selected for one generation.
-- `fullName` must use `owner/repository` format.
-- Every selection must appear in GitHub's authenticated `GET /user/repos`
-  result for the connected account. Supplying an arbitrary public repository
-  name is rejected.
-- Repository evidence records commits/additions attributable to the exact
-  connected GitHub login. Repository-wide activity is not treated as personal
-  authorship.
-
-The endpoint creates a durable generation record and enqueues a BullMQ job. The
-initial response is shaped like:
-
-```json
-{
-  "generationId": "generation-uuid",
-  "status": "queued",
-  "progress": {
-    "selectedRepositoryCount": 1,
-    "snapshottedRepositoryCount": 0
-  },
-  "failureReason": null,
-  "selectedRepositories": [
-    { "fullName": "owner/repository" }
-  ],
-  "skills": [],
-  "fraudSignals": [],
-  "evidenceQuality": null,
-  "provider": null,
-  "model": null,
-  "promptVersion": null,
-  "schemaVersion": null,
-  "serviceVersion": null,
-  "createdAt": "2026-07-14T00:00:00.000Z",
-  "updatedAt": "2026-07-14T00:00:00.000Z",
-  "completedAt": null
-}
-```
-
-`GET /skill-profiles/me/generations/:generationId` returns the same shape with
-current status. Status values are:
+Current code (`ai` module) integrates the separate FastAPI service through `FastApiSkillProfileClient` and `AI_SERVICE_URL`. That separate service remains the approved bounded AI deployment per `decision-log.md` AD-001:
 
 ```text
-queued
-collecting_evidence
-analyzing
-pending_review
-needs_more_evidence
-failed
+Owning service (skill-profiles | applications)
+  -> deterministic checks
+  -> bounded FastAPI skill-inference | application-fit operation
+  -> structured result (+ promptVersion, modelVersion, confidence, evidenceRefs)
+  -> owning service validates + persists AiOutput + updates its own entity
 ```
 
-`needs_more_evidence` is terminal. It means Share-k could not establish enough
-contributor-authored evidence to create reviewable skill candidates. The
-frontend should ask the contributor to select repositories with clearer code
-contributions; it must not present this state as pending admin approval.
+FastAPI returns analysis, confidence, and evidence references; NestJS validates and persists the result and alone owns business state. Every otherwise valid application reaches the owner even when AI fails, is low-confidence, or reports poor fit. AI must never hide or automatically reject an MVP application. Exact new FastAPI endpoints and DTOs remain implementation-contract work; none are invented here.
 
-When generation succeeds, generated skill candidates are stored as
-`SkillProfile.status = pending` and appear in the response:
+## 7. Target contribution-loop API — `PROPOSED`
+
+Projects have partial current endpoints, but the complete target workflow below is not implemented. Applications, tasks, delivery review, and admin are scaffolds; reviews and notifications are absent (`architecture.md` §3).
+
+```text
+POST   /projects
+GET    /projects
+GET    /projects/:projectId
+PATCH  /projects/:projectId
+POST   /projects/:projectId/publish
+
+POST   /projects/:projectId/tasks
+GET    /projects/:projectId/tasks
+GET    /tasks/:taskId
+PATCH  /tasks/:taskId
+POST   /tasks/:taskId/comments
+GET    /tasks/:taskId/comments
+
+POST   /tasks/:taskId/applications
+GET    /tasks/:taskId/applications
+POST   /applications/:applicationId/withdraw
+POST   /applications/:applicationId/accept
+POST   /applications/:applicationId/reject
+
+POST   /assignments/:assignmentId/evidence-submissions
+GET    /evidence-submissions/:submissionId
+POST   /evidence-submissions/:submissionId/review
+POST   /evidence-submissions/:submissionId/resubmit
+
+POST   /review-windows/:windowId/reviews
+GET    /review-windows/:windowId/reviews
+
+GET    /api/v1/profiles/:username
+
+GET    /notifications
+POST   /notifications/:id/read
+
+POST   /flags                              # contest evidence/review/AI/skill subject
+GET    /admin/flags
+POST   /admin/flags/:id/resolve
+POST   /admin/users/:id/ban
+```
+
+Every application-create response is accepted for owner delivery before optional AI completion. Application fit is attached asynchronously; no AI state changes visibility or submission validity.
+
+Response shapes must follow `architecture.md` §§9–14. Evidence source, review status, verification tier, skill claims, and profile trust signals are separate; an older single enum or boolean is not authoritative.
+
+## 8. External-project evidence API — `PROPOSED`
+
+```text
+POST   /me/external-projects
+GET    /me/external-projects
+GET    /me/external-projects/:submissionId
+PATCH  /me/external-projects/:submissionId
+POST   /me/external-projects/:submissionId/submit
+POST   /me/external-projects/:submissionId/withdraw
+POST   /me/external-projects/:submissionId/resubmit
+
+GET    /admin/external-projects?status=PENDING_REVIEW
+GET    /admin/external-projects/:submissionId
+POST   /admin/external-projects/:submissionId/review-actions
+```
+
+Create/update fields are `title`, `description`, `images`, `demoLink`, optional
+`githubUrl`, `technologies`, `claimedRole`, `contributionDescription`,
+`projectPeriod`, optional supporting files/URLs, and `visibility`. File transport
+is not implementation-ready until OQ-001 is resolved.
+
+Admin review action is one of `APPROVE`, `REJECT`, `REQUEST_CHANGES`, or `FLAG`
+and requires notes where policy demands. The response exposes the approved
+submission status vocabulary, version, `submittedAt`, `reviewStartedAt`,
+`reviewedAt`, `reviewedBy`, and append-only action history.
+
+Public profile projection exposes only policy-visible approved evidence, with a
+source label and verification tier. It never returns a global `verified` field.
+
+## 9. AI output contract — `PROPOSED`
+
+Both required AI features return an auditable envelope:
 
 ```json
 {
-  "skills": [
+  "status": "completed",
+  "summary": "Evidence-linked advisory text",
+  "confidence": 0.74,
+  "uncertainties": ["No recent TypeScript diff was accessible"],
+  "evidence": [
     {
-      "id": "skill-profile-uuid",
-      "name": "TypeScript",
-      "proficiency": "intermediate",
-      "confidence": 0.9,
-      "status": "pending",
-      "evidenceSummary": "Authored TypeScript API code."
+      "sourceType": "PUBLIC_PULL_REQUEST",
+      "sourceUrl": "https://github.com/example/repo/pull/1",
+      "repository": "example/repo",
+      "observedAt": "2026-07-17T00:00:00Z"
     }
-  ]
+  ],
+  "modelVersion": "recorded-at-runtime",
+  "promptVersion": "recorded-at-runtime"
 }
 ```
 
-Pending generated skills are reviewable evidence only. They must not qualify a
-contributor for application eligibility until an admin approves them.
+Skill inference also returns normalized skill claims. Application fit also
+returns matching evidence and missing/uncertain requirements. Failure returns a
+non-blocking unavailable state; it never returns an authoritative accept/reject
+transition.
 
-## AI Service Contracts
+## 10. Contract change rules
 
-AI implementation lives in a separate FastAPI AI repository. The NestJS backend
-calls that service through `AiService` and integration clients and owns all business decisions,
-database writes, and user-facing API responses.
-
-Expected NestJS service contracts:
-
-```text
-AiService
-  -> skill profile generation client
-  -> eligibility client
-  -> skill gap client
-  -> embedding client
-```
-
-Expected FastAPI service endpoints:
-
-```text
-POST /skill-profiles/generate
-POST /eligibility/analyze
-POST /skill-gap/generate
-POST /embeddings/generate
-GET /health
-```
-
-`POST /skill-profiles/generate` receives backend-selected repository evidence
-capsules, not a raw GitHub username for the AI service to crawl on its own.
-The response must include generated skill candidates with evidence IDs plus
-provider, model, prompt version, schema version, and service version metadata.
-Every evidence ID must exactly match a capsule from the request. The NestJS
-adapter rejects unknown IDs, malformed recommendation/evidence-quality values,
-or oversized audit metadata.
-
-Weak but valid evidence returns `needs_more_evidence`. Provider timeouts,
-unavailable services, and malformed model output are service failures so the
-BullMQ worker retries them before recording a safe `failed` state.
-
-All skill-profile AI routes require `Authorization: Bearer <internal-token>`.
-`AI_SERVICE_AUTH_TOKEN` must contain the same long random value in NestJS and
-FastAPI. Keep FastAPI on an internal network; only `/health` is public.
-
-The exact FastAPI route names may evolve, but the request/response schemas must
-be documented and versioned across both repositories before implementation.
-
-AI service output must be structured. Example eligibility result:
-
-```json
-{
-  "recommendation": "manual_review",
-  "confidence": 0.68,
-  "matchedSkillIds": ["skill_123"],
-  "missingSkills": ["Docker"],
-  "evidenceIds": ["evidence_123", "evidence_456"],
-  "provider": "openai",
-  "model": "gpt-4.1-mini",
-  "promptVersion": "eligibility-v1",
-  "schemaVersion": "eligibility-result-v1",
-  "serviceVersion": "ai-service-0.1.0",
-  "reasonSummary": "Backend evidence is strong, but Docker evidence is weak."
-}
-```
-
-Allowed recommendations:
-
-```text
-eligible
-rejected
-manual_review
-```
-
-The backend may override or transform recommendations according to policy.
-
-The FastAPI service must not update Share-k business state directly. It returns
-recommendations and evidence metadata; the NestJS backend decides what to store
-and which workflow transition is allowed.
-
-## Failure Handling
-
-If the FastAPI AI service times out, returns invalid JSON, returns low
-confidence, or cannot cite evidence:
-
-- Do not silently approve.
-- Retry only when safe.
-- Route to manual review when the decision affects eligibility.
-- Store an audit record.
-- Return a clear user-safe message.
-
-## Contract Change Rules
-
-- Breaking API changes require frontend coordination.
-- AI service output schema changes require backend and FastAPI contract tests.
-- DTO changes must be reflected in docs or generated OpenAPI.
-- Contract drift should be caught by integration or contract tests.
+- Breaking changes require explicit frontend coordination.
+- DTO changes must be reflected here or in generated OpenAPI — this doc or the OpenAPI spec, not both silently diverging.
+- Contract drift is caught by integration/contract tests (`test-strategy.md`, pending).

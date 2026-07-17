@@ -8,15 +8,15 @@ review, or module-boundary work when Codex skills are available.
 
 Before editing code, read:
 
-1. `docs/architecture.md`
-2. `docs/developer-architecture-guide.md`
-3. `docs/module-development-tracker.md`
-4. `docs/backend-conventions.md`
-5. `docs/ai-agent-rules.md`
-6. `docs/definition-of-done.md`
-7. The relevant `src/modules/<module>/README.md`
-8. The relevant sprint/task in `bmad/_bmad-output/sharek-backlog.md`
-9. The relevant PRD requirement under `bmad/_bmad-output/planning-artifacts/prds/`
+1. `docs/README.md`
+2. `docs/product-spec.md`
+3. `docs/architecture.md`
+4. `docs/api-contracts.md`
+5. `docs/delivery-plan.md`
+6. `docs/operations/engineering-guide.md`
+7. `docs/audits/codebase-gap-report.md`
+8. `docs/tooling/ai-agent-rules.md`
+9. The relevant `src/modules/<module>/README.md`
 
 ## Architecture Facts
 
@@ -93,7 +93,7 @@ Use events for reactions after facts have happened, such as
 ## Expected Handoff
 
 Report files changed, requirement/task IDs, tests, architecture-check result,
-migrations, README/tracker updates, and known risks.
+migrations, README/evidence updates, and known risks.
 
 ## Git Rules
 
@@ -114,5 +114,6 @@ migrations, README/tracker updates, and known risks.
 Current Spec Kit plan: `specs/001-contributor-profile-redirect/plan.md`
 <!-- SPECKIT END -->
 
-Before finishing a code change, append a short record to
-`docs/module-development-tracker.md` unless the task was read-only.
+Before finishing a code change, update verified current evidence in
+`docs/audits/codebase-gap-report.md` when implementation state changed. Planned
+work remains in `docs/delivery-plan.md`.

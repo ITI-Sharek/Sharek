@@ -1,50 +1,98 @@
-# Share-k Backend Docs
+# ShareK Documentation
 
-This folder is the operating manual for the backend repo.
+**Status:** PROPOSED
 
-## Documents
+ShareK’s documentation is intentionally small. Seven files are canonical; all
+other material supports operation, rationale, audit, tooling, or history.
 
-| File | Purpose |
-| --- | --- |
-| `current-state-and-next-steps.md` | What is done, what is prepared, what is not done, and what each member should do next. |
-| `architecture.md` | Final backend architecture decision and module boundaries. |
-| `developer-architecture-guide.md` | Practical teammate guide for where every backend file belongs and how to build features. |
-| `module-development-tracker.md` | Required module workflow, status dashboard, per-task checklist, and change records. |
-| `backend-conventions.md` | Coding, module, database, testing, and API conventions. |
-| `folder-structure.md` | Canonical repo folder layout and what belongs in each place. |
-| `ai-agent-rules.md` | Rules for AI coding agents working on backend tasks. |
-| `member-ownership.md` | Team member responsibilities and module ownership. |
-| `definition-of-done.md` | Checklist required before a backend task is considered complete. |
-| `local-development.md` | Docker, environment, database, Redis, tests, and local startup flow. |
-| `team-onboarding.md` | First-run checklist for teammates and safe `.env` sharing rules. |
-| `implementation-roadmap.md` | Practical build order mapped to the selected architecture. |
-| `database-plan.md` | PostgreSQL, pgvector, Prisma, ownership, and audit rules. |
-| `api-contracts.md` | API and FastAPI AI service contract rules. |
-| `postman-api-guide.md` | Complete Postman request catalog and local endpoint test flow. |
-| `sprint-template.md` | Template for planning each sprint. |
-| `examples/module-skeleton.md` | Copyable sample module shape and example file names. |
-| `skills/sharek-backend-architect/` | Repo-local copy of the Codex skill that guides Share-k backend agents. |
-| `ai-agents/` | Role-specific prompts and scopes for coding agents. |
+## Start here
 
-## Source of Truth Order
+A new teammate reads only these five entry points:
 
-When documents conflict, use this order:
+1. [`README.md`](README.md) — this navigation and authority index.
+2. [`product-spec.md`](product-spec.md) — what ShareK must do and what MVP excludes.
+3. [`architecture.md`](architecture.md) — system architecture and complete domain model.
+4. [`api-contracts.md`](api-contracts.md) — verified current and proposed target APIs.
+5. [`delivery-plan.md`](delivery-plan.md) — vertical slices and release gates.
 
-1. Current sprint/task brief.
-2. PRD requirement IDs in `bmad/_bmad-output/planning-artifacts/prds/prd-Grad_Project-2026-06-17/prd.md`.
-3. ADR-002 in `bmad/_bmad-output/planning-artifacts/architecture/`.
-4. Backend docs in this folder.
-5. Older notes or informal chat history.
+When needed:
 
-## How To Use These Docs
+- [`decision-log.md`](decision-log.md) contains binding human decisions and open
+  decisions.
+- [`test-strategy.md`](test-strategy.md) defines quality and release evidence.
 
-At the start of each sprint:
+## Canonical documents
 
-1. Copy `sprint-template.md`.
-2. Fill in the sprint goal, tasks, owners, API changes, database changes, tests, and demo scenario.
-3. Read `developer-architecture-guide.md` before creating new backend files.
-4. Read `module-development-tracker.md` and copy its task checklist into the sprint or PR.
-5. Assign each task to a human owner and an AI agent scope.
-6. Implement only inside the approved module boundaries.
-7. Review the task against `definition-of-done.md`.
-8. Append a module change record to `module-development-tracker.md`.
+| Document | Owns | Status |
+|---|---|---|
+| `README.md` | Navigation, reading order, ownership | PROPOSED |
+| `product-spec.md` | Product scope, requirements, public behavior, non-goals | PROPOSED |
+| `architecture.md` | Technology, domain glossary/contexts/entities/states/permissions/invariants | PROPOSED |
+| `api-contracts.md` | Current and target HTTP/API contracts | PROPOSED |
+| `delivery-plan.md` | Vertical slices, dependencies, delivery gates | PROPOSED |
+| `decision-log.md` | Approved and open human decisions | Mixed by entry; approved entries are binding |
+| `test-strategy.md` | Verification, security, AI evaluation, release evidence | PROPOSED |
+
+No other file may introduce product requirements.
+
+## Supporting material
+
+- [`adr/`](adr/) — narrow architecture rationale; indexed and subordinate to
+  canonical decisions.
+- [`operations/`](operations/) — engineering guide, module skeleton, local
+  development/onboarding, and current Postman exercises.
+- [`reference/`](reference/) — ITI checklist and strategic research questions.
+- [`audits/`](audits/) — point-in-time reviews, current codebase gaps, and
+  documentation migration history.
+- [`tooling/`](tooling/) — active agent/skill instructions. These are not product
+  documentation.
+- [`archive/`](archive/) — superseded generated and legacy material retained for
+  provenance only.
+
+## Authority
+
+When sources conflict:
+
+1. latest explicit human instruction;
+2. approved `decision-log.md` entry;
+3. classified mandatory external constraint;
+4. approved product specification;
+5. architecture/domain model;
+6. API contract within its boundary;
+7. ADR rationale;
+8. current code for current-state claims only;
+9. supporting and archived material.
+
+The current canonical set is `PROPOSED`. It documents approved decisions but is
+not itself approved merely because consolidation occurred.
+
+## Planning and current status
+
+Implementation planning uses:
+
+- [`delivery-plan.md`](delivery-plan.md) for vertical slices and planned work;
+- [`audits/codebase-gap-report.md`](audits/codebase-gap-report.md) for verified
+  repository facts.
+
+Do not create a parallel backlog, sprint authority, module tracker, or generated
+planning tree.
+
+## Historical material
+
+Historical content is intentionally retained before deletion:
+
+- `archive/claude-grill/` preserves the superseded generated canonical set.
+- `archive/legacy/` preserves earlier product, engineering, planning, binary
+  source, generated-output, and unused tool artifacts.
+
+Historical files may contain contradictory product models and broken links. They
+are evidence of documentation history, not instructions for implementation.
+
+## Maintenance
+
+- Put requirements only in their canonical owner.
+- Put narrow rationale in an ADR and index it.
+- Put current runnable instructions in `operations/`.
+- Put current repository observations in `audits/codebase-gap-report.md`.
+- Archive superseded sources before removal.
+- Never claim a feature is complete without repository and test evidence.
