@@ -65,10 +65,6 @@ ai ----------------+
 
 ## Current known failures and skips
 
-- The backend architecture checker must pass against the current documentation
-  layout.
-- `ai/requirements.txt` currently uses unpinned package names. The AI job fails
-  until every dependency is exact-pinned.
 - No AI unit or mocked contract tests are present under `ai/`. The AI job fails
   until those tests exist.
 - AI type-checking is not configured yet. Add a type-check step only after a
