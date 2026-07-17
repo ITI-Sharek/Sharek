@@ -2,7 +2,11 @@
 
 **Status:** `PROPOSED` (ready-for-agent — pending issue-tracker setup)
 **Scope:** `sharek-frontend/**` only. The backend contract and root-level product docs are ratified elsewhere; this spec assumes the locked MVP decisions from the strategic-grilling session.
-**Supersedes:** the old BMAD frontend direction in `bmad/_bmad-output/**` (premium tiers, AI validation gating, fixed account roles, admin-approval onboarding gate, subscription/usage entities) and the legacy `Sharek_Comprehensive_documentation.pdf`.
+**Status:** Historical frontend input. The canonical product and frontend direction
+is now owned by `docs/product-spec.md` and `docs/architecture.md`.
+
+**Superseded material:** earlier premium-tier, AI-gating, fixed-role, and
+admin-approval planning artifacts are retained under `docs/archive/legacy/`.
 
 ---
 
@@ -213,7 +217,8 @@ From the user's perspective, after this work:
 
 ## Further Notes
 
-- **Deletion/replacement:** the old BMAD frontend artifacts under `bmad/_bmad-output/**` (subscription/usage/AI-validation entities, premium-tier and AWS-deployment sprints, fixed-role journeys) are superseded by this spec but should not be deleted as part of this feature — flag them in the root pass's `migration-notes.md` instead.
+- **Historical inputs:** earlier generated frontend artifacts are retained under
+  `docs/archive/legacy/`; they are not active planning or product authority.
 - **Cold-start dependency:** the public profile and the loop screens are only demonstrable against real seeded data (≥5 owners, ≥10 projects, tasks). Seeding is a product/root task; the frontend must render believably with real content, and the profile must be presentable to ≥3 hiring-side reviewers before final submission (their answers become validation evidence in the presentation).
 - **Cut-order under deadline pressure (2026-08-30):** if time runs short, drop in this order — (1) file uploads [already out], (2) real-time chat [already out], (3) premium/subscription [already out], (4) advanced AI skill inference (fall back to self-declared + rule-based skills), (5) non-essential AI (keep only advisory fit), (6) full Arabic/RTL [readiness only]. The public profile and the closing of the loop are the last things to cut.
 - **Blocked skill step:** publishing to a project issue tracker with a `ready-for-agent` triage label is not possible until `/setup-matt-pocock-skills` is run (no tracker/label vocabulary configured; only remote is `github.com/ITI-Sharek/Frontend`). This spec is written to file; promote it to an issue when the tracker is set up.

@@ -2,8 +2,8 @@
 
 ## Before Editing
 
-1. Read `AGENTS.md`, `docs/architecture.md`, and the relevant module README.
-2. Read the active PRD/task and inspect the current implementation.
+1. Read `AGENTS.md`, `docs/README.md`, `docs/architecture.md`, and the relevant module README.
+2. Read the relevant `docs/delivery-plan.md` slice and inspect the current implementation.
 3. Check `git status` and preserve human changes.
 4. Confirm route, DTO, authorization, table ownership, and migration impact.
 
@@ -21,11 +21,14 @@
 
 ## AI Features
 
-- Call the `AiPort` implementation through `AiService` — in-process, no separate
-  service (`architecture.md` §3, ADR-003).
+- Keep business orchestration in NestJS and call the bounded FastAPI service
+  through the NestJS AI facade (`docs/architecture.md` §5).
 - Keep deterministic checks and final decisions in NestJS services.
 - Validate structured AI output before use.
-- Persist evidence/model/prompt audit metadata through the owning module.
+- Persist evidence, confidence, uncertainty, model/prompt versions, and dispute
+  audit metadata through the owning module.
+- Treat repository text and diffs as untrusted data and never execute repository
+  code during analysis.
 - Define timeout, retry, fallback, and failure behavior.
 
 ## Verification
@@ -45,5 +48,5 @@ the final diff for stale paths, accidental contract changes, and unrelated edits
 
 ## Handoff
 
-Report requirement IDs, changed files, tests, architecture-check result,
-migrations, API/authorization review, documentation updates, and remaining risk.
+Report requirement/decision IDs, changed files, tests, architecture-check result,
+migrations, API/authorization review, codebase-gap evidence updates, and remaining risk.

@@ -1,160 +1,464 @@
-# ShareK — Backend Architecture
+# ShareK Architecture and Domain Model
 
-**Status:** APPROVED
-**Date:** 2026-07-17
-**Depends on:** `decision-log.md`, `product-brief.md`, `prd.md`
-**Supersedes:** this file's previous version. `decision-log.md` AD-001 supersedes ADR-003's NestJS-only AI deployment decision. ADR-002 (`docs/archive/bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`) is **not** superseded — its module-shape/boundary decisions are ratified below unchanged.
+**Status:** PROPOSED
+**Decision authority:** `decision-log.md`
+**Scope:** Target architecture and domain model, with current implementation
+facts explicitly labelled
 
-This document describes documentation only — target state and the gap against the current codebase. No code or schema changes were made while writing it.
+## 1. System context
 
----
+```text
+Browser / TanStack Start
+          |
+          v
+NestJS modular monolith
+  |       |        |
+  v       v        v
+PostgreSQL GitHub  Redis/BullMQ
+  |
+  +------ bounded authenticated calls ------> FastAPI AI service
+```
 
-## 1. Ratified stack
+NestJS is the authoritative backend. It owns authentication, authorization,
+business rules, persistence, queues, final state transitions, public APIs, audit
+records, and reputation events. FastAPI performs bounded analysis for AI Skill
+Inference and advisory Application Screening Fit. It cannot accept or reject an
+application, approve evidence, change membership, publish a review, moderate a
+user, or create a final reputation event.
 
-| Layer | Choice | Status |
+## 2. Technology decisions
+
+| Concern | Target | Current evidence |
 |---|---|---|
-| Frontend | TanStack Start (React 19, Vite/Nitro SSR), `frontend/**` | `IN_DEVELOPMENT` — scaffold only |
-| Backend | NestJS 11, modular monolith, `backend/**` | `IN_DEVELOPMENT` |
-| Database | PostgreSQL via Prisma 6 | `IMPLEMENTED` — confirmed in `backend/package.json` (`@prisma/client ^6.1.0`) and `prisma/schema.prisma` |
-| pgvector | Present but **dormant** — no semantic search in MVP, SQL filters only (FR-25) | `DEFERRED` — not yet in `schema.prisma` at all; "dormant" describes the MVP target, not current state |
-| Async jobs | Redis + BullMQ | `IMPLEMENTED` — confirmed (`bullmq ^5.80.2`), used today by `skill-profiles` |
-| AI integration | NestJS owns business authority and calls the existing bounded FastAPI service for approved AI workloads | `IN_DEVELOPMENT` — the skill-profile client exists; advisory application-fit analysis is not yet built. See §3 and `decision-log.md` AD-001/AI-001–003. |
-| Real-time | None — no WebSocket gateway anywhere | `APPROVED` (absence is the decision) |
-| External evidence files | Images, screenshots, optional files, and URLs are approved product inputs | `OPEN` implementation decision — transport, storage, limits, scanning, retention, and removal are unresolved (`decision-log.md` DM-002/OQ-001); no object-storage implementation is implied. |
-| Local dev | Docker Compose | `IMPLEMENTED` |
+| Frontend | TanStack Start, React 19, TypeScript | Scaffold dependencies exist; no real test runner or feature surface |
+| Core backend | NestJS 11 feature-first modular monolith | Implemented foundation and several working modules |
+| Persistence | PostgreSQL with Prisma 6 | Implemented; ten migration directories exist |
+| Jobs | Redis and BullMQ | Implemented for skill-profile generation |
+| AI analysis | Bounded FastAPI service called by NestJS | Skill-profile client exists; application-fit workflow does not |
+| GitHub | OAuth and API integration | Implemented, with excessive contributor `repo` scope |
+| Realtime | No required WebSocket infrastructure in MVP | None present |
+| Evidence files | Images, URLs, and optional files | Approved target; storage/scanning design is open |
+| Vector search | Not required unless external checklist classification demands it | No current pgvector schema |
 
-## 2. Module map
+The backend uses standard controllers, services, DTOs, Prisma, integration
+clients, and jobs. A one-implementation port/use-case layer is not required.
+Cross-module access uses exported NestJS services or completed-fact events.
 
-Twelve modules exist in `backend/src/modules/` today. Mapped against the MVP module set implied by `prd.md`:
+## 3. Current implementation map
 
-| Module | Covers (PRD FRs) | Status |
+This table describes repository evidence, not product completion:
+
+| Module | Current status | Evidence |
 |---|---|---|
-| `identity` | FR-01–08 (auth, capability-model roles, sessions, settings) | `IN_DEVELOPMENT` — real code exists; **`User.role`/`User.status` need rework, see §5** |
-| `github` | FR-02, FR-36 (OAuth, on-demand PR validation) | `IN_DEVELOPMENT` |
-| `contributor-profiles` + `skill-profiles` | FR-14–18 (public profile, independent trust and skill-evidence dimensions) | `IN_DEVELOPMENT` — real code exists for generation; the target separation in `decision-log.md` DM-003/DM-004 is not yet reflected in schema |
-| `projects` | FR-19–22 | `IN_DEVELOPMENT` |
-| `contribution-tasks` | FR-23–24 (tasks, task comments) | `IN_DEVELOPMENT` — task comments (FR-24) not yet confirmed built |
-| `applications` | FR-27–30 (apply, accept/reject, advisory AI fit) | `PROPOSED` — **module folder exists with no service/controller yet**, effectively unbuilt |
-| `delivery-reviews` | FR-31–38 (evidence, PR states, owner review, owner-silence SLA) | `IN_DEVELOPMENT` |
-| `reviews` | FR-39–40 (blind bilateral peer review) | `PROPOSED` — **does not exist**, net-new module |
-| `reputation` | FR-41–42 | `IN_DEVELOPMENT` |
-| `notifications` | FR-43 | `PROPOSED` — not seen as a distinct module in the current list; may live inside another module today |
-| `admin` | FR-44–45 plus external-project evidence review (`decision-log.md` DM-002) | `IN_DEVELOPMENT` — external-project review is approved target behavior, not an implementation claim |
-| `ai` | FR-14, FR-29 (bounded FastAPI integration) | `IN_DEVELOPMENT` — skill inference integration exists; advisory application-fit analysis remains unbuilt, see §3 |
-| `health` | infra | `IMPLEMENTED` |
+| `identity` | IN DEVELOPMENT | Substantial auth/session/social/email code; fixed product role remains a gap |
+| `github` | IN DEVELOPMENT | OAuth and repository/evidence services; least-privilege gap remains |
+| `projects` | IN DEVELOPMENT | Controller, service, DTOs, tests; repository-free target is not established |
+| `contributor-profiles` | IN DEVELOPMENT | Controller/service/tests; public route is still guarded |
+| `skill-profiles` | IN DEVELOPMENT | Generation service, worker/client integration, tests |
+| `ai` | IN DEVELOPMENT | NestJS AI facade and FastAPI skill client exist |
+| `reputation` | IN DEVELOPMENT | Service exists; approved event model is incomplete |
+| `contribution-tasks` | PROPOSED | Module and README only |
+| `applications` | PROPOSED | Module and README only |
+| `delivery-reviews` | PROPOSED | Module and README only |
+| `admin` | PROPOSED | Module and README only |
+| `reviews` | PROPOSED | No module |
+| `notifications` | PROPOSED | No module |
+| `health` | IMPLEMENTED | Health controller and module |
 
-**Deliberately absent from this map** (Post-MVP or Rejected per `prd.md` §6): `chat`, `discussions` (beyond flat task comments), `learning`, `recommendations` as a standalone module, `disputes` as a rich module, `moderation` beyond what `admin` covers, `payments`, `ai-orchestration` as a separate concept from `ai`, `audit` as a standalone module (audit trail lives on the relevant entities instead).
+The detailed, refreshable evidence inventory belongs in
+`audits/codebase-gap-report.md`.
 
-## 3. Bounded FastAPI AI service
+## 4. Module boundaries
 
-NestJS remains the authoritative backend. Its owning business modules perform authorization, deterministic validation, persistence, and all state transitions. The `ai` integration boundary may call the existing separate FastAPI service for AI skill inference and advisory application-fit analysis. FastAPI returns structured analysis only; it cannot accept or reject applications, approve evidence, change membership, publish reviews, or create final reputation events (`decision-log.md` AD-001).
-
-The current `FastApiSkillProfileClient` is retained. Extending or generalizing its contract for application-fit analysis is implementation work, not part of this documentation decision update.
-
-**BullMQ job flow** (applies to both skill-profile generation, which already exists in this shape, and application fit analysis, which is net-new):
-
-```text
-Trigger (GitHub connect / application submitted)
-  -> enqueue job (skill-profile-generation | application-fit-analysis)
-  -> bounded FastAPI AI call through the NestJS integration
-  -> validate structured output (schema check, not trust check)
-  -> persist AiOutput: result + confidence + evidence refs + prompt version + model version
-  -> update the owning entity (SkillProfile | Application)
-  -> AI outage or malformed output -> job fails -> owning entity proceeds without AI output, never blocks (advisory, ADR-014)
-```
-
-Every `AiOutput` record stores `promptVersion` and `modelVersion` (FR-14, FR-29 AC). The 30-case golden evaluation set that checks the bounded AI contract's output quality is specified in `test-strategy.md` (pending).
-
-## 4. Domain events and queue jobs (MVP subset)
-
-Domain events (in-process, not a message bus — NestJS event emitter is sufficient at this scale):
-
-```text
-UserGitHubConnected
-SkillProfileGenerated
-ApplicationSubmitted
-ApplicationFitAnalysisCompleted
-ApplicationAccepted
-ApplicationRejected
-ContributionEvidenceSubmitted
-ContributionApproved       -> records CONTRIBUTION_DEMONSTRATED evidence without overwriting its independent review status (DM-004) + reputation event (FR-41)
-ContributionRejected
-DeliveryReviewExpired      -> owner-silence 14-day SLA (FR-38), no reputation event
-ReviewWindowOpened
-ReviewPublished            -> reputation event (FR-41)
-```
-
-Queue jobs:
-
-- `skill-profile-generation` — exists today.
-- `application-fit-analysis` — net-new, same shape as above.
-- `pr-validation` — on-demand only, triggered by evidence submission or a manual re-check; **no webhook listener** (FR-36).
-- `delivery-review-expiry` — scheduled, flips `submittedAt + 14d` unreviewed submissions to `UNREVIEWED` (FR-38).
-- `notification-dispatch` — in-app only; notifications are polled by the client, not pushed (FR-43).
-
-## 5. Capability model — target shape (FR-07)
-
-`ADMIN` is the only account-level role. `OWNER` / `CONTRIBUTOR` / `APPLICANT` are derived per project, not stored as a fixed field on the user — the same person is `OWNER` on one project and `CONTRIBUTOR` on another, on one account.
-
-**This does not match the current schema.** `prisma/schema.prisma`'s `User.role` is a required `UserRole` enum (`owner | contributor | admin`), set directly from the registration payload (`auth.service.ts`'s `createRegisteredUser`) — real, tested behavior (`auth.service.spec.ts`), not just a stale doc. Fixing this is real migration work — deliberately **out of scope for this documentation pass**; noted here so the gap isn't silently lost.
-
-**Correction to an earlier read of this codebase (this session):** `User.status = 'pending'` was initially flagged here as the account-activation gate FR-16 rejects. Closer inspection shows that's wrong — `status: 'pending'` on registration is an **email-verification** gate, not an admin-approval gate: `session.service.ts:114` carves out contributors specifically, letting them authenticate and use the profile/skill-generation flow while still `pending` (unverified), and `status` flips to `active` on email-OTP confirmation (`auth.service.ts:211`) or immediately on social/GitHub signup (`social-auth.service.ts`), never on an admin approving a skill. Separately, `SkillProfile.status` (`pending|approved|rejected|disputed|superseded`) exists in the schema, but nothing in `applications` reads it to gate eligibility — because `applications` has no service/controller yet (§2). So FR-16 isn't actually contradicted by any running code today; only `User.role` is a confirmed, real gap. Fixing it is for whoever picks up the `identity` module next, informed by this document and `prd.md` FR-07.
-
-## 6. Reliability and failure behavior
-
-- **AI outage or low-confidence output**: because AI is advisory everywhere (ADR-014), "falling back to manual review" means exactly what it already means for every application — the owner sees the application without a fit analysis attached, never blocked.
-- **GitHub API failure**: PR evidence stays `UNVERIFIED` (FR-34) until the on-demand validation job is retried; no evidence is silently marked otherwise.
-- **Queue jobs**: bounded retries, dead-letter queue on exhaustion.
-- **Idempotency**: PR validation and delivery-review-expiry jobs are safe to re-run — they compute state from source data (GitHub API response, `submittedAt` timestamp), not from mutable counters.
-
-## 7. Known schema gaps (documentation only — not fixed here)
-
-For completeness, since `data-model-and-erd.md` documents the target schema and will look substantially different from `prisma/schema.prisma` today:
-
-- **Dead weight, safe to drop, nothing depends on it in code**: `Subscription`, `UsageTracker`, `AiMatchResult`, `SkillGapGuidance`, `Dispute` (+ their enums) — zero references anywhere in `src/modules/**` outside the schema itself.
-- **Anticipated but unbuilt**: `AiValidationResult` / `AiValidationDecision` (the binary eligible/ineligible gating shape) exists in the schema, but `applications` has no service/controller yet — nothing to migrate away from, just don't build against it.
-- **Real, load-bearing, needs an actual fix**: `User.role` (fixed enum) — see §5. `User.status = pending` is an email-verification state, not an admin gate; its eventual representation must preserve email-verification policy independently of contextual product capabilities (`decision-log.md` SEC-002).
-
----
-
-## Module shape and boundaries (ratified unchanged from ADR-002)
-
-Small module:
-
-```text
-projects/
-  projects.module.ts
-  projects.controller.ts
-  projects.service.ts
-  projects.service.spec.ts
-  dto/
-  mappers/             # only when needed
-  README.md
-```
-
-Larger module:
-
-```text
-identity/
-  identity.module.ts
-  controllers/
-  services/
-  dto/
-  integrations/
-  security/
-  validators/
-  README.md
-```
-
-Optional folders are `events/`, `integrations/`, `jobs/`, `mappers/`, `repositories/`, `security/`, `utils/`, and `validators/`. Create them only for real files — no empty architecture placeholders.
-
-**Boundaries:**
-
-1. Each business capability has one owning module.
+1. A business capability has one owning module.
 2. A module writes only its own tables.
-3. Cross-module calls use services exported from the provider's NestJS module.
-4. Never import another module's repository, client, security implementation, job, controller, mapper, validator, or utility.
-5. `shared/` contains technical cross-cutting code only: configuration, database bootstrap, auth guards/decorators, errors, logging.
-6. Events describe completed facts; each listener updates its own state.
+3. Controllers bind HTTP and delegate; they do not contain persistence or
+   external-client workflows.
+4. Services own authorization, deterministic validation, workflow, and final
+   decisions.
+5. Cross-module synchronous calls use exported services.
+6. Events describe completed facts; listeners update only their own state.
+7. `shared/` contains technical cross-cutting concerns, not business workflows.
+8. Optional folders are created only for real implementation.
 
-**Enforcement:** `npm run check:architecture` rejects legacy layer folders, use-case/port filenames, private cross-module imports, persistence in controllers, external HTTP calls in controllers, missing module READMEs, and stale canonical guidance.
+Recommended ownership:
+
+| Context | NestJS owner |
+|---|---|
+| Accounts, sessions, email verification, admin role | `identity` |
+| GitHub connection and authoritative code evidence | `github` |
+| Projects and repository connection | `projects` |
+| Tasks and assignments | `contribution-tasks` |
+| Applications and owner decisions | `applications` |
+| Public profile projection | `contributor-profiles` |
+| Skill claims and evidence mapping | `skill-profiles` |
+| Delivery evidence and owner review | `delivery-reviews` |
+| Blind bilateral review | `reviews` or a clearly isolated delivery subdomain |
+| Reputation event aggregation | `reputation` |
+| External-project review, flags, moderation | `admin` |
+| AI orchestration and FastAPI clients | `ai` |
+| Notification delivery | `notifications` |
+
+## 5. AI boundary and failure behavior
+
+```text
+owning NestJS service
+  -> authorization and deterministic checks
+  -> enqueue analysis job
+  -> NestJS AI facade
+  -> authenticated FastAPI call
+  -> validate structured response
+  -> persist evidence, confidence, uncertainty, model/prompt version
+  -> owning module presents advisory output
+```
+
+- AI output never directly mutates final business state.
+- A timeout, unavailable service, malformed response, or low confidence does not
+  block an application or participation.
+- Repository text and diffs are untrusted data, never executable instructions.
+- The AI service receives only data permitted for the feature; MVP inference is
+  limited to accessible public GitHub evidence.
+- Audit records avoid raw secrets and unnecessary personal data.
+- Re-analysis preserves prior output, model/prompt version, evidence snapshot,
+  and dispute history.
+
+Target jobs include:
+
+- `skill-profile-generation`
+- `application-fit-analysis`
+- `pr-validation`
+- `delivery-review-expiry`
+- `notification-dispatch`
+
+Only skill-profile generation has repository evidence of a current durable job.
+
+## 6. GitHub and repository authority
+
+- A connected repository requires verified `admin`, `maintain`, or `push`
+  permission for the account attaching it to a project.
+- A public repository URL establishes evidence location, not ownership.
+- A project may be created with `repositoryConnection = NONE` and connected
+  later.
+- GitHub owns repository ID, canonical URL, visibility, pull-request state,
+  merge metadata, commits, and observed permission.
+- Cached GitHub facts include source ID, canonical URL, sync time, and sync
+  status; the UI must not present stale data as live.
+- The current contributor OAuth scope `read:user user:email repo` exposes private
+  access and write capability. It is a security gap. The target must use a
+  least-privilege public-evidence mechanism.
+
+## 7. Domain glossary
+
+| Term | Definition |
+|---|---|
+| Account | Authentication identity and account-level administration state |
+| Contextual capability | Permission derived from a relationship to a project/task, not a fixed user role |
+| Project | Owner-published collaboration container, optionally connected to a repository |
+| Contribution task | Scoped unit of requested work with requirements and evidence expectations |
+| Application | Contributor request to perform one task |
+| Assignment | Owner acceptance binding one primary contributor to a task |
+| Evidence item | Attributable URL, repository fact, image, file, demo, document, or attestation |
+| Evidence submission | Versioned collection of evidence items for a task delivery or external project |
+| Verification tier | Strength of the platform’s support for a claim |
+| Review status | Human/admin assessment state, independent of evidence source |
+| Skill claim | A normalized skill supported by zero or more mapped evidence records |
+| AI output | Advisory, versioned analysis with confidence, uncertainty, and citations |
+| Trust signal | Source-explained profile indicator; several may coexist |
+| Reputation event | Immutable input to a derived reputation projection |
+| Flag | Auditable integrity or safety concern about a specific subject |
+
+## 8. Bounded contexts
+
+### Identity and access
+
+Owns accounts, credentials, sessions, social connections, email verification,
+and the account-level `ADMIN` role. It does not store owner/contributor/applicant
+as permanent identities.
+
+### Project and task management
+
+Owns projects, repository connections, tasks, task status, and primary
+assignments. Repository-free projects are first-class.
+
+### Application and assignment
+
+Owns applications, advisory fit results, owner decisions, and the accepted
+assignment. It grants only scoped, status-sensitive capabilities.
+
+### Evidence and delivery
+
+Owns versioned delivery submissions, evidence items, GitHub validation snapshots,
+owner review, review deadlines, and accepted outcomes.
+
+### Profile, skills, and external projects
+
+Owns public profile projection, external-project submissions, skill claims,
+evidence mappings, review status, verification tier, and trust signals.
+
+### Reviews and reputation
+
+Owns blind review windows, review publication, immutable reputation events, and
+derived public summaries.
+
+### AI analysis
+
+Owns AI requests and auditable outputs. It does not own the business subject it
+analyzes.
+
+### Administration and integrity
+
+Owns external-project review actions, flags, moderation outcomes, and audit
+visibility. It cannot rewrite GitHub facts or collapse evidence tiers.
+
+## 9. Entities and relationships
+
+### Core entities
+
+- `User`: account identity, email-verification facts, admin status, suspension
+  state, and public-profile link.
+- `AuthSession`: refresh-session lifecycle and revocation.
+- `GitHubAccount`: connected GitHub identity, encrypted token metadata, scopes,
+  and last synchronization.
+- `ContributorProfile`: public biography, visibility, and derived projections.
+- `Project`: owner, descriptive fields, publication state, optional repository
+  connection, and dates.
+- `RepositoryConnection`: GitHub repository ID, permission snapshot, connection
+  status, and sync metadata.
+- `ContributionTask`: project, requirements, expected evidence, status, and
+  capacity fixed to one primary assignment in MVP.
+- `Application`: task, applicant, statement, status, timestamps, and optional
+  advisory AI output.
+- `Assignment`: accepted application, primary contributor, start/end state, and
+  audit history.
+- `EvidenceSubmission`: versioned delivery attempt or external-project claim.
+- `EvidenceItem`: typed evidence, contributor attribution, source metadata,
+  visibility, validation snapshot, and audit data.
+- `DeliveryReview`: owner assessment of one evidence-submission version.
+- `BlindReviewWindow`: participant pair, deadline, submission/publication facts.
+- `Review`: reviewer, subject, dimensions, rationale, submitted/published times.
+- `ExternalProjectSubmission`: contributor claim, project metadata, status,
+  review-start marker, and audit timestamps.
+- `ExternalProjectReviewAction`: admin actor, action, notes, and timestamp.
+- `SkillClaim`: normalized skill displayed on a profile.
+- `SkillEvidence`: mapping from skill claim to evidence source, confidence,
+  review status, and verification tier.
+- `AiOutput`: subject, type, structured result, evidence references, confidence,
+  uncertainty, prompt/model versions, and timestamps.
+- `TrustSignal`: type, source subject, active/suspended state, reason, and audit
+  history.
+- `ReputationEvent`: immutable event type, subject, source, dimensions, weight,
+  and invalidation link.
+- `Flag`: reporter, subject type/id, reason, status, resolution, and audit data.
+
+### Principal relationships
+
+```text
+User 1---* Project (owner)
+Project 1---* ContributionTask
+Project 0---1 RepositoryConnection
+ContributionTask 1---* Application
+Application 0---1 Assignment
+Assignment 1---* EvidenceSubmission
+EvidenceSubmission 1---* EvidenceItem
+EvidenceSubmission 0---* DeliveryReview
+User 1---* ExternalProjectSubmission
+ExternalProjectSubmission 1---* ExternalProjectReviewAction
+ContributorProfile 1---* SkillClaim
+SkillClaim 1---* SkillEvidence
+SkillEvidence *---1 EvidenceItem or ExternalProjectSubmission or AiOutput
+BlindReviewWindow 1---0..2 Review
+Review/DeliveryReview/Evidence 1---* ReputationEvent
+ContributorProfile 1---* TrustSignal
+Any auditable subject 1---* Flag
+```
+
+## 10. State machines
+
+### Project
+
+```text
+DRAFT -> PUBLISHED -> CLOSED
+  |          |
+  +-> ARCHIVED <-+
+```
+
+Repository connection is independent: `NONE -> PENDING_VERIFICATION -> CONNECTED
+-> DISCONNECTED`. A project can publish while the connection is `NONE`.
+
+### Contribution task
+
+```text
+DRAFT -> OPEN -> ASSIGNED -> IN_PROGRESS -> SUBMITTED -> COMPLETED
+             \-> CANCELLED      \-> CANCELLED      \-> CHANGES_REQUESTED
+```
+
+Exact storage names may change during implementation, but a task cannot acquire
+two active primary assignments in MVP.
+
+### Application
+
+```text
+SUBMITTED -> UNDER_REVIEW -> ACCEPTED
+     |             |        -> WITHDRAWN only before assignment work begins
+     +-> WITHDRAWN +-> REJECTED
+     +-> EXPIRED
+```
+
+Only `SUBMITTED` and `UNDER_REVIEW` confer applicant access. `ACCEPTED` transfers
+access to the assignment/contributor capability. `REJECTED`, `WITHDRAWN`, and
+`EXPIRED` confer none.
+
+### External-project submission
+
+```text
+DRAFT -> PENDING_REVIEW -> APPROVED
+  |             |-------> REJECTED
+  |             |-------> CHANGES_REQUESTED -> PENDING_REVIEW
+  |             |-------> FLAGGED
+  +-> WITHDRAWN          FLAGGED -> APPROVED | REJECTED | CHANGES_REQUESTED
+```
+
+“Review begins” is represented by an auditable timestamp/action rather than an
+extra status unless the open decision approves one. Edits create a new evidence
+version; prior reviewed material is retained.
+
+### Delivery evidence
+
+```text
+DRAFT -> SUBMITTED -> APPROVED
+             |------> CHANGES_REQUESTED -> SUBMITTED (new version)
+             |------> REJECTED
+             +------> UNREVIEWED (14-day owner silence)
+```
+
+Pull-request source facts are independent from delivery outcome. The unresolved
+closed-without-merge attestation rule remains `OPEN`; implementation must not
+invent a transition.
+
+### Blind review
+
+```text
+OPEN
+  -> BOTH_SUBMITTED -> PUBLISHED_IMMEDIATELY
+  -> DEADLINE_EXPIRED + one submitted -> submitted review PUBLISHED
+  -> DEADLINE_EXPIRED + none submitted -> CLOSED_EMPTY
+```
+
+### Flag
+
+```text
+OPEN -> UNDER_REVIEW -> RESOLVED | DISMISSED
+```
+
+Flag resolution may suspend a public trust signal or invalidate a reputation
+event without deleting history.
+
+## 11. Permissions
+
+| Capability | Derivation | Scope |
+|---|---|---|
+| Public viewer | None | Published public data only |
+| Owner | `Project.ownerId` or verified maintainer authority | One project and its tasks |
+| Applicant | Active application (`SUBMITTED`, `UNDER_REVIEW`) | Relevant task/project only |
+| Contributor | Active accepted assignment | Relevant task/project workspace |
+| Profile subject | Profile ownership | Own profile, claims, disputes |
+| Admin | Account-level role | Review/moderation actions, not GitHub fact rewriting |
+
+Email verification is required for publishing, applying, and private workspace
+access. Profile trust and admin-reviewed portfolio status never grant additional
+business authority.
+
+## 12. Evidence dimensions
+
+The model never stores “verified” as one overloaded fact.
+
+### Evidence source
+
+Examples: `SELF_DECLARED`, `AI_INFERRED`, `EXTERNAL_PROJECT`, `SHAREK_DELIVERY`,
+`GITHUB_REPOSITORY`, `OWNER_ATTESTATION`.
+
+### Review status
+
+Examples: `UNREVIEWED`, `PENDING_REVIEW`, `CHANGES_REQUESTED`, `APPROVED`,
+`REJECTED`, `FLAGGED`, `DISPUTED` as applicable to the subject.
+
+### Verification tier / public label
+
+- `SELF_DECLARED_PROJECT`
+- `ADMIN_REVIEWED_EXTERNAL_PROJECT`
+- `SHAREK_CONTRIBUTION_VERIFIED`
+- `REPOSITORY_BACKED_CONTRIBUTION`
+- `OWNER_ATTESTED_CONTRIBUTION`
+
+### Skill mapping
+
+A skill claim maps to specific evidence records. Admin approval of an external
+project does not automatically approve every claimed technology. AI evidence
+retains `AI_INFERRED` even if a human separately reviews it.
+
+## 13. Reputation events
+
+Reputation is derived from immutable events rather than directly edited totals.
+Minimum event families:
+
+- `CONTRIBUTION_ACCEPTED`
+- `BLIND_REVIEW_PUBLISHED`
+- `OWNER_REVIEW_PUBLISHED`
+- `EVIDENCE_INVALIDATED`
+- `REVIEW_INVALIDATED`
+- `OWNER_ABANDONMENT_RECORDED`
+- `TRUST_SIGNAL_SUSPENDED`
+
+Each event records source subject, actor where applicable, dimensions, timestamp,
+policy/version, and invalidation relationship. Recalculation ignores invalidated
+events but retains them for audit. Public projections include sample size and
+source explanation. Exact weighting and fraud thresholds remain open.
+
+## 14. Domain invariants
+
+1. No task has more than one active primary assignment in MVP.
+2. No terminal application grants applicant access.
+3. No AI output is a final business decision.
+4. No external-project approval proves legal identity, total ownership, or a
+   ShareK/repository-backed contribution.
+5. No technology becomes a reviewed skill without an explicit evidence mapping.
+6. No owner attestation changes a GitHub merge/close fact.
+7. No repository is attached as owner-controlled without verified permission.
+8. No reputation projection exists without traceable source events.
+9. No invalidation deletes its historical event or review action.
+10. No review becomes visible before both submit or the deadline expires.
+11. No profile trust state is compressed into a global verified flag.
+12. No absence of AI evidence is interpreted as evidence of absence.
+13. No private GitHub data is made public by inference or evidence display.
+14. No repository content is executed during AI analysis.
+
+## 15. Reliability, security, and observability
+
+- Queue jobs are idempotent and use bounded retry/dead-letter behavior.
+- External integrations time out and degrade without corrupting business state.
+- Authentication, AI generation, uploads, disputes, and moderation are rate
+  limited.
+- Tokens and secrets are encrypted or stored through the platform secret model,
+  never logged.
+- File evidence requires an approved storage/scanning/retention design before
+  implementation.
+- Sensitive actions produce audit records with actor, subject, old/new state,
+  reason, and timestamp.
+- AI calls record correlation ID, feature, timing, outcome, evidence count,
+  confidence, model version, and prompt version without leaking raw secrets.
+
+## 16. Known migration gaps
+
+- Current `User.role` stores fixed owner/contributor/admin values.
+- Current `User.status` combines lifecycle/email-verification representation;
+  target persistence must preserve SEC-002 without an admin participation gate.
+- Current contributor GitHub OAuth uses broad `repo` scope.
+- Current public profile controller is authenticated.
+- Current schema contains subscription and binary AI-validation shapes that are
+  outside target scope.
+- External-project submissions, evidence separation, assignments, blind review,
+  and complete reputation events are not represented in the target form.
+- Projects/tasks/applications/delivery/admin have major implementation gaps.
+
+These are implementation gaps, not permission for schema or code changes during
+documentation consolidation.

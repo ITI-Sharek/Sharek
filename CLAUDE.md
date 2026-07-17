@@ -4,8 +4,10 @@
 
 ### Issue tracker
 
-GitHub, single repo — `ITI-Sharek/Sharek` (the unified monorepo) — plus `.scratch/<feature-slug>/` for draft notes. See `docs/agents/issue-tracker.md`.
+GitHub, single repo — `ITI-Sharek/Sharek` (the unified monorepo) — plus `.scratch/<feature-slug>/` for draft notes. See `docs/tooling/agents/issue-tracker.md`.
 
 ### Domain docs
 
-Multi-context — `CONTEXT-MAP.md` at the root pointing to `backend/CONTEXT.md` and `frontend/CONTEXT.md`, each with its own `docs/adr/`. See `docs/agents/domain.md`.
+ShareK's glossary, bounded contexts, state machines, permissions, and invariants
+are consolidated in `docs/architecture.md`. See
+`docs/tooling/agents/domain.md` for agent reading rules.

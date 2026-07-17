@@ -1,61 +1,98 @@
-# ShareK Docs
+# ShareK Documentation
 
-Operating manual for the whole repo (`backend/` + `frontend/`).
+**Status:** PROPOSED
 
-## Product and planning
+ShareK’s documentation is intentionally small. Seven files are canonical; all
+other material supports operation, rationale, audit, tooling, or history.
 
-| File | Purpose |
-| --- | --- |
-| `product-brief.md` | Problem, personas, north-star metric, non-goals, risks. Start here. |
-| `prd.md` | 51 functional requirements, NFRs, permission matrix, out-of-scope register. |
-| `architecture.md` | Backend architecture, module map, `AiPort` design, known schema gaps. |
-| `data-model-and-erd.md` | 14-entity target schema, state machines, relationship diagram. |
-| `frontend-spec.md` | Frontend module map, 11 MVP screens, testing seam, i18n rules. |
-| `api-contracts.md` | Documented real endpoints (corrected) + proposed core-loop endpoints. |
-| `epics-and-stories.md` | 5 epics, ~50 FR-traced stories, sequencing. |
-| `adr/` | 13 ADRs, numbered continuing from the archived `bmad-output` set. |
-| `test-strategy.md` | Backend/frontend test pyramid, 30-case AI golden set. |
-| `seed-and-validation-plan.md` | Cold-start seeding checklist, hiring-manager profile validation. |
-| `migration-notes.md` | The full contradiction → resolution log, code-reality findings, and doc-cleanup record for this whole run. Read this if you want to know *why* something changed. |
+## Start here
 
-## Backend conventions (current, generic NestJS practice — not tied to product scope)
+A new teammate reads only these five entry points:
 
-| File | Purpose |
-| --- | --- |
-| `developer-architecture-guide.md` | Where backend files belong and how to build a feature, step by step. |
-| `backend-conventions.md` | Naming, controller/service responsibilities, DTO safety, Prisma rules. |
-| `folder-structure.md` | Canonical module folder layout. |
-| `ai-agent-rules.md` | Before-editing / implementation / verification / handoff checklist for coding agents. |
-| `definition-of-done.md` | Checklist required before a backend task is considered complete. |
-| `local-development.md` | Docker, environment, database, Redis, local startup. Its AI-service section still describes the pre-ADR-003 setup (real, current code) — will need updating once that migration actually happens, not before. |
-| `team-onboarding.md` | First-run checklist and `.env` sharing rules. Same AI-service caveat as above. |
-| `postman-api-guide.md` | Postman request catalog for the real, currently-implemented endpoints. |
-| `sprint-template.md` | Template for planning a sprint. |
-| `examples/module-skeleton.md` | Copyable sample module shape. |
-| `skills/sharek-backend-architect/` | Repo-local Codex skill for backend agents. |
-| `agents/issue-tracker.md`, `agents/domain.md` | Engineering-skill config (issue tracker, domain-doc layout) — see root `CLAUDE.md`. |
+1. [`README.md`](README.md) — this navigation and authority index.
+2. [`product-spec.md`](product-spec.md) — what ShareK must do and what MVP excludes.
+3. [`architecture.md`](architecture.md) — system architecture and complete domain model.
+4. [`api-contracts.md`](api-contracts.md) — verified current and proposed target APIs.
+5. [`delivery-plan.md`](delivery-plan.md) — vertical slices and release gates.
 
-## Reference / open questions
+When needed:
 
-- `Sharek_questions.txt` — the original 145-question strategic interview. `prd.md` §7 tracks which of these remain genuinely open after the LOCKED product decisions.
+- [`decision-log.md`](decision-log.md) contains binding human decisions and open
+  decisions.
+- [`test-strategy.md`](test-strategy.md) defines quality and release evidence.
 
-## Archive (superseded, kept for history — never authoritative)
+## Canonical documents
 
-- `archive/bmad-legacy-docs/` — the original "Gold Tier" pitch documents (PDF/DOCX).
-- `archive/bmad-output/` — the first BMAD-generated PRD, 20-entity ERD, 2 ADRs, backlog, 8 sprint files, plus the AI architecture guide that first argued against Pinecone.
-- `archive/ShareK_Master_Product_and_Technical_Brief_v2.md` — the intermediate product brief this run reconciled against.
-- `archive/database-plan.md` — its central claim (pgvector active for MVP discovery/matching) contradicts ADR-011.
-- `archive/member-ownership.md` + `archive/ai-agents/` (4 files) — the `M1`–`M6` anonymous role-code scheme, never reconciled with the real team allocation in `product-brief.md` §6; `m2`'s scope was entirely about owning the now-superseded separate FastAPI repo.
-- `archive/sprint-01-backend-foundation.md` — cross-references (old FR-IDs, old backlog task IDs, links into the archived `ai-agents/`) were all broken; content is superseded by `epics-and-stories.md` E1.
+| Document | Owns | Status |
+|---|---|---|
+| `README.md` | Navigation, reading order, ownership | PROPOSED |
+| `product-spec.md` | Product scope, requirements, public behavior, non-goals | PROPOSED |
+| `architecture.md` | Technology, domain glossary/contexts/entities/states/permissions/invariants | PROPOSED |
+| `api-contracts.md` | Current and target HTTP/API contracts | PROPOSED |
+| `delivery-plan.md` | Vertical slices, dependencies, delivery gates | PROPOSED |
+| `decision-log.md` | Approved and open human decisions | Mixed by entry; approved entries are binding |
+| `test-strategy.md` | Verification, security, AI evaluation, release evidence | PROPOSED |
 
-Full accounting of every change, including what was corrected rather than just archived: `migration-notes.md`.
+No other file may introduce product requirements.
 
-Three docs were deleted outright rather than archived, because their core content was wholesale wrong (not just stale), and there's no historical value in a doc that never described anything real: `current-state-and-next-steps.md` (claimed a Next.js frontend — never true), `module-development-tracker.md`, `selected-repos-ai-skill-profiling-plan.md`, `implementation-roadmap.md`. Recoverable from git history if ever needed.
+## Supporting material
 
-## Source of truth order
+- [`adr/`](adr/) — narrow architecture rationale; indexed and subordinate to
+  canonical decisions.
+- [`operations/`](operations/) — engineering guide, module skeleton, local
+  development/onboarding, and current Postman exercises.
+- [`reference/`](reference/) — ITI checklist and strategic research questions.
+- [`audits/`](audits/) — point-in-time reviews, current codebase gaps, and
+  documentation migration history.
+- [`tooling/`](tooling/) — active agent/skill instructions. These are not product
+  documentation.
+- [`archive/`](archive/) — superseded generated and legacy material retained for
+  provenance only.
 
-1. `prd.md` functional requirement IDs (`FR-NN`).
-2. `adr/` — architecturally significant, hard-to-reverse decisions.
-3. `architecture.md` / `data-model-and-erd.md` / `api-contracts.md` / `frontend-spec.md`.
-4. The backend-conventions docs listed above.
-5. `archive/` — historical only, never authoritative.
+## Authority
+
+When sources conflict:
+
+1. latest explicit human instruction;
+2. approved `decision-log.md` entry;
+3. classified mandatory external constraint;
+4. approved product specification;
+5. architecture/domain model;
+6. API contract within its boundary;
+7. ADR rationale;
+8. current code for current-state claims only;
+9. supporting and archived material.
+
+The current canonical set is `PROPOSED`. It documents approved decisions but is
+not itself approved merely because consolidation occurred.
+
+## Planning and current status
+
+Implementation planning uses:
+
+- [`delivery-plan.md`](delivery-plan.md) for vertical slices and planned work;
+- [`audits/codebase-gap-report.md`](audits/codebase-gap-report.md) for verified
+  repository facts.
+
+Do not create a parallel backlog, sprint authority, module tracker, or generated
+planning tree.
+
+## Historical material
+
+Historical content is intentionally retained before deletion:
+
+- `archive/claude-grill/` preserves the superseded generated canonical set.
+- `archive/legacy/` preserves earlier product, engineering, planning, binary
+  source, generated-output, and unused tool artifacts.
+
+Historical files may contain contradictory product models and broken links. They
+are evidence of documentation history, not instructions for implementation.
+
+## Maintenance
+
+- Put requirements only in their canonical owner.
+- Put narrow rationale in an ADR and index it.
+- Put current runnable instructions in `operations/`.
+- Put current repository observations in `audits/codebase-gap-report.md`.
+- Archive superseded sources before removal.
+- Never claim a feature is complete without repository and test evidence.

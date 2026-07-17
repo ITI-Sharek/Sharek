@@ -1,57 +1,222 @@
-# ShareK — Test Strategy
+# ShareK Test Strategy
 
-**Status:** `PROPOSED` throughout — targets, not achieved coverage
-**Date:** 2026-07-17
-**Depends on:** `decision-log.md`, `prd.md`, `architecture.md`, `data-model-and-erd.md`, `frontend-spec.md` §5
+**Status:** PROPOSED
+**Sources:** `product-spec.md`, `architecture.md`, `api-contracts.md`,
+`decision-log.md`
 
-No fabricated coverage numbers. No LLM-as-judge, no Langfuse, no 5-metric dashboard — replaced by the 30-case golden set (§3) and ordinary test suites, proportionate to a 6-person team.
+## 1. Quality gates
 
----
+A requirement is not `TESTED` until automated evidence covers its successful,
+invalid, forbidden, and failure paths at the appropriate boundary. A release
+candidate must pass:
 
-## 1. Backend (Jest — `backend/`)
+- lint and type checking;
+- backend unit/integration tests;
+- frontend component/route tests;
+- API contract tests;
+- Prisma/schema validation when persistence changes;
+- authorization and security tests;
+- AI evaluation and safety tests;
+- accessibility checks on core screens; and
+- end-to-end evidence for the complete contribution loop.
 
-`npm run test` runs unit and `*.e2e-spec.ts` files under one `testRegex`, no separate e2e script (`backend/AGENTS.md`).
+Documentation review verifies claims against current code. A passing unit test
+does not prove a user workflow, and a folder does not prove implementation.
 
-**Unit** — the highest-value tier, since this is where the product's actual rules live:
-- State-machine transitions: `Task`, `Application`, `ContributionEvidence` (+ its independent `prState`), `Review` (`data-model-and-erd.md` §3) — every legal and illegal transition.
-- Reputation math: aggregation is always computed from the `ReputationEvent` log at read time (ADR pattern, `data-model-and-erd.md` §2) — test that a stored event never gets silently mutated, and that the n=3 raw-reviews-below-threshold rule (FR-42) holds at the boundary (2, 3, 4 reviews).
-- Evidence validation: type/label/description required, `prState` only meaningful for `GITHUB_PR`, owner-attestation-vs-GitHub-state auto-flag logic (FR-35, ADR-008).
-- Review eligibility: only accepted contributor/owner pairs can review each other; blind-window/expiry/lone-publish logic (FR-40, ADR-010).
-- Advisory screening policy: every otherwise valid application reaches the owner; fit output never hides, rejects, blocks, or changes application state. Strict/automatic rejection has no MVP test path because it is deferred (`decision-log.md` AI-002/AI-003).
-- Skill evidence dimensions: evidence source, human-review status, verification tier, and mapped skill claims change independently; admin review must not overwrite `AI_INFERRED` or promote every listed technology (`decision-log.md` DM-002/DM-004).
-- External-project workflow: every allowed and forbidden transition across `DRAFT`, `PENDING_REVIEW`, `CHANGES_REQUESTED`, `APPROVED`, `REJECTED`, `WITHDRAWN`, and `FLAGGED`; pre-review edit/withdraw rules; audit entry for every review action; rejection creates no public reputation.
-- Profile trust: multiple simultaneous signals, source explanation for every public label, participation without admin approval, and trust-label suspension/removal without audit-record deletion (`decision-log.md` DM-003).
+## 2. Test layers
 
-**Integration:**
-- Prisma repositories against a real test database (not mocked — this repo's own convention, `CLAUDE.md`: "integration tests must hit a real database").
-- GitHub adapter: PR-state fetch, repository metadata import, OAuth callback — against recorded fixtures, not live GitHub calls in CI.
-- BullMQ job flow: `skill-profile-generation`, `application-fit-analysis`, `pr-validation`, `delivery-review-expiry` — enqueue → process → persisted-result round trip, including the failure/retry/dead-letter path.
-- NestJS ↔ FastAPI contract: structured skill-inference and advisory-fit outputs, confidence/evidence references, authentication, timeouts, malformed-output handling, and proof that FastAPI cannot perform business state transitions (`architecture.md` §3).
+### Unit tests
 
-**E2E** — focused critical paths, not a combinatorial matrix: (1) register → connect GitHub → infer skills from public evidence → display confidence/evidence → dispute an inference; (2) publish project → create task → apply → advisory fit attached → valid application reaches owner → accept → submit evidence → owner approval → reputation event → public profile shows its source and verification tier; (3) submit external project → admin review → public profile shows `ADMIN_REVIEWED_EXTERNAL_PROJECT` separately from ShareK/repository-backed contribution evidence.
+- Domain transition guards and illegal transitions.
+- Permission derivation from project/task/application/assignment state.
+- Evidence-label and trust-signal projection.
+- Reputation event aggregation and invalidation.
+- AI-output schema validation and non-blocking fallback.
+- DTO validation and mapping.
 
-## 2. Frontend (Vitest — `frontend/`)
+### Integration tests
 
-Full approach: `frontend-spec.md` §5. In addition to focused helper tests, public-profile route/component tests must prove logged-out access, source-explained trust labels, distinct external/ShareK/repository-backed evidence, and the absence of a global verified boolean. Application tests must prove AI fit never blocks submission or owner visibility.
+- NestJS service plus Prisma for each owning module.
+- Queue enqueue/worker/idempotency/failure behavior.
+- GitHub and FastAPI clients through controlled test doubles.
+- Cross-module access only through exported services/events.
+- Audit records for sensitive actions.
 
-## 3. AI evaluation — 30-case golden set
+### API contract tests
 
-Not a metrics dashboard — a fixed, versioned set of ~30 cases (stored as a spreadsheet or a checked-in fixture file, TBD by whoever builds E5-02) covering:
+- Current routes match controllers/DTOs until migrated.
+- Target routes match `api-contracts.md` once built.
+- Standard pagination and error envelopes.
+- Authentication, forbidden access, not-found, conflict, and validation cases.
+- No raw Prisma fields or private evidence leak across the boundary.
 
-- Clear-match and clear-non-match skill profiles (unambiguous cases the deterministic layer should mostly handle before AI is even called — `architecture.md` §3).
-- Sparse-evidence and no-public-repo contributors (must not equate "no evidence found" with "no skill" — `product-brief.md` risk register).
-- Public-only source enforcement: private repositories and inaccessible diffs are never analyzed, and unavailable evidence is reported as uncertainty rather than inferred absence.
-- Borderline/contradictory evidence, where `review_needed`/low-confidence is the correct output, not a forced decision.
-- At least a few adversarial cases: prompt-injection attempts via README content, since repository content is untrusted input to the AI call.
-- Application-fit cases prove matching evidence, missing/uncertain requirements, confidence, and citations while always leaving acceptance or rejection to the owner.
+### Frontend tests
 
-Run manually or in CI against the bounded AI service contract; a regression is a case that used to pass and now doesn't, not a global accuracy percentage — with 30 cases, per-metric percentages would be spurious precision.
+The frontend needs a real test runner before feature work can be considered
+tested. Cover route loaders/actions, components, forms, error/empty/loading
+states, keyboard access, and responsive behavior. High-priority route tests:
 
-## 4. Contract tests
+- logged-out public profile;
+- trust-label explanations;
+- application submission and owner visibility;
+- evidence submission/version history;
+- blind review publication;
+- external-project submission/review state display; and
+- AI confidence, uncertainty, citations, and dispute actions.
 
-- Frontend ↔ backend: the shapes in `api-contracts.md` §7 (once built) and `frontend-spec.md` §6, specifically the three records the frontend renders directly (`ContributionEvidence`, `Review`, `UserSkill`) — a contract test here is cheaper than finding the drift in a manual QA pass.
-- Backend ↔ GitHub: recorded-fixture tests for the adapter (already covered under Integration above) — no live network calls in CI.
+### End-to-end tests
 
-## 5. What this explicitly does not include
+At least one scenario must prove:
 
-Per the LOCKED decisions this whole doc set encodes: no Langfuse, no LLM-as-judge, no 5-quality-metric dashboard (`prd.md` §6) — the golden set in §3 is the proportionate replacement. No load/performance testing infrastructure beyond the realistic targets already stated in `prd.md` NFR-01 — nothing to build before there's real traffic to model.
+```text
+authorized owner publishes
+  -> contributor applies
+  -> application reaches owner
+  -> owner accepts
+  -> contributor submits attributable evidence
+  -> owner reviews
+  -> both sides review or window expires
+  -> reputation changes
+  -> logged-out profile explains the resulting trust/evidence
+```
+
+Repeat with a repository-free project and with one integration unavailable.
+
+## 3. Mandatory domain suites
+
+### Contextual permissions
+
+- One user can own project A and contribute to project B.
+- `SUBMITTED`/`UNDER_REVIEW` application grants only scoped applicant access.
+- `REJECTED`, `WITHDRAWN`, and `EXPIRED` grant none even though rows remain.
+- Accepted application transfers authority to the assignment.
+- Unverified profile trust does not block participation.
+- Email verification still gates publish/apply/private workspace actions.
+- Admin review does not grant project ownership.
+
+### Repository authority and repository-free behavior
+
+- Only admin/maintain/push GitHub permission can connect a repository.
+- A URL alone cannot establish ownership.
+- Repository-free create/publish/task/application/delivery works.
+- A repository may be connected later without losing history.
+- Cached GitHub facts expose freshness/sync state.
+- Private GitHub data never appears in public projections.
+
+### Assignment and individual evidence
+
+- Database/service concurrency cannot create two active primary assignments.
+- Shared PR evidence requires contributor-specific attribution.
+- Evidence item types accept the approved URL/image/file/attestation set.
+- Changes requested creates a new version and retains prior versions.
+- Owner attestation does not change GitHub merge state.
+- Closed-without-merge behavior remains skipped/blocked until its decision lands.
+
+### External-project evidence
+
+Cover every legal and illegal transition among:
+
+```text
+DRAFT, PENDING_REVIEW, CHANGES_REQUESTED, APPROVED,
+REJECTED, WITHDRAWN, FLAGGED
+```
+
+Also prove:
+
+- contributor edit/withdraw only before review begins;
+- each admin action is audited;
+- approved public evidence says `ADMIN_REVIEWED_EXTERNAL_PROJECT`;
+- rejected evidence does not reduce reputation;
+- flagged evidence can suspend display without deleting history;
+- technologies require explicit evidence-to-skill mapping; and
+- no response presents external admin review as ShareK/repository verification.
+
+### Blind review
+
+- First submission remains hidden before deadline.
+- Second submission publishes both immediately.
+- One submitted review publishes at 14-day expiry.
+- No submissions closes without a fabricated review.
+- Ratings accept 1–5 only.
+- Ratings 1 and 5 require a rationale.
+- Dimensions match reviewer direction.
+
+### Reputation integrity
+
+- Public projection derives from immutable events.
+- Invalidation removes effect without deleting the source event.
+- Sample size and dimensions are shown.
+- Duplicate/replayed events are idempotent.
+- Repeated pairs, new accounts, suspicious rings, stale evidence, extreme ratings,
+  and owner abandonment have tests once policy thresholds are approved.
+
+## 4. AI evaluation
+
+### Locked evaluation set
+
+Maintain a versioned, reviewable set covering:
+
+- strong and weak skill evidence;
+- sparse/no public evidence;
+- multiple languages and repository types;
+- stale activity;
+- shared/collaborative commits;
+- misleading README claims;
+- prompt-injection content;
+- inaccessible/deleted evidence;
+- fit with matching, missing, and uncertain requirements; and
+- deliberately negative fit that must still reach the owner.
+
+Do not claim a quality percentage until the set, labels, scoring method, and
+threshold are approved. Record false-positive and false-negative costs
+separately; false blocking is unacceptable because blocking is outside AI
+authority.
+
+### Required assertions
+
+- Every inferred skill has evidence, confidence, uncertainty, and versions.
+- “No evidence found” is not “skill absent.”
+- Contributor dispute preserves original output and audit metadata.
+- Every valid application is owner-visible before/without AI completion.
+- Negative/low-confidence/failed fit cannot reject or hide.
+- Model output cannot invoke tools or execute repository code.
+- Retrieved text cannot override system instructions.
+- Secrets and private content are absent from prompts, logs, and public output.
+- Evidence URLs/freshness are permission-aware and traceable.
+
+### Reliability cases
+
+- FastAPI timeout/unavailable/malformed output.
+- Queue retry and dead-letter behavior.
+- Duplicate jobs and idempotent persistence.
+- Model/prompt version change.
+- Evidence removed between collection and display.
+- Rate limit and budget exhaustion.
+
+## 5. Security and privacy tests
+
+- Authentication/session fixation, revocation, expiry, and CSRF for cookie-based
+  transport if ADR-005 is implemented.
+- Object-level authorization for every project/task/application/evidence/review.
+- OAuth state/PKCE/callback validation and least-privilege scopes.
+- Input validation, output encoding, URL validation, and file scanning.
+- Rate limits for auth, AI generation, evidence upload, disputes, and moderation.
+- Audit-log integrity and sensitive-data redaction.
+- Public-profile privacy and hidden/removed evidence.
+- Retention/deletion behavior after its policy is approved.
+
+## 6. Release evidence
+
+For each vertical slice, record:
+
+- requirement and decision IDs;
+- tests executed and results;
+- migration/API compatibility evidence;
+- authorization review;
+- security/privacy review;
+- remaining risk/open decisions; and
+- the current-state update in `audits/codebase-gap-report.md`.
+
+Manual demo success is additional evidence, not a substitute for automated
+tests. A release cannot claim AI safety, repository ownership, trust separation,
+or reputation integrity without the corresponding mandatory suites above.

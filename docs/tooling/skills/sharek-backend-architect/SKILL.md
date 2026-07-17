@@ -1,33 +1,35 @@
 ---
 name: sharek-backend-architect
-description: Share-k backend architecture workflow for standard NestJS feature-first modular monolith tasks. Use for modules, endpoints, controllers, services, DTOs, Prisma changes, FastAPI AI integration, jobs, tests, docs, tracker updates, handoff, or architecture review in the Share-k backend.
+description: Share-k backend architecture workflow for standard NestJS feature-first modular monolith tasks. Use for modules, endpoints, controllers, services, DTOs, Prisma changes, FastAPI AI integration, jobs, tests, documentation evidence updates, handoff, or architecture review in the Share-k backend.
 ---
 
 # Share-k Backend Architect
 
-Use this skill to keep Share-k backend changes aligned with ADR-002, module
-ownership, public service boundaries, documentation, and verification.
+Use this skill to keep Share-k backend changes aligned with the canonical
+architecture, module ownership, public service boundaries, documentation, and
+verification.
 
 ## Backend Root
 
-Work from the directory containing `package.json`, `AGENTS.md`,
-`src/modules`, and `docs/module-development-tracker.md`. In the normal
-checkout this is `/opt/Sharek_Backend/Backend`.
+Work from `backend/` in the ShareK monorepo, the directory containing
+`package.json`, `AGENTS.md`, and `src/modules`.
 
 ## Required Reading
 
 Before implementation:
 
-1. `AGENTS.md`
-2. `docs/architecture.md`
-3. `docs/developer-architecture-guide.md`
-4. `docs/module-development-tracker.md`
-5. `docs/backend-conventions.md`
-6. `docs/definition-of-done.md`
-7. The target module README
+1. Root and backend `AGENTS.md`
+2. `docs/README.md`
+3. `docs/architecture.md`
+4. `docs/api-contracts.md`
+5. `docs/delivery-plan.md`
+6. `docs/operations/engineering-guide.md`
+7. `docs/audits/codebase-gap-report.md`
+8. The target module README
 
-Read API contracts, Prisma/database docs, active spec, backlog, and PRD when
-relevant. Inspect current code and `git status`; do not work from memory alone.
+Read the product specification, decision log, test strategy, and Prisma/database
+sources when relevant. Inspect current code and `git status`; do not work from
+memory alone.
 
 ## Architecture Choice
 
@@ -103,7 +105,9 @@ AI output never directly mutates final business state.
 4. Implement the smallest complete service workflow.
 5. Add thin controller/DTO changes when needed.
 6. Add focused tests and relevant HTTP/E2E coverage.
-7. Update module README and `docs/module-development-tracker.md`.
+7. Update the module README and verified current evidence in
+   `docs/audits/codebase-gap-report.md`; planned work stays in
+   `docs/delivery-plan.md`.
 8. Run checks and review the final diff.
 
 ## Required Checks
@@ -122,5 +126,5 @@ pre-existing failures precisely.
 ## Handoff
 
 Report changed files, owning modules, requirement IDs, API and database changes,
-authorization review, tests/checks, documentation/tracker updates, migrations,
+authorization review, tests/checks, documentation/evidence updates, migrations,
 known risks, and follow-up work.
