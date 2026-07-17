@@ -68,3 +68,11 @@ async def generate_skill_profile(body: SkillProfileGenerateRequest):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    from sharek_agents.config import settings
+
+    uvicorn.run("sharek_agents.main:app", host="0.0.0.0", port=settings.port)
