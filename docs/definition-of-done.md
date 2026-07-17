@@ -41,6 +41,5 @@ A backend change is done only when the applicable items below are complete.
 ## Documentation And Handoff
 
 - API/database documentation is updated when contracts change.
-- `docs/module-development-tracker.md` contains a short change record.
 - The final report lists changed files, requirement IDs, tests, architecture
   result, migrations, known risks, and follow-up work.

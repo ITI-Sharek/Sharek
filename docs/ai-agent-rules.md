@@ -21,7 +21,8 @@
 
 ## AI Features
 
-- Call the separate FastAPI service through `AiService` and module-local clients.
+- Call the `AiPort` implementation through `AiService` — in-process, no separate
+  service (`architecture.md` §3, ADR-003).
 - Keep deterministic checks and final decisions in NestJS services.
 - Validate structured AI output before use.
 - Persist evidence/model/prompt audit metadata through the owning module.
@@ -46,4 +47,3 @@ the final diff for stale paths, accidental contract changes, and unrelated edits
 
 Report requirement IDs, changed files, tests, architecture-check result,
 migrations, API/authorization review, documentation updates, and remaining risk.
-Append the task record to `docs/module-development-tracker.md`.

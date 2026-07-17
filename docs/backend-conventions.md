@@ -60,5 +60,4 @@ Do not use `.use-case.ts`, `.port.ts`, or Clean Architecture layer directories.
 ## Documentation
 
 Every implemented module has a README with ownership, public routes/services,
-dependencies, and extension notes. Every code task updates
-`docs/module-development-tracker.md`.
+dependencies, and extension notes.
