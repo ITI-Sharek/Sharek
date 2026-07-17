@@ -4,7 +4,7 @@
 
 **Observed:** 2026-07-17
 
-**Repository snapshot:** `4af57faa88e8a5a89dc4aed0dda7e99cb8a55070`
+**Repository snapshot:** `fd290a030756e510b82b5d87984b272bc9f128ef`
 
 **Authority:** Supporting material only; requirements and sequencing remain owned
 by the canonical documents.
@@ -21,20 +21,26 @@ Do not run both package managers in one workspace.
 ### Installation
 
 ```bash
-cd frontend && pnpm install --frozen-lockfile
-cd backend && npm ci
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir backend install --frozen-lockfile
 ```
 
 There is no root install command because no root package manifest exists. There
 is no AI-service install command because no FastAPI/Python source or manifest is
-present in this workspace (`CANNOT_VERIFY`).
+present in this workspace (`CANNOT_VERIFY`). Neither install was run in this
+stage. The frontend lockfile must first be repaired because it contains two
+concatenated YAML documents. pnpm is the human-confirmed package manager for all
+JavaScript projects; the backend npm lockfile and npm-based Docker/CI commands
+are migration residue and must be retired deliberately. After the root workspace
+exists, the authoritative install becomes `pnpm install --frozen-lockfile` from
+the repository root with one root lockfile.
 
 ### Frontend gates
 
 Current repository state:
 
 ```bash
-cd frontend && pnpm test
+pnpm --dir frontend test
 ```
 
 That command is exact but intentionally fails with `Error: no test specified`.
@@ -45,44 +51,61 @@ lint config, or test-runner config is present. Therefore the current commands ar
 |---|---|---|
 | Lint | None | `NOT_AVAILABLE` |
 | Type-check | None | `NOT_AVAILABLE` |
-| Test | `cd frontend && pnpm test` | Placeholder failure |
+| Test | `pnpm --dir frontend test` | Placeholder failure |
 | Build | None | `NOT_AVAILABLE` |
 
 The frontend-foundation issue must add these stable scripts, after which CI and
 developers use exactly:
 
 ```bash
-cd frontend && pnpm lint
-cd frontend && pnpm typecheck
-cd frontend && pnpm test
-cd frontend && pnpm build
+pnpm --filter ./frontend lint
+pnpm --filter ./frontend typecheck
+pnpm --filter ./frontend test
+pnpm --filter ./frontend build
 ```
 
 ### Backend gates
 
 ```bash
-cd backend && npm run lint
-cd backend && npx tsc --noEmit
-cd backend && npm test -- --runInBand
-cd backend && npm run check:architecture
-cd backend && npm run build
-cd backend && npx prisma validate
+pnpm --filter ./backend lint
+pnpm --filter ./backend exec tsc --noEmit
+pnpm --filter ./backend test -- --runInBand --testPathPattern=src
+pnpm --filter ./backend test -- --runInBand --testPathPattern=test
+pnpm --filter ./backend check:architecture
+pnpm --filter ./backend build
+pnpm --filter ./backend exec prisma validate
 ```
 
-`npm run check:architecture` was executed during the audit and failed because
-`backend/scripts/check-architecture.mjs` requires retired backend-local
-documentation paths and the former module tracker. Backend dependencies were not
-installed during this read-only audit, so the other gates were inspected but not
-executed.
+The first test command is the current unit boundary (`src/**/*spec.ts`); the
+second is the current integration/E2E boundary (`test/**/*spec.ts`). The package
+manifest does not provide named unit or integration scripts. These are the
+approved target pnpm workspace commands; they are not runnable until the root
+workspace exists. The results below were observed by invoking the same package
+scripts through the repository's current npm-oriented backend setup.
+
+| Gate | Result at this snapshot |
+|---|---|
+| Lint | `FAIL` — `eslint` is not installed locally |
+| Type-check | `NOT_RUN` — backend dependencies and the root workspace are absent |
+| Unit | `FAIL` — `jest` is not installed locally |
+| Integration/E2E | `FAIL` — `jest` is not installed locally |
+| Architecture | `FAIL` — 38 obsolete path/tracker assertions |
+| Prisma validation | `NOT_RUN` — backend dependencies and the root workspace are absent |
+| Build | `FAIL` — 235 TypeScript errors, primarily missing dependencies/generated Prisma client |
+
+No backend gate succeeded. These results do not distinguish dependency setup
+failure from latent source/test failures; rerun every gate after an approved
+frozen install.
 
 ### AI-service gates
 
-No exact lint or test command can be truthfully provided. The workspace contains
+No exact lint, type-check, or test command can be truthfully provided. The workspace contains
 no `pyproject.toml`, requirements file, Python lockfile, FastAPI source, or AI test
-directory. Record both gates as:
+directory. Record all three gates as:
 
 ```text
 AI lint: CANNOT_VERIFY — service repository/manifest missing
+AI type-check: CANNOT_VERIFY — service repository/manifest missing
 AI test: CANNOT_VERIFY — service repository/manifest missing
 ```
 
@@ -93,31 +116,38 @@ the commands; do not invent `ruff`, `pytest`, `uv`, or Poetry usage here.
 
 1. `.github/workflows/backend-ci.yml` runs `npm ci` from the monorepo root, where
    no `package.json` exists; all following backend steps are consequently unreachable.
-2. The workflow does not set `working-directory: backend` or use the backend lockfile explicitly.
-3. Backend CI omits `npx tsc --noEmit` and `npx prisma validate`.
-4. The architecture checker is independently broken by obsolete path assertions.
-5. No frontend install, lint, type-check, test, or build job exists.
-6. No AI-service checkout/install/lint/test/contract job exists.
-7. No PostgreSQL or Redis service exercises migrations, Prisma integration, queue retries, or concurrency constraints.
-8. No API contract, complete-loop E2E, accessibility, dependency audit, secret scan, container build, or Compose smoke test exists.
-9. No branch-protection evidence was available, so required-check enforcement is `CANNOT_VERIFY`.
+2. Push CI targets `main`, while the verified default branch is `master`.
+3. The workflow does not set `working-directory: backend` or use the backend lockfile explicitly.
+4. Backend CI omits `npx tsc --noEmit` and `npx prisma validate`.
+5. The architecture checker is independently broken by obsolete path assertions.
+6. No frontend install, lint, type-check, test, or build job exists.
+7. No AI-service checkout/install/lint/type-check/test/contract job exists.
+8. No PostgreSQL or Redis service exercises migrations, Prisma integration, queue retries, or concurrency constraints.
+9. No API contract, complete-loop E2E, accessibility, dependency audit, secret scan, container build, or Compose smoke test exists.
+10. No branch-protection evidence was available, so required-check enforcement is `CANNOT_VERIFY`.
 
 ## 3. Recommended delivery sequence
 
 | Order | Vertical slice | Outcome | Primary dependencies |
 |---|---|---|---|
-| 1 | Foundation and least-privilege identity | One account authenticates safely, GitHub public evidence is least-privilege, the public profile is logged-out accessible, and CI is trustworthy. | FastAPI repository location; role-migration compatibility; cookie/CSRF coordination |
-| 2 | Project and task publication | An authorized owner publishes a repository-free or permission-verified repository-backed project and one task. | Slice 1 contextual identity; SEC-001 permission checks |
-| 3 | Application and owner decision | Every valid application reaches the owner; accept/reject creates at most one primary assignment and correct scoped access. | Slice 2 project/task states; assignment migration |
-| 4 | Individual delivery evidence and owner review | The assigned contributor submits versioned attributable evidence and the owner approves, rejects, or requests changes without rewriting GitHub facts. | Slice 3 assignment; OQ-001 for files; closed-without-merge decision |
+| 1 | S0 Workflow and CI | Frozen installs and truthful frontend/backend/AI job outcomes feed one stable `ci-gate`; no product behavior changes. | Lockfile authority; FastAPI repository availability |
+| 2 | S1 Auth and Public Profile | One account authenticates safely with contextual capability semantics and a logged-out profile contract. | S0 gates; role-migration compatibility; cookie/CSRF coordination |
+| 3 | S2 GitHub and AI Skill Inference | GitHub public evidence is least-privilege and AI inference is auditable, disputable, and externally verifiable. | S0 gates; FastAPI repository; private-snapshot remediation policy |
+| 4 | S3 Project Publishing | An authorized owner publishes a repository-free or permission-verified repository-backed project and one task. | S1 identity; SEC-001 permission checks |
 
-AI skill inference security remediation runs inside Slice 1. Full AI inference
-completion can continue in parallel with Slices 2–4. Advisory application fit
-starts only after the Slice 3 application contract exists and cannot block it.
+S0 is the smallest safe first slice because every product slice otherwise lands
+behind a broken or nonexistent gate. S1 identity/public-profile and S2 GitHub/AI
+can proceed in parallel after S0, with shared auth/profile contracts coordinated.
+Advisory application fit starts only after the application contract exists and
+cannot block it.
 
-## 4. Parent issue — Slice 1
+## 4. Proposed task boundaries for S0–S2
 
-### `[PARENT] Foundation, contextual identity, least-privilege GitHub, and public profile`
+The boundaries below map to the Project taxonomy as follows: FND-01 is S0;
+FND-02, FND-03, FND-05, and FND-06 are S1; FND-04 and FND-07 are S2. The
+coordination parent spans these foundation slices and is not itself assignable.
+
+### Coordination parent — foundation, contextual identity, GitHub, and public profile
 
 **Requirement/decision IDs:** SEC-002, SEC-001, API-001, AD-001, AI-001,
 Product Spec §4.1 and §6, Delivery Plan Slice 1.
@@ -252,12 +282,99 @@ versions, changes-requested resubmission, repository-free evidence, authoritativ
 GitHub merge/close facts, visibly separate owner attestation, owner-only verdicts,
 and accepted-outcome audit history.
 
-## 6. Assignment and sizing rules
+## 6. Assignment, collision, and sizing rules
+
+Recommended assignee profiles:
+
+- **S0 / FND-01:** DevOps-oriented engineer experienced with GitHub Actions,
+  npm/pnpm reproducibility, NestJS/Prisma gates, and failure aggregation.
+- **S1 backend:** NestJS/Prisma security engineer comfortable with auth-session
+  compatibility, forward migrations, object authorization, and contract tests.
+- **S1 frontend:** React/TanStack engineer experienced with accessible routing,
+  auth transport, API-state boundaries, and Vitest-style component/route tests.
+- **S2 GitHub:** Backend integration engineer experienced with OAuth scopes,
+  token lifecycle, privacy containment, and GitHub API test doubles.
+- **S2 AI:** Python/FastAPI engineer who can verify model contracts, evidence
+  provenance, redaction, evaluation fixtures, and non-authoritative fallback.
+
+File-collision risks:
+
+- Only one owner at a time should change root/workspace CI, package manifests,
+  or lockfiles; `.github/workflows/backend-ci.yml` must be replaced rather than
+  left running beside an equivalent `ci.yml`.
+- FND-02 and FND-03 both touch identity DTOs, session/auth services, guards, and
+  Prisma; land the role/schema contract before final refresh/email integration.
+- FND-03 and FND-06 share the auth transport contract and must coordinate the
+  cookie/CORS/CSRF cutover.
+- FND-04 and FND-07 share the NestJS–FastAPI evidence contract; freeze fixtures
+  before parallel client/service implementation.
+- FND-02, FND-04, and later project work may all require Prisma migrations;
+  serialize schema integration and never edit applied migration files.
+
+Unresolved blockers:
+
+- DX-001 team capacity and named ownership are still open.
+- The bounded FastAPI repository, pinned revision, and native commands are absent.
+- Private GitHub token/snapshot remediation and retention policy are unapproved.
+- Cookie/CSRF compatibility and cutover behavior require an explicit issue-level decision.
+- OQ-001 blocks implementation of file/image evidence transport.
+- The deployed Prisma migration state and branch-protection rules cannot be verified locally.
+- Frontend lockfile repair and backend package-manager authority must precede trustworthy frozen installs.
+
+### Human follow-up and recommended defaults
+
+Human-provided direction on 2026-07-17:
+
+- The target monorepo contains sibling `frontend/`, `backend/`, and `ai/`
+  workspaces. The current external FastAPI repository will be moved under `ai/`.
+- JavaScript commands should be invoked from the repository root through the
+  pnpm workspace. The user's original `--workspace` wording maps to pnpm's
+  `--filter` option instead of shell directory changes.
+
+Repository consequences and recommended defaults:
+
+1. Add a root `pnpm-workspace.yaml` covering `frontend`, `backend`, and the
+   JavaScript package boundary if one later exists under `ai`; consolidate to one
+   root `pnpm-lock.yaml`, remove the nested backend workspace file, and retire
+   npm lock/install usage. Use commands such as `pnpm --filter ./frontend lint`
+   and `pnpm --filter ./backend lint`. Python under `ai/` remains independently
+   pinned and is invoked through its native tool after its real manifest is
+   present. This is prerequisite workspace work, not authorized by the current
+   CI-only file scope.
+2. For existing broad GitHub authorizations, block private evidence ingestion,
+   inventory affected accounts/snapshots, revoke broad OAuth tokens, reauthorize
+   with the approved least privilege, and remove impermissible stored snapshots
+   through an auditable retention action. Do not silently delete audit facts.
+3. For refresh transport, keep access tokens in memory and use a rotated
+   `HttpOnly`, `Secure`, host-only refresh cookie with explicit `SameSite` and
+   path policy. Require a cookie-to-header CSRF token plus Origin/Fetch-Metadata
+   validation for unsafe methods; `SameSite` alone is defense in depth.
+4. For Prisma, validate the schema and deploy all migrations against a disposable
+   PostgreSQL database in CI, then inspect an authorized deployed migration table
+   before creating any forward corrective migration. Never edit applied SQL.
+5. For external evidence files, default to private S3-compatible object storage,
+   presigned uploads, allowlisted size/type limits, quarantine plus malware scan,
+   authenticated downloads, audit metadata, and explicit retention/deletion.
+   Until OQ-001 is approved, implement only metadata/URL paths and keep file
+   acceptance blocked.
+6. After `ci-gate` has run successfully at least once, protect `master` by
+   requiring pull requests, one cross-owner approval, resolved conversations,
+   dismissal of stale approvals, and the `ci-gate` status check. Keep force push
+   and deletion disabled; do not configure a required check before GitHub has
+   observed that check name.
+7. DX-001 cannot be inferred. Human names, weekly availability, and ownership
+   constraints remain required before scheduling or assigning work.
+
+References for these operational recommendations: pnpm workspace documentation,
+GitHub OAuth revocation and protected-branch documentation, and the OWASP CSRF
+Prevention Cheat Sheet. They remain supporting recommendations and do not amend
+canonical product decisions.
 
 - `XS`: less than half a day.
 - `S`: up to one day.
 - `M`: one to two days.
-- `L`: never assign; split it before scheduling.
+- `L`: normally split before assignment.
+- `XL`: always split before assignment.
 - Role placeholders are not confirmed people or capacity. DX-001 must record actual developers, availability, and ownership before dates are promised.
 - FND-01 and FND-07 start immediately in parallel. FND-02, FND-04, and FND-05 form the next parallel wave. FND-03 and authenticated FND-06 integration follow their contracts.
 - Every issue identifies its canonical IDs, authorization impact, migration/API compatibility, tests, and gap-report evidence update before closure.

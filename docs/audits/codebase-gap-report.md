@@ -4,7 +4,7 @@
 
 **Observed:** 2026-07-17
 
-**Repository snapshot:** `4af57faa88e8a5a89dc4aed0dda7e99cb8a55070`
+**Repository snapshot:** `fd290a030756e510b82b5d87984b272bc9f128ef`
 
 **Normative sources:** `../product-spec.md`, `../architecture.md`,
 `../api-contracts.md`, `../delivery-plan.md`, `../decision-log.md`, and
@@ -13,7 +13,8 @@
 This report records repository evidence only. It does not introduce product
 requirements, approve open decisions, or replace the delivery plan. Runtime
 systems, external repositories, secrets, and deployed database state were not
-available during this read-only audit.
+available during this audit. Existing frontend dependencies were not changed;
+backend dependencies were absent and were not installed.
 
 ## Classification and severity
 
@@ -34,7 +35,7 @@ Severity describes the consequence of proceeding without resolving the finding:
 - **Requirement or decision ID:** Architecture §2; Test Strategy §1; Delivery Plan §2
 - **Classification:** `PARTIAL`
 - **Relevant code paths:** `frontend/package.json`, `frontend/pnpm-lock.yaml`, `backend/package.json`, `backend/package-lock.json`, `backend/pnpm-lock.yaml`, `backend/pnpm-workspace.yaml`
-- **Current behavior:** There is no root workspace manifest or root `package.json`. The frontend declares pnpm, while the backend contains both npm and pnpm lockfiles and its Dockerfile/CI use npm.
+- **Current behavior:** There is no root workspace manifest or root `package.json`. The frontend declares pnpm, but `frontend/pnpm-lock.yaml` contains two concatenated YAML documents (a pnpm self-install lock followed by the app lock). The backend contains both npm and pnpm lockfiles while its Dockerfile/CI use npm; the npm lock root also retains `google-auth-library`, which is absent from `backend/package.json`.
 - **Expected behavior:** Each workspace has one unambiguous, reproducible install contract and root automation enters the correct workspace.
 - **Severity:** `MEDIUM`
 - **Migration or security risk:** Mixed lockfiles can resolve different dependency graphs locally and in CI, weakening reproducibility and security-patch verification.
@@ -45,7 +46,7 @@ Severity describes the consequence of proceeding without resolving the finding:
 - **Requirement or decision ID:** Product Spec §§4.1–4.10; API-001; PD-003; Test Strategy §§1–2
 - **Classification:** `NOT_IMPLEMENTED`
 - **Relevant code paths:** `frontend/src/routes/index.tsx`, `frontend/src/routes/__root.tsx`, `frontend/src/router.tsx`, `frontend/package.json`, `frontend/vite.config.ts`
-- **Current behavior:** The frontend is the TanStack file-counter starter. It writes `count.txt`; the only package script is an intentionally failing placeholder test. There is no `tsconfig.json`, lint configuration, test runner, API client, authentication flow, public profile, or contribution-loop UI.
+- **Current behavior:** The frontend is the TanStack file-counter starter. It writes `count.txt`; the only package script is an intentionally failing placeholder test, confirmed by `pnpm test`. There is no `tsconfig.json`, lint configuration, test runner, API client, authentication flow, public profile, or contribution-loop UI.
 - **Expected behavior:** A responsive, accessible frontend implements the public profile and required manual/AI workflow, with runnable lint, type-check, test, and build scripts.
 - **Severity:** `CRITICAL`
 - **Migration or security risk:** Starting feature work without an API/auth boundary can lead to persistent token storage, private-data rendering, contract drift, and untestable screens.
@@ -67,7 +68,7 @@ Severity describes the consequence of proceeding without resolving the finding:
 - **Requirement or decision ID:** Delivery Plan §2; Test Strategy §1
 - **Classification:** `IMPLEMENTED_DIFFERENTLY`
 - **Relevant code paths:** `.github/workflows/backend-ci.yml`, `backend/package.json`, `backend/scripts/check-architecture.mjs`
-- **Current behavior:** The sole workflow runs `npm ci`, Prisma, architecture, lint, test, and build from the repository root, where no `package.json` exists. It has no frontend or AI jobs and omits an explicit TypeScript no-emit check and Prisma validation.
+- **Current behavior:** The sole workflow runs `npm ci`, Prisma, architecture, lint, test, and build from the repository root, where no `package.json` exists. Its push trigger names `main`, but the verified default branch is `master`. It has no frontend or AI jobs and omits an explicit TypeScript no-emit check and Prisma validation.
 - **Expected behavior:** CI installs and runs gates from each workspace and covers frontend, backend, AI, contracts, schema, and security-relevant integration paths.
 - **Severity:** `CRITICAL`
 - **Migration or security risk:** Pull requests can have no meaningful required verification; dependency and schema failures may reach integration branches unnoticed.
@@ -306,7 +307,7 @@ Severity describes the consequence of proceeding without resolving the finding:
 - **Requirement or decision ID:** Architecture §2; Delivery Plan §2; Test Strategy §§1, 6
 - **Classification:** `CANNOT_VERIFY`
 - **Relevant code paths:** `backend/prisma/schema.prisma`, `backend/prisma/migrations/`
-- **Current behavior:** Ten migration directories exist. The migration creates `AuthProvider` with `google` and `github`, while the current Prisma schema declares only `github` even though Google auth code exists. No database or migration history table was available to verify which migrations are deployed or whether schema drift exists.
+- **Current behavior:** Ten migration directories exist. The migration creates `AuthProvider` with `google` and `github`, while the current Prisma schema declares only `github` even though Google auth code exists. No database or migration history table was available to verify which migrations are deployed or whether schema drift exists. `npx prisma validate` was not run because backend dependencies are absent and dependency installation is prohibited in this stage.
 - **Expected behavior:** Prisma schema, generated client, migrations, and deployed databases agree; migration checks are reproducible and forward-safe.
 - **Severity:** `CRITICAL`
 - **Migration or security risk:** Regenerating the client or migrating a database may break Google auth or conceal drift. Production data compatibility is unknown.
@@ -341,7 +342,7 @@ Severity describes the consequence of proceeding without resolving the finding:
 - **Requirement or decision ID:** Test Strategy §§1–6; Delivery Plan §2
 - **Classification:** `PARTIAL`
 - **Relevant code paths:** `backend/src/**/*.spec.ts`, `backend/test/*.spec.ts`, `frontend/package.json`
-- **Current behavior:** The repository contains 26 backend spec files and 82 `it`/`test` cases focused on identity, profile presentation, GitHub, projects import, skill generation, and AI-client validation. Several HTTP tests use mocked/in-memory persistence. There are no frontend tests, FastAPI tests, real PostgreSQL/Redis integration suites, target API contract suite, complete-loop E2E, accessibility suite, or locked AI evaluation set.
+- **Current behavior:** The repository contains 26 backend spec files and 78 statically counted `it`/`test` cases focused on identity, profile presentation, GitHub, projects import, skill generation, and AI-client validation. Several HTTP tests use mocked/in-memory persistence. Backend unit and integration commands could not start because Jest is not installed locally. There are no frontend tests, FastAPI tests, real PostgreSQL/Redis integration suites, target API contract suite, complete-loop E2E, accessibility suite, or locked AI evaluation set.
 - **Expected behavior:** Success, invalid, forbidden, and failure paths are automated at unit/integration/contract/UI/E2E boundaries, including the complete loop, repository-free flow, unavailable integration, security, and AI safety.
 - **Severity:** `CRITICAL`
 - **Migration or security risk:** Mock-only success can hide database constraints, migration drift, queue races, authorization leaks, and public/private projection errors.
@@ -368,6 +369,26 @@ Severity describes the consequence of proceeding without resolving the finding:
 - **Severity:** `LOW`
 - **Migration or security risk:** No direct migration risk; treating liveness as full PostgreSQL/Redis/AI readiness would be misleading.
 - **Recommended action:** Retain it and distinguish liveness from readiness in later deployment hardening.
+
+## Command audit at this snapshot
+
+Commands were run without installing dependencies or contacting live product
+integrations:
+
+| Command | Result |
+|---|---|
+| `cd frontend && pnpm test` | `FAIL` — declared placeholder exits with `Error: no test specified` |
+| `cd backend && npm run check:architecture` | `FAIL` — 38 stale/missing documentation and retired-tracker assertions |
+| `cd backend && npm run lint` | `FAIL` — local `eslint` executable absent |
+| `cd backend && npm test -- --runInBand --testPathPattern=src` | `FAIL` — local `jest` executable absent |
+| `cd backend && npm test -- --runInBand --testPathPattern=test` | `FAIL` — local `jest` executable absent |
+| `cd backend && npm run build` | `FAIL` — 235 TypeScript errors, primarily missing dependencies/generated Prisma client |
+| `cd backend && npx tsc --noEmit` | `NOT_RUN` — `npx` could download missing dependencies |
+| `cd backend && npx prisma validate` | `NOT_RUN` — `npx` could download missing dependencies |
+
+No declared frontend, backend, or AI quality gate succeeded in this checkout.
+This is an environment/reproducibility result, not proof that every backend test
+would fail after a clean approved install.
 
 ## Audit conclusion
 
