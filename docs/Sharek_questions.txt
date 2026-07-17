@@ -1,0 +1,229 @@
+ Please answer these in order. Short answers are acceptable; use unknown where undecided.
+
+  Product Vision
+
+  1. What is Share-k in one sentence?
+  2. What painful problem does it solve?
+  3. Who experiences that problem today?
+  4. What happens if Share-k does not exist?
+  5. Is Share-k primarily a marketplace, staffing platform, collaboration platform, assessment system,
+     learning product, or something else?
+
+  6. What is the smallest version of Share-k that creates real value?
+  7. What must Share-k never become?
+  8. What does success look like after 12 months?
+  9. What is the primary unit of value: a contributor, a project, a task, a completed delivery, or a
+     verified skill?
+
+  Business Goals
+
+  10. Who pays for Share-k?
+  11. What exactly are they paying for?
+  12. Is revenue generated from project owners, contributors, subscriptions, commissions, assessments,
+     or another source?
+
+  13. Are contributors employees, freelancers, volunteers, students, or community members?
+  14. Is the first market local, regional, global, or internal to one organization?
+  15. Is the goal to maximize successful deliveries, contributor growth, revenue, trust, or something
+     else?
+
+  16. Which business metric would make you shut down or radically change the product?
+  17. What would make a project owner choose Share-k instead of GitHub, Upwork, LinkedIn, or direct
+     hiring?
+
+  Users And Personas
+
+  18. What user types exist?
+  19. What is the difference between a contributor, project owner, reviewer, administrator, and
+     organization?
+
+  20. Can one person act as both contributor and project owner?
+  21. Who creates projects?
+  22. Who creates tasks?
+  23. Who decides whether a contributor is qualified?
+  24. Who can see contributor profiles?
+  25. Who can see private evidence?
+  26. Who can dispute a skill assessment or reputation score?
+  27. Are organizations first-class tenants with multiple users?
+  28. What is the most important workflow for each persona?
+
+  Core Workflows
+
+  29. Describe the complete contributor journey from registration to receiving and completing work.
+  30. Describe the complete project-owner journey from project creation to accepting delivery.
+  31. What happens when a contributor applies to a task?
+  32. Is matching automatic, recommended, or entirely manual?
+  33. Can a project owner reject a recommendation?
+  34. Can a contributor reject an assigned task?
+  35. What happens when a task is late, abandoned, or poorly delivered?
+  36. Is there a review, dispute, appeal, or remediation workflow?
+  37. What happens after a contributor completes several successful tasks?
+  38. What must be visible to the contributor at every step?
+  39. Which workflow is most important for the MVP?
+
+  AI Responsibilities
+
+  40. What do you want AI to do?
+  41. What must AI never do?
+  42. Should AI only recommend, or may it make automatic decisions?
+  43. May AI reject a contributor?
+  44. May AI block a contributor for suspected fraud?
+  45. May AI change reputation?
+  46. May AI assign contributors to tasks without human approval?
+  47. Is AI expected to analyze source code, or only GitHub metadata?
+  48. Should AI explain every recommendation to users or only to administrators?
+  49. What level of explanation is required: short reasons, exact files and commits, or a complete
+     audit trail?
+
+  50. What should happen when AI has insufficient or contradictory evidence?
+  51. Is human review a normal product state or only an emergency fallback?
+  52. Do you want AI to provide contributor coaching or skill-gap recommendations?
+  53. Are you expecting one general model or multiple specialized components?
+  54. What errors are more dangerous: falsely accepting an unqualified contributor or falsely rejecting
+     a qualified one?
+
+  Backend And Ownership
+
+  55. Which system owns users, projects, tasks, applications, reviews, and reputation?
+  56. Which system owns the final eligibility decision?
+  57. Which system owns the canonical contributor profile?
+  58. Is AI allowed to write business data directly, or must it return recommendations to the backend?
+  59. Which events must be auditable permanently?
+  60. What must be reversible?
+  61. What data must be versioned rather than overwritten?
+  62. What is the source of truth when GitHub data, AI output, human review, and delivery feedback
+     disagree?
+
+  GitHub Integration
+
+  63. Is GitHub the required identity provider or only one optional evidence source?
+  64. Will contributors connect public repositories only, private repositories, or both?
+  65. What exact permissions may Share-k request?
+  66. Can contributors choose which repositories are analyzed?
+  67. Can contributors exclude specific commits, files, or repositories?
+  68. How will you handle forks, copied code, shared team repositories, bots, and merge commits?
+  69. How will you prove that a contributor authored a change?
+  70. Are commit counts, stars, followers, and repository popularity merely context, or do you intend
+     to use them for ranking?
+
+  71. How recent must GitHub evidence be?
+  72. Should deleted repositories or deleted commits remain in the audit history?
+  73. What happens when a contributor disconnects GitHub?
+  74. Must all GitHub-derived data be deleted on request?
+  75. Will Share-k support GitLab, Bitbucket, uploaded portfolios, or manual evidence later?
+
+  Matching Philosophy
+
+  76. What does “good match” mean?
+  77. Is matching based on technical skill, domain experience, availability, budget, timezone,
+     communication, reliability, or all of these?
+
+  78. Which requirements are hard constraints?
+  79. Which requirements are preferences?
+  80. Should a contributor with weaker technical evidence but excellent delivery history outrank a
+     technically stronger new contributor?
+
+  81. Should matching optimize for success probability, fairness, learning opportunity, speed, cost, or
+     diversity?
+
+  82. Should contributors be shown why they were or were not matched?
+  83. Can project owners manually override matching?
+  84. Should the system learn from those overrides?
+  85. How do you prevent popularity or historical success from creating a winner-takes-all ranking?
+
+  Reputation Philosophy
+
+  86. What does reputation represent: technical skill, reliability, collaboration, delivery quality,
+     trust, or a combination?
+
+  87. Should reputation be one score or multiple dimensions?
+  88. Which events increase reputation?
+  89. Which events decrease reputation?
+  90. How much should one bad delivery matter compared with several successful deliveries?
+  91. Should reputation decay over time?
+  92. Should reputation transfer between technologies or domains?
+  93. Can a contributor recover from a poor reputation?
+  94. Who can see reputation details?
+  95. Can project owners leave public ratings?
+  96. How will you prevent retaliation, rating manipulation, collusion, and discrimination?
+  97. Is reputation a recommendation signal or an eligibility gate?
+
+  Privacy And Governance
+
+  98. What jurisdictions and privacy laws apply?
+  99. What explicit consent must contributors provide?
+  100. Can private source code be sent to an external AI provider?
+  101. Can raw source code be stored, or only derived evidence?
+  102. How long should GitHub data and analysis artifacts be retained?
+  103. Who can access private repository evidence?
+  104. Should project owners see exact files and commits, or only summarized proof?
+  105. What happens when a contributor requests correction or deletion?
+  106. Do contributors have the right to see, challenge, and appeal AI-generated claims?
+  107. Will Share-k use sensitive personal attributes in matching?
+  108. How will you test for bias against contributors with fewer public repositories, career gaps, or
+     nontraditional contribution patterns?
+
+  Roadmap
+
+  109. What is explicitly in the MVP?
+  110. What is explicitly out of scope for the MVP?
+  111. Are payments, messaging, teams, learning, certifications, or enterprise organizations planned?
+  112. Is real-time collaboration planned?
+  113. Is multimodal input planned, such as design files, videos, or documents?
+  114. Is the long-term goal a contributor marketplace, an internal engineering intelligence platform,
+     or both?
+
+  115. Which future feature must the initial data model support without forcing a rewrite?
+
+  Technical Constraints
+
+  116. What backend and deployment technologies are fixed?
+  117. Must the system run on a specific cloud or budget hosting provider?
+  118. Are external AI providers allowed?
+  119. Are open-source or self-hosted models required?
+  120. Are private model deployments required?
+  121. What availability target is expected?
+  122. What latency is acceptable for profile generation and task matching?
+  123. What failures must degrade gracefully?
+  124. Is asynchronous processing acceptable for GitHub analysis?
+  125. Are there restrictions on storing source code or embeddings?
+  126. Do you require multi-tenant isolation from the first release?
+
+  Scale And Cost
+
+  127. How many contributors do you expect in year one, three years, and at maturity?
+  128. How many repositories per contributor?
+  129. How many files or commits per repository?
+  130. How many projects and tasks will exist?
+  131. How many matching requests per day?
+  132. How often should profiles refresh?
+  133. What is the monthly infrastructure budget?
+  134. What is the acceptable AI cost per contributor profile?
+  135. What is the acceptable AI cost per match?
+  136. Which is more important when forced to choose: lower cost, lower latency, or higher accuracy?
+  137. What percentage of cases may go to human review?
+  138. Do you have reviewers available to label training and evaluation data?
+
+  Success And Failure
+
+  139. What minimum accuracy would make skill profiling useful?
+  140. Which false-positive outcome would be unacceptable?
+  141. Which false-negative outcome would be unacceptable?
+  142. How will you know that matching improved project outcomes rather than merely producing plausible
+     explanations?
+
+  143. What baseline will Share-k beat?
+  144. What evidence would convince you that the AI architecture is failing?
+  145. Who has authority to pause AI decisions or roll back a model, prompt, ontology, or scoring
+     change?
+
+  I will use your answers to produce a written product model first. I will also explicitly flag
+  contradictions such as:
+
+  - Wanting automatic decisions while requiring complete human explainability.
+  - Wanting private-repository analysis while disallowing external processing.
+  - Wanting low cost while requiring full repository understanding.
+  - Wanting one reputation score while also requiring fairness and detailed explanations.
+  - Wanting global scale while retaining every raw repository artifact indefinitely.
+
+  Until those questions are resolved, I will not propose the architecture.

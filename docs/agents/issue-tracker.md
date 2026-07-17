@@ -1,6 +1,6 @@
 # Issue tracker: GitHub (source of truth) + local scratch (working notes)
 
-GitHub is the source of truth for issues and PRDs in this repo (`ITI-Sharek/Backend`). `.scratch/<feature-slug>/` holds in-progress planning notes and drafts — specs, half-formed tickets, wayfinding maps — before or alongside their GitHub counterpart. Whatever gets referenced, closed, and linked from PRs is the GitHub issue, not the scratch file.
+GitHub is the source of truth for issues and PRDs in this repo (`ITI-Sharek/Sharek` — the unified monorepo; `backend/` and `frontend/` were previously separate repos and are now folders here, tracked as one issue tracker). `.scratch/<feature-slug>/` holds in-progress planning notes and drafts — specs, half-formed tickets, wayfinding maps — before or alongside their GitHub counterpart. Whatever gets referenced, closed, and linked from PRs is the GitHub issue, not the scratch file.
 
 ## Conventions
 
@@ -11,7 +11,9 @@ GitHub is the source of truth for issues and PRDs in this repo (`ITI-Sharek/Back
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
 
-Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
+Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone. There's a single `origin` remote (`ITI-Sharek/Sharek`) now, so no `-R` flag is needed.
+
+Issues aren't split by folder — file one issue tracker regardless of whether the work touches `backend/`, `frontend/`, or both. Use labels (e.g. `area:backend`, `area:frontend`) if you need to filter by area, not separate repos.
 
 ## Drafting in `.scratch/` before publishing
 

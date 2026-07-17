@@ -121,7 +121,7 @@ environment variables. Never log or persist raw provider secrets unnecessarily.
 1. The owning service performs deterministic authorization and eligibility checks.
 2. It builds a bounded, structured input.
 3. It calls `AiService`.
-4. `AiService` delegates to a FastAPI client.
+4. `AiService` delegates to the `AiPort` implementation — in-process, no separate service (see `architecture.md` §3, ADR-003).
 5. The owning service validates the recommendation and makes the final decision.
 6. The owning module stores business state and the audit snapshot.
 
@@ -144,7 +144,7 @@ concerns such as retries, recovery, logging, and final failure marking.
 6. Implement the service behavior.
 7. Add the thin controller route if needed.
 8. Add focused unit tests and relevant HTTP/E2E coverage.
-9. Update the module README and `docs/module-development-tracker.md`.
+9. Update the module README.
 10. Run the quality gates from `docs/definition-of-done.md`.
 
 ## Avoid These Patterns

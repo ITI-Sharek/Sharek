@@ -28,28 +28,29 @@ Backlog tasks:
 
 ## Owners
 
-| Area | Human Owner | AI Agent Scope |
-| --- | --- | --- |
-| Backend core | M4 | `docs/ai-agents/m4-backend-core.md` |
-| AI | M2 | `docs/ai-agents/m2-ai-engineer.md` |
-| Integration/cloud | M5 | `docs/ai-agents/m5-backend-integration-cloud.md` |
-| DevOps/QA | M6 | `docs/ai-agents/m6-devops-qa.md` |
+| Area | Owner |
+| --- | --- |
+| Backend | |
+| Frontend | |
+| AI | |
+| Testing | |
+| DevOps | |
+
+Map to the team allocation in `product-brief.md` §6.
 
 ## Backend Deliverables
 
 - Deliverable 1.
 - Deliverable 2.
 
-## Module Tracker Plan
+## Documentation Updates
 
-For each backend task, copy the checklist from
-`docs/module-development-tracker.md` and record:
+For each backend task, record:
 
 - Owning module:
 - Module README updates required:
-- API docs updates required:
-- Database docs updates required:
-- Tracker change record owner:
+- API docs updates required (`api-contracts.md`):
+- Database docs updates required (`data-model-and-erd.md`):
 
 ## API Changes
 
@@ -91,5 +92,3 @@ Describe the user-visible flow that proves the sprint works.
 ## Definition Of Done
 
 Use `docs/definition-of-done.md`.
-
-Append completed module changes to `docs/module-development-tracker.md`.
