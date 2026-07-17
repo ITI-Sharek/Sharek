@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const monorepoRoot = path.resolve(rootDir, '..');
 const modulesDir = path.join(rootDir, 'src/modules');
 const errors = [];
 
@@ -72,23 +73,24 @@ function importTargets(source) {
 }
 
 function checkRequiredFiles(modules) {
-  const files = [
-    'AGENTS.md',
-    'README.md',
+  const backendFiles = ['AGENTS.md', 'README.md', 'src/modules/README.md'];
+  const monorepoFiles = [
     '.github/pull_request_template.md',
     'docs/architecture.md',
-    'docs/developer-architecture-guide.md',
-    'docs/module-development-tracker.md',
-    'docs/backend-conventions.md',
-    'docs/ai-agent-rules.md',
-    'docs/definition-of-done.md',
-    'docs/folder-structure.md',
-    'docs/examples/module-skeleton.md',
-    'bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md',
+    'docs/audits/codebase-gap-report.md',
+    'docs/delivery-plan.md',
+    'docs/operations/engineering-guide.md',
+    'docs/operations/module-skeleton.md',
+    'docs/tooling/ai-agent-rules.md',
   ];
 
-  for (const file of files) {
+  for (const file of backendFiles) {
     if (!existsSync(path.join(rootDir, file))) fail(`Missing required file: ${file}`);
+  }
+  for (const file of monorepoFiles) {
+    if (!existsSync(path.join(monorepoRoot, file))) {
+      fail(`Missing required monorepo file: ${file}`);
+    }
   }
 
   for (const moduleName of modules) {
@@ -158,17 +160,16 @@ function checkCrossModuleImports() {
 }
 
 function checkDocumentation(modules) {
-  const canonicalFiles = [
+  const backendDocs = [
     'AGENTS.md',
     'README.md',
-    'docs/architecture.md',
-    'docs/developer-architecture-guide.md',
-    'docs/backend-conventions.md',
-    'docs/ai-agent-rules.md',
-    'docs/definition-of-done.md',
-    'docs/folder-structure.md',
-    'docs/examples/module-skeleton.md',
     'src/modules/README.md',
+  ];
+  const monorepoDocs = [
+    'docs/architecture.md',
+    'docs/operations/engineering-guide.md',
+    'docs/operations/module-skeleton.md',
+    'docs/tooling/ai-agent-rules.md',
   ];
   const forbidden = [
     'application/use-cases',
@@ -178,27 +179,28 @@ function checkDocumentation(modules) {
     'controllers call use cases',
   ];
 
-  for (const file of canonicalFiles) {
+  for (const file of backendDocs) {
     const text = readText(path.join(rootDir, file)).toLowerCase();
     for (const phrase of forbidden) {
       if (text.includes(phrase)) fail(`${file} contains stale guidance: ${phrase}`);
     }
   }
 
-  const tracker = readText(path.join(rootDir, 'docs/module-development-tracker.md'));
-  const guide = readText(path.join(rootDir, 'docs/developer-architecture-guide.md'));
-  for (const moduleName of modules) {
-    if (!tracker.includes(`\`${moduleName}\``)) {
-      fail(`Tracker does not mention module \`${moduleName}\`.`);
-    }
-    if (!guide.includes(`\`${moduleName}\``)) {
-      fail(`Developer guide does not mention module \`${moduleName}\`.`);
+  for (const file of monorepoDocs) {
+    const text = readText(path.join(monorepoRoot, file)).toLowerCase();
+    for (const phrase of forbidden) {
+      if (text.includes(phrase)) fail(`${file} contains stale guidance: ${phrase}`);
     }
   }
 
-  for (const file of ['AGENTS.md', 'README.md', 'docs/definition-of-done.md', 'docs/ai-agent-rules.md']) {
-    if (!readText(path.join(rootDir, file)).includes('docs/module-development-tracker.md')) {
-      fail(`${file} must reference docs/module-development-tracker.md`);
+  const moduleIndex = readText(path.join(modulesDir, 'README.md'));
+  for (const moduleName of modules) {
+    if (!moduleIndex.includes(`\`${moduleName}\``)) {
+      fail(`src/modules/README.md does not mention module \`${moduleName}\`.`);
+    }
+    const moduleReadme = path.join(modulesDir, moduleName, 'README.md');
+    if (!readText(moduleReadme).trim()) {
+      fail(`${relative(moduleReadme)} must describe the module.`);
     }
   }
 }
