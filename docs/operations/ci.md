@@ -16,7 +16,8 @@ pnpm install --frozen-lockfile
 
 The root `pnpm-workspace.yaml` currently includes `frontend/` and `backend/`.
 There is one root `pnpm-lock.yaml`; project-local pnpm locks and the former
-backend npm lock are not authoritative.
+backend npm lock are not authoritative. The Python AI service lives under
+`ai/` and is validated by the AI job, not by pnpm.
 
 Use pnpm filters from the repository root:
 
@@ -35,12 +36,21 @@ pnpm --filter ./backend exec prisma validate
 pnpm --filter ./backend build
 ```
 
+Use these Python commands from the repository root:
+
+```bash
+python -m pip install --requirement ai/requirements.txt
+python -m pylint ai/src/sharek_agents
+python -m compileall -q ai/src/sharek_agents
+```
+
 ## Job graph
 
 ```text
 repository-checks --+
-frontend ----------+--> ci-gate
-backend -----------+
+frontend ----------+
+backend -----------+--> ci-gate
+ai ----------------+
 ```
 
 - `repository-checks` verifies that the consolidated lockfile supports a frozen
@@ -48,19 +58,21 @@ backend -----------+
 - `frontend` requires lint, type-check, test, and build scripts, then runs each.
 - `backend` generates the Prisma client and runs lint, type-check, unit,
   integration/E2E, architecture, Prisma validation, and build checks.
+- `ai` verifies that Python dependencies are exact-pinned, installs them, runs
+  pylint, compiles modules, and fails if no AI unit or contract tests exist.
 - `ci-gate` runs with `always()` and fails unless every required job reports
   `success`, including when an upstream job fails, is skipped, or is cancelled.
 
 ## Current known failures and skips
 
-- The frontend package currently defines only an intentionally failing
-  placeholder test. Its CI job reports missing `lint`, `typecheck`, and `build`
-  scripts before feature work can be treated as verified.
-- The backend architecture checker still targets retired documentation paths and
-  is expected to fail until its separate tooling issue is implemented.
-- FastAPI source has not yet been moved into `ai/`. No AI job exists until the
-  real Python manifest, pinned dependency command, lint, type-check, test, and
-  mocked contract commands can be read from that workspace.
+- The backend architecture checker must pass against the current documentation
+  layout.
+- `ai/requirements.txt` currently uses unpinned package names. The AI job fails
+  until every dependency is exact-pinned.
+- No AI unit or mocked contract tests are present under `ai/`. The AI job fails
+  until those tests exist.
+- AI type-checking is not configured yet. Add a type-check step only after a
+  real local command exists.
 
 These are visible delivery blockers. Do not weaken `ci-gate`, add placeholder
 success steps, or invent AI commands to make CI appear green.
@@ -69,8 +81,11 @@ success steps, or invent AI commands to make CI appear green.
 
 Ordinary CI uses no production secrets and calls no paid AI or live GitHub API.
 Backend tests disable the skill-profile queue by default and use controlled test
-doubles for GitHub and FastAPI boundaries. No database or Redis service container
-is configured because the current suites do not prove they require one.
+doubles for GitHub and FastAPI boundaries. The AI job installs dependencies,
+lints source, compiles modules, and checks for tests; it must not invoke
+OpenRouter, live GitHub, or other external application APIs. No database or
+Redis service container is configured because the current suites do not prove
+they require one.
 
 Add PostgreSQL or Redis services only with a real integration test and isolated
 test credentials. Never run destructive migrations or use production data.

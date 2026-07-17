@@ -132,6 +132,64 @@ jobs:
       - name: Build
         run: pnpm --filter ./backend build
 
+  ai:
+    name: AI service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ai/requirements.txt
+
+      - name: Verify pinned Python dependencies
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          req = Path("ai/requirements.txt")
+          unpinned = []
+          for raw in req.read_text().splitlines():
+              line = raw.strip()
+              if not line or line.startswith("#") or line.startswith(("-r ", "--")):
+                  continue
+              if not re.search(r"(==|===)", line):
+                  unpinned.append(line)
+          if unpinned:
+              print("Unpinned ai/requirements.txt entries:")
+              for item in unpinned:
+                  print(f"- {item}")
+              raise SystemExit(1)
+          PY
+
+      - name: Install AI dependencies
+        run: python -m pip install --requirement ai/requirements.txt
+
+      - name: Lint
+        run: python -m pylint ai/src/sharek_agents
+
+      - name: Compile Python modules
+        run: python -m compileall -q ai/src/sharek_agents
+
+      - name: Verify AI tests are present
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          tests = [
+              path
+              for path in Path("ai").rglob("*.py")
+              if path.name.startswith("test_") or path.name.endswith("_test.py")
+          ]
+          if not tests:
+              print("No AI unit or contract tests found under ai/.")
+              raise SystemExit(1)
+          PY
+
   ci-gate:
     name: ci-gate
     if: ${{ always() }}
@@ -139,6 +197,7 @@ jobs:
       - repository-checks
       - frontend
       - backend
+      - ai
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -147,8 +206,9 @@ jobs:
           REPOSITORY_CHECKS_RESULT: ${{ needs.repository-checks.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
+          AI_RESULT: ${{ needs.ai.result }}
         run: |
-          for result in "$REPOSITORY_CHECKS_RESULT" "$FRONTEND_RESULT" "$BACKEND_RESULT"; do
+          for result in "$REPOSITORY_CHECKS_RESULT" "$FRONTEND_RESULT" "$BACKEND_RESULT" "$AI_RESULT"; do
             if [ "$result" != "success" ]; then
               echo "A required CI job did not succeed: $result"
               exit 1
