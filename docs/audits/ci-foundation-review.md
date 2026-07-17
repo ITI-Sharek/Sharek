@@ -23,23 +23,19 @@
 - Added AI lint, compile, and test-presence gates using repository-local commands.
 - Updated `docs/operations/ci.md` to describe the four required CI jobs and current AI blockers.
 - Added Python cache and virtualenv ignores to `.gitignore`.
+- Updated the backend architecture checker to validate current repository docs
+  and backend module boundaries instead of retired planning documents.
+- Pinned direct AI dependencies in `ai/requirements.txt`.
 
 ## Critical Findings
 
 1. **NO-GO: branch scope is no longer CI-only.**
    The branch contains application/product code, including the FastAPI service under `ai/` and frontend tooling/application files. That violates the original Stage 3/4 expectation that this branch prepare CI and collaboration foundation without product feature work. Do not open this PR as a pure CI foundation PR unless a human explicitly approves the broadened scope or splits the AI/frontend work into separate branches.
 
-2. **NO-GO: backend architecture check still fails.**
-   `pnpm --filter ./backend check:architecture` still expects retired documentation paths such as `docs/module-development-tracker.md`, `docs/developer-architecture-guide.md`, and `bmad/_bmad-output/...`. The CI gate will fail until the checker is updated to the current documentation layout or the command is intentionally replaced.
-
-3. **NO-GO: AI dependencies are not pinned.**
-   `ai/requirements.txt` contains package names without exact versions. The AI job now fails before install to prevent nondeterministic CI:
-   `fastapi`, `graphifyy`, `uvicorn`, `PyGithub`, `langchain`, `langchain-community`, `langchain-openrouter`, `langgraph`, `python-dotenv`, `radon`, `pylint`.
-
-4. **NO-GO: AI tests are absent.**
+2. **NO-GO: AI tests are absent.**
    No `test_*.py` or `*_test.py` files exist under `ai/`. The AI job now fails until unit and mocked contract tests exist.
 
-5. **Caution: frontend test command passes with no tests.**
+3. **Caution: frontend test command passes with no tests.**
    `pnpm --filter ./frontend test` passes because it uses `vitest run --passWithNoTests`. This is acceptable only as temporary CI plumbing. It is not meaningful test coverage.
 
 ## Validation Results
@@ -60,18 +56,20 @@ Passed:
 - `pnpm --filter ./backend exec prisma validate`
 - `pnpm --filter ./backend test --runInBand --testPathPattern=src`
 - `pnpm --filter ./backend test --runInBand --testPathPattern=test`
+- `pnpm --filter ./backend check:architecture`
 - `pnpm --filter ./backend build`
+- AI exact-pin validation for `ai/requirements.txt`
+- pinned AI dependency dry-run resolution
 - `python -m compileall -q ai/src/sharek_agents`
 
 Failed:
 
-- `pnpm --filter ./backend check:architecture`
-- AI exact-pin validation for `ai/requirements.txt`
+- AI test-presence validation, because no AI tests exist yet.
 
 Not run:
 
-- `python -m pip install --requirement ai/requirements.txt`, because dependency pin validation failed first.
-- `python -m pylint ai/src/sharek_agents`, because dependency install is intentionally blocked until pins exist.
+- `python -m pip install --requirement ai/requirements.txt`, because only a dry-run dependency resolution was needed for the pin fix.
+- `python -m pylint ai/src/sharek_agents`, because dependencies were not installed locally.
 - AI unit and contract tests, because no tests exist.
 - `actionlint`, because it is not installed locally.
 
@@ -88,8 +86,8 @@ Not run:
 Do not run these until the NO-GO blockers are resolved or a human explicitly approves the broadened branch scope.
 
 ```bash
-git add .github/workflows/ci.yml .gitignore docs/operations/ci.md docs/audits/ci-foundation-review.md
-git commit -m "ci: review and gate AI service checks"
+git add .github/workflows/ci.yml .gitignore ai/requirements.txt backend/scripts/check-architecture.mjs docs/operations/ci.md docs/audits/ci-foundation-review.md
+git commit -m "ci: fix architecture and AI dependency gates"
 git push origin chore/github-workflow-and-ci
 gh pr edit 4 --title "chore: unified workspace CI, frontend tooling, husky, docs, and AI service groundwork" --body-file docs/audits/ci-foundation-review.md
 ```
@@ -101,4 +99,5 @@ Choose one before PR creation:
 1. Split application changes out of `chore/github-workflow-and-ci` and keep this PR to CI/templates/docs only.
 2. Explicitly approve broadening this PR to include the AI service and frontend tooling.
 
-Even with option 2, CI remains NO-GO until the backend architecture check, AI dependency pins, and AI tests are fixed.
+Even with option 2, CI remains NO-GO until AI tests are added or the AI test
+gate is explicitly deferred by a human.
