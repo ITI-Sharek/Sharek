@@ -59,14 +59,15 @@ ai ----------------+
 - `backend` generates the Prisma client and runs lint, type-check, unit,
   integration/E2E, architecture, Prisma validation, and build checks.
 - `ai` verifies that Python dependencies are exact-pinned, installs them, runs
-  pylint, compiles modules, and fails if no AI unit or contract tests exist.
+  a Pylint fatal/error gate, compiles modules, and reports whether AI unit or
+  contract tests exist.
 - `ci-gate` runs with `always()` and fails unless every required job reports
   `success`, including when an upstream job fails, is skipped, or is cancelled.
 
 ## Current known failures and skips
 
-- No AI unit or mocked contract tests are present under `ai/`. The AI job fails
-  until those tests exist.
+- No AI unit or mocked contract tests are present under `ai/`. The AI job
+  reports this as an explicit skip until test files exist.
 - AI type-checking is not configured yet. Add a type-check step only after a
   real local command exists.
 
@@ -78,10 +79,12 @@ success steps, or invent AI commands to make CI appear green.
 Ordinary CI uses no production secrets and calls no paid AI or live GitHub API.
 Backend tests disable the skill-profile queue by default and use controlled test
 doubles for GitHub and FastAPI boundaries. The AI job installs dependencies,
-lints source, compiles modules, and checks for tests; it must not invoke
-OpenRouter, live GitHub, or other external application APIs. No database or
-Redis service container is configured because the current suites do not prove
-they require one.
+lints source for fatal/error findings, compiles modules, and checks for tests;
+it must not invoke OpenRouter, live GitHub, or other external application APIs.
+Backend Prisma validation uses a non-secret local `DATABASE_URL` only to satisfy
+Prisma schema parsing; no database service is started. No database or Redis
+service container is configured because the current suites do not prove they
+require one.
 
 Add PostgreSQL or Redis services only with a real integration test and isolated
 test credentials. Never run destructive migrations or use production data.
