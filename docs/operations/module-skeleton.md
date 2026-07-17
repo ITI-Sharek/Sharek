@@ -1,4 +1,7 @@
-# Module Skeleton
+# NestJS Module Skeleton
+
+**Status:** Supporting example
+**Rules:** `engineering-guide.md` and `../architecture.md` take precedence.
 
 ## Small Module
 

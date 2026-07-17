@@ -24,5 +24,6 @@ Small modules use root controller/service files. Larger modules use
 Choose the module that owns the final state. Call another module only through an
 exported service, and never write its tables or import its private technical files.
 
-Read `docs/developer-architecture-guide.md`, the module README, and
-`docs/module-development-tracker.md` before implementation.
+Read `docs/operations/engineering-guide.md`, the module README, and
+`docs/audits/codebase-gap-report.md` before implementation. Planned work belongs
+in `docs/delivery-plan.md`.

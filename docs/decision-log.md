@@ -1,8 +1,8 @@
 # ShareK — Approved Human Decision Log
 
-**Status:** APPROVED DECISIONS  
-**Updated:** 2026-07-17  
-**Purpose:** Record the completed human decision round that governs the later documentation consolidation.  
+**Status:** APPROVED DECISIONS
+**Updated:** 2026-07-17
+**Purpose:** Record the completed human decision round that governs the later documentation consolidation.
 **Important:** These decisions supersede conflicting statements in older documents.
 
 This update does not change the status of the generated canonical document set. Status changes and full consolidation remain a separate, later task.
@@ -741,12 +741,10 @@ No documentation may infer an object-storage implementation until this question 
 
 ---
 
-## Required Follow-Up
+## Consolidation follow-up
 
-After recording these decisions:
-
-1. Search all active documentation for conflicting decisions.
-2. Mark older conflicting decisions as superseded.
-3. Keep archived history unchanged.
-4. Do not rewrite the full documentation yet.
-5. Prepare a separate decision-log commit only when explicitly requested; do not combine it with consolidation work.
+The human decision round was followed by an explicitly approved documentation
+consolidation on 2026-07-17. Active contradictions were reconciled, superseded
+sources were archived before removal from active paths, and no application code
+was changed. This procedural note does not change the status or content of any
+decision above. No commit is authorized implicitly.

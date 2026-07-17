@@ -1,4 +1,8 @@
-# Local Development
+# ShareK Local Development and Onboarding
+
+**Status:** Supporting operational guidance
+**Architecture:** `../architecture.md`
+**API exercises:** `postman-api-guide.md`
 
 Docker Compose is the default local development path.
 
@@ -12,7 +16,7 @@ postgres   PostgreSQL with pgvector
 redis      Redis for BullMQ jobs
 ```
 
-The FastAPI AI service lives in a separate repository. Until Docker wiring is
+The bounded FastAPI AI service lives in a separate repository. Until Docker wiring is
 agreed, run it separately and point this backend at it with `AI_SERVICE_URL`.
 When the backend runs inside Docker and FastAPI runs on the host machine, use
 `http://host.docker.internal:8010`.
@@ -160,3 +164,39 @@ If AI service calls fail locally, check:
 - Timeout settings.
 - Response schema validation.
 - Fallback to mock FastAPI client adapters for local tests.
+
+## New teammate path
+
+Before running code, read:
+
+1. `../README.md`
+2. `../product-spec.md`
+3. `../architecture.md`
+4. `../api-contracts.md`
+5. `../delivery-plan.md`
+
+Then read `engineering-guide.md`, the relevant module README, and
+`../audits/codebase-gap-report.md`. Consult `../decision-log.md` when a decision
+is disputed and `../test-strategy.md` when defining completion evidence.
+
+## First contribution checklist
+
+1. Confirm the issue/vertical slice and owning module.
+2. Create local environment files from tracked examples; never copy another
+   developer's secrets.
+3. Start PostgreSQL, Redis, NestJS, and the bounded FastAPI service when the
+   selected feature requires them.
+4. Run migrations and seed only against a local development database.
+5. Exercise health, authentication, and the relevant API collection.
+6. Run the checks in `engineering-guide.md` before handoff.
+7. Update current implementation evidence only after the behavior exists and is
+   verified.
+
+## Shared environment rules
+
+- Each developer uses their own OAuth credentials where possible.
+- `AI_SERVICE_AUTH_TOKEN` must match between NestJS and FastAPI and must not be
+  committed.
+- Do not use production data in local AI or evidence tests.
+- Use public/synthetic repositories and redacted fixtures.
+- Destructive database reset commands are local-development-only.

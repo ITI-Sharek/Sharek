@@ -1,9 +1,8 @@
 # ShareK — API Contracts
 
-**Status:** mixed — marked per section
+**Status:** PROPOSED — current routes and target contracts are marked separately
 **Date:** 2026-07-17
-**Depends on:** `decision-log.md`, `prd.md`, `architecture.md`, `data-model-and-erd.md`, `frontend-spec.md` §6
-**Supersedes:** this file's previous version
+**Depends on:** `decision-log.md`, `product-spec.md`, `architecture.md`
 
 The real, implemented routes below do not use a `/v1` URL segment. The human-approved target public-profile contract is `GET /api/v1/profiles/:username` (`decision-log.md` API-001); reconciling that target with the current unversioned route is explicit implementation work, not an implemented claim.
 
@@ -57,17 +56,17 @@ GET  /auth/me
 PATCH /auth/users/:id/role
 ```
 
-**Confirmed gap (FR-07):** `POST /auth/register` currently requires `"role": "owner" | "contributor"` as a field on the request, persisted directly to `User.role` (a fixed enum). Target: no `role` field in the registration payload at all — `OWNER`/`CONTRIBUTOR`/`APPLICANT` are derived per-project (`data-model-and-erd.md` §1), and `PATCH /auth/users/:id/role` continues to exist only for the one real account-level role, `ADMIN`.
+**Confirmed gap:** `POST /auth/register` currently requires `"role": "owner" | "contributor"` as a field on the request, persisted directly to `User.role` (a fixed enum). Target: no product-role field in the registration payload — `OWNER`/`CONTRIBUTOR`/`APPLICANT` are contextual capabilities (`architecture.md` §11), and account-level role administration is limited to `ADMIN`.
 
-**Not a gap — corrected from an earlier pass this session:** registration creates a `pending`-status user and sends an email OTP; `pending` here is the **email-verification** state (contributors get a deliberate carve-out to use profile/skill-generation flows before verifying), not an admin-approval gate — nothing in `SkillProfile.status` blocks anything today (`applications` has no code yet). This is compatible with FR-16 as-is.
+**Current behavior, not an admin gate:** registration creates a `pending`-status user and sends an email OTP. The status currently represents email verification, not admin portfolio approval. Target persistence must preserve SEC-002 while keeping email verification, contextual capabilities, and profile trust separate.
 
-**Confirmed gap (FR-03):** `POST /auth/refresh` reads `refreshToken` from the request body (`RefreshSessionRequest` DTO), not an httpOnly cookie. Target transport per `prd.md` FR-03 / ADR-005.
+**Confirmed gap:** `POST /auth/refresh` reads `refreshToken` from the request body (`RefreshSessionRequest` DTO), not the proposed httpOnly-cookie transport in ADR-005.
 
 `GET /auth/me` / `POST /auth/login` response fields: `id, email, username, firstName, lastName, avatarUrl, role, status, preferredLanguage, createdAt, updatedAt, lastLoginAt` — drop `role` once FR-07 lands.
 
 Username rule (real, keep): lowercase, URL-safe, `^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])$`. `GET /auth/username-availability` returns `{ available, suggestion, reason }` where `reason` is `invalid_format | reserved | taken | null`.
 
-## 3. Public contributor profile — `IMPLEMENTED` (shape), gaps against FR-18/42
+## 3. Public contributor profile — current authenticated shape, target public contract
 
 Real endpoints (`backend/src/modules/contributor-profiles/`, `skill-profiles/`):
 
@@ -95,9 +94,9 @@ Current response shape:
 }
 ```
 
-**Gaps against the target (`frontend-spec.md` §2, `prd.md` FR-18/42, `decision-log.md` DM-002–004):** `roleLabel` should go away with FR-07 (no fixed role to label). `skills[]` must expose evidence source and human-review status independently. The profile must expose source-explained trust signals and visible external projects with their verification tier; it must not reduce trust to one `verified` boolean. `reputationSummary` needs per-dimension breakdown with sample size and the n=3 raw-reviews-below-threshold rule (FR-42) — currently just `{ rating, reviewsCount }`. `contributionHistory[]` needs evidence links + `prState` and verification tier per item (FR-34).
+**Target gaps:** `roleLabel` must not imply a fixed product role. `skills[]` must expose evidence source, human-review status, verification tier, and evidence mappings independently. The profile must expose source-explained trust signals and visible external projects; it must not reduce trust to one `verified` boolean. `reputationSummary` needs per-dimension breakdown and sample size. `contributionHistory[]` needs evidence references, GitHub source state, attribution, and verification tier.
 
-Errors (current behavior): `401` bad/missing/expired token, `403` owner/admin calling `ensure` or suspended/deactivated contributor, `404` unknown/hidden profile, `409` username conflict, `422` invalid username/profile data, `400` malformed request. **Target gap:** the approved public profile route must be usable without authentication; the class-level guard/current-user dependency on the current `GET /contributors/profiles/:username` route must not be carried into that public contract (`decision-log.md` API-001).
+Errors (current behavior): `401` bad/missing/expired token, `403` owner/admin calling `ensure` or suspended/deactivated contributor, `404` unknown/hidden profile, `409` username conflict, `422` invalid username/profile data, `400` malformed request. **Target gap:** `GET /api/v1/profiles/:username` must be usable without authentication; the class-level guard/current-user dependency on the current route must be removed from the public contract (`decision-log.md` API-001).
 
 ## 4. GitHub integration — `IMPLEMENTED`, with an MVP scope gap
 
@@ -134,7 +133,7 @@ GET  /skill-profiles/me/generations/:generationId
 
 Request: `{ repositories: [{ fullName: "owner/repository" }] }` — 1 to 10 items, each must appear in the connected account's own `GET /user/repos` (rejects arbitrary public repos). Status lifecycle (real): `queued -> collecting_evidence -> analyzing -> pending_review | needs_more_evidence | failed`.
 
-**Target rules:** the existing `pending_review`/`needs_more_evidence` values describe the generation job lifecycle only. They must not gate participation. The target skill representation keeps `AI_INFERRED` as the evidence source and records human review separately; admin review does not overwrite the evidence source (`decision-log.md` DM-003/DM-004). AI inference is required in MVP, uses public evidence only, exposes confidence and evidence references, and supports contributor dispute (`decision-log.md` AI-001).
+**Target rules:** the existing `pending_review`/`needs_more_evidence` values describe the generation job lifecycle only. They must not gate participation. The target skill representation keeps `AI_INFERRED` as the evidence source and records human review separately; admin review does not overwrite the evidence source. AI inference is required in MVP, uses public evidence only, exposes confidence, uncertainty, freshness, and evidence references, and supports contributor dispute (`decision-log.md` AI-001, DM-003, DM-004).
 
 ## 6. AI integration — approved boundary and target behavior
 
@@ -150,9 +149,9 @@ Owning service (skill-profiles | applications)
 
 FastAPI returns analysis, confidence, and evidence references; NestJS validates and persists the result and alone owns business state. Every otherwise valid application reaches the owner even when AI fails, is low-confidence, or reports poor fit. AI must never hide or automatically reject an MVP application. Exact new FastAPI endpoints and DTOs remain implementation-contract work; none are invented here.
 
-## 7. Core loop — `PROPOSED`, none of this exists in code yet
+## 7. Target contribution-loop API — `PROPOSED`
 
-Everything below is net-new, matching `applications` having no service/controller and no `reviews`/`notifications` module existing at all (`architecture.md` §2).
+Projects have partial current endpoints, but the complete target workflow below is not implemented. Applications, tasks, delivery review, and admin are scaffolds; reviews and notifications are absent (`architecture.md` §3).
 
 ```text
 POST   /projects
@@ -174,28 +173,88 @@ POST   /applications/:applicationId/withdraw
 POST   /applications/:applicationId/accept
 POST   /applications/:applicationId/reject
 
-POST   /applications/:applicationId/evidence
-PATCH  /evidence/:evidenceId
-POST   /evidence/:evidenceId/review        # DeliveryReview: approve | request-changes | reject
+POST   /assignments/:assignmentId/evidence-submissions
+GET    /evidence-submissions/:submissionId
+POST   /evidence-submissions/:submissionId/review
+POST   /evidence-submissions/:submissionId/resubmit
 
-POST   /evidence/:evidenceId/reviews       # bilateral Review, one per direction
-GET    /evidence/:evidenceId/reviews
+POST   /review-windows/:windowId/reviews
+GET    /review-windows/:windowId/reviews
 
-GET    /users/:username/reputation
+GET    /api/v1/profiles/:username
 
 GET    /notifications
 POST   /notifications/:id/read
 
-POST   /flags                              # contest an evidence/review/skill item (FR-45)
+POST   /flags                              # contest evidence/review/AI/skill subject
 GET    /admin/flags
 POST   /admin/flags/:id/resolve
 POST   /admin/users/:id/ban
 ```
 
-Response shapes for records rendered directly by the frontend must eventually be consolidated with the domain model. Until then, `decision-log.md` DM-001–004 controls the required separation of evidence source, review status, verification tier, skill claims, and profile trust signals; an older single-enum or single-boolean shape is not authoritative.
+Every application-create response is accepted for owner delivery before optional AI completion. Application fit is attached asynchronously; no AI state changes visibility or submission validity.
 
-## 8. Contract change rules
+Response shapes must follow `architecture.md` §§9–14. Evidence source, review status, verification tier, skill claims, and profile trust signals are separate; an older single enum or boolean is not authoritative.
 
-- Breaking changes require explicit frontend coordination (cross-repo integration contract, `CLAUDE.md`).
+## 8. External-project evidence API — `PROPOSED`
+
+```text
+POST   /me/external-projects
+GET    /me/external-projects
+GET    /me/external-projects/:submissionId
+PATCH  /me/external-projects/:submissionId
+POST   /me/external-projects/:submissionId/submit
+POST   /me/external-projects/:submissionId/withdraw
+POST   /me/external-projects/:submissionId/resubmit
+
+GET    /admin/external-projects?status=PENDING_REVIEW
+GET    /admin/external-projects/:submissionId
+POST   /admin/external-projects/:submissionId/review-actions
+```
+
+Create/update fields are `title`, `description`, `images`, `demoLink`, optional
+`githubUrl`, `technologies`, `claimedRole`, `contributionDescription`,
+`projectPeriod`, optional supporting files/URLs, and `visibility`. File transport
+is not implementation-ready until OQ-001 is resolved.
+
+Admin review action is one of `APPROVE`, `REJECT`, `REQUEST_CHANGES`, or `FLAG`
+and requires notes where policy demands. The response exposes the approved
+submission status vocabulary, version, `submittedAt`, `reviewStartedAt`,
+`reviewedAt`, `reviewedBy`, and append-only action history.
+
+Public profile projection exposes only policy-visible approved evidence, with a
+source label and verification tier. It never returns a global `verified` field.
+
+## 9. AI output contract — `PROPOSED`
+
+Both required AI features return an auditable envelope:
+
+```json
+{
+  "status": "completed",
+  "summary": "Evidence-linked advisory text",
+  "confidence": 0.74,
+  "uncertainties": ["No recent TypeScript diff was accessible"],
+  "evidence": [
+    {
+      "sourceType": "PUBLIC_PULL_REQUEST",
+      "sourceUrl": "https://github.com/example/repo/pull/1",
+      "repository": "example/repo",
+      "observedAt": "2026-07-17T00:00:00Z"
+    }
+  ],
+  "modelVersion": "recorded-at-runtime",
+  "promptVersion": "recorded-at-runtime"
+}
+```
+
+Skill inference also returns normalized skill claims. Application fit also
+returns matching evidence and missing/uncertain requirements. Failure returns a
+non-blocking unavailable state; it never returns an authoritative accept/reject
+transition.
+
+## 10. Contract change rules
+
+- Breaking changes require explicit frontend coordination.
 - DTO changes must be reflected here or in generated OpenAPI — this doc or the OpenAPI spec, not both silently diverging.
 - Contract drift is caught by integration/contract tests (`test-strategy.md`, pending).

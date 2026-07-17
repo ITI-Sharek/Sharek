@@ -1,5 +1,8 @@
 # Share-k Backend Postman API Guide
 
+**Status:** Current implemented-route guide. Proposed contracts remain in
+`../api-contracts.md` until implemented.
+
 This guide is the Postman test contract for the currently implemented NestJS
 backend routes. It is derived from the controllers under `src/modules`; keep it
 updated whenever a route, request DTO, authorization rule, or response contract
@@ -483,10 +486,10 @@ Authorization: Bearer {{accessToken}}
 
 The normal lifecycle is `queued`, `collecting_evidence`, `analyzing`, and then
 `pending_review`, `needs_more_evidence`, or `failed` — this describes the
-generation job's own status, not an eligibility gate. Admin review of a
-`pending_review` skill relabels its evidence state (`AI_INFERRED` ->
-`ADMIN_REVIEWED`); it never blocks the account or application eligibility
-(`prd.md` FR-16, `api-contracts.md` §5).
+generation job's own status, not an eligibility gate. The running API does not
+implement the approved independent evidence-source and human-review dimensions.
+In the target model, later review never rewrites the `AI_INFERRED` source and
+never blocks account or application eligibility (`../api-contracts.md` §5).
 
 ## 6. Useful Negative Tests
 
@@ -518,7 +521,7 @@ These tests verify the shared HTTP behavior without changing database state:
 
 ## 8. Related Files
 
-- REST Client requests: `sharek-api.http`
-- Stable API and AI contract rules: `docs/api-contracts.md`
-- Architecture decision: `docs/archive/bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`
-- Local startup: `docs/local-development.md`
+- REST Client requests: `../../backend/sharek-api.http`
+- Stable API and AI contract rules: `../api-contracts.md`
+- Architecture and domain rules: `../architecture.md`
+- Local startup: `local-development.md`
