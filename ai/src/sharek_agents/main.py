@@ -1,9 +1,10 @@
 import asyncio
 import sys
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from sharek_agents.common.auth import require_service_token, warn_if_unauthenticated
 from sharek_agents.agents.skill_profiling.backend_contract import (
     SkillProfileGenerateRequest,
     SkillProfileGenerateResponse,
@@ -21,6 +22,7 @@ app = FastAPI(title="SHARE-K AI Agents")
 
 @app.on_event("startup")
 async def check_external_tools():
+    warn_if_unauthenticated()
     for tool, args in [
         ("graphify", [sys.executable, "-m", "graphify", "--version"]),
         ("git", ["git", "--version"]),
@@ -44,12 +46,20 @@ class ProfileRequest(BaseModel):
     github_username: str = Field(description="GitHub username for commit filtering")
 
 
-@app.post("/profile/repos", response_model=AgentResponse)
+@app.post(
+    "/profile/repos",
+    response_model=AgentResponse,
+    dependencies=[Depends(require_service_token)],
+)
 async def profile_repos_endpoint(body: ProfileRequest):
     return await profile_repos(body.repo_urls, github_username=body.github_username)
 
 
-@app.post("/skill-profiles/generate", response_model=SkillProfileGenerateResponse)
+@app.post(
+    "/skill-profiles/generate",
+    response_model=SkillProfileGenerateResponse,
+    dependencies=[Depends(require_service_token)],
+)
 async def generate_skill_profile(body: SkillProfileGenerateRequest):
     """Contract endpoint for the NestJS backend's FastApiSkillProfileClient."""
     agent_response = await profile_repos(
