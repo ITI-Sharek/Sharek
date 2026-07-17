@@ -2,20 +2,20 @@
 
 **Status:** mixed — marked per section
 **Date:** 2026-07-17
-**Depends on:** `prd.md`, `architecture.md`, `data-model-and-erd.md`, `frontend-spec.md` §6
+**Depends on:** `decision-log.md`, `prd.md`, `architecture.md`, `data-model-and-erd.md`, `frontend-spec.md` §6
 **Supersedes:** this file's previous version
 
-No URL version prefix (`/v1/...`) — none of the real, implemented routes below use one, and inventing one here would contradict running code. If versioning is needed later, that's a separate, explicit decision, not something to retrofit into this doc.
+The real, implemented routes below do not use a `/v1` URL segment. The human-approved target public-profile contract is `GET /api/v1/profiles/:username` (`decision-log.md` API-001); reconciling that target with the current unversioned route is explicit implementation work, not an implemented claim.
 
 ---
 
 ## 0. Direction
 
 ```text
-Frontend (frontend/**) -> NestJS backend (backend/**) -> database / GitHub / AiPort
+Frontend (frontend/**) -> NestJS backend (backend/**) -> database / GitHub / bounded FastAPI AI service
 ```
 
-The frontend never calls a model provider or an AI service directly (unchanged principle) — but there is no separate FastAPI hop anymore in the target architecture (ADR-003). The current code still has one; see `architecture.md` §1/§3.
+The frontend never calls a model provider or AI service directly. NestJS owns authorization and business state and may call the bounded FastAPI service for approved AI workloads (`decision-log.md` AD-001); see `architecture.md` §1/§3.
 
 ## 1. Conventions
 
@@ -95,11 +95,11 @@ Current response shape:
 }
 ```
 
-**Gaps against the target (`frontend-spec.md` §2, `prd.md` FR-18/42):** `roleLabel` should go away with FR-07 (no fixed role to label). `skills[]` needs the full evidence-state field (`SELF_DECLARED|AI_INFERRED|CONTRIBUTION_DEMONSTRATED|ADMIN_REVIEWED`, not just approval status). `reputationSummary` needs per-dimension breakdown with sample size and the n=3 raw-reviews-below-threshold rule (FR-42) — currently just `{ rating, reviewsCount }`. `contributionHistory[]` needs evidence links + `prState` per item (FR-34).
+**Gaps against the target (`frontend-spec.md` §2, `prd.md` FR-18/42, `decision-log.md` DM-002–004):** `roleLabel` should go away with FR-07 (no fixed role to label). `skills[]` must expose evidence source and human-review status independently. The profile must expose source-explained trust signals and visible external projects with their verification tier; it must not reduce trust to one `verified` boolean. `reputationSummary` needs per-dimension breakdown with sample size and the n=3 raw-reviews-below-threshold rule (FR-42) — currently just `{ rating, reviewsCount }`. `contributionHistory[]` needs evidence links + `prState` and verification tier per item (FR-34).
 
-Errors (real, keep): `401` bad/missing/expired token, `403` owner/admin calling `ensure` or suspended/deactivated contributor, `404` unknown/hidden profile, `409` username conflict, `422` invalid username/profile data, `400` malformed request.
+Errors (current behavior): `401` bad/missing/expired token, `403` owner/admin calling `ensure` or suspended/deactivated contributor, `404` unknown/hidden profile, `409` username conflict, `422` invalid username/profile data, `400` malformed request. **Target gap:** the approved public profile route must be usable without authentication; the class-level guard/current-user dependency on the current `GET /contributors/profiles/:username` route must not be carried into that public contract (`decision-log.md` API-001).
 
-## 4. GitHub integration — `IMPLEMENTED`, one correction to make to the old doc, not the code
+## 4. GitHub integration — `IMPLEMENTED`, with an MVP scope gap
 
 Real endpoints (`backend/src/modules/github/`):
 
@@ -119,7 +119,7 @@ DELETE /github/account
 POST   /projects/import/github
 ```
 
-**Correction (to the previous version of this doc, not to the code):** the old version of this file claimed contributor OAuth requests the broad `repo` scope (read+write, including private repos) — that was simply inaccurate. The actual default scope, confirmed in `github-oauth.service.ts`, is `'read:user user:email public_repo'` — public repositories only, no private-repo access, matching `prd.md` NFR-04 ("public repositories only in MVP"). `public_repo` is technically write-capable on public repos (GitHub doesn't offer a narrower read-only granularity for this use case), which is marginally broader than FR-02's "no repository write scope" ideal — worth knowing, not worth blocking on.
+**Confirmed gap:** contributor accounts currently receive `CONTRIBUTOR_OAUTH_SCOPE = 'read:user user:email repo'`; the owner/admin default is `'read:user user:email public_repo'`. The contributor scope includes private-repository access and repository write capability, which conflicts with the approved public-evidence-only AI inference boundary and least-privilege requirement. OAuth scope reduction and any resulting repository-selection behavior are implementation work; this document does not claim they are already fixed.
 
 Repository list response (real, keep): `{ items, page, perPage, hasNextPage }`, `perPage` default `12` / cap `50`. Focused evidence endpoints take `?fullName=owner/repository`, return normalized README/description/stats/contribution-activity/commit-signals, each with an `unavailableReason` fallback instead of failing the whole import.
 
@@ -134,21 +134,21 @@ GET  /skill-profiles/me/generations/:generationId
 
 Request: `{ repositories: [{ fullName: "owner/repository" }] }` — 1 to 10 items, each must appear in the connected account's own `GET /user/repos` (rejects arbitrary public repos). Status lifecycle (real): `queued -> collecting_evidence -> analyzing -> pending_review | needs_more_evidence | failed`.
 
-**Language correction needed, behavior is fine:** the old doc said "pending generated skills... must not qualify a contributor for application eligibility until an admin approves them" — phrased as if this is enforced. It isn't currently enforced anywhere (`applications` is unbuilt), and per FR-16 it never should be as an eligibility *block* — admin review only relabels the skill's evidence state (`AI_INFERRED -> ADMIN_REVIEWED`). Keep `pending_review`/`needs_more_evidence` exactly as they are (they describe the generation job's own lifecycle, which is fine), just don't describe them as an eligibility gate anywhere.
+**Target rules:** the existing `pending_review`/`needs_more_evidence` values describe the generation job lifecycle only. They must not gate participation. The target skill representation keeps `AI_INFERRED` as the evidence source and records human review separately; admin review does not overwrite the evidence source (`decision-log.md` DM-003/DM-004). AI inference is required in MVP, uses public evidence only, exposes confidence and evidence references, and supports contributor dispute (`decision-log.md` AI-001).
 
-## 6. AI integration — target replaces the current section entirely
+## 6. AI integration — approved boundary and target behavior
 
-Current code (`ai` module) integrates a separate FastAPI service (`FastApiSkillProfileClient`, `AI_SERVICE_URL`). Target, per `architecture.md` §3 / ADR-003:
+Current code (`ai` module) integrates the separate FastAPI service through `FastApiSkillProfileClient` and `AI_SERVICE_URL`. That separate service remains the approved bounded AI deployment per `decision-log.md` AD-001:
 
 ```text
 Owning service (skill-profiles | applications)
   -> deterministic checks
-  -> AiPort.generateSkillProfile() | AiPort.generateApplicationFitAnalysis()
+  -> bounded FastAPI skill-inference | application-fit operation
   -> structured result (+ promptVersion, modelVersion, confidence, evidenceRefs)
   -> owning service validates + persists AiOutput + updates its own entity
 ```
 
-No FastAPI endpoints, no `AI_SERVICE_URL`/`AI_SERVICE_AUTH_TOKEN`, no internal-bearer-token contract between two repos — it's all one process. Failure handling is unchanged in spirit: never silently approve on a low-confidence or malformed result; retry only when safe; route to the normal manual/owner-review path (which, because AI is advisory everywhere, is just the default path anyway) — store the failure as an `AiOutput` with no result, not as a business-state change.
+FastAPI returns analysis, confidence, and evidence references; NestJS validates and persists the result and alone owns business state. Every otherwise valid application reaches the owner even when AI fails, is low-confidence, or reports poor fit. AI must never hide or automatically reject an MVP application. Exact new FastAPI endpoints and DTOs remain implementation-contract work; none are invented here.
 
 ## 7. Core loop — `PROPOSED`, none of this exists in code yet
 
@@ -192,7 +192,7 @@ POST   /admin/flags/:id/resolve
 POST   /admin/users/:id/ban
 ```
 
-Response shapes for the three records `frontend-spec.md` §6 renders directly (`ContributionEvidence`, `Review`, `UserSkill`) must match `data-model-and-erd.md` §2 field-for-field — not restated here to avoid drift between two documents describing the same shape.
+Response shapes for records rendered directly by the frontend must eventually be consolidated with the domain model. Until then, `decision-log.md` DM-001–004 controls the required separation of evidence source, review status, verification tier, skill claims, and profile trust signals; an older single-enum or single-boolean shape is not authoritative.
 
 ## 8. Contract change rules
 
