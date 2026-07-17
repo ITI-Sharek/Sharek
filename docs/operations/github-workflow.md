@@ -2,9 +2,10 @@
 
 **Status:** Supporting operational guidance
 
-The default branch is `master`. Work is developed on focused branches and
-reviewed through pull requests; no workflow automatically commits, pushes,
-merges, or starts implementation.
+The default branch is `master`. Day-to-day implementation targets `dev`.
+Release pull requests flow from `dev` into `master`. Work is developed on
+focused branches and reviewed through pull requests; no workflow automatically
+commits, pushes, merges, or starts implementation.
 
 ## Issue flow
 
@@ -21,17 +22,22 @@ merges, or starts implementation.
 
 ## Branch and pull-request flow
 
-1. Branch from an up-to-date `master` using a focused `feat/`, `fix/`, `test/`,
-   `docs/`, `refactor/`, or `chore/` prefix.
+1. Branch from an up-to-date `dev` using
+   `issue-<number>-<short-kebab-description>` for issue work. Use `docs/`,
+   `chore/`, or `fix/` only for non-issue maintenance.
 2. Exclude unrelated work and preserve uncommitted human changes.
 3. Open a focused pull request using the lowercase
    `.github/pull_request_template.md` path and link the approved issue.
+   PR titles must match `S1-01: Short summary` or
+   `Issue #6: Short summary`.
 4. Record exact tests, authorization/security impact, migrations, API/UI impact,
    documentation, and screenshots when applicable.
 5. Move the issue to `In review` only when the diff and required local checks are
    ready for a reviewer.
 6. Require cross-owned review, resolved conversations, and `ci-gate` success.
-7. A human merges the pull request. Automation must not merge it.
+7. A human merges the pull request. Automation must not merge it. Pull requests
+   into `master` require `@KariMuhammad` approval by team rule and by
+   CODEOWNERS when GitHub enforcement is available.
 8. Move the issue to `Done` only when its acceptance criteria and evidence are
    complete; closing a partial implementation does not establish completion.
 
@@ -45,4 +51,5 @@ merges, or starts implementation.
 - Rebase dependent branches after their prerequisite merges and rerun `ci-gate`.
 
 Project field and manual UI details remain in `github-project.md` and the
-corresponding audit checklist.
+corresponding audit checklist. Developer step-by-step instructions live in
+`developer-workflow.md`.

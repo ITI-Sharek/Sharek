@@ -3,7 +3,8 @@
 **Status:** Supporting operational guidance
 
 ShareK uses one workflow at `.github/workflows/ci.yml`. It runs for pull requests
-targeting `master`, pushes to `master`, and manual `workflow_dispatch` runs.
+targeting `dev` or `master`, pushes to `dev` or `master`, and manual
+`workflow_dispatch` runs.
 
 ## Workspace contract
 
@@ -47,12 +48,17 @@ python -m compileall -q ai/src/sharek_agents
 ## Job graph
 
 ```text
-repository-checks --+
-frontend ----------+
-backend -----------+--> ci-gate
-ai ----------------+
+pr-governance ----+
+repository-checks -+
+frontend ---------+
+backend ----------+--> ci-gate
+ai ---------------+
 ```
 
+- `pr-governance` runs only for pull requests and validates branch names and PR
+  titles. It expects issue branches such as `issue-6-remove-signup-role` and PR
+  titles such as `S1-01: Remove signup role selection` or
+  `Issue #6: Remove signup role selection`.
 - `repository-checks` verifies that the consolidated lockfile supports a frozen
   workspace install without running dependency lifecycle scripts.
 - `frontend` requires lint, type-check, test, and build scripts, then runs each.
@@ -62,7 +68,9 @@ ai ----------------+
   a Pylint fatal/error gate, compiles modules, and reports whether AI unit or
   contract tests exist.
 - `ci-gate` runs with `always()` and fails unless every required job reports
-  `success`, including when an upstream job fails, is skipped, or is cancelled.
+  `success`, including when an upstream job fails or is cancelled. It permits
+  `pr-governance` to be skipped on push/manual events where no pull request
+  title exists.
 
 ## Current known failures and skips
 
@@ -94,3 +102,16 @@ test credentials. Never run destructive migrations or use production data.
 After the workflow has run successfully at least once, configure branch
 protection to require only the stable `ci-gate` check. Individual jobs remain
 diagnostic implementation details and must still feed the gate.
+
+## Branch protection limitation
+
+GitHub branch protection and repository rulesets were unavailable for this
+private repository when inspected on 2026-07-18:
+
+```text
+Upgrade to GitHub Pro or make this repository public to enable this feature.
+```
+
+Until enforcement is available, `@KariMuhammad` approval for `master` merges is
+a documented team rule backed by `.github/CODEOWNERS`, not an automatically
+enforced GitHub gate.

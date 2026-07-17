@@ -58,9 +58,20 @@ Updated titles:
 - [#13](https://github.com/ITI-Sharek/Sharek/issues/13) — `Task: Verify FastAPI skill-profile contract uses public advisory evidence`
 - [#14](https://github.com/ITI-Sharek/Sharek/issues/14) — `Task: Run S1 integration verification and demo proof`
 
-Each rewritten card now includes a user story, why the task exists, build scope,
-out-of-scope items, dependencies, assignee/review guidance, expected files,
-acceptance criteria, required commands, demo proof, and Project metadata.
+After a second clarity pass, each rewritten card now starts with the Jira-style
+developer block:
+
+- `What to build`
+- `Owner roles`
+- `Workstream`
+- `Due date`
+- `Acceptance criteria`
+- `Blocked by`
+
+Due dates are recorded as `TBD — team availability/dates not provided yet`
+because team availability was not supplied and DX-001 remains open. The issue
+bodies still include expected files/modules, required commands, demo proof, and
+out-of-scope notes.
 
 ## Project field values
 

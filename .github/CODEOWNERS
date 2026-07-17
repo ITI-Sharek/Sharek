@@ -1,0 +1,8 @@
+# ShareK repository ownership
+#
+# Intended governance:
+# - All pull requests targeting master require review from @KariMuhammad.
+# - GitHub can enforce this only when branch protection or repository rulesets
+#   are available for the repository plan.
+
+* @KariMuhammad
