@@ -28,6 +28,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         statusCode: exception.statusCode,
         code: exception.code,
         message: exception.message,
+        ...(exception.metadata ? { metadata: exception.metadata } : {}),
       });
       return;
     }
