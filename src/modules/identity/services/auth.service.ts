@@ -350,6 +350,7 @@ export class AuthService {
     id: string;
     email: string;
     first_name: string;
+    preferred_language: 'en' | 'ar';
   }): Promise<{ expiresAt: Date }> {
     const code = this.generateOtp();
     const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_OTP_TTL_MS);
@@ -375,6 +376,7 @@ export class AuthService {
       firstName: user.first_name,
       code,
       expiresAt,
+      language: user.preferred_language,
     });
 
     return {
