@@ -16,11 +16,16 @@ import {
   USERNAME_MAX_LENGTH,
 } from '../validators/username.validator';
 
+import { UsernameSuggestionService } from './username-suggestion.service';
+
 const USERNAME_AVAILABILITY_SUFFIX_RETRIES = 20;
 
 @Injectable()
 export class IdentityUsernameService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly suggestionService: UsernameSuggestionService,
+  ) {}
 
   async checkAvailability(username: string): Promise<UsernameAvailabilityDto> {
     const candidate = username.trim();
@@ -28,7 +33,6 @@ export class IdentityUsernameService {
     if (!isValidUsername(candidate)) {
       return {
         available: false,
-        suggestion: null,
         reason: 'invalid_format',
       };
     }
@@ -36,7 +40,6 @@ export class IdentityUsernameService {
     if (isReservedUsername(candidate)) {
       return {
         available: false,
-        suggestion: null,
         reason: 'reserved',
       };
     }
@@ -50,14 +53,12 @@ export class IdentityUsernameService {
     if (existingUser) {
       return {
         available: false,
-        suggestion: await this.findAvailableUsernameSuggestion(candidate),
         reason: 'taken',
       };
     }
 
     return {
       available: true,
-      suggestion: null,
       reason: null,
     };
   }
@@ -70,9 +71,11 @@ export class IdentityUsernameService {
     }
 
     if (availability.reason === 'taken') {
+      const suggestions = await this.suggestionService.generateSuggestions(username, 3);
       throw new ConflictApplicationError(
         'Username is already taken',
         'USERNAME_TAKEN',
+        { suggestions }
       );
     }
 
@@ -89,37 +92,6 @@ export class IdentityUsernameService {
     );
   }
 
-  async findAvailableUsernameSuggestion(username: string): Promise<string | null> {
-    const base = normalizeUsernameCandidate(username);
-
-    if (base.length < 3) {
-      return null;
-    }
-
-    for (let suffix = 1; suffix <= USERNAME_AVAILABILITY_SUFFIX_RETRIES; suffix += 1) {
-      const suffixText = `-${suffix}`;
-      const candidate = `${base.slice(
-        0,
-        USERNAME_MAX_LENGTH - suffixText.length,
-      )}${suffixText}`;
-
-      if (!isValidUsername(candidate) || isReservedUsername(candidate)) {
-        continue;
-      }
-
-      const existingUser = await this.database.user.findUnique({
-        where: {
-          username: candidate,
-        },
-      });
-
-      if (!existingUser) {
-        return candidate;
-      }
-    }
-
-    return null;
-  }
 
   async getAvailableUsernameOrNull(username?: string): Promise<string | null> {
     if (!username) {
@@ -133,7 +105,7 @@ export class IdentityUsernameService {
       return candidate;
     }
 
-    return availability.reason === 'taken' ? availability.suggestion : null;
+    return null;
   }
 
   async ensureContributorUsername(userId: string): Promise<User> {

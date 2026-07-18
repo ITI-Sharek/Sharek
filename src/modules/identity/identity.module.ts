@@ -6,6 +6,7 @@ import { IdentityUsernameService } from './services/identity-username.service';
 import { PasswordResetService } from './services/password-reset.service';
 import { SessionService } from './services/session.service';
 import { SocialAuthService } from './services/social-auth.service';
+import { UsernameSuggestionService } from './services/username-suggestion.service';
 import { GoogleOAuthService } from './services/google-oauth.service';
 import { EmailVerificationSender } from './integrations/email-verification.sender';
 import { PasswordHasher } from './security/password-hasher.service';
@@ -29,6 +30,7 @@ import { GoogleAuthController } from './controllers/google-auth.controller';
     PasswordResetService,
     SessionService,
     SocialAuthService,
+    UsernameSuggestionService,
     GoogleOAuthService,
     EmailVerificationSender,
     PasswordHasher,

@@ -21,13 +21,20 @@ const baseUser = {
 function createService(database: {
   findUnique?: jest.Mock;
   update?: jest.Mock;
+}, suggestionService?: {
+  generateSuggestions?: jest.Mock;
 }) {
-  return new IdentityUsernameService({
-    user: {
-      findUnique: database.findUnique ?? jest.fn(),
-      update: database.update ?? jest.fn(),
-    },
-  } as any);
+  return new IdentityUsernameService(
+    {
+      user: {
+        findUnique: database.findUnique ?? jest.fn(),
+        update: database.update ?? jest.fn(),
+      },
+    } as any,
+    {
+      generateSuggestions: suggestionService?.generateSuggestions ?? jest.fn().mockResolvedValue(['suggestion-1', 'suggestion-2']),
+    } as any,
+  );
 }
 
 describe('IdentityUsernameService', () => {
@@ -47,7 +54,6 @@ describe('IdentityUsernameService', () => {
 
     await expect(service.checkAvailability('jane-doe')).resolves.toEqual({
       available: true,
-      suggestion: null,
       reason: null,
     });
     expect(findUnique).toHaveBeenCalledWith({
@@ -81,7 +87,6 @@ describe('IdentityUsernameService', () => {
 
     await expect(service.checkAvailability('jane-doe')).resolves.toEqual({
       available: false,
-      suggestion: 'jane-doe-1',
       reason: 'taken',
     });
   });
@@ -96,17 +101,6 @@ describe('IdentityUsernameService', () => {
     await expect(service.getAvailableUsernameOrNull('Admin')).resolves.toBeNull();
   });
 
-  it('returns a suffixed suggestion when an OAuth username is taken', async () => {
-    const findUnique = jest
-      .fn()
-      .mockResolvedValueOnce(baseUser)
-      .mockResolvedValueOnce(null);
-    const service = createService({ findUnique });
-
-    await expect(service.getAvailableUsernameOrNull('JaneDoe')).resolves.toBe(
-      'janedoe-1',
-    );
-  });
 
   it('retries deterministic suffixes after username collisions', async () => {
     const findUnique = jest.fn().mockResolvedValue(baseUser);
