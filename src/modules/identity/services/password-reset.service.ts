@@ -89,6 +89,7 @@ export class PasswordResetService {
     id: string;
     email: string;
     first_name: string;
+    preferred_language: 'en' | 'ar';
   }): Promise<{ expiresAt: Date }> {
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const expiresAt = new Date(Date.now() + PASSWORD_RESET_OTP_TTL_MS);
@@ -109,6 +110,7 @@ export class PasswordResetService {
       firstName: user.first_name,
       code,
       expiresAt,
+      language: user.preferred_language,
     });
 
     return { expiresAt };
