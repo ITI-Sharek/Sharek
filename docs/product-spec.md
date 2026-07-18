@@ -1,8 +1,9 @@
 # ShareK Product Specification
 
-**Status:** PROPOSED
+**Status:** APPROVED
 **Decision authority:** `decision-log.md`
-**Target release:** 2026-08-30, subject to the open capacity decision DX-001
+**Scope checkpoint:** 2026-07-30
+**Target release:** 2026-08-30
 
 ## 1. Product purpose
 
@@ -57,6 +58,12 @@ trust is also not an account role.
 11. Evidence source, review status, verification tier, and derived skill claims
     remain separate.
 12. No ambiguous global `verified` boolean is permitted.
+13. Private-repository evidence is opt-in, read-only, permission-filtered, and
+    never public by default.
+14. WebSocket delivery supplements durable NestJS-owned records; it never owns
+    final business state.
+15. RAG and agent outputs remain attributable recommendations under the same AI
+    authority boundary.
 
 ## 4. MVP requirements
 
@@ -82,7 +89,8 @@ trust is also not an account role.
 - Projects contain scoped contribution tasks with requirements, expected
   evidence, status, dates, and one primary assignment in MVP.
 - Collaboration features remain subordinate to the task/application/delivery
-  loop. Minimal task discussion may be added only after the required loop works.
+  loop, but durable discussions and project-scoped direct messages are required
+  support capabilities under PD-004 and COL-001.
 
 ### 4.3 Applications and owner decisions
 
@@ -131,12 +139,14 @@ does not rewrite GitHub history.
 
 ### 4.6 AI Skill Inference — required MVP
 
-ShareK analyzes accessible public GitHub evidence:
+ShareK analyzes GitHub evidence explicitly authorized by the connected user:
 
 - public repositories;
 - public contribution history;
 - public pull requests; and
-- public commit diffs when accessible.
+- public commit diffs when accessible; and
+- selected private repositories and private activity when the user grants
+  narrow read-only access and explicitly selects them.
 
 Each inferred skill must include:
 
@@ -145,12 +155,17 @@ Each inferred skill must include:
 - evidence references and relevant excerpts or locations;
 - repository and activity freshness;
 - model and prompt version; and
-- a visible `AI_INFERRED` source label.
+- a visible `AI_INFERRED` source label; and
+- evidence visibility/provenance that distinguishes public evidence from
+  private-repository-derived evidence.
 
 AI inference is neither human review nor verified contribution evidence. The
 contributor can dispute an inaccurate inference, and the original output remains
-auditable. Absence of public evidence means “insufficient evidence,” not “the
-contributor lacks the skill.”
+auditable. Absence of authorized evidence means “insufficient evidence,” not
+“the contributor lacks the skill.” Private repository names, URLs, code, diffs,
+and citations never appear publicly. A contributor must explicitly opt in before
+a derived private-evidence claim is shown publicly, and the UI explains that its
+underlying evidence is not public.
 
 ### 4.7 Advisory AI Application Screening Fit — required MVP
 
@@ -218,17 +233,42 @@ Public evidence labels are:
 - `REPOSITORY_BACKED_CONTRIBUTION`
 - `OWNER_ATTESTED_CONTRIBUTION`
 
+Evidence visibility is a separate dimension:
+
+- `PUBLIC_SOURCE` — the public viewer may inspect the permitted source/citation.
+- `PRIVATE_DERIVED` — the contributor allowed the derived claim to appear, but
+  repository identity, URL, source, diff, and citation remain private.
+
 The UI explains why each signal or label exists. Fraud handling may suspend or
 remove a public trust signal while retaining historical audit records.
 
 ### 4.10 Supporting capabilities
 
-- In-app notifications for application, evidence, review, and moderation events.
+- Persisted in-app notifications with real-time WebSocket delivery and HTTP
+  recovery for application, evidence, discussion, message, review, and moderation
+  events.
 - Admin moderation of flags and external-project reviews.
 - Audit records for sensitive status and trust changes.
 - Accessible, responsive public profile and core workflow screens.
 - English-first UI with future localization readiness; final checklist impact is
   still open.
+
+### 4.11 Beginner activation and collaboration
+
+- Public discovery supports technology, difficulty, beginner-friendly status,
+  deadline, and open-task filters without requiring semantic matching.
+- A recommended beginner task includes a deterministic, templated explanation
+  of why it may fit the contributor.
+- A static first-contribution checklist is available to every beginner. Users
+  with no usable GitHub evidence reach this checklist and deterministic
+  recommendations instead of a dead end.
+- Project/task discussions are durable, searchable within their authorized
+  scope, and connected to the relevant work.
+- Direct messages are limited to authorized active project participants and are
+  removed when the relationship no longer permits access.
+- WebSocket delivery is used for discussion updates, direct messages, and
+  notifications. Durable history and reconnection use NestJS APIs and persisted
+  records.
 
 ## 5. Explicitly outside MVP
 
@@ -237,16 +277,22 @@ remove a public trust signal while retaining historical audit records.
 - Real payments, escrow, subscriptions, commissions, or premium tiers.
 - Company accounts, team hiring, or an applicant-tracking system.
 - A general social feed or collaboration suite.
-- Mandatory real-time chat or WebSockets.
-- Automatic import of repositories a user does not maintain.
+- Voice/video calls, presence, typing indicators, read receipts, reactions, and
+  unrelated social-network features.
+- Automatic import of repositories a user does not maintain as official ShareK
+  projects. SEC-003 contributor evidence analysis is separate from ownership.
 - A single profile-verification flag.
 - `HIGH_TRUST_PROFILE` automation.
-- Semantic/vector matching unless the ITI checklist is classified as mandatory.
+- Advanced semantic project/contributor matching. Bounded evidence RAG under
+  AI-004 remains required.
+- Three-or-more-agent orchestration and multimodal analysis until the required
+  product loop, RAG, and single-agent evaluation pass their release gates.
 
 ## 6. Security, privacy, and AI-safety requirements
 
-- Request the least GitHub privilege necessary. The current contributor `repo`
-  scope is an implementation gap, not an approved permission.
+- Request the least read-only GitHub privilege necessary for repositories the
+  user explicitly selects. The current broad contributor `repo` scope remains an
+  implementation gap even though selected private repositories are now allowed.
 - Treat repository content, README text, diffs, URLs, and uploaded files as
   untrusted input.
 - Never execute repository code as part of analysis.
@@ -254,6 +300,8 @@ remove a public trust signal while retaining historical audit records.
 - Separate system instructions from retrieved repository content.
 - Persist evidence citations, prompt/model versions, failures, and disputes.
 - Do not expose private repository data on public profiles.
+- Record private-repository consent, selection, visibility, granted permission,
+  access time, revocation, and retention/deletion behavior.
 - Do not use submitted data for provider training without compatible terms and
   explicit policy/consent.
 - Rate-limit authentication, evidence submission, AI generation, disputes, and
@@ -263,7 +311,10 @@ remove a public trust signal while retaining historical audit records.
 
 The release is credible only when the team can demonstrate the complete loop
 with individually attributable evidence and a public profile whose trust labels
-are understandable to external reviewers. Before the final presentation, test
+are understandable to external reviewers. It must also demonstrate that a
+beginner with sparse/no GitHub evidence can discover a suitable task, use the
+checklist, communicate with an authorized participant, and receive notifications
+without weakening the manual loop. Before the final presentation, test
 the profile with at least three hiring-adjacent reviewers and record whether they
 can distinguish self-declared, admin-reviewed, repository-backed, owner-attested,
 ShareK-verified, and AI-inferred claims.
@@ -277,9 +328,13 @@ Delivery detail belongs in `delivery-plan.md`; verification detail belongs in
 Open items are owned by `decision-log.md`, particularly:
 
 - ITI checklist classification;
+- selected-private-repository authorization mechanism and legacy broad-token
+  remediation;
+- discussion/direct-message retention, moderation limits, and blocking policy;
 - closed-without-merge owner attestation;
 - external evidence storage and visibility;
 - reputation fraud thresholds;
-- AI evaluation thresholds and supported languages;
+- RAG/single-agent evaluation thresholds, embedding choice, and supported
+  languages;
 - privacy and retention policy; and
 - confirmed team capacity.

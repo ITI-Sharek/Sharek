@@ -23,9 +23,12 @@ Before editing code, read:
 - The backend is a NestJS feature-first modular monolith.
 - Modules use standard NestJS controllers, services, DTOs, and Prisma.
 - Clean Architecture layer folders are not used.
-- FastAPI AI implementation lives in a separate repository.
+- FastAPI AI implementation is a separately deployed service under the monorepo
+  `ai/` workspace.
 - PostgreSQL with pgvector is the main database; Prisma owns schema and migrations.
 - BullMQ and Redis are used for asynchronous jobs when needed.
+- NestJS WebSocket gateways deliver durable discussions, project-scoped direct
+  messages, and persisted notifications.
 - Docker Compose is the default local development path.
 
 ## Standard Module Shape
@@ -61,6 +64,12 @@ Larger modules may use `controllers/` and `services/`. Add `jobs/`, `events/`,
 - Split a service when its responsibilities are difficult to understand or test.
 - AI output is a recommendation. A NestJS service validates it, makes the final
   decision, and stores the audit snapshot.
+- Private GitHub evidence requires explicit selected-repository read-only consent
+  and cannot enter public output by default.
+- WebSocket connections/rooms never grant business authority; owning services
+  persist records and recheck scoped authorization.
+- RAG retrieval is permission-filtered and attributable; agent tools cannot call
+  final business transitions.
 - Do not hardcode secrets, model keys, URLs, or tokens.
 - Do not bypass Prisma migrations for schema changes.
 

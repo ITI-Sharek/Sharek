@@ -1,11 +1,13 @@
 # ShareK — Approved Human Decision Log
 
 **Status:** APPROVED DECISIONS
-**Updated:** 2026-07-17
+**Updated:** 2026-07-18
 **Purpose:** Record the completed human decision round that governs the later documentation consolidation.
 **Important:** These decisions supersede conflicting statements in older documents.
 
-This update does not change the status of the generated canonical document set. Status changes and full consolidation remain a separate, later task.
+The canonical document set was approved on 2026-07-18 under DOC-001. Individual
+implementation-status labels remain evidence-based and are not promoted by that
+documentation approval.
 
 ---
 
@@ -114,6 +116,8 @@ When a contributor requests AI inference after connecting GitHub, ShareK analyze
 - Repository languages.
 - README files.
 - Public issues and code-review activity when available.
+- Explicitly selected private repositories and activity under SEC-003, with
+  narrow read-only consent and non-public source handling.
 
 ### Required AI output
 
@@ -130,7 +134,7 @@ Each inferred skill must include:
 ### Trust rules
 
 - `AI_INFERRED` does not mean verified.
-- Lack of public evidence does not prove lack of skill.
+- Lack of authorized evidence does not prove lack of skill.
 - Contributors may dispute inaccurate inferences.
 - AI skill inference must not become an irreversible hiring, acceptance, or rejection decision.
 - Public UI must explain that the result is inferred from available public evidence.
@@ -681,25 +685,20 @@ The required release must demonstrate one complete evidence and reputation loop 
 
 ### Secondary scope after the required loop works
 
-- Blind bilateral reviews.
-- Project discussion.
-- Minimal real-time chat.
 - GitHub synchronization beyond initial analysis.
-- Beginner recommendation feed.
-- First-contribution checklist.
 - AI project assistant.
 - AI commit summaries.
 
 ### Deferred
 
 - Strict AI rejection.
-- Multi-agent orchestration unless the ITI checklist makes it mandatory.
+- Three-or-more-agent orchestration unless the ITI checklist makes it mandatory.
 - Real payments.
 - Subscriptions.
 - Organizations.
 - Team hiring.
 - Advanced Kanban.
-- Multimodal portfolio analysis.
+- Multimodal portfolio analysis beyond required evidence transport.
 - Speech-to-text.
 - MCP.
 - Advanced semantic matching.
@@ -712,9 +711,189 @@ Advanced AI decoration must not replace a functioning contribution and reputatio
 
 ---
 
+## PD-004 — Restored Beginner Activation, Reviews, and Collaboration Scope
+
+**Status:** APPROVED
+
+### Decision
+
+The following capabilities are required in the MVP and are no longer secondary
+scope:
+
+- beginner-friendly project/task discovery using deterministic filters;
+- a templated explanation of why a task may fit the contributor;
+- a static first-contribution checklist and a useful zero-evidence fallback;
+- blind bilateral reviews under PD-002;
+- durable project/task discussions;
+- project-scoped direct messages; and
+- real-time notification delivery.
+
+These capabilities support the evidence-and-reputation loop; they do not replace
+it. The manual contribution loop remains the critical path and must work without
+AI or WebSocket availability.
+
+### Delivery rule
+
+Collaboration work may be developed in parallel after its authorization and data
+contracts are stable, but chat/discussion polish cannot delay project, task,
+application, assignment, evidence, owner review, reputation, or public-profile
+completion.
+
+This decision supersedes the placement of blind bilateral reviews, project
+discussion, beginner recommendations, and the first-contribution checklist under
+PD-003 secondary scope.
+
+---
+
+## COL-001 — WebSocket Collaboration and Notification Boundary
+
+**Status:** APPROVED
+
+### Decision
+
+WebSockets are an approved MVP transport for:
+
+- project/task discussion updates;
+- direct messages between authorized active project participants; and
+- in-app notification delivery.
+
+NestJS remains authoritative. Discussion messages, direct messages, notification
+records, membership, and moderation state are persisted through their owning
+NestJS services. A WebSocket event is never the sole record of a business fact and
+cannot accept an application, approve evidence, publish a review, or change
+reputation.
+
+### Required safeguards
+
+- Authenticate every connection and revalidate authorization on room join/send.
+- Derive rooms from server-side project/task relationships; never trust a
+  client-supplied membership claim.
+- Revoke access after application, assignment, membership, suspension, or project
+  state changes.
+- Persist messages before acknowledging successful delivery.
+- Provide HTTP history/recovery and a reconnect-safe notification path.
+- Rate-limit, report, moderate, and audit abusive content.
+- Do not grant rejected, withdrawn, or expired applicants private room access.
+
+Presence, typing indicators, read receipts, voice/video calls, reactions, and
+other social polish remain lower priority than the durable collaboration paths.
+
+---
+
+## SEC-003 — Explicit Private-Repository Evidence Access
+
+**Status:** APPROVED
+
+### Decision
+
+An authenticated user who links GitHub may explicitly authorize selected public
+or private repositories for evidence analysis. Private-repository support is
+allowed; automatic access to every private repository is not.
+
+### Required safeguards
+
+- Request the narrowest read-only permission that supports the selected
+  repositories. The current broad `repo` OAuth scope is not accepted merely
+  because private evidence is now allowed.
+- Record repository selection, granted permission, consent time, visibility, and
+  last access/synchronization.
+- Never expose private source, diffs, repository names, URLs, or citations to a
+  public profile.
+- Public derived claims from private evidence require explicit contributor
+  visibility consent and a label explaining that the underlying evidence is not
+  public. They are not repository-public verification.
+- Restrict model payloads, logs, traces, caches, and staff/admin views to the
+  minimum authorized data.
+- Revoke future access on disconnect and implement approved retention/deletion
+  behavior for stored private evidence.
+- Never execute repository code or repository-provided configuration during
+  evidence analysis.
+
+Project repository ownership still requires SEC-001 maintainer authorization.
+Contributor evidence authorization does not prove ownership of a repository.
+
+---
+
+## AI-004 — Bounded RAG and Single-Agent MVP Priority
+
+**Status:** APPROVED
+
+### Decision
+
+Bounded RAG and one useful agentic workflow are required MVP capabilities.
+Multimodal analysis and a three-or-more-agent workflow are lower priority and may
+follow only after the required product loop, RAG, and single-agent evaluation are
+working.
+
+### RAG boundary
+
+- PostgreSQL remains the source of truth.
+- Retrieval uses compact, attributable evidence documents with repository,
+  contributor, skill, revision/freshness, visibility, and permission metadata.
+- Retrieval is narrow and permission-filtered; it does not load an entire GitHub
+  history into every request.
+- pgvector may be introduced for bounded evidence retrieval. This does not approve
+  advanced semantic project matching or a separate vector database.
+- Outputs retain evidence citations, confidence, uncertainty, model/prompt
+  versions, and retrieval metadata.
+
+### Agent boundary
+
+The MVP agent may gather permitted evidence, call deterministic tools, retrieve
+evidence, and produce structured skill/application-fit recommendations. NestJS
+validates the result and alone changes business state. The agent cannot accept or
+reject an application, approve evidence, publish a review, moderate a user, or
+create reputation.
+
+Three-agent orchestration and multimodal analysis remain optional after the P0
+release path unless a classified external requirement makes them mandatory.
+
+---
+
+## DOC-001 — Canonical MVP Documentation Baseline
+
+**Status:** APPROVED
+
+### Decision
+
+The seven canonical documents identified by `docs/AGENTS.md` are approved as the
+authoritative MVP baseline on 2026-07-18. Their approval includes PD-004,
+COL-001, SEC-003, AI-004, the 2026-07-30 scope checkpoint, and the 2026-08-30
+final deadline.
+
+Approval of a target document does not claim that its target features, routes,
+entities, migrations, tests, or deployment behavior are implemented. Those
+statuses continue to require repository and runtime evidence.
+
+### Issue handoff rule
+
+The project owner will regenerate implementation issues from the approved
+canonical documents. Point-in-time issue manifests and created-issue snapshots
+under `docs/audits/` remain historical records and must not be reused as current
+scope. Replacement issues must reference the applicable delivery slice and
+decision IDs.
+
+---
+
 ## DX-001 — Delivery Capacity
 
-**Status:** OPEN
+**Status:** APPROVED
+
+### Confirmed on 2026-07-18
+
+- The final delivery deadline is 2026-08-30.
+- The product/scope discussion checkpoint is 2026-07-30.
+- The team intends to work full-time at approximately eight hours per person per
+  working day.
+
+The deadline, checkpoint, and eight-hour working assumption are approved. They
+are not evidence of delivered capacity.
+
+### Remaining planning inputs — OPEN
+
+Working days per week, individual exceptions, planned leave, actual availability
+by member, and slice ownership must still be recorded before per-slice estimates
+are treated as capacity-validated forecasts.
 
 The following must be filled with real team information:
 

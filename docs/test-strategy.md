@@ -1,6 +1,6 @@
 # ShareK Test Strategy
 
-**Status:** PROPOSED
+**Status:** APPROVED
 **Sources:** `product-spec.md`, `architecture.md`, `api-contracts.md`,
 `decision-log.md`
 
@@ -62,7 +62,10 @@ states, keyboard access, and responsive behavior. High-priority route tests:
 - evidence submission/version history;
 - blind review publication;
 - external-project submission/review state display; and
-- AI confidence, uncertainty, citations, and dispute actions.
+- AI confidence, uncertainty, citations, and dispute actions;
+- zero-evidence beginner fallback and checklist progress; and
+- discussion/direct-message reconnect, unread, forbidden, and notification
+  behavior.
 
 ### End-to-end tests
 
@@ -70,9 +73,11 @@ At least one scenario must prove:
 
 ```text
 authorized owner publishes
+  -> beginner discovers a suitable task/checklist
   -> contributor applies
   -> application reaches owner
   -> owner accepts
+  -> authorized discussion/direct-message/notification works
   -> contributor submits attributable evidence
   -> owner reviews
   -> both sides review or window expires
@@ -80,7 +85,8 @@ authorized owner publishes
   -> logged-out profile explains the resulting trust/evidence
 ```
 
-Repeat with a repository-free project and with one integration unavailable.
+Repeat with a repository-free project, selected private evidence, sparse/no
+GitHub evidence, WebSocket reconnect, and one integration unavailable.
 
 ## 3. Mandatory domain suites
 
@@ -101,7 +107,30 @@ Repeat with a repository-free project and with one integration unavailable.
 - Repository-free create/publish/task/application/delivery works.
 - A repository may be connected later without losing history.
 - Cached GitHub facts expose freshness/sync state.
-- Private GitHub data never appears in public projections.
+- Selected private repositories require explicit consent, narrow read-only
+  authorization, and current permission.
+- A broad old token cannot bypass server-side repository selection.
+- Revoked/disconnected private repositories cannot be collected or reindexed.
+- Private GitHub data never appears in public projections, logs, traces, error
+  envelopes, or unauthorized AI responses.
+
+### Beginner activation and realtime collaboration
+
+- No-GitHub/no-evidence users reach deterministic recommendations and the static
+  checklist rather than an error/dead end.
+- Recommendation reasons come from deterministic filters and do not fabricate
+  skill evidence.
+- Connection and room subscription require current authentication and scoped
+  project/task/thread authorization.
+- Rejected, withdrawn, expired, suspended, or removed users cannot subscribe,
+  send, fetch history, or infer room existence.
+- Message persistence happens before acknowledgement; duplicate event IDs and
+  reconnect retries are idempotent.
+- HTTP cursor/history recovery returns every authorized persisted message or
+  notification missed during disconnection.
+- Cross-project direct-message access, recipient spoofing, enumeration, spam,
+  oversized payload, and moderation/report paths are covered.
+- A WebSocket outage does not lose business events or block HTTP workflows.
 
 ### Assignment and individual evidence
 
@@ -166,6 +195,11 @@ Maintain a versioned, reviewable set covering:
 - inaccessible/deleted evidence;
 - fit with matching, missing, and uncertain requirements; and
 - deliberately negative fit that must still reach the owner.
+- public/private mixed evidence with visibility and consent changes;
+- RAG permission filters, stale revisions, irrelevant retrieval, and missing
+  evidence; and
+- agent tool selection, tool failure, retry bounds, and forbidden business-state
+  mutation.
 
 Do not claim a quality percentage until the set, labels, scoring method, and
 threshold are approved. Record false-positive and false-negative costs
@@ -175,11 +209,17 @@ authority.
 ### Required assertions
 
 - Every inferred skill has evidence, confidence, uncertainty, and versions.
+- Every RAG-backed claim identifies retrieved evidence document IDs,
+  revision/freshness, visibility, and retrieval policy/version.
+- Retrieval precision/relevance and groundedness meet approved thresholds; the
+  evaluation reports public and private cases separately.
 - “No evidence found” is not “skill absent.”
 - Contributor dispute preserves original output and audit metadata.
 - Every valid application is owner-visible before/without AI completion.
 - Negative/low-confidence/failed fit cannot reject or hide.
 - Model output cannot invoke tools or execute repository code.
+- Agent tools are allowlisted, deterministic where possible, permission-aware,
+  and unable to call final-state business transitions.
 - Retrieved text cannot override system instructions.
 - Secrets and private content are absent from prompts, logs, and public output.
 - Evidence URLs/freshness are permission-aware and traceable.
@@ -191,6 +231,10 @@ authority.
 - Duplicate jobs and idempotent persistence.
 - Model/prompt version change.
 - Evidence removed between collection and display.
+- Private-repository consent revoked between retrieval and generation.
+- pgvector index missing/stale and deterministic fallback behavior.
+- Agent tool timeout, repeated action, malformed observation, and maximum-step
+  exhaustion.
 - Rate limit and budget exhaustion.
 
 ## 5. Security and privacy tests
@@ -198,11 +242,15 @@ authority.
 - Authentication/session fixation, revocation, expiry, and CSRF for cookie-based
   transport if ADR-005 is implemented.
 - Object-level authorization for every project/task/application/evidence/review.
+- WebSocket handshake, room subscription/send authorization, revocation,
+  cross-project isolation, rate limits, and output encoding.
 - OAuth state/PKCE/callback validation and least-privilege scopes.
 - Input validation, output encoding, URL validation, and file scanning.
 - Rate limits for auth, AI generation, evidence upload, disputes, and moderation.
 - Audit-log integrity and sensitive-data redaction.
 - Public-profile privacy and hidden/removed evidence.
+- Private-repository consent, data minimization, provider payload, trace/log
+  redaction, revocation, retention, deletion, and reindex tests.
 - Retention/deletion behavior after its policy is approved.
 
 ## 6. Release evidence

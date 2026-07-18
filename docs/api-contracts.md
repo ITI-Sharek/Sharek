@@ -1,7 +1,7 @@
 # ShareK — API Contracts
 
-**Status:** PROPOSED — current routes and target contracts are marked separately
-**Date:** 2026-07-17
+**Status:** APPROVED — current routes and target contracts are marked separately
+**Date:** 2026-07-18
 **Depends on:** `decision-log.md`, `product-spec.md`, `architecture.md`
 
 The real, implemented routes below do not use a `/v1` URL segment. The human-approved target public-profile contract is `GET /api/v1/profiles/:username` (`decision-log.md` API-001); reconciling that target with the current unversioned route is explicit implementation work, not an implemented claim.
@@ -118,9 +118,25 @@ DELETE /github/account
 POST   /projects/import/github
 ```
 
-**Confirmed gap:** contributor accounts currently receive `CONTRIBUTOR_OAUTH_SCOPE = 'read:user user:email repo'`; the owner/admin default is `'read:user user:email public_repo'`. The contributor scope includes private-repository access and repository write capability, which conflicts with the approved public-evidence-only AI inference boundary and least-privilege requirement. OAuth scope reduction and any resulting repository-selection behavior are implementation work; this document does not claim they are already fixed.
+**Confirmed gap:** contributor accounts currently receive `CONTRIBUTOR_OAUTH_SCOPE = 'read:user user:email repo'`; the owner/admin default is `'read:user user:email public_repo'`. Selected private-repository evidence is approved under SEC-003, but the broad `repo` scope still exposes write capability and every private repository without selected-repository consent. The target contract requests narrow read-only access, records selection/consent/visibility, and rejects analysis outside that selection. This document does not claim that behavior is implemented.
 
 Repository list response (real, keep): `{ items, page, perPage, hasNextPage }`, `perPage` default `12` / cap `50`. Focused evidence endpoints take `?fullName=owner/repository`, return normalized README/description/stats/contribution-activity/commit-signals, each with an `unavailableReason` fallback instead of failing the whole import.
+
+Target selected-evidence endpoints (not implemented):
+
+```text
+GET    /github/evidence-repositories
+POST   /github/evidence-selections
+GET    /github/evidence-selections
+DELETE /github/evidence-selections/:selectionId
+```
+
+Selection input uses stable GitHub repository IDs and an intended visibility for
+derived claims; it never accepts a raw client assertion that a repository is
+authorized. The server verifies the linked GitHub identity, granted read
+permission, repository visibility, and current selection before collection or AI
+analysis. Disconnect/revocation prevents future access and starts the approved
+retention/deletion workflow.
 
 ## 5. Skill profiling — `IMPLEMENTED`, gaps around eligibility language
 
@@ -131,9 +147,9 @@ POST /skill-profiles/me/generations
 GET  /skill-profiles/me/generations/:generationId
 ```
 
-Request: `{ repositories: [{ fullName: "owner/repository" }] }` — 1 to 10 items, each must appear in the connected account's own `GET /user/repos` (rejects arbitrary public repos). Status lifecycle (real): `queued -> collecting_evidence -> analyzing -> pending_review | needs_more_evidence | failed`.
+Request: `{ repositories: [{ fullName: "owner/repository" }] }` — 1 to 10 items, each must appear in the connected account's own `GET /user/repos`. Current code may expose public or private repositories under the broad token; it does not implement SEC-003 selected-private consent. Status lifecycle (real): `queued -> collecting_evidence -> analyzing -> pending_review | needs_more_evidence | failed`.
 
-**Target rules:** the existing `pending_review`/`needs_more_evidence` values describe the generation job lifecycle only. They must not gate participation. The target skill representation keeps `AI_INFERRED` as the evidence source and records human review separately; admin review does not overwrite the evidence source. AI inference is required in MVP, uses public evidence only, exposes confidence, uncertainty, freshness, and evidence references, and supports contributor dispute (`decision-log.md` AI-001, DM-003, DM-004).
+**Target rules:** the existing `pending_review`/`needs_more_evidence` values describe the generation job lifecycle only. They must not gate participation. The target skill representation keeps `AI_INFERRED` as the evidence source and records human review separately; admin review does not overwrite the evidence source. AI inference is required in MVP, uses authorized public or explicitly selected private evidence, exposes confidence, uncertainty, freshness, evidence visibility, and references, and supports contributor dispute (`decision-log.md` AI-001, AI-004, DM-003, DM-004, SEC-003).
 
 ## 6. AI integration — approved boundary and target behavior
 
@@ -148,6 +164,12 @@ Owning service (skill-profiles | applications)
 ```
 
 FastAPI returns analysis, confidence, and evidence references; NestJS validates and persists the result and alone owns business state. Every otherwise valid application reaches the owner even when AI fails, is low-confidence, or reports poor fit. AI must never hide or automatically reject an MVP application. Exact new FastAPI endpoints and DTOs remain implementation-contract work; none are invented here.
+
+The target AI contract also supports permission-filtered RAG metadata and one
+bounded agentic workflow. RAG responses identify retrieved evidence document IDs,
+source revisions/freshness, visibility class, retrieval policy/version, and
+scores. Private raw content is never returned to public consumers. Tool calls and
+retrieval cannot create final business transitions.
 
 ## 7. Target contribution-loop API — `PROPOSED`
 
@@ -164,8 +186,10 @@ POST   /projects/:projectId/tasks
 GET    /projects/:projectId/tasks
 GET    /tasks/:taskId
 PATCH  /tasks/:taskId
-POST   /tasks/:taskId/comments
-GET    /tasks/:taskId/comments
+POST   /projects/:projectId/discussions
+GET    /projects/:projectId/discussions
+POST   /discussions/:discussionId/messages
+GET    /discussions/:discussionId/messages
 
 POST   /tasks/:taskId/applications
 GET    /tasks/:taskId/applications
@@ -186,6 +210,11 @@ GET    /api/v1/profiles/:username
 GET    /notifications
 POST   /notifications/:id/read
 
+POST   /projects/:projectId/direct-message-threads
+GET    /projects/:projectId/direct-message-threads
+POST   /direct-message-threads/:threadId/messages
+GET    /direct-message-threads/:threadId/messages
+
 POST   /flags                              # contest evidence/review/AI/skill subject
 GET    /admin/flags
 POST   /admin/flags/:id/resolve
@@ -196,7 +225,44 @@ Every application-create response is accepted for owner delivery before optional
 
 Response shapes must follow `architecture.md` §§9–14. Evidence source, review status, verification tier, skill claims, and profile trust signals are separate; an older single enum or boolean is not authoritative.
 
-## 8. External-project evidence API — `PROPOSED`
+## 8. Realtime collaboration contract — `PROPOSED`
+
+The authenticated WebSocket endpoint is `/realtime`. The handshake uses the
+approved session/access-token transport; the server rechecks current membership
+and suspension state on connection, subscription, and send.
+
+Client subscriptions are requests, not authority. NestJS resolves permitted
+rooms from server-side project, task, assignment, and thread relationships.
+
+Server events:
+
+```text
+discussion.message.created
+direct_message.created
+notification.created
+thread.access_revoked
+```
+
+Client commands:
+
+```text
+discussion.subscribe
+discussion.message.send
+direct_message.subscribe
+direct_message.send
+notifications.subscribe
+```
+
+Successful sends are acknowledged only after the owning service persists the
+record. Event envelopes include `eventId`, `occurredAt`, `correlationId`, subject
+IDs, and a resumable cursor. Clients recover missed events through the HTTP
+history/notification endpoints. WebSocket events never accept/reject
+applications, approve evidence, publish reviews, or change reputation.
+
+Rejected, withdrawn, expired, suspended, or otherwise unauthorized users receive
+a generic forbidden/error event and cannot infer private room existence.
+
+## 9. External-project evidence API — `PROPOSED`
 
 ```text
 POST   /me/external-projects
@@ -225,7 +291,7 @@ submission status vocabulary, version, `submittedAt`, `reviewStartedAt`,
 Public profile projection exposes only policy-visible approved evidence, with a
 source label and verification tier. It never returns a global `verified` field.
 
-## 9. AI output contract — `PROPOSED`
+## 10. AI output contract — `PROPOSED`
 
 Both required AI features return an auditable envelope:
 
@@ -240,6 +306,7 @@ Both required AI features return an auditable envelope:
       "sourceType": "PUBLIC_PULL_REQUEST",
       "sourceUrl": "https://github.com/example/repo/pull/1",
       "repository": "example/repo",
+      "visibility": "PUBLIC",
       "observedAt": "2026-07-17T00:00:00Z"
     }
   ],
@@ -253,7 +320,12 @@ returns matching evidence and missing/uncertain requirements. Failure returns a
 non-blocking unavailable state; it never returns an authoritative accept/reject
 transition.
 
-## 10. Contract change rules
+For private evidence, public responses omit `sourceUrl`, repository identity, raw
+content, and identifying excerpts. A contributor-approved derived public claim
+uses `visibility: PRIVATE_DERIVED` and explains that its source is not publicly
+inspectable.
+
+## 11. Contract change rules
 
 - Breaking changes require explicit frontend coordination.
 - DTO changes must be reflected here or in generated OpenAPI — this doc or the OpenAPI spec, not both silently diverging.

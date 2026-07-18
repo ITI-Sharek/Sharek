@@ -1,6 +1,6 @@
 # ShareK Documentation
 
-**Status:** PROPOSED
+**Status:** APPROVED
 
 ShareK’s documentation is intentionally small. Seven files are canonical; all
 other material supports operation, rationale, audit, tooling, or history.
@@ -25,13 +25,13 @@ When needed:
 
 | Document | Owns | Status |
 |---|---|---|
-| `README.md` | Navigation, reading order, ownership | PROPOSED |
-| `product-spec.md` | Product scope, requirements, public behavior, non-goals | PROPOSED |
-| `architecture.md` | Technology, domain glossary/contexts/entities/states/permissions/invariants | PROPOSED |
-| `api-contracts.md` | Current and target HTTP/API contracts | PROPOSED |
-| `delivery-plan.md` | Vertical slices, dependencies, delivery gates | PROPOSED |
+| `README.md` | Navigation, reading order, ownership | APPROVED |
+| `product-spec.md` | Product scope, requirements, public behavior, non-goals | APPROVED |
+| `architecture.md` | Technology, domain glossary/contexts/entities/states/permissions/invariants | APPROVED |
+| `api-contracts.md` | Current and target HTTP/API contracts | APPROVED; each contract retains its implementation label |
+| `delivery-plan.md` | Vertical slices, dependencies, delivery gates | APPROVED |
 | `decision-log.md` | Approved and open human decisions | Mixed by entry; approved entries are binding |
-| `test-strategy.md` | Verification, security, AI evaluation, release evidence | PROPOSED |
+| `test-strategy.md` | Verification, security, AI evaluation, release evidence | APPROVED |
 
 No other file may introduce product requirements.
 
@@ -63,8 +63,10 @@ When sources conflict:
 8. current code for current-state claims only;
 9. supporting and archived material.
 
-The current canonical set is `PROPOSED`. It documents approved decisions but is
-not itself approved merely because consolidation occurred.
+The canonical set was human-approved on 2026-07-18 under DOC-001. Approval makes
+the target requirements and contracts authoritative; it does not change any
+`PROPOSED`, `IN DEVELOPMENT`, or `IMPLEMENTED` label attached to an individual
+feature, endpoint, entity, or module.
 
 ## Planning and current status
 

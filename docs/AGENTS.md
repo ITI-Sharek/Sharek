@@ -69,14 +69,20 @@ or recreated. Historical copies exist only under `archive/legacy/`.
 ## Product invariants
 
 - AI Skill Inference and advisory Application Screening Fit are required in MVP.
+- Bounded evidence RAG and one advisory agentic workflow are required in MVP.
 - AI exposes evidence, confidence, and uncertainty and remains advisory.
 - Every valid application reaches the owner; automatic rejection is deferred.
 - NestJS owns business authority; FastAPI is a bounded AI service.
 - GitHub is authoritative for connected code; repository-free projects work.
+- Explicitly selected private repositories may be analyzed with narrow read-only
+  consent, but private evidence never becomes public by default.
 - Repository ownership requires verified maintainer permission.
 - Individual contribution evidence is mandatory.
 - One primary accepted contributor per task is the MVP default.
 - Reviews publish when both submit or the review window expires.
+- Beginner discovery, the first-contribution checklist, durable discussions,
+  project-scoped direct messages, and real-time notifications are required MVP
+  support capabilities.
 - External admin review is distinct from ShareK/repository verification.
 - Evidence source, review status, verification tier, and skill claims stay separate.
 - Profiles can hold multiple trust signals and no global verified boolean.

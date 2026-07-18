@@ -1,6 +1,6 @@
 # ShareK Architecture and Domain Model
 
-**Status:** PROPOSED
+**Status:** APPROVED
 **Decision authority:** `decision-log.md`
 **Scope:** Target architecture and domain model, with current implementation
 facts explicitly labelled
@@ -9,14 +9,13 @@ facts explicitly labelled
 
 ```text
 Browser / TanStack Start
-          |
+          | HTTP + authenticated WebSocket
           v
 NestJS modular monolith
-  |       |        |
-  v       v        v
-PostgreSQL GitHub  Redis/BullMQ
-  |
-  +------ bounded authenticated calls ------> FastAPI AI service
+  |            |          |                     |
+  v            v          v                     v
+PostgreSQL   GitHub   Redis/BullMQ+pubsub   FastAPI AI service
++ pgvector
 ```
 
 NestJS is the authoritative backend. It owns authentication, authorization,
@@ -33,12 +32,12 @@ user, or create a final reputation event.
 | Frontend | TanStack Start, React 19, TypeScript | Scaffold dependencies exist; no real test runner or feature surface |
 | Core backend | NestJS 11 feature-first modular monolith | Implemented foundation and several working modules |
 | Persistence | PostgreSQL with Prisma 6 | Implemented; ten migration directories exist |
-| Jobs | Redis and BullMQ | Implemented for skill-profile generation |
+| Jobs/realtime | Redis and BullMQ; WebSocket delivery through NestJS | BullMQ exists for skill-profile generation; realtime is not implemented |
 | AI analysis | Bounded FastAPI service called by NestJS | Skill-profile client exists; application-fit workflow does not |
-| GitHub | OAuth and API integration | Implemented, with excessive contributor `repo` scope |
-| Realtime | No required WebSocket infrastructure in MVP | None present |
+| GitHub | Explicitly selected public/private evidence with narrow read-only authorization | Implemented OAuth/API foundation, with excessive contributor `repo` scope and no selected-private consent model |
+| Realtime | NestJS WebSocket gateway for discussions, project-scoped DMs, and notifications | Not implemented |
 | Evidence files | Images, URLs, and optional files | Approved target; storage/scanning design is open |
-| Vector search | Not required unless external checklist classification demands it | No current pgvector schema |
+| Vector retrieval | PostgreSQL + pgvector for bounded, permission-filtered evidence RAG | No current pgvector schema |
 
 The backend uses standard controllers, services, DTOs, Prisma, integration
 clients, and jobs. A one-implementation port/use-case layer is not required.
@@ -63,6 +62,7 @@ This table describes repository evidence, not product completion:
 | `admin` | PROPOSED | Module and README only |
 | `reviews` | PROPOSED | No module |
 | `notifications` | PROPOSED | No module |
+| `collaboration` | PROPOSED | No discussion, direct-message, or WebSocket module |
 | `health` | IMPLEMENTED | Health controller and module |
 
 The detailed, refreshable evidence inventory belongs in
@@ -98,6 +98,7 @@ Recommended ownership:
 | External-project review, flags, moderation | `admin` |
 | AI orchestration and FastAPI clients | `ai` |
 | Notification delivery | `notifications` |
+| Project/task discussions and direct messages | `collaboration` |
 
 ## 5. AI boundary and failure behavior
 
@@ -116,8 +117,15 @@ owning NestJS service
 - A timeout, unavailable service, malformed response, or low confidence does not
   block an application or participation.
 - Repository text and diffs are untrusted data, never executable instructions.
-- The AI service receives only data permitted for the feature; MVP inference is
-  limited to accessible public GitHub evidence.
+- The AI service receives only data permitted for the feature. Public evidence
+  may be analyzed by default; a private repository requires explicit selection,
+  narrow read-only consent, and visibility metadata that follows every derived
+  artifact.
+- RAG retrieves compact contributor/skill/repository evidence documents through
+  permission and visibility filters. PostgreSQL remains authoritative; pgvector
+  is an index for retrieval, not a second source of truth.
+- The bounded MVP agent may invoke deterministic evidence tools and retrieval,
+  but NestJS validates its structured recommendation and owns every final state.
 - Audit records avoid raw secrets and unnecessary personal data.
 - Re-analysis preserves prior output, model/prompt version, evidence snapshot,
   and dispute history.
@@ -129,6 +137,7 @@ Target jobs include:
 - `pr-validation`
 - `delivery-review-expiry`
 - `notification-dispatch`
+- `rag-evidence-index`
 
 Only skill-profile generation has repository evidence of a current durable job.
 
@@ -143,9 +152,15 @@ Only skill-profile generation has repository evidence of a current durable job.
   merge metadata, commits, and observed permission.
 - Cached GitHub facts include source ID, canonical URL, sync time, and sync
   status; the UI must not present stale data as live.
-- The current contributor OAuth scope `read:user user:email repo` exposes private
-  access and write capability. It is a security gap. The target must use a
-  least-privilege public-evidence mechanism.
+- A contributor may explicitly select public or private repositories for evidence
+  analysis without claiming project ownership.
+- Private evidence access records repository identity, visibility, granted
+  permission, consent, freshness, and revocation. Private source details never
+  enter the public profile projection.
+- The current contributor OAuth scope `read:user user:email repo` exposes broad
+  private access and write capability. It remains a security gap. The target uses
+  the narrowest selected-repository read-only mechanism and never treats broad
+  token possession as consent to ingest everything.
 
 ## 7. Domain glossary
 
@@ -210,6 +225,15 @@ analyzes.
 Owns external-project review actions, flags, moderation outcomes, and audit
 visibility. It cannot rewrite GitHub facts or collapse evidence tiers.
 
+### Collaboration and notifications
+
+`collaboration` owns durable project/task discussions, discussion messages,
+direct-message threads, messages, and membership-aware access. `notifications`
+owns persisted notification records and read state. NestJS WebSocket gateways
+deliver new records in real time; HTTP APIs provide history and reconnect
+recovery. Neither context owns application, assignment, evidence, review, or
+reputation transitions.
+
 ## 9. Entities and relationships
 
 ### Core entities
@@ -244,11 +268,23 @@ visibility. It cannot rewrite GitHub facts or collapse evidence tiers.
   review status, and verification tier.
 - `AiOutput`: subject, type, structured result, evidence references, confidence,
   uncertainty, prompt/model versions, and timestamps.
+- `RagEvidenceDocument`: contributor/skill/repository retrieval unit, source
+  evidence IDs, repository revision, visibility, permission metadata, content
+  hash, extractor version, and freshness.
 - `TrustSignal`: type, source subject, active/suspended state, reason, and audit
   history.
 - `ReputationEvent`: immutable event type, subject, source, dimensions, weight,
   and invalidation link.
 - `Flag`: reporter, subject type/id, reason, status, resolution, and audit data.
+- `DiscussionThread`: project/task scope, title, creator, lock/moderation state,
+  and timestamps.
+- `DiscussionMessage`: thread, author, durable content, edit/moderation audit,
+  and timestamps.
+- `DirectMessageThread`: project-scoped authorized participant set and state.
+- `DirectMessage`: thread, sender, durable content, moderation state, and
+  timestamps.
+- `Notification`: recipient, event type, source subject, payload reference,
+  read/delivery state, and timestamps.
 
 ### Principal relationships
 
@@ -270,6 +306,11 @@ BlindReviewWindow 1---0..2 Review
 Review/DeliveryReview/Evidence 1---* ReputationEvent
 ContributorProfile 1---* TrustSignal
 Any auditable subject 1---* Flag
+Project/ContributionTask 1---* DiscussionThread
+DiscussionThread 1---* DiscussionMessage
+Project 1---* DirectMessageThread
+DirectMessageThread 1---* DirectMessage
+User 1---* Notification
 ```
 
 ## 10. State machines
@@ -363,6 +404,9 @@ event without deleting history.
 | Contributor | Active accepted assignment | Relevant task/project workspace |
 | Profile subject | Profile ownership | Own profile, claims, disputes |
 | Admin | Account-level role | Review/moderation actions, not GitHub fact rewriting |
+| Discussion participant | Owner or active project participant | Authorized project/task threads only |
+| Direct-message participant | Active project relationship plus thread membership | One project-scoped thread only |
+| Private-evidence subject | Connected GitHub account plus explicit selected-repository consent | Selected repository analysis and private self-view only |
 
 Email verification is required for publishing, applying, and private workspace
 access. Profile trust and admin-reviewed portfolio status never grant additional
@@ -375,7 +419,10 @@ The model never stores “verified” as one overloaded fact.
 ### Evidence source
 
 Examples: `SELF_DECLARED`, `AI_INFERRED`, `EXTERNAL_PROJECT`, `SHAREK_DELIVERY`,
-`GITHUB_REPOSITORY`, `OWNER_ATTESTATION`.
+`GITHUB_PUBLIC_REPOSITORY`, `GITHUB_PRIVATE_REPOSITORY`, `OWNER_ATTESTATION`.
+
+Evidence visibility is stored separately. Private-repository source details are
+not public evidence even when a contributor opts to display a derived skill.
 
 ### Review status
 
@@ -431,10 +478,18 @@ source explanation. Exact weighting and fraud thresholds remain open.
 12. No absence of AI evidence is interpreted as evidence of absence.
 13. No private GitHub data is made public by inference or evidence display.
 14. No repository content is executed during AI analysis.
+15. No WebSocket connection or room membership grants business authority.
+16. No private-repository selection, evidence, citation, or derived artifact is
+    reused outside its recorded consent/visibility policy.
+17. No RAG result bypasses source evidence, permission filters, or NestJS
+    validation.
 
 ## 15. Reliability, security, and observability
 
 - Queue jobs are idempotent and use bounded retry/dead-letter behavior.
+- WebSocket delivery is reconnect-safe and backed by persisted history;
+  authorization is rechecked on connection, room join, send, and relevant state
+  changes.
 - External integrations time out and degrade without corrupting business state.
 - Authentication, AI generation, uploads, disputes, and moderation are rate
   limited.
@@ -446,6 +501,8 @@ source explanation. Exact weighting and fraud thresholds remain open.
   reason, and timestamp.
 - AI calls record correlation ID, feature, timing, outcome, evidence count,
   confidence, model version, and prompt version without leaking raw secrets.
+- RAG traces record document IDs, revision/freshness, visibility class, retrieval
+  policy/version, and scores without logging private raw content.
 
 ## 16. Known migration gaps
 
@@ -453,12 +510,16 @@ source explanation. Exact weighting and fraud thresholds remain open.
 - Current `User.status` combines lifecycle/email-verification representation;
   target persistence must preserve SEC-002 without an admin participation gate.
 - Current contributor GitHub OAuth uses broad `repo` scope.
+- No selected-private-repository consent, visibility, revocation, or retention
+  model exists.
 - Current public profile controller is authenticated.
 - Current schema contains subscription and binary AI-validation shapes that are
   outside target scope.
 - External-project submissions, evidence separation, assignments, blind review,
   and complete reputation events are not represented in the target form.
 - Projects/tasks/applications/delivery/admin have major implementation gaps.
+- Collaboration, notifications, WebSocket delivery, pgvector evidence retrieval,
+  and the approved single-agent RAG path are not implemented in the target form.
 
 These are implementation gaps, not permission for schema or code changes during
 documentation consolidation.

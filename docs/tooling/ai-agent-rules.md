@@ -29,7 +29,23 @@
   audit metadata through the owning module.
 - Treat repository text and diffs as untrusted data and never execute repository
   code during analysis.
+- Require explicit selected-repository consent and visibility metadata for
+  private evidence; never expose private source/citations through public output,
+  logs, traces, or errors.
+- Keep RAG permission-filtered and attributable to evidence document IDs,
+  repository revisions, visibility, and retrieval policy/version.
+- Allowlist agent tools and keep them unable to mutate final business state.
 - Define timeout, retry, fallback, and failure behavior.
+
+## Realtime Features
+
+- Persist discussion/direct-message/notification records through their owning
+  NestJS services before WebSocket acknowledgement.
+- Authenticate and authorize connection, subscription, send, history, and
+  revocation paths; never trust client-supplied room membership.
+- Provide HTTP cursor/history recovery and idempotent reconnect behavior.
+- Test cross-project isolation, terminal-application revocation, moderation,
+  rate limits, and WebSocket-outage fallback.
 
 ## Verification
 

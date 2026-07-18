@@ -78,6 +78,8 @@ Larger modules may use `controllers/` and `services/`. Add `integrations/`,
 - reputation score/history -> `reputation`
 - moderation/disputes/reports -> `admin`
 - NestJS AI facade/FastAPI clients -> `ai`
+- discussions/direct messages/WebSocket delivery -> `collaboration`
+- persisted notification records/read state -> `notifications`
 - health checks -> `health`
 
 ## Implementation Flow
@@ -92,10 +94,12 @@ AI-backed work:
 
 ```text
 owning service -> deterministic checks -> AiService -> FastAPI client
+  -> permission-filtered RAG/allowlisted agent tools
   -> structured recommendation -> backend validation/final decision -> audit snapshot
 ```
 
 AI output never directly mutates final business state.
+WebSocket delivery never replaces durable persistence or scoped authorization.
 
 ## Workflow
 
