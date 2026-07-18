@@ -82,6 +82,77 @@
                     }
                 },
                 {
+                    "name": "Verify Email",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "const json = pm.response.json();",
+                                    "if (json && json.tokens) {",
+                                    "  pm.environment.set('accessToken', json.tokens.accessToken);",
+                                    "  pm.environment.set('refreshToken', json.tokens.refreshToken);",
+                                    "  if (json.user && json.user.id) {",
+                                    "    pm.environment.set('userId', json.user.id);",
+                                    "  }",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"code\": \"123456\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/verify-email",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "verify-email"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Resend Email Verification",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"{{ownerEmail}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/verify-email/resend",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "verify-email",
+                                "resend"
+                            ]
+                        }
+                    }
+                },
+                {
                     "name": "Login",
                     "event": [
                         {
@@ -617,6 +688,90 @@
                     }
                 }
             ]
+        },
+        {
+            "name": "Google",
+            "item": [
+                {
+                    "name": "Start Google OAuth",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/google/start?role=contributor",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "google",
+                                "start"
+                            ],
+                            "query": [
+                                {
+                                    "key": "role",
+                                    "value": "contributor"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Google OAuth Callback Redirect",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/google/callback?code={{googleCode}}&state={{googleState}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "google",
+                                "callback"
+                            ],
+                            "query": [
+                                {
+                                    "key": "code",
+                                    "value": "{{googleCode}}"
+                                },
+                                {
+                                    "key": "state",
+                                    "value": "{{googleState}}"
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Google OAuth Callback from Frontend",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"code\": \"{{googleCode}}\",\n  \"state\": \"{{googleState}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/google/callback",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "google",
+                                "callback"
+                            ]
+                        }
+                    }
+                }
+            ]
         }
     ],
     "variable": [
@@ -666,6 +821,14 @@
         },
         {
             "key": "githubState",
+            "value": "replace-with-oauth-state"
+        },
+        {
+            "key": "googleCode",
+            "value": "replace-with-google-code"
+        },
+        {
+            "key": "googleState",
             "value": "replace-with-oauth-state"
         }
     ]
