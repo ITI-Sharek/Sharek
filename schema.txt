@@ -1,0 +1,305 @@
+         Table          |            Column            |          Data Type          | Nullable? | Key/Constraint Type 
+------------------------+------------------------------+-----------------------------+-----------+---------------------
+ AiMatchResult          | id                           | uuid                        | NO        | PRIMARY KEY
+ AiMatchResult          | contribution_request_id      | uuid                        | NO        | FOREIGN KEY
+ AiMatchResult          | contributor_id               | uuid                        | NO        | FOREIGN KEY
+ AiMatchResult          | match_score                  | double precision            | NO        | 
+ AiMatchResult          | justification                | text                        | YES       | 
+ AiMatchResult          | matched_skills               | jsonb                       | YES       | 
+ AiMatchResult          | reputation_signals           | jsonb                       | YES       | 
+ AiMatchResult          | source_attribution           | jsonb                       | YES       | 
+ AiMatchResult          | rank                         | integer                     | NO        | 
+ AiMatchResult          | model_used                   | character varying           | YES       | 
+ AiMatchResult          | notification_sent            | boolean                     | NO        | 
+ AiMatchResult          | created_at                   | timestamp without time zone | NO        | 
+ AiTraceLog             | id                           | uuid                        | NO        | PRIMARY KEY
+ AiTraceLog             | agent_type                   | USER-DEFINED                | NO        | 
+ AiTraceLog             | trigger_entity_id            | uuid                        | NO        | 
+ AiTraceLog             | trigger_entity_type          | USER-DEFINED                | NO        | 
+ AiTraceLog             | input_payload                | jsonb                       | YES       | 
+ AiTraceLog             | output_payload               | jsonb                       | YES       | 
+ AiTraceLog             | confidence_score             | double precision            | YES       | 
+ AiTraceLog             | model_used                   | character varying           | YES       | 
+ AiTraceLog             | prompt_tokens                | integer                     | YES       | 
+ AiTraceLog             | completion_tokens            | integer                     | YES       | 
+ AiTraceLog             | latency_ms                   | integer                     | YES       | 
+ AiTraceLog             | status                       | USER-DEFINED                | NO        | 
+ AiTraceLog             | error_message                | text                        | YES       | 
+ AiTraceLog             | retrieved_sources            | jsonb                       | YES       | 
+ AiTraceLog             | created_at                   | timestamp without time zone | NO        | 
+ AiValidationResult     | id                           | uuid                        | NO        | PRIMARY KEY
+ AiValidationResult     | application_id               | uuid                        | NO        | FOREIGN KEY
+ AiValidationResult     | decision                     | USER-DEFINED                | NO        | 
+ AiValidationResult     | confidence_score             | double precision            | NO        | 
+ AiValidationResult     | justification                | text                        | NO        | 
+ AiValidationResult     | matched_skills               | jsonb                       | YES       | 
+ AiValidationResult     | missing_skills               | jsonb                       | YES       | 
+ AiValidationResult     | source_attribution           | jsonb                       | YES       | 
+ AiValidationResult     | model_used                   | character varying           | YES       | 
+ AiValidationResult     | latency_ms                   | integer                     | YES       | 
+ AiValidationResult     | created_at                   | timestamp without time zone | NO        | 
+ Application            | id                           | uuid                        | NO        | PRIMARY KEY
+ Application            | contribution_request_id      | uuid                        | NO        | FOREIGN KEY
+ Application            | contributor_id               | uuid                        | NO        | FOREIGN KEY
+ Application            | cover_message                | text                        | YES       | 
+ Application            | status                       | USER-DEFINED                | NO        | 
+ Application            | is_priority                  | boolean                     | NO        | 
+ Application            | submitted_at                 | timestamp without time zone | NO        | 
+ Application            | validated_at                 | timestamp without time zone | YES       | 
+ Application            | owner_reviewed_at            | timestamp without time zone | YES       | 
+ Application            | created_at                   | timestamp without time zone | NO        | 
+ Application            | updated_at                   | timestamp without time zone | NO        | 
+ AuthOAuthState         | id                           | uuid                        | NO        | PRIMARY KEY
+ AuthOAuthState         | user_id                      | uuid                        | YES       | FOREIGN KEY
+ AuthOAuthState         | provider                     | USER-DEFINED                | NO        | 
+ AuthOAuthState         | state_hash                   | character varying           | NO        | 
+ AuthOAuthState         | requested_role               | USER-DEFINED                | NO        | 
+ AuthOAuthState         | expires_at                   | timestamp without time zone | NO        | 
+ AuthOAuthState         | consumed_at                  | timestamp without time zone | YES       | 
+ AuthOAuthState         | created_at                   | timestamp without time zone | NO        | 
+ AuthProviderAccount    | id                           | uuid                        | NO        | PRIMARY KEY
+ AuthProviderAccount    | user_id                      | uuid                        | NO        | FOREIGN KEY
+ AuthProviderAccount    | provider                     | USER-DEFINED                | NO        | 
+ AuthProviderAccount    | provider_user_id             | character varying           | NO        | 
+ AuthProviderAccount    | email                        | character varying           | YES       | 
+ AuthProviderAccount    | email_verified               | boolean                     | NO        | 
+ AuthProviderAccount    | username                     | character varying           | YES       | 
+ AuthProviderAccount    | avatar_url                   | character varying           | YES       | 
+ AuthProviderAccount    | profile_url                  | character varying           | YES       | 
+ AuthProviderAccount    | raw_profile_data             | jsonb                       | YES       | 
+ AuthProviderAccount    | created_at                   | timestamp without time zone | NO        | 
+ AuthProviderAccount    | updated_at                   | timestamp without time zone | NO        | 
+ AuthProviderAccount    | last_login_at                | timestamp without time zone | YES       | 
+ AuthSession            | id                           | uuid                        | NO        | PRIMARY KEY
+ AuthSession            | user_id                      | uuid                        | NO        | FOREIGN KEY
+ AuthSession            | access_token_hash            | character varying           | NO        | 
+ AuthSession            | refresh_token_hash           | character varying           | NO        | 
+ AuthSession            | user_agent                   | character varying           | YES       | 
+ AuthSession            | ip_address                   | character varying           | YES       | 
+ AuthSession            | expires_at                   | timestamp without time zone | NO        | 
+ AuthSession            | refresh_expires_at           | timestamp without time zone | NO        | 
+ AuthSession            | revoked_at                   | timestamp without time zone | YES       | 
+ AuthSession            | created_at                   | timestamp without time zone | NO        | 
+ AuthSession            | updated_at                   | timestamp without time zone | NO        | 
+ ContributionRequest    | id                           | uuid                        | NO        | PRIMARY KEY
+ ContributionRequest    | project_id                   | uuid                        | NO        | FOREIGN KEY
+ ContributionRequest    | owner_id                     | uuid                        | NO        | FOREIGN KEY
+ ContributionRequest    | title                        | character varying           | NO        | 
+ ContributionRequest    | description                  | text                        | NO        | 
+ ContributionRequest    | required_technologies        | jsonb                       | NO        | 
+ ContributionRequest    | difficulty                   | USER-DEFINED                | NO        | 
+ ContributionRequest    | deadline                     | date                        | YES       | 
+ ContributionRequest    | reward                       | numeric                     | YES       | 
+ ContributionRequest    | reward_currency              | character varying           | YES       | 
+ ContributionRequest    | status                       | USER-DEFINED                | NO        | 
+ ContributionRequest    | max_applicants               | integer                     | NO        | 
+ ContributionRequest    | published_at                 | timestamp without time zone | YES       | 
+ ContributionRequest    | created_at                   | timestamp without time zone | NO        | 
+ ContributionRequest    | updated_at                   | timestamp without time zone | NO        | 
+ ContributorProfile     | id                           | uuid                        | NO        | PRIMARY KEY
+ ContributorProfile     | user_id                      | uuid                        | NO        | FOREIGN KEY
+ ContributorProfile     | bio                          | text                        | YES       | 
+ ContributorProfile     | availability                 | character varying           | YES       | 
+ ContributorProfile     | created_at                   | timestamp without time zone | NO        | 
+ ContributorProfile     | updated_at                   | timestamp without time zone | NO        | 
+ Delivery               | id                           | uuid                        | NO        | PRIMARY KEY
+ Delivery               | application_id               | uuid                        | NO        | FOREIGN KEY
+ Delivery               | contribution_request_id      | uuid                        | NO        | FOREIGN KEY
+ Delivery               | contributor_id               | uuid                        | NO        | FOREIGN KEY
+ Delivery               | pr_url                       | character varying           | NO        | 
+ Delivery               | contributor_notes            | text                        | YES       | 
+ Delivery               | status                       | USER-DEFINED                | NO        | 
+ Delivery               | submitted_at                 | timestamp without time zone | NO        | 
+ Delivery               | reviewed_at                  | timestamp without time zone | YES       | 
+ Delivery               | created_at                   | timestamp without time zone | NO        | 
+ Delivery               | updated_at                   | timestamp without time zone | NO        | 
+ DeliveryReview         | id                           | uuid                        | NO        | PRIMARY KEY
+ DeliveryReview         | delivery_id                  | uuid                        | NO        | FOREIGN KEY
+ DeliveryReview         | reviewer_id                  | uuid                        | NO        | FOREIGN KEY
+ DeliveryReview         | rating                       | integer                     | NO        | 
+ DeliveryReview         | feedback                     | text                        | YES       | 
+ DeliveryReview         | outcome                      | USER-DEFINED                | NO        | 
+ DeliveryReview         | created_at                   | timestamp without time zone | NO        | 
+ Dispute                | id                           | uuid                        | NO        | PRIMARY KEY
+ Dispute                | user_id                      | uuid                        | NO        | FOREIGN KEY
+ Dispute                | skill_profile_id             | uuid                        | YES       | FOREIGN KEY
+ Dispute                | ai_validation_result_id      | uuid                        | YES       | FOREIGN KEY
+ Dispute                | type                         | USER-DEFINED                | NO        | 
+ Dispute                | reason                       | text                        | NO        | 
+ Dispute                | evidence                     | text                        | YES       | 
+ Dispute                | status                       | USER-DEFINED                | NO        | 
+ Dispute                | resolved_by                  | uuid                        | YES       | FOREIGN KEY
+ Dispute                | resolution_notes             | text                        | YES       | 
+ Dispute                | resolved_at                  | timestamp without time zone | YES       | 
+ Dispute                | created_at                   | timestamp without time zone | NO        | 
+ Dispute                | updated_at                   | timestamp without time zone | NO        | 
+ EmailVerificationOtp   | id                           | uuid                        | NO        | PRIMARY KEY
+ EmailVerificationOtp   | user_id                      | uuid                        | NO        | FOREIGN KEY
+ EmailVerificationOtp   | code_hash                    | character varying           | NO        | 
+ EmailVerificationOtp   | expires_at                   | timestamp without time zone | NO        | 
+ EmailVerificationOtp   | consumed_at                  | timestamp without time zone | YES       | 
+ EmailVerificationOtp   | attempts                     | integer                     | NO        | 
+ EmailVerificationOtp   | created_at                   | timestamp without time zone | NO        | 
+ GitHubAccount          | id                           | uuid                        | NO        | PRIMARY KEY
+ GitHubAccount          | user_id                      | uuid                        | NO        | FOREIGN KEY
+ GitHubAccount          | github_id                    | character varying           | NO        | 
+ GitHubAccount          | username                     | character varying           | NO        | 
+ GitHubAccount          | access_token                 | character varying           | NO        | 
+ GitHubAccount          | refresh_token                | character varying           | YES       | 
+ GitHubAccount          | avatar_url                   | character varying           | YES       | 
+ GitHubAccount          | profile_url                  | character varying           | YES       | 
+ GitHubAccount          | raw_profile_data             | jsonb                       | YES       | 
+ GitHubAccount          | ingestion_status             | USER-DEFINED                | NO        | 
+ GitHubAccount          | token_expires_at             | timestamp without time zone | YES       | 
+ GitHubAccount          | connected_at                 | timestamp without time zone | NO        | 
+ GitHubAccount          | last_synced_at               | timestamp without time zone | YES       | 
+ GitHubOAuthState       | id                           | uuid                        | NO        | PRIMARY KEY
+ GitHubOAuthState       | user_id                      | uuid                        | NO        | FOREIGN KEY
+ GitHubOAuthState       | state_hash                   | character varying           | NO        | 
+ GitHubOAuthState       | expires_at                   | timestamp without time zone | NO        | 
+ GitHubOAuthState       | consumed_at                  | timestamp without time zone | YES       | 
+ GitHubOAuthState       | created_at                   | timestamp without time zone | NO        | 
+ Notification           | id                           | uuid                        | NO        | PRIMARY KEY
+ Notification           | user_id                      | uuid                        | NO        | FOREIGN KEY
+ Notification           | type                         | USER-DEFINED                | NO        | 
+ Notification           | title                        | character varying           | NO        | 
+ Notification           | message                      | text                        | NO        | 
+ Notification           | metadata                     | jsonb                       | YES       | 
+ Notification           | is_read                      | boolean                     | NO        | 
+ Notification           | read_at                      | timestamp without time zone | YES       | 
+ Notification           | created_at                   | timestamp without time zone | NO        | 
+ PasswordResetOtp       | id                           | uuid                        | NO        | PRIMARY KEY
+ PasswordResetOtp       | user_id                      | uuid                        | NO        | FOREIGN KEY
+ PasswordResetOtp       | code_hash                    | character varying           | NO        | 
+ PasswordResetOtp       | expires_at                   | timestamp without time zone | NO        | 
+ PasswordResetOtp       | consumed_at                  | timestamp without time zone | YES       | 
+ PasswordResetOtp       | attempts                     | integer                     | NO        | 
+ PasswordResetOtp       | created_at                   | timestamp without time zone | NO        | 
+ Project                | id                           | uuid                        | NO        | PRIMARY KEY
+ Project                | owner_id                     | uuid                        | NO        | FOREIGN KEY
+ Project                | title                        | character varying           | NO        | 
+ Project                | description                  | text                        | YES       | 
+ Project                | github_repo_url              | character varying           | NO        | 
+ Project                | github_repo_id               | character varying           | YES       | 
+ Project                | languages                    | jsonb                       | YES       | 
+ Project                | tags                         | jsonb                       | YES       | 
+ Project                | technologies                 | jsonb                       | YES       | 
+ Project                | repo_statistics              | jsonb                       | YES       | 
+ Project                | category                     | USER-DEFINED                | YES       | 
+ Project                | difficulty                   | USER-DEFINED                | YES       | 
+ Project                | status                       | USER-DEFINED                | NO        | 
+ Project                | readme_content               | text                        | YES       | 
+ Project                | published_at                 | timestamp without time zone | YES       | 
+ Project                | created_at                   | timestamp without time zone | NO        | 
+ Project                | updated_at                   | timestamp without time zone | NO        | 
+ Report                 | id                           | uuid                        | NO        | PRIMARY KEY
+ Report                 | reporter_id                  | uuid                        | NO        | FOREIGN KEY
+ Report                 | reported_user_id             | uuid                        | YES       | FOREIGN KEY
+ Report                 | reported_content_id          | uuid                        | YES       | 
+ Report                 | reported_content_type        | USER-DEFINED                | YES       | 
+ Report                 | reason                       | USER-DEFINED                | NO        | 
+ Report                 | description                  | text                        | NO        | 
+ Report                 | status                       | USER-DEFINED                | NO        | 
+ Report                 | resolved_by                  | uuid                        | YES       | FOREIGN KEY
+ Report                 | resolution_notes             | text                        | YES       | 
+ Report                 | resolved_at                  | timestamp without time zone | YES       | 
+ Report                 | created_at                   | timestamp without time zone | NO        | 
+ Report                 | updated_at                   | timestamp without time zone | NO        | 
+ ReputationRecord       | id                           | uuid                        | NO        | PRIMARY KEY
+ ReputationRecord       | user_id                      | uuid                        | NO        | FOREIGN KEY
+ ReputationRecord       | overall_rating               | double precision            | YES       | 
+ ReputationRecord       | total_contributions          | integer                     | NO        | 
+ ReputationRecord       | successful_contributions     | integer                     | NO        | 
+ ReputationRecord       | success_rate                 | double precision            | NO        | 
+ ReputationRecord       | top_verified_skills          | jsonb                       | YES       | 
+ ReputationRecord       | total_ratings_received       | integer                     | NO        | 
+ ReputationRecord       | last_updated_at              | timestamp without time zone | NO        | 
+ ReputationRecord       | created_at                   | timestamp without time zone | NO        | 
+ SkillGapGuidance       | id                           | uuid                        | NO        | PRIMARY KEY
+ SkillGapGuidance       | application_id               | uuid                        | NO        | FOREIGN KEY
+ SkillGapGuidance       | contributor_id               | uuid                        | NO        | FOREIGN KEY
+ SkillGapGuidance       | contribution_request_id      | uuid                        | NO        | FOREIGN KEY
+ SkillGapGuidance       | missing_skills               | jsonb                       | NO        | 
+ SkillGapGuidance       | recommended_technologies     | jsonb                       | YES       | 
+ SkillGapGuidance       | learning_resources           | jsonb                       | YES       | 
+ SkillGapGuidance       | practice_projects            | jsonb                       | YES       | 
+ SkillGapGuidance       | estimated_improvement_time   | character varying           | YES       | 
+ SkillGapGuidance       | guidance_narrative           | text                        | YES       | 
+ SkillGapGuidance       | source_attribution           | jsonb                       | YES       | 
+ SkillGapGuidance       | model_used                   | character varying           | YES       | 
+ SkillGapGuidance       | created_at                   | timestamp without time zone | NO        | 
+ SkillProfile           | id                           | uuid                        | NO        | PRIMARY KEY
+ SkillProfile           | user_id                      | uuid                        | NO        | FOREIGN KEY
+ SkillProfile           | skill_name                   | character varying           | NO        | 
+ SkillProfile           | proficiency_level            | USER-DEFINED                | NO        | 
+ SkillProfile           | confidence_score             | double precision            | NO        | 
+ SkillProfile           | evidence_summary             | text                        | YES       | 
+ SkillProfile           | evidence_sources             | jsonb                       | YES       | 
+ SkillProfile           | status                       | USER-DEFINED                | NO        | 
+ SkillProfile           | reviewed_by                  | uuid                        | YES       | FOREIGN KEY
+ SkillProfile           | admin_notes                  | text                        | YES       | 
+ SkillProfile           | original_proficiency         | USER-DEFINED                | YES       | 
+ SkillProfile           | reviewed_at                  | timestamp without time zone | YES       | 
+ SkillProfile           | created_at                   | timestamp without time zone | NO        | 
+ SkillProfile           | updated_at                   | timestamp without time zone | NO        | 
+ SkillProfile           | generation_id                | uuid                        | YES       | FOREIGN KEY
+ SkillProfile           | skill_key                    | character varying           | YES       | 
+ SkillProfile           | superseded_at                | timestamp without time zone | YES       | 
+ SkillProfileGeneration | id                           | uuid                        | NO        | PRIMARY KEY
+ SkillProfileGeneration | user_id                      | uuid                        | NO        | FOREIGN KEY
+ SkillProfileGeneration | status                       | USER-DEFINED                | NO        | 
+ SkillProfileGeneration | selected_repositories        | jsonb                       | NO        | 
+ SkillProfileGeneration | evidence_snapshot            | jsonb                       | YES       | 
+ SkillProfileGeneration | fraud_signals                | jsonb                       | YES       | 
+ SkillProfileGeneration | evidence_quality             | character varying           | YES       | 
+ SkillProfileGeneration | failure_reason               | text                        | YES       | 
+ SkillProfileGeneration | provider                     | character varying           | YES       | 
+ SkillProfileGeneration | model                        | character varying           | YES       | 
+ SkillProfileGeneration | prompt_version               | character varying           | YES       | 
+ SkillProfileGeneration | schema_version               | character varying           | YES       | 
+ SkillProfileGeneration | service_version              | character varying           | YES       | 
+ SkillProfileGeneration | selected_repository_count    | integer                     | NO        | 
+ SkillProfileGeneration | snapshotted_repository_count | integer                     | NO        | 
+ SkillProfileGeneration | created_at                   | timestamp without time zone | NO        | 
+ SkillProfileGeneration | updated_at                   | timestamp without time zone | NO        | 
+ SkillProfileGeneration | completed_at                 | timestamp without time zone | YES       | 
+ Subscription           | id                           | uuid                        | NO        | PRIMARY KEY
+ Subscription           | user_id                      | uuid                        | NO        | FOREIGN KEY
+ Subscription           | plan_type                    | USER-DEFINED                | NO        | 
+ Subscription           | user_role_context            | USER-DEFINED                | NO        | 
+ Subscription           | status                       | USER-DEFINED                | NO        | 
+ Subscription           | starts_at                    | timestamp without time zone | NO        | 
+ Subscription           | expires_at                   | timestamp without time zone | YES       | 
+ Subscription           | cancelled_at                 | timestamp without time zone | YES       | 
+ Subscription           | created_at                   | timestamp without time zone | NO        | 
+ Subscription           | updated_at                   | timestamp without time zone | NO        | 
+ UsageTracker           | id                           | uuid                        | NO        | PRIMARY KEY
+ UsageTracker           | user_id                      | uuid                        | NO        | FOREIGN KEY
+ UsageTracker           | action_type                  | USER-DEFINED                | NO        | 
+ UsageTracker           | period_date                  | date                        | NO        | 
+ UsageTracker           | count                        | integer                     | NO        | 
+ UsageTracker           | created_at                   | timestamp without time zone | NO        | 
+ UsageTracker           | updated_at                   | timestamp without time zone | NO        | 
+ User                   | id                           | uuid                        | NO        | PRIMARY KEY
+ User                   | email                        | character varying           | NO        | 
+ User                   | password_hash                | character varying           | YES       | 
+ User                   | first_name                   | character varying           | NO        | 
+ User                   | last_name                    | character varying           | NO        | 
+ User                   | avatar_url                   | character varying           | YES       | 
+ User                   | role                         | USER-DEFINED                | NO        | 
+ User                   | status                       | USER-DEFINED                | NO        | 
+ User                   | preferred_language           | USER-DEFINED                | NO        | 
+ User                   | created_at                   | timestamp without time zone | NO        | 
+ User                   | updated_at                   | timestamp without time zone | NO        | 
+ User                   | last_login_at                | timestamp without time zone | YES       | 
+ User                   | username                     | character varying           | YES       | 
+ _prisma_migrations     | id                           | character varying           | NO        | PRIMARY KEY
+ _prisma_migrations     | checksum                     | character varying           | NO        | 
+ _prisma_migrations     | finished_at                  | timestamp with time zone    | YES       | 
+ _prisma_migrations     | migration_name               | character varying           | NO        | 
+ _prisma_migrations     | logs                         | text                        | YES       | 
+ _prisma_migrations     | rolled_back_at               | timestamp with time zone    | YES       | 
+ _prisma_migrations     | started_at                   | timestamp with time zone    | NO        | 
+ _prisma_migrations     | applied_steps_count          | integer                     | NO        | 
+(301 rows)
+
