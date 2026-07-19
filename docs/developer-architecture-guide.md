@@ -14,6 +14,7 @@ Choose the module that owns the final business state:
 | `projects` | project drafts, publication state, owner project data |
 | `contributor-profiles` | contributor profile records and profile assembly |
 | `skill-profiles` | skill generations, candidates, approval state, evidence snapshots |
+| `notifications` | in-app notification records and notification write workflows |
 | `contribution-tasks` | project task definitions and requirements |
 | `applications` | contributor applications and eligibility state |
 | `delivery-reviews` | delivery submissions, owner review, feedback, ratings |
@@ -69,7 +70,8 @@ Services own:
 
 Split a service by responsibility when it becomes difficult to name, scan, or
 test. `identity` uses separate auth, session, password-reset, username, and
-social-auth services for this reason.
+social-auth services for this reason. `notifications` is a focused notification
+write and WebSocket delivery module for contributor and system alerts.
 
 ## DTOs And Validation
 

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { GithubModule } from '../github/github.module';
 import { AuthService } from './services/auth.service';
+import { IdentityAccountStatusService } from './services/identity-account-status.service';
 import { IdentityUsernameService } from './services/identity-username.service';
 import { PasswordResetService } from './services/password-reset.service';
 import { SessionService } from './services/session.service';
@@ -26,6 +27,7 @@ import { GoogleAuthController } from './controllers/google-auth.controller';
   ],
   providers: [
     AuthService,
+    IdentityAccountStatusService,
     IdentityUsernameService,
     PasswordResetService,
     SessionService,
@@ -36,6 +38,6 @@ import { GoogleAuthController } from './controllers/google-auth.controller';
     PasswordHasher,
     SessionTokenService,
   ],
-  exports: [IdentityUsernameService],
+  exports: [IdentityAccountStatusService, IdentityUsernameService],
 })
 export class IdentityModule {}
