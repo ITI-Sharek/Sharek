@@ -15,16 +15,17 @@ const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 const GITHUB_USER_URL = 'https://api.github.com/user';
 const GITHUB_EMAILS_URL = 'https://api.github.com/user/emails';
 const SOCIAL_AUTH_OAUTH_SCOPE = 'read:user user:email';
-const CONTRIBUTOR_OAUTH_SCOPE = 'read:user user:email repo';
+// SEC-003: the broad `repo` scope is no longer requested for anyone. Selected
+// private-repository evidence arrives through the GitHub App flow (S1-05), not
+// through OAuth token widening.
 const DEFAULT_OAUTH_SCOPE = 'read:user user:email public_repo';
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
-
-type GitHubOAuthUserRole = 'owner' | 'contributor' | 'admin';
 
 interface GitHubTokenPayload {
   accessToken: string;
   refreshToken?: string;
   expiresAt?: Date;
+  grantedScope?: string;
 }
 
 interface GitHubProfilePayload {
@@ -64,7 +65,7 @@ export class GitHubOAuthService {
   async startOAuth(userId: string): Promise<GitHubOAuthStartDto> {
     const clientId = this.getRequiredConfig('GITHUB_CLIENT_ID');
     const callbackUrl = this.getRequiredConfig('GITHUB_OAUTH_CALLBACK_URL');
-    const userRole = await this.getUserRole(userId);
+    await this.assertUserExists(userId);
     const state = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS);
 
@@ -82,7 +83,7 @@ export class GitHubOAuthService {
     const authorizationUrl = new URL(GITHUB_AUTHORIZE_URL);
     authorizationUrl.searchParams.set('client_id', clientId);
     authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
-    authorizationUrl.searchParams.set('scope', this.getOAuthScope(userRole));
+    authorizationUrl.searchParams.set('scope', DEFAULT_OAUTH_SCOPE);
     authorizationUrl.searchParams.set('state', state);
 
     return {
@@ -167,6 +168,7 @@ export class GitHubOAuthService {
         avatar_url: profile.avatarUrl,
         profile_url: profile.profileUrl,
         raw_profile_data: profile.rawProfileData,
+        token_scope: token.grantedScope ?? DEFAULT_OAUTH_SCOPE,
         token_expires_at: token.expiresAt,
         connected_at: new Date(),
         last_synced_at: new Date(),
@@ -179,6 +181,10 @@ export class GitHubOAuthService {
         avatar_url: profile.avatarUrl,
         profile_url: profile.profileUrl,
         raw_profile_data: profile.rawProfileData,
+        token_scope: token.grantedScope ?? DEFAULT_OAUTH_SCOPE,
+        requires_reauthorization: false,
+        reauthorization_required_at: null,
+        legacy_token_purged_at: null,
         token_expires_at: token.expiresAt,
         last_synced_at: new Date(),
       },
@@ -281,6 +287,7 @@ export class GitHubOAuthService {
         typeof payload.expires_in === 'number'
           ? new Date(Date.now() + payload.expires_in * 1000)
           : undefined,
+      grantedScope: typeof payload.scope === 'string' ? payload.scope : undefined,
     };
   }
 
@@ -383,27 +390,19 @@ export class GitHubOAuthService {
     );
   }
 
-  private getOAuthScope(userRole: GitHubOAuthUserRole): string {
-    return userRole === 'contributor'
-      ? CONTRIBUTOR_OAUTH_SCOPE
-      : DEFAULT_OAUTH_SCOPE;
-  }
-
-  private async getUserRole(userId: string): Promise<GitHubOAuthUserRole> {
+  private async assertUserExists(userId: string): Promise<void> {
     const user = await this.database.user.findUnique({
       where: {
         id: userId,
       },
       select: {
-        role: true,
+        id: true,
       },
     });
 
     if (!user) {
       throw new ApplicationError('User was not found', 'USER_NOT_FOUND', 404);
     }
-
-    return user.role as GitHubOAuthUserRole;
   }
 
   private async logInvalidState(stateHash: string): Promise<void> {

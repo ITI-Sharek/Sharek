@@ -7,6 +7,21 @@ import { GitHubTokenEncryptionService } from '../security/github-token-encryptio
 export interface GitHubAccountStatusDto {
   connected: boolean;
   username: string | null;
+  requiresReauthorization: boolean;
+}
+
+// A scope is broad when the legacy `repo` grant appears as its own token; the
+// narrow `public_repo` grant must not match. Null means the grant predates
+// scope tracking and cannot be proven narrow.
+export function isBroadOrUnknownScope(tokenScope: string | null): boolean {
+  if (tokenScope === null) {
+    return true;
+  }
+
+  return tokenScope
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .includes('repo');
 }
 
 @Injectable()
@@ -23,12 +38,14 @@ export class GitHubAccountService {
       },
       select: {
         username: true,
+        requires_reauthorization: true,
       },
     });
 
     return {
       connected: Boolean(account),
       username: account?.username ?? null,
+      requiresReauthorization: account?.requires_reauthorization ?? false,
     };
   }
 
@@ -42,6 +59,17 @@ export class GitHubAccountService {
         'GitHub account is not connected',
         'GITHUB_ACCOUNT_NOT_CONNECTED',
         404,
+      );
+    }
+
+    if (
+      account.requires_reauthorization ||
+      isBroadOrUnknownScope(account.token_scope)
+    ) {
+      throw new ApplicationError(
+        'GitHub evidence access requires reauthorization with narrow consent',
+        'GITHUB_REAUTHORIZATION_REQUIRED',
+        403,
       );
     }
 

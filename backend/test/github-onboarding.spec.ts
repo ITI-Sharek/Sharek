@@ -225,7 +225,7 @@ describe('GitHub onboarding flow', () => {
       );
   });
 
-  it('requests private repository OAuth scope for contributors', async () => {
+  it('never requests the broad repo OAuth scope for contributors (SEC-003)', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send({
@@ -251,9 +251,12 @@ describe('GitHub onboarding flow', () => {
       .set('Authorization', `Bearer ${verifyResponse.body.tokens.accessToken}`)
       .expect(200);
 
-    expect(
-      new URL(startResponse.body.authorizationUrl).searchParams.get('scope'),
-    ).toBe('read:user user:email repo');
+    const scope = new URL(
+      startResponse.body.authorizationUrl,
+    ).searchParams.get('scope');
+
+    expect(scope).toBe('read:user user:email public_repo');
+    expect(scope?.split(/[\s,]+/)).not.toContain('repo');
   });
 
   it('uses minimal GitHub scope for social signup before repository consent', async () => {
@@ -335,6 +338,10 @@ type GitHubAccountRecord = {
   avatar_url: string | null;
   profile_url: string | null;
   raw_profile_data: Record<string, unknown>;
+  token_scope: string | null;
+  requires_reauthorization: boolean;
+  reauthorization_required_at: Date | null;
+  legacy_token_purged_at: Date | null;
   token_expires_at: Date | null;
   ingestion_status: 'pending' | 'in_progress' | 'completed' | 'failed';
   connected_at: Date;
@@ -676,6 +683,11 @@ class InMemoryDatabase {
           avatar_url: create.avatar_url ?? null,
           profile_url: create.profile_url ?? null,
           raw_profile_data: create.raw_profile_data ?? {},
+          token_scope: create.token_scope ?? null,
+          requires_reauthorization: create.requires_reauthorization ?? false,
+          reauthorization_required_at:
+            create.reauthorization_required_at ?? null,
+          legacy_token_purged_at: create.legacy_token_purged_at ?? null,
           token_expires_at: create.token_expires_at ?? null,
           ingestion_status: 'pending',
           connected_at: create.connected_at ?? new Date(),

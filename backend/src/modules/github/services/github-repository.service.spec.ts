@@ -66,6 +66,8 @@ describe('GitHub repository, evidence, and account services', () => {
   it('lists normalized repositories for a connected account', async () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
+      token_scope: 'read:user user:email public_repo',
+      requires_reauthorization: false,
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
     gitHubApiClient.listRepositories.mockResolvedValue([getRepositoryPayload()]);
@@ -91,6 +93,8 @@ describe('GitHub repository, evidence, and account services', () => {
   it('lists a paginated repository page for the picker', async () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
+      token_scope: 'read:user user:email public_repo',
+      requires_reauthorization: false,
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
     gitHubApiClient.listRepositoryPage.mockResolvedValue({
@@ -131,6 +135,8 @@ describe('GitHub repository, evidence, and account services', () => {
   it('isolates a single repository language-fetch failure instead of failing the whole list', async () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
+      token_scope: 'read:user user:email public_repo',
+      requires_reauthorization: false,
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
     gitHubApiClient.listRepositories.mockResolvedValue([
@@ -153,6 +159,8 @@ describe('GitHub repository, evidence, and account services', () => {
   it('creates an import snapshot from a GitHub repository', async () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
+      token_scope: 'read:user user:email public_repo',
+      requires_reauthorization: false,
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
     gitHubApiClient.getRepository.mockResolvedValue(getRepositoryPayload());
@@ -217,6 +225,8 @@ describe('GitHub repository, evidence, and account services', () => {
   it('builds limited repository evidence for skill profiling', async () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
+      token_scope: 'read:user user:email public_repo',
+      requires_reauthorization: false,
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
     gitHubApiClient.listRepositories.mockResolvedValue([
@@ -270,6 +280,8 @@ describe('GitHub repository, evidence, and account services', () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
       username: 'sharek-dev',
+      token_scope: 'read:user user:email public_repo',
+      requires_reauthorization: false,
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
     gitHubApiClient.findRepositoriesByFullNames.mockResolvedValue([]);
@@ -288,6 +300,8 @@ describe('GitHub repository, evidence, and account services', () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
       username: 'sharek-dev',
+      token_scope: 'read:user user:email public_repo',
+      requires_reauthorization: false,
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
     gitHubApiClient.findRepositoriesByFullNames.mockResolvedValue([
@@ -324,6 +338,8 @@ describe('GitHub repository, evidence, and account services', () => {
   it('does not treat an unlinked Git author name as a GitHub login', async () => {
     database.gitHubAccount.findUnique.mockResolvedValue({
       access_token: 'encrypted-token',
+      token_scope: 'read:user user:email public_repo',
+      requires_reauthorization: false,
     });
     tokenEncryption.decrypt.mockReturnValue('plain-token');
     gitHubApiClient.listRecentCommits.mockResolvedValue({

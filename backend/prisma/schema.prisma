@@ -561,21 +561,43 @@ model Dispute {
 }
 
 model GitHubAccount {
-  id                   String                        @id @default(uuid()) @db.Uuid
-  user_id              String                        @unique @db.Uuid
-  github_id            String                        @unique @db.VarChar(50)
-  username             String                        @db.VarChar(100)
-  access_token         String                        @db.VarChar(500)
-  refresh_token        String?                       @db.VarChar(500)
-  avatar_url           String?                       @db.VarChar(500)
-  profile_url          String?                       @db.VarChar(500)
-  raw_profile_data     Json?
-  ingestion_status     GitHubAccountIngestionStatus @default(pending)
-  token_expires_at     DateTime?
-  connected_at         DateTime
-  last_synced_at       DateTime?
+  id                          String                        @id @default(uuid()) @db.Uuid
+  user_id                     String                        @unique @db.Uuid
+  github_id                   String                        @unique @db.VarChar(50)
+  username                    String                        @db.VarChar(100)
+  access_token                String                        @db.VarChar(500)
+  refresh_token               String?                       @db.VarChar(500)
+  avatar_url                  String?                       @db.VarChar(500)
+  profile_url                 String?                       @db.VarChar(500)
+  raw_profile_data            Json?
+  ingestion_status            GitHubAccountIngestionStatus @default(pending)
+  token_scope                 String?                       @db.VarChar(200)
+  requires_reauthorization    Boolean                       @default(false)
+  reauthorization_required_at DateTime?
+  legacy_token_purged_at      DateTime?
+  token_expires_at            DateTime?
+  connected_at                DateTime
+  last_synced_at              DateTime?
 
-  user                 User                          @relation(fields: [user_id], references: [id])
+  user                        User                          @relation(fields: [user_id], references: [id])
+
+  @@index([requires_reauthorization])
+}
+
+// Minimal non-sensitive cleanup audit for SEC-003 legacy remediation. Rows hold
+// only internal identifiers, step outcome, and counts; they are purged after 90
+// days and must never contain tokens, repository names, or evidence content.
+model GitHubRemediationAudit {
+  id                 String    @id @default(uuid()) @db.Uuid
+  github_account_id  String?   @db.Uuid
+  action             String    @db.VarChar(100)
+  result             String    @db.VarChar(50)
+  affected_count     Int       @default(0)
+  started_at         DateTime
+  completed_at       DateTime?
+  created_at         DateTime  @default(now())
+
+  @@index([created_at])
 }
 
 model Notification {
@@ -693,6 +715,8 @@ model SkillProfileGeneration {
   service_version                String?                      @db.VarChar(100)
   selected_repository_count      Int                          @default(0)
   snapshotted_repository_count   Int                          @default(0)
+  evidence_quarantined_at        DateTime?
+  evidence_purged_at             DateTime?
   created_at                     DateTime                     @default(now())
   updated_at                     DateTime                     @default(now()) @updatedAt
   completed_at                   DateTime?

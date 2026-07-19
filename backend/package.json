@@ -14,6 +14,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "check:architecture": "node scripts/check-architecture.mjs",
+    "remediate:github-legacy": "ts-node scripts/run-github-remediation.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "sh -c 'if [ -f /.dockerenv ]; then : ${DATABASE_URL:=postgresql://sharek:sharek@postgres:5432/sharek?schema=public}; else : ${DATABASE_URL:=postgresql://sharek:sharek@localhost:${POSTGRES_PORT:-5433}/sharek?schema=public}; fi; export DATABASE_URL; prisma migrate dev'",
     "prisma:studio": "sh -c 'if [ -f /.dockerenv ]; then : ${DATABASE_URL:=postgresql://sharek:sharek@postgres:5432/sharek?schema=public}; else : ${DATABASE_URL:=postgresql://sharek:sharek@localhost:${POSTGRES_PORT:-5433}/sharek?schema=public}; fi; export DATABASE_URL; prisma studio'"
