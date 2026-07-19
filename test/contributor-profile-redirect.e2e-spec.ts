@@ -15,6 +15,7 @@ import { AuthService } from '../src/modules/identity/services/auth.service';
 import { IdentityUsernameService } from '../src/modules/identity/services/identity-username.service';
 import { PasswordResetService } from '../src/modules/identity/services/password-reset.service';
 import { SessionService } from '../src/modules/identity/services/session.service';
+import { UsernameSuggestionService } from '../src/modules/identity/services/username-suggestion.service';
 import { ReputationService } from '../src/modules/reputation/reputation.service';
 import { SkillProfileSummaryService } from '../src/modules/skill-profiles/services/skill-profile-summary.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
@@ -114,6 +115,12 @@ describe('Contributor profile redirect HTTP flow', () => {
         AuthService,
         SessionService,
         IdentityUsernameService,
+        {
+          provide: UsernameSuggestionService,
+          useValue: {
+            generateSuggestions: jest.fn().mockResolvedValue([]),
+          },
+        },
         SessionTokenService,
         ContributorProfilesService,
         { provide: DatabaseService, useValue: database },

@@ -31,10 +31,14 @@ README.md
 ```
 
 `AuthService` owns registration, verification, login, current-user, and role
-workflows. `SessionService` is the single implementation for session creation,
+workflows. Admin role assignment is enforced both by HTTP guards and by
+`AuthService`, which validates the authenticated actor before updating the
+target user. `SessionService` is the single implementation for session creation,
 refresh, logout, and account authentication eligibility. `PasswordResetService`
 owns reset-code lifecycle. `SocialAuthService` links providers and reuses
-`SessionService`.
+`SessionService`. Browser OAuth GET callbacks validate and forward only
+`code`, `state`, and provider error details while ignoring unrelated provider
+metadata. Frontend POST callback bodies remain strictly DTO-validated.
 
 The module exports `IdentityUsernameService` for profile workflows. Password
 hashing, token generation, and provider clients remain private.

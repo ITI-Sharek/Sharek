@@ -13,12 +13,9 @@ import {
   isReservedUsername,
   isValidUsername,
   normalizeUsernameCandidate,
-  USERNAME_MAX_LENGTH,
 } from '../validators/username.validator';
 
 import { UsernameSuggestionService } from './username-suggestion.service';
-
-const USERNAME_AVAILABILITY_SUFFIX_RETRIES = 20;
 
 @Injectable()
 export class IdentityUsernameService {

@@ -121,6 +121,7 @@ describe('AuthService', () => {
       firstName: 'Sharek',
       code: expect.stringMatching(/^\d{6}$/),
       expiresAt: expect.any(Date),
+      language: LanguageCode.en,
     });
     expect(result).toMatchObject({
       emailVerificationRequired: true,
@@ -344,6 +345,64 @@ describe('AuthService', () => {
     ).rejects.toMatchObject({
       code: 'INVALID_CREDENTIALS',
       statusCode: 401,
+    });
+  });
+
+  it('requires an active admin actor for role assignment', async () => {
+    const { database, service } = createService();
+
+    database.user.findUnique.mockResolvedValue(
+      getUser({
+        id: 'owner-id',
+        role: UserRole.owner,
+        status: UserStatus.active,
+      }),
+    );
+
+    await expect(
+      service.assignRole('owner-id', 'target-id', UserRole.admin),
+    ).rejects.toMatchObject({
+      code: 'ADMIN_ROLE_REQUIRED',
+      statusCode: 403,
+    });
+    expect(database.user.update).not.toHaveBeenCalled();
+  });
+
+  it('allows an active admin actor to assign a role', async () => {
+    const { database, service } = createService();
+    const admin = getUser({
+      id: 'admin-id',
+      role: UserRole.admin,
+      status: UserStatus.active,
+    });
+    const target = getUser({
+      id: 'target-id',
+      email: 'target@example.com',
+      role: UserRole.owner,
+    });
+    const updatedTarget = getUser({
+      ...target,
+      role: UserRole.contributor,
+    });
+
+    database.user.findUnique
+      .mockResolvedValueOnce(admin)
+      .mockResolvedValueOnce(target);
+    database.user.update.mockResolvedValue(updatedTarget);
+
+    await expect(
+      service.assignRole('admin-id', 'target-id', UserRole.contributor),
+    ).resolves.toMatchObject({
+      id: 'target-id',
+      role: UserRole.contributor,
+    });
+    expect(database.user.update).toHaveBeenCalledWith({
+      where: {
+        id: 'target-id',
+      },
+      data: {
+        role: UserRole.contributor,
+      },
     });
   });
 });

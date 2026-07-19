@@ -10,12 +10,12 @@ import { ApplicationError } from '../../../shared/errors/application.error';
 
 @Injectable()
 export class FastApiSkillProfileClient {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) { }
 
   async generate(input: SkillProfileInput): Promise<SkillProfileResult> {
     const baseUrl = this.config.get<string>(
       'AI_SERVICE_URL',
-      'http://localhost:8010',
+      'http://localhost:8000',
     );
     const timeoutMs = this.config.get<number>('AI_SERVICE_TIMEOUT_MS', 60000);
     const authToken = this.config.get<string>('AI_SERVICE_AUTH_TOKEN', '');
@@ -29,8 +29,8 @@ export class FastApiSkillProfileClient {
           'content-type': 'application/json',
           ...(authToken
             ? {
-                authorization: `Bearer ${authToken}`,
-              }
+              authorization: `Bearer ${authToken}`,
+            }
             : {}),
         },
         body: JSON.stringify(input),
@@ -100,18 +100,18 @@ export class FastApiSkillProfileClient {
       ),
       fraudSignals: Array.isArray(payload.fraudSignals)
         ? payload.fraudSignals
-            .filter((signal): signal is Record<string, unknown> =>
-              this.isRecord(signal),
-            )
-            .map((signal) => ({
-              code: this.readRequiredString(signal, 'code'),
-              severity: this.readSeverity(signal.severity),
-              message: this.readRequiredString(signal, 'message'),
-              repositoryFullName: this.readOptionalRepositoryName(
-                signal.repositoryFullName,
-                allowedRepositoryNames,
-              ),
-            }))
+          .filter((signal): signal is Record<string, unknown> =>
+            this.isRecord(signal),
+          )
+          .map((signal) => ({
+            code: this.readRequiredString(signal, 'code'),
+            severity: this.readSeverity(signal.severity),
+            message: this.readRequiredString(signal, 'message'),
+            repositoryFullName: this.readOptionalRepositoryName(
+              signal.repositoryFullName,
+              allowedRepositoryNames,
+            ),
+          }))
         : [],
       evidenceQuality: this.readEvidenceQuality(payload.evidenceQuality),
       recommendation: this.readRecommendation(payload.recommendation),
@@ -172,9 +172,9 @@ export class FastApiSkillProfileClient {
           : null,
       limitations: Array.isArray(payload.limitations)
         ? payload.limitations.filter(
-            (limitation): limitation is string =>
-              typeof limitation === 'string',
-          )
+          (limitation): limitation is string =>
+            typeof limitation === 'string',
+        )
         : null,
     };
   }

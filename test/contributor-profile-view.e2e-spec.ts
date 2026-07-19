@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 
@@ -38,7 +38,7 @@ describe('Contributor profile authenticated viewer HTTP flow', () => {
     })
       .overrideGuard(AccessTokenGuard)
       .useValue({
-        canActivate: (context: any) => {
+        canActivate: (context: ExecutionContext) => {
           context.switchToHttp().getRequest().user = {
             id: 'viewer-2',
             email: 'viewer@example.com',

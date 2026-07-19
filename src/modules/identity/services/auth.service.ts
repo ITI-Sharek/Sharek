@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LanguageCode, Prisma, UserRole } from '@prisma/client';
+import { LanguageCode, Prisma, UserRole, UserStatus } from '@prisma/client';
 import { randomInt } from 'crypto';
 
 import { AuthSessionDto, AuthUserDto } from '../dto/auth-session.dto';
@@ -323,7 +323,25 @@ export class AuthService {
     return toAuthUserDto(publicUser);
   }
 
-  async assignRole(userId: string, role: UserRole): Promise<AuthUserDto> {
+  async assignRole(
+    actorUserId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<AuthUserDto> {
+    const actor = await this.database.user.findUnique({
+      where: {
+        id: actorUserId,
+      },
+    });
+
+    if (actor?.role !== UserRole.admin || actor.status !== UserStatus.active) {
+      throw new ApplicationError(
+        'Admin authorization is required',
+        'ADMIN_ROLE_REQUIRED',
+        403,
+      );
+    }
+
     const existingUser = await this.database.user.findUnique({
       where: {
         id: userId,
