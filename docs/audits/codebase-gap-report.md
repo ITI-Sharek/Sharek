@@ -16,6 +16,13 @@ systems, external repositories, secrets, and deployed database state were not
 available during this audit. Existing frontend dependencies were not changed;
 backend dependencies were absent and were not installed.
 
+> **2026-07-19 update (S1-13 gate run):** GAP-008 (refresh-token transport) is
+> resolved by S1-04 (#19) — refresh now uses the httpOnly cookie per ADR-005.
+> The broad contributor `repo` OAuth scope and legacy-token exposure behind
+> GAP findings in the GitHub area are remediated by S1-06 (#21). Current
+> command-gate and scenario evidence, including remaining failures, is in
+> `slice1-acceptance-gate.md`; the other findings in this report stand.
+
 ## Classification and severity
 
 - `IMPLEMENTED` — repository evidence matches the requirement at the inspected boundary.
