@@ -24,3 +24,29 @@ export interface AuthSessionDto {
   user: AuthUserDto;
   tokens: AuthTokensDto;
 }
+
+// Refresh credentials travel only in the httpOnly cookie (ADR-005); responses
+// expose the access token alone and it must stay in frontend memory.
+export interface PublicAuthTokensDto {
+  accessToken: string;
+  expiresAt: Date;
+}
+
+export interface PublicAuthSessionDto {
+  user: AuthUserDto;
+  tokens: PublicAuthTokensDto;
+}
+
+export function toPublicAuthTokens(tokens: AuthTokensDto): PublicAuthTokensDto {
+  return {
+    accessToken: tokens.accessToken,
+    expiresAt: tokens.expiresAt,
+  };
+}
+
+export function toPublicAuthSession(session: AuthSessionDto): PublicAuthSessionDto {
+  return {
+    user: session.user,
+    tokens: toPublicAuthTokens(session.tokens),
+  };
+}

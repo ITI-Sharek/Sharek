@@ -53,22 +53,23 @@ export class SessionService {
     const session = await this.database.authSession.findFirst({
       where: {
         refresh_token_hash: tokenHash,
-        revoked_at: null,
-        refresh_expires_at: {
-          gt: new Date(),
-        },
       },
       include: {
         user: true,
       },
     });
 
-    if (!session || !this.canAuthenticate(session.user)) {
-      throw new ApplicationError(
-        'Invalid or expired refresh token',
-        'INVALID_REFRESH_TOKEN',
-        401,
-      );
+    if (!session) {
+      await this.revokeOnReplay(tokenHash);
+      throw this.invalidRefreshTokenError();
+    }
+
+    if (
+      session.revoked_at !== null ||
+      session.refresh_expires_at <= new Date() ||
+      !this.canAuthenticate(session.user)
+    ) {
+      throw this.invalidRefreshTokenError();
     }
 
     await this.identityUsernameService.ensureContributorUsernameForUser(session.user);
@@ -84,6 +85,7 @@ export class SessionService {
       data: {
         access_token_hash: tokens.accessTokenHash,
         refresh_token_hash: tokens.refreshTokenHash,
+        previous_refresh_token_hash: session.refresh_token_hash,
         expires_at: expiresAt,
         refresh_expires_at: refreshExpiresAt,
       },
@@ -95,6 +97,41 @@ export class SessionService {
       expiresAt,
       refreshExpiresAt,
     };
+  }
+
+  /**
+   * A token that only matches a session's previous rotated hash is a replay of
+   * an already-used credential; the whole session is revoked so a stolen older
+   * cookie cannot race the legitimate holder.
+   */
+  private async revokeOnReplay(tokenHash: string): Promise<void> {
+    const replayedSession = await this.database.authSession.findFirst({
+      where: {
+        previous_refresh_token_hash: tokenHash,
+        revoked_at: null,
+      },
+    });
+
+    if (!replayedSession) {
+      return;
+    }
+
+    await this.database.authSession.update({
+      where: {
+        id: replayedSession.id,
+      },
+      data: {
+        revoked_at: new Date(),
+      },
+    });
+  }
+
+  private invalidRefreshTokenError(): ApplicationError {
+    return new ApplicationError(
+      'Invalid or expired refresh token',
+      'INVALID_REFRESH_TOKEN',
+      401,
+    );
   }
 
   async logout(sessionId: string): Promise<void> {

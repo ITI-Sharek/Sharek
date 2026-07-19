@@ -16,6 +16,18 @@ export const envValidationSchema = Joi.object({
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),
   JWT_REFRESH_SECRET: Joi.string().min(16).required(),
+  AUTH_REFRESH_COOKIE_SECURE: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.boolean().default(true),
+      otherwise: Joi.boolean().default(false),
+    }),
+  AUTH_REFRESH_COOKIE_SAMESITE: Joi.string()
+    .valid('lax', 'strict')
+    .default('lax'),
+  AUTH_REFRESH_COOKIE_DOMAIN: Joi.string().hostname().allow('').optional(),
   GITHUB_CLIENT_ID: Joi.string().allow('').optional(),
   GITHUB_CLIENT_SECRET: Joi.string().allow('').optional(),
   GITHUB_OAUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),

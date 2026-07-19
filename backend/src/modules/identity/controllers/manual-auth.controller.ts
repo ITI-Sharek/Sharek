@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { Request, Response } from 'express';
 
 import { AuthService } from '../services/auth.service';
 import { PasswordResetService } from '../services/password-reset.service';
@@ -10,12 +10,18 @@ import { ResetPasswordRequest } from '../dto/reset-password.request';
 import { ResendEmailVerificationRequest } from '../dto/resend-email-verification.request';
 import { VerifyEmailRequest } from '../dto/verify-email.request';
 import { UsernameAvailabilityRequest } from '../dto/username-availability.request';
+import {
+  PublicAuthSessionDto,
+  toPublicAuthSession,
+} from '../dto/auth-session.dto';
+import { RefreshCookieService } from '../security/refresh-cookie.service';
 
 @Controller('auth')
 export class ManualAuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly passwordResetService: PasswordResetService,
+    private readonly refreshCookieService: RefreshCookieService,
   ) {}
 
   @Post('register')
@@ -29,8 +35,22 @@ export class ManualAuthController {
   }
 
   @Post('verify-email')
-  verifyEmail(@Body() body: VerifyEmailRequest, @Req() request: Request) {
-    return this.authService.verifyEmail(body, this.getRequestContext(request));
+  async verifyEmail(
+    @Body() body: VerifyEmailRequest,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<PublicAuthSessionDto> {
+    const session = await this.authService.verifyEmail(
+      body,
+      this.getRequestContext(request),
+    );
+    this.refreshCookieService.issue(
+      response,
+      session.tokens.refreshToken,
+      session.tokens.refreshExpiresAt,
+    );
+
+    return toPublicAuthSession(session);
   }
 
   @Post('verify-email/resend')
@@ -39,8 +59,22 @@ export class ManualAuthController {
   }
 
   @Post('login')
-  login(@Body() body: LoginRequest, @Req() request: Request) {
-    return this.authService.login(body, this.getRequestContext(request));
+  async login(
+    @Body() body: LoginRequest,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<PublicAuthSessionDto> {
+    const session = await this.authService.login(
+      body,
+      this.getRequestContext(request),
+    );
+    this.refreshCookieService.issue(
+      response,
+      session.tokens.refreshToken,
+      session.tokens.refreshExpiresAt,
+    );
+
+    return toPublicAuthSession(session);
   }
 
   @Post('forgot-password')

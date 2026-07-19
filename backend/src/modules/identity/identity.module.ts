@@ -9,6 +9,7 @@ import { SocialAuthService } from './services/social-auth.service';
 import { GoogleOAuthService } from './services/google-oauth.service';
 import { EmailVerificationSender } from './integrations/email-verification.sender';
 import { PasswordHasher } from './security/password-hasher.service';
+import { RefreshCookieService } from './security/refresh-cookie.service';
 import { SessionTokenService } from './security/session-token.service';
 import { ManualAuthController } from './controllers/manual-auth.controller';
 import { SessionController } from './controllers/session.controller';
@@ -32,6 +33,7 @@ import { GoogleAuthController } from './controllers/google-auth.controller';
     GoogleOAuthService,
     EmailVerificationSender,
     PasswordHasher,
+    RefreshCookieService,
     SessionTokenService,
   ],
   exports: [IdentityUsernameService],

@@ -10,6 +10,7 @@ import { GitHubAccountService } from '../src/modules/github/services/github-acco
 import { ManualAuthController } from '../src/modules/identity/controllers/manual-auth.controller';
 import { EmailVerificationSender } from '../src/modules/identity/integrations/email-verification.sender';
 import { PasswordHasher } from '../src/modules/identity/security/password-hasher.service';
+import { RefreshCookieService } from '../src/modules/identity/security/refresh-cookie.service';
 import { SessionTokenService } from '../src/modules/identity/security/session-token.service';
 import { AuthService } from '../src/modules/identity/services/auth.service';
 import { IdentityUsernameService } from '../src/modules/identity/services/identity-username.service';
@@ -115,6 +116,14 @@ describe('Contributor profile redirect HTTP flow', () => {
         SessionService,
         IdentityUsernameService,
         SessionTokenService,
+        {
+          provide: RefreshCookieService,
+          useValue: {
+            issue: jest.fn(),
+            clear: jest.fn(),
+            read: jest.fn().mockReturnValue(null),
+          },
+        },
         ContributorProfilesService,
         { provide: DatabaseService, useValue: database },
         {

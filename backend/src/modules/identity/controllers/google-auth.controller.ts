@@ -5,12 +5,18 @@ import { Request, Response } from 'express';
 import { SocialAuthService } from '../services/social-auth.service';
 import { SocialAuthCallbackRequest } from '../dto/social-auth-callback.request';
 import { SocialAuthStartRequest } from '../dto/social-auth-start.request';
+import {
+  PublicAuthSessionDto,
+  toPublicAuthSession,
+} from '../dto/auth-session.dto';
+import { RefreshCookieService } from '../security/refresh-cookie.service';
 
 @Controller('auth/google')
 export class GoogleAuthController {
   constructor(
     private readonly socialAuthService: SocialAuthService,
     private readonly config: ConfigService,
+    private readonly refreshCookieService: RefreshCookieService,
   ) {}
 
   @Get('start')
@@ -33,11 +39,12 @@ export class GoogleAuthController {
   }
 
   @Post('callback')
-  completeGooglePost(
+  async completeGooglePost(
     @Body() body: SocialAuthCallbackRequest,
     @Req() request: Request,
-  ) {
-    return this.socialAuthService.completeGoogle({
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<PublicAuthSessionDto> {
+    const session = await this.socialAuthService.completeGoogle({
       code: body.code,
       state: body.state,
       context: {
@@ -45,6 +52,13 @@ export class GoogleAuthController {
         ipAddress: request.ip,
       },
     });
+    this.refreshCookieService.issue(
+      response,
+      session.tokens.refreshToken,
+      session.tokens.refreshExpiresAt,
+    );
+
+    return toPublicAuthSession(session);
   }
 
   private getUserAgent(request: Request): string | undefined {

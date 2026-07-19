@@ -60,7 +60,19 @@ PATCH /auth/users/:id/role
 
 **Current behavior, not an admin gate:** registration creates a `pending`-status user and sends an email OTP. The status currently represents email verification, not admin portfolio approval. Target persistence must preserve SEC-002 while keeping email verification, contextual capabilities, and profile trust separate.
 
-**Confirmed gap:** `POST /auth/refresh` reads `refreshToken` from the request body (`RefreshSessionRequest` DTO), not the proposed httpOnly-cookie transport in ADR-005.
+**Refresh transport (ADR-005, implemented):** the refresh credential travels only
+in the `sharek_refresh_token` httpOnly cookie (`Path=/auth`, `SameSite=Lax` by
+default, `Secure` in production). `POST /auth/login`, `POST /auth/verify-email`,
+and the social `POST /auth/{provider}/callback` endpoints set the cookie;
+`POST /auth/refresh` reads it, rotates the session, and re-issues it;
+`POST /auth/logout` revokes the session and clears it. JSON responses expose only
+`tokens.accessToken` and `tokens.expiresAt` — refresh tokens never appear in
+response bodies and must not be persisted in browser storage (access token stays
+in frontend memory). Cookie-bearing endpoints (`refresh`, `logout`) reject
+browser requests whose `Origin` is outside the CORS allowlist; replaying a
+rotated-out refresh credential revokes the whole session. This was an atomic
+cutover: the previous JSON-body `refreshToken` contract was removed because no
+deployed client depended on it.
 
 `GET /auth/me` / `POST /auth/login` response fields: `id, email, username, firstName, lastName, avatarUrl, role, status, preferredLanguage, createdAt, updatedAt, lastLoginAt` — drop `role` once FR-07 lands.
 
