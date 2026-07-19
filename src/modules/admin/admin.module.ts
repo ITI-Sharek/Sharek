@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common';
 
-@Module({})
-export class AdminModule {}
+import { SkillProfilesModule } from '../skill-profiles/skill-profiles.module';
+import { AdminSkillReviewsController } from './controllers/admin-skill-reviews.controller';
 
+@Module({
+  imports: [SkillProfilesModule],
+  controllers: [AdminSkillReviewsController],
+})
+export class AdminModule {}

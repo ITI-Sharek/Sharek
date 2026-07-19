@@ -198,6 +198,12 @@ enum SkillProfileProficiencyLevel {
   advanced
 }
 
+enum SkillProfileReviewAction {
+  approve
+  reject
+  adjust_proficiency
+}
+
 enum ReportedContentType {
   user
   project
@@ -213,65 +219,66 @@ enum UserActionType {
 }
 
 model User {
-  id                     String                 @id @default(uuid()) @db.Uuid
-  email                  String                 @unique @db.VarChar(255)
-  username               String?                @unique @db.VarChar(30)
-  password_hash          String?                @db.VarChar(255)
-  first_name             String                 @db.VarChar(100)
-  last_name              String                 @db.VarChar(100)
-  avatar_url             String?                @db.VarChar(500)
-  role                   UserRole
-  status                 UserStatus             @default(pending)
-  preferred_language     LanguageCode           @default(en)
-  created_at             DateTime               @default(now())
-  updated_at             DateTime               @default(now()) @updatedAt
-  last_login_at          DateTime?
-
-  subscriptions          Subscription[]
-  projects               Project[]              @relation("ProjectOwner")
-  contributionRequests   ContributionRequest[]  @relation("ContributionRequestOwner")
-  applications           Application[]          @relation("ApplicationContributor")
-  notifications          Notification[]
-  deliveryReviews        DeliveryReview[]       @relation("DeliveryReviewReviewer")
-  disputesFiled          Dispute[]              @relation("UserDisputesFiled")
-  disputesResolved       Dispute[]              @relation("UserDisputesResolved")
-  githubAccount          GitHubAccount?
-  contributorProfile     ContributorProfile?
-  reputationRecord       ReputationRecord?
-  skillProfiles          SkillProfile[]
-  reviewedSkillProfiles  SkillProfile[]          @relation("SkillProfileReviewedBy")
-  skillProfileGenerations SkillProfileGeneration[]
-  deliveries             Delivery[]              @relation("DeliveryContributor")
-  aiMatchResults         AiMatchResult[]       @relation("AIMatchContributor")
-  usageTrackers          UsageTracker[]
-  reportsFiled           Report[]                @relation("ReportReporter")
-  reportsResolved        Report[]                @relation("ReportResolver")
-  reportsReceived        Report[]                @relation("ReportReportedUser")
-  skillGapContributions  SkillGapGuidance[]      @relation("SkillGapContributor")
-  authSessions           AuthSession[]
-  authProviderAccounts   AuthProviderAccount[]
-  authOAuthStates        AuthOAuthState[]
-  githubOAuthStates      GitHubOAuthState[]
-  emailVerificationOtps  EmailVerificationOtp[]
-  passwordResetOtps      PasswordResetOtp[]
-}
-
-model AuthProviderAccount {
   id                 String       @id @default(uuid()) @db.Uuid
-  user_id            String       @db.Uuid
-  provider           AuthProvider
-  provider_account_id String      @map("provider_user_id") @db.VarChar(100)
-  email              String?      @db.VarChar(255)
-  email_verified     Boolean      @default(false)
-  username           String?      @db.VarChar(100)
+  email              String       @unique @db.VarChar(255)
+  username           String?      @unique @db.VarChar(30)
+  password_hash      String?      @db.VarChar(255)
+  first_name         String       @db.VarChar(100)
+  last_name          String       @db.VarChar(100)
   avatar_url         String?      @db.VarChar(500)
-  profile_url        String?      @db.VarChar(500)
-  raw_profile_data   Json?
+  role               UserRole
+  status             UserStatus   @default(pending)
+  preferred_language LanguageCode @default(en)
   created_at         DateTime     @default(now())
   updated_at         DateTime     @default(now()) @updatedAt
   last_login_at      DateTime?
 
-  user               User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subscriptions               Subscription[]
+  projects                    Project[]                    @relation("ProjectOwner")
+  contributionRequests        ContributionRequest[]        @relation("ContributionRequestOwner")
+  applications                Application[]                @relation("ApplicationContributor")
+  notifications               Notification[]
+  deliveryReviews             DeliveryReview[]             @relation("DeliveryReviewReviewer")
+  disputesFiled               Dispute[]                    @relation("UserDisputesFiled")
+  disputesResolved            Dispute[]                    @relation("UserDisputesResolved")
+  githubAccount               GitHubAccount?
+  contributorProfile          ContributorProfile?
+  reputationRecord            ReputationRecord?
+  skillProfiles               SkillProfile[]
+  reviewedSkillProfiles       SkillProfile[]               @relation("SkillProfileReviewedBy")
+  skillProfileReviewDecisions SkillProfileReviewDecision[] @relation("SkillProfileReviewDecisionReviewer")
+  skillProfileGenerations     SkillProfileGeneration[]
+  deliveries                  Delivery[]                   @relation("DeliveryContributor")
+  aiMatchResults              AiMatchResult[]              @relation("AIMatchContributor")
+  usageTrackers               UsageTracker[]
+  reportsFiled                Report[]                     @relation("ReportReporter")
+  reportsResolved             Report[]                     @relation("ReportResolver")
+  reportsReceived             Report[]                     @relation("ReportReportedUser")
+  skillGapContributions       SkillGapGuidance[]           @relation("SkillGapContributor")
+  authSessions                AuthSession[]
+  authProviderAccounts        AuthProviderAccount[]
+  authOAuthStates             AuthOAuthState[]
+  githubOAuthStates           GitHubOAuthState[]
+  emailVerificationOtps       EmailVerificationOtp[]
+  passwordResetOtps           PasswordResetOtp[]
+}
+
+model AuthProviderAccount {
+  id                  String       @id @default(uuid()) @db.Uuid
+  user_id             String       @db.Uuid
+  provider            AuthProvider
+  provider_account_id String       @map("provider_user_id") @db.VarChar(100)
+  email               String?      @db.VarChar(255)
+  email_verified      Boolean      @default(false)
+  username            String?      @db.VarChar(100)
+  avatar_url          String?      @db.VarChar(500)
+  profile_url         String?      @db.VarChar(500)
+  raw_profile_data    Json?
+  created_at          DateTime     @default(now())
+  updated_at          DateTime     @default(now()) @updatedAt
+  last_login_at       DateTime?
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([provider, provider_account_id])
   @@unique([provider, user_id])
@@ -288,7 +295,7 @@ model AuthOAuthState {
   consumed_at    DateTime?
   created_at     DateTime     @default(now())
 
-  user           User?        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([provider])
   @@index([requested_role])
@@ -303,7 +310,7 @@ model EmailVerificationOtp {
   attempts    Int       @default(0)
   created_at  DateTime  @default(now())
 
-  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([expires_at])
@@ -318,39 +325,39 @@ model PasswordResetOtp {
   attempts    Int       @default(0)
   created_at  DateTime  @default(now())
 
-  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([expires_at])
 }
 
 model ContributorProfile {
-  id            String    @id @default(uuid()) @db.Uuid
-  user_id       String    @unique @db.Uuid
-  bio           String?
-  availability  String?   @db.VarChar(100)
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @default(now()) @updatedAt
+  id           String   @id @default(uuid()) @db.Uuid
+  user_id      String   @unique @db.Uuid
+  bio          String?
+  availability String?  @db.VarChar(100)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
 
-  user          User      @relation(fields: [user_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
 
   @@index([user_id])
 }
 
 model AuthSession {
-  id                  String    @id @default(uuid()) @db.Uuid
-  user_id             String    @db.Uuid
-  access_token_hash   String    @unique @db.VarChar(128)
-  refresh_token_hash  String    @unique @db.VarChar(128)
-  user_agent          String?   @db.VarChar(500)
-  ip_address          String?   @db.VarChar(45)
-  expires_at          DateTime
-  refresh_expires_at  DateTime
-  revoked_at          DateTime?
-  created_at          DateTime  @default(now())
-  updated_at          DateTime  @default(now()) @updatedAt
+  id                 String    @id @default(uuid()) @db.Uuid
+  user_id            String    @db.Uuid
+  access_token_hash  String    @unique @db.VarChar(128)
+  refresh_token_hash String    @unique @db.VarChar(128)
+  user_agent         String?   @db.VarChar(500)
+  ip_address         String?   @db.VarChar(45)
+  expires_at         DateTime
+  refresh_expires_at DateTime
+  revoked_at         DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @default(now()) @updatedAt
 
-  user                User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
 }
@@ -363,312 +370,313 @@ model GitHubOAuthState {
   consumed_at DateTime?
   created_at  DateTime  @default(now())
 
-  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
 }
 
 model Subscription {
-  id                    String                    @id @default(uuid()) @db.Uuid
-  user_id               String                    @db.Uuid
-  plan_type             SubscriptionPlanType
-  user_role_context     SubscriptionUserRoleContext
-  status                SubscriptionStatus        @default(active)
-  starts_at             DateTime
-  expires_at            DateTime?
-  cancelled_at          DateTime?
-  created_at            DateTime                  @default(now())
-  updated_at            DateTime                  @default(now()) @updatedAt
+  id                String                      @id @default(uuid()) @db.Uuid
+  user_id           String                      @db.Uuid
+  plan_type         SubscriptionPlanType
+  user_role_context SubscriptionUserRoleContext
+  status            SubscriptionStatus          @default(active)
+  starts_at         DateTime
+  expires_at        DateTime?
+  cancelled_at      DateTime?
+  created_at        DateTime                    @default(now())
+  updated_at        DateTime                    @default(now()) @updatedAt
 
-  user                  User                      @relation(fields: [user_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
 
   @@index([user_id])
 }
 
 model Project {
-  id                    String                    @id @default(uuid()) @db.Uuid
-  owner_id              String                    @db.Uuid
-  title                 String                    @db.VarChar(255)
-  description           String?
-  github_repo_url       String                    @unique @db.VarChar(500)
-  github_repo_id        String?                   @db.VarChar(50)
-  languages             Json?
-  tags                  Json?
-  technologies          Json?
-  repo_statistics       Json?
-  category              ProjectCategory?
-  difficulty            ProjectDifficulty?
-  status                ProjectStatus             @default(draft)
-  readme_content        String?
-  published_at          DateTime?
-  created_at            DateTime                  @default(now())
-  updated_at            DateTime                  @default(now()) @updatedAt
+  id              String             @id @default(uuid()) @db.Uuid
+  owner_id        String             @db.Uuid
+  title           String             @db.VarChar(255)
+  description     String?
+  github_repo_url String             @unique @db.VarChar(500)
+  github_repo_id  String?            @db.VarChar(50)
+  languages       Json?
+  tags            Json?
+  technologies    Json?
+  repo_statistics Json?
+  category        ProjectCategory?
+  difficulty      ProjectDifficulty?
+  status          ProjectStatus      @default(draft)
+  readme_content  String?
+  published_at    DateTime?
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @default(now()) @updatedAt
 
-  owner                 User                      @relation("ProjectOwner", fields: [owner_id], references: [id])
-  contributionRequests  ContributionRequest[]
+  owner                User                  @relation("ProjectOwner", fields: [owner_id], references: [id])
+  contributionRequests ContributionRequest[]
 }
 
 model ContributionRequest {
-  id                     String                      @id @default(uuid()) @db.Uuid
-  project_id             String                      @db.Uuid
-  owner_id               String                      @db.Uuid
-  title                  String                      @db.VarChar(255)
-  description            String
-  required_technologies  Json
-  difficulty             ContributionRequestDifficulty
-  deadline               DateTime?                   @db.Date
-  reward                 Decimal?                    @db.Decimal(10, 2)
-  reward_currency        String?                     @db.VarChar(3)
-  status                 ContributionRequestStatus   @default(draft)
-  max_applicants         Int                         @default(1)
-  published_at           DateTime?
-  created_at             DateTime                    @default(now())
-  updated_at             DateTime                    @default(now()) @updatedAt
+  id                    String                        @id @default(uuid()) @db.Uuid
+  project_id            String                        @db.Uuid
+  owner_id              String                        @db.Uuid
+  title                 String                        @db.VarChar(255)
+  description           String
+  required_technologies Json
+  difficulty            ContributionRequestDifficulty
+  deadline              DateTime?                     @db.Date
+  reward                Decimal?                      @db.Decimal(10, 2)
+  reward_currency       String?                       @db.VarChar(3)
+  status                ContributionRequestStatus     @default(draft)
+  max_applicants        Int                           @default(1)
+  published_at          DateTime?
+  created_at            DateTime                      @default(now())
+  updated_at            DateTime                      @default(now()) @updatedAt
 
-  project                Project                     @relation(fields: [project_id], references: [id])
-  owner                  User                        @relation("ContributionRequestOwner", fields: [owner_id], references: [id])
-  applications           Application[]
-  aiMatchResults         AiMatchResult[]
-  skillGapGuidances      SkillGapGuidance[]
-  deliveries             Delivery[]
+  project           Project            @relation(fields: [project_id], references: [id])
+  owner             User               @relation("ContributionRequestOwner", fields: [owner_id], references: [id])
+  applications      Application[]
+  aiMatchResults    AiMatchResult[]
+  skillGapGuidances SkillGapGuidance[]
+  deliveries        Delivery[]
 }
 
 model Application {
-  id                       String                    @id @default(uuid()) @db.Uuid
-  contribution_request_id  String                    @db.Uuid
-  contributor_id           String                    @db.Uuid
-  cover_message            String?
-  status                   ApplicationStatus         @default(pending_validation)
-  is_priority              Boolean                   @default(false)
-  submitted_at             DateTime
-  validated_at             DateTime?
-  owner_reviewed_at        DateTime?
-  created_at               DateTime                  @default(now())
-  updated_at               DateTime                  @default(now()) @updatedAt
+  id                      String            @id @default(uuid()) @db.Uuid
+  contribution_request_id String            @db.Uuid
+  contributor_id          String            @db.Uuid
+  cover_message           String?
+  status                  ApplicationStatus @default(pending_validation)
+  is_priority             Boolean           @default(false)
+  submitted_at            DateTime
+  validated_at            DateTime?
+  owner_reviewed_at       DateTime?
+  created_at              DateTime          @default(now())
+  updated_at              DateTime          @default(now()) @updatedAt
 
-  contributionRequest      ContributionRequest       @relation(fields: [contribution_request_id], references: [id])
-  contributor              User                      @relation("ApplicationContributor", fields: [contributor_id], references: [id])
-  aiValidationResult       AiValidationResult?
-  delivery                 Delivery?
-  skillGapGuidance         SkillGapGuidance?
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
+  contributor         User                @relation("ApplicationContributor", fields: [contributor_id], references: [id])
+  aiValidationResult  AiValidationResult?
+  delivery            Delivery?
+  skillGapGuidance    SkillGapGuidance?
 }
 
 model AiValidationResult {
-  id                    String                    @id @default(uuid()) @db.Uuid
-  application_id        String                    @unique @db.Uuid
-  decision              AiValidationDecision
-  confidence_score      Float
-  justification         String
-  matched_skills        Json?
-  missing_skills        Json?
-  source_attribution    Json?
-  model_used            String?                   @db.VarChar(50)
-  latency_ms            Int?
-  created_at            DateTime                  @default(now())
+  id                 String               @id @default(uuid()) @db.Uuid
+  application_id     String               @unique @db.Uuid
+  decision           AiValidationDecision
+  confidence_score   Float
+  justification      String
+  matched_skills     Json?
+  missing_skills     Json?
+  source_attribution Json?
+  model_used         String?              @db.VarChar(50)
+  latency_ms         Int?
+  created_at         DateTime             @default(now())
 
-  application           Application               @relation(fields: [application_id], references: [id])
-  dispute               Dispute?                  @relation("DisputeAiValidationResult")
+  application Application @relation(fields: [application_id], references: [id])
+  dispute     Dispute?    @relation("DisputeAiValidationResult")
 }
 
 model AiMatchResult {
-  id                      String                    @id @default(uuid()) @db.Uuid
-  contribution_request_id  String                    @db.Uuid
-  contributor_id           String                    @db.Uuid
-  match_score              Float
-  justification            String?
-  matched_skills           Json?
-  reputation_signals       Json?
-  source_attribution       Json?
+  id                      String   @id @default(uuid()) @db.Uuid
+  contribution_request_id String   @db.Uuid
+  contributor_id          String   @db.Uuid
+  match_score             Float
+  justification           String?
+  matched_skills          Json?
+  reputation_signals      Json?
+  source_attribution      Json?
   rank                    Int
-  model_used              String?                   @db.VarChar(50)
-  notification_sent       Boolean                   @default(false)
-  created_at              DateTime                  @default(now())
+  model_used              String?  @db.VarChar(50)
+  notification_sent       Boolean  @default(false)
+  created_at              DateTime @default(now())
 
-  contributionRequest      ContributionRequest       @relation(fields: [contribution_request_id], references: [id])
-  contributor              User                      @relation("AIMatchContributor", fields: [contributor_id], references: [id])
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
+  contributor         User                @relation("AIMatchContributor", fields: [contributor_id], references: [id])
 }
 
 model AiTraceLog {
-  id                    String                    @id @default(uuid()) @db.Uuid
-  agent_type            AiTraceAgentType
-  trigger_entity_id     String                    @db.Uuid
-  trigger_entity_type   AiTraceTriggerEntityType
-  input_payload         Json?
-  output_payload        Json?
-  confidence_score      Float?
-  model_used            String?                   @db.VarChar(50)
-  prompt_tokens         Int?
-  completion_tokens     Int?
-  latency_ms            Int?
-  status                AiTraceStatus
-  error_message         String?
-  retrieved_sources     Json?
-  created_at            DateTime                  @default(now())
+  id                  String                   @id @default(uuid()) @db.Uuid
+  agent_type          AiTraceAgentType
+  trigger_entity_id   String                   @db.Uuid
+  trigger_entity_type AiTraceTriggerEntityType
+  input_payload       Json?
+  output_payload      Json?
+  confidence_score    Float?
+  model_used          String?                  @db.VarChar(50)
+  prompt_tokens       Int?
+  completion_tokens   Int?
+  latency_ms          Int?
+  status              AiTraceStatus
+  error_message       String?
+  retrieved_sources   Json?
+  created_at          DateTime                 @default(now())
 }
 
 model Delivery {
-  id                      String                    @id @default(uuid()) @db.Uuid
-  application_id          String                    @unique @db.Uuid
-  contribution_request_id  String                    @db.Uuid
-  contributor_id          String                    @db.Uuid
-  pr_url                  String                    @db.VarChar(500)
+  id                      String         @id @default(uuid()) @db.Uuid
+  application_id          String         @unique @db.Uuid
+  contribution_request_id String         @db.Uuid
+  contributor_id          String         @db.Uuid
+  pr_url                  String         @db.VarChar(500)
   contributor_notes       String?
-  status                  DeliveryStatus            @default(submitted)
+  status                  DeliveryStatus @default(submitted)
   submitted_at            DateTime
   reviewed_at             DateTime?
-  created_at              DateTime                  @default(now())
-  updated_at              DateTime                  @default(now()) @updatedAt
+  created_at              DateTime       @default(now())
+  updated_at              DateTime       @default(now()) @updatedAt
 
-  application             Application               @relation(fields: [application_id], references: [id])
-  contributionRequest     ContributionRequest        @relation(fields: [contribution_request_id], references: [id])
-  contributor             User                      @relation("DeliveryContributor", fields: [contributor_id], references: [id])
-  deliveryReview          DeliveryReview?
+  application         Application         @relation(fields: [application_id], references: [id])
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
+  contributor         User                @relation("DeliveryContributor", fields: [contributor_id], references: [id])
+  deliveryReview      DeliveryReview?
 }
 
 model DeliveryReview {
-  id          String                 @id @default(uuid()) @db.Uuid
-  delivery_id String                 @unique @db.Uuid
-  reviewer_id String                 @db.Uuid
+  id          String                @id @default(uuid()) @db.Uuid
+  delivery_id String                @unique @db.Uuid
+  reviewer_id String                @db.Uuid
   rating      Int
   feedback    String?
   outcome     DeliveryReviewOutcome
-  created_at  DateTime               @default(now())
+  created_at  DateTime              @default(now())
 
-  delivery    Delivery               @relation(fields: [delivery_id], references: [id])
-  reviewer    User                   @relation("DeliveryReviewReviewer", fields: [reviewer_id], references: [id])
+  delivery Delivery @relation(fields: [delivery_id], references: [id])
+  reviewer User     @relation("DeliveryReviewReviewer", fields: [reviewer_id], references: [id])
 }
 
 model Dispute {
-  id                       String                   @id @default(uuid()) @db.Uuid
-  user_id                  String                   @db.Uuid
-  skill_profile_id         String?                  @db.Uuid
-  ai_validation_result_id  String?                  @unique @db.Uuid
-  type                     DisputeType
-  reason                   String
-  evidence                 String?
-  status                   DisputeStatus           @default(open)
-  resolved_by              String?                  @db.Uuid
-  resolution_notes         String?
-  resolved_at              DateTime?
-  created_at               DateTime                 @default(now())
-  updated_at               DateTime                 @default(now()) @updatedAt
+  id                      String        @id @default(uuid()) @db.Uuid
+  user_id                 String        @db.Uuid
+  skill_profile_id        String?       @db.Uuid
+  ai_validation_result_id String?       @unique @db.Uuid
+  type                    DisputeType
+  reason                  String
+  evidence                String?
+  status                  DisputeStatus @default(open)
+  resolved_by             String?       @db.Uuid
+  resolution_notes        String?
+  resolved_at             DateTime?
+  created_at              DateTime      @default(now())
+  updated_at              DateTime      @default(now()) @updatedAt
 
-  user                     User                   @relation("UserDisputesFiled", fields: [user_id], references: [id])
-  skillProfile             SkillProfile?          @relation(fields: [skill_profile_id], references: [id])
-  aiValidationResult       AiValidationResult?    @relation("DisputeAiValidationResult", fields: [ai_validation_result_id], references: [id])
-  resolvedBy               User?                  @relation("UserDisputesResolved", fields: [resolved_by], references: [id])
+  user               User                @relation("UserDisputesFiled", fields: [user_id], references: [id])
+  skillProfile       SkillProfile?       @relation(fields: [skill_profile_id], references: [id])
+  aiValidationResult AiValidationResult? @relation("DisputeAiValidationResult", fields: [ai_validation_result_id], references: [id])
+  resolvedBy         User?               @relation("UserDisputesResolved", fields: [resolved_by], references: [id])
 }
 
 model GitHubAccount {
-  id                   String                        @id @default(uuid()) @db.Uuid
-  user_id              String                        @unique @db.Uuid
-  github_id            String                        @unique @db.VarChar(50)
-  username             String                        @db.VarChar(100)
-  access_token         String                        @db.VarChar(500)
-  refresh_token        String?                       @db.VarChar(500)
-  avatar_url           String?                       @db.VarChar(500)
-  profile_url          String?                       @db.VarChar(500)
-  raw_profile_data     Json?
-  ingestion_status     GitHubAccountIngestionStatus @default(pending)
-  token_expires_at     DateTime?
-  connected_at         DateTime
-  last_synced_at       DateTime?
+  id               String                       @id @default(uuid()) @db.Uuid
+  user_id          String                       @unique @db.Uuid
+  github_id        String                       @unique @db.VarChar(50)
+  username         String                       @db.VarChar(100)
+  access_token     String                       @db.VarChar(500)
+  refresh_token    String?                      @db.VarChar(500)
+  avatar_url       String?                      @db.VarChar(500)
+  profile_url      String?                      @db.VarChar(500)
+  raw_profile_data Json?
+  ingestion_status GitHubAccountIngestionStatus @default(pending)
+  token_expires_at DateTime?
+  connected_at     DateTime
+  last_synced_at   DateTime?
 
-  user                 User                          @relation(fields: [user_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
 }
 
 model Notification {
-  id          String              @id @default(uuid()) @db.Uuid
-  user_id     String              @db.Uuid
-  type        NotificationType
-  title       String              @db.VarChar(255)
-  message     String
-  metadata    Json?
-  is_read     Boolean             @default(false)
-  read_at     DateTime?
-  created_at  DateTime            @default(now())
+  id         String           @id @default(uuid()) @db.Uuid
+  user_id    String           @db.Uuid
+  type       NotificationType
+  title      String           @db.VarChar(255)
+  message    String
+  metadata   Json?
+  is_read    Boolean          @default(false)
+  read_at    DateTime?
+  created_at DateTime         @default(now())
 
-  user        User                @relation(fields: [user_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
 }
 
 model Report {
-  id                    String                @id @default(uuid()) @db.Uuid
-  reporter_id           String                @db.Uuid
-  reported_user_id      String?               @db.Uuid
-  reported_content_id   String?               @db.Uuid
+  id                    String               @id @default(uuid()) @db.Uuid
+  reporter_id           String               @db.Uuid
+  reported_user_id      String?              @db.Uuid
+  reported_content_id   String?              @db.Uuid
   reported_content_type ReportedContentType?
   reason                ReportReason
   description           String
   status                ReportStatus         @default(open)
-  resolved_by           String?               @db.Uuid
+  resolved_by           String?              @db.Uuid
   resolution_notes      String?
   resolved_at           DateTime?
   created_at            DateTime             @default(now())
   updated_at            DateTime             @default(now()) @updatedAt
 
-  reporter              User                 @relation("ReportReporter", fields: [reporter_id], references:[id])
-  reportedUser          User?                @relation("ReportReportedUser", fields: [reported_user_id], references:[id])
-  resolvedBy            User?                @relation("ReportResolver", fields: [resolved_by], references:[id])
+  reporter     User  @relation("ReportReporter", fields: [reporter_id], references: [id])
+  reportedUser User? @relation("ReportReportedUser", fields: [reported_user_id], references: [id])
+  resolvedBy   User? @relation("ReportResolver", fields: [resolved_by], references: [id])
 }
 
 model ReputationRecord {
-  id                     String             @id @default(uuid()) @db.Uuid
-  user_id                String             @unique @db.Uuid
-  overall_rating         Float?
-  total_contributions    Int                @default(0)
-  successful_contributions Int              @default(0)
-  success_rate           Float              @default(0.0)
-  top_verified_skills    Json?
-  total_ratings_received Int                @default(0)
-  last_updated_at        DateTime           @default(now())
-  created_at             DateTime           @default(now())
+  id                       String   @id @default(uuid()) @db.Uuid
+  user_id                  String   @unique @db.Uuid
+  overall_rating           Float?
+  total_contributions      Int      @default(0)
+  successful_contributions Int      @default(0)
+  success_rate             Float    @default(0.0)
+  top_verified_skills      Json?
+  total_ratings_received   Int      @default(0)
+  last_updated_at          DateTime @default(now())
+  created_at               DateTime @default(now())
 
-  user                   User               @relation(fields: [user_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
 }
 
 model SkillGapGuidance {
-  id                       String                @id @default(uuid()) @db.Uuid
-  application_id           String                @unique @db.Uuid
-  contributor_id           String                @db.Uuid
-  contribution_request_id   String                @db.Uuid
-  missing_skills           Json
-  recommended_technologies Json?
-  learning_resources       Json?
-  practice_projects        Json?
-  estimated_improvement_time String?             @db.VarChar(50)
-  guidance_narrative       String?
-  source_attribution       Json?
-  model_used               String?               @db.VarChar(50)
-  created_at               DateTime              @default(now())
+  id                         String   @id @default(uuid()) @db.Uuid
+  application_id             String   @unique @db.Uuid
+  contributor_id             String   @db.Uuid
+  contribution_request_id    String   @db.Uuid
+  missing_skills             Json
+  recommended_technologies   Json?
+  learning_resources         Json?
+  practice_projects          Json?
+  estimated_improvement_time String?  @db.VarChar(50)
+  guidance_narrative         String?
+  source_attribution         Json?
+  model_used                 String?  @db.VarChar(50)
+  created_at                 DateTime @default(now())
 
-  application              Application           @relation(fields: [application_id], references: [id])
-  contributor              User                  @relation("SkillGapContributor", fields: [contributor_id], references: [id])
-  contributionRequest      ContributionRequest   @relation(fields: [contribution_request_id], references: [id])
+  application         Application         @relation(fields: [application_id], references: [id])
+  contributor         User                @relation("SkillGapContributor", fields: [contributor_id], references: [id])
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
 }
 
 model SkillProfile {
-  id                       String                     @id @default(uuid()) @db.Uuid
-  user_id                  String                     @db.Uuid
-  generation_id            String?                    @db.Uuid
-  skill_name               String                     @db.VarChar(100)
-  skill_key                String?                    @db.VarChar(100)
-  proficiency_level        SkillProfileProficiencyLevel
-  confidence_score         Float
-  evidence_summary         String?
-  evidence_sources         Json?
-  status                   SkillProfileStatus         @default(pending)
-  reviewed_by              String?                    @db.Uuid
-  admin_notes              String?
-  original_proficiency     SkillProfileProficiencyLevel?
-  reviewed_at              DateTime?
-  superseded_at            DateTime?
-  created_at               DateTime                   @default(now())
-  updated_at               DateTime                   @default(now()) @updatedAt
+  id                   String                        @id @default(uuid()) @db.Uuid
+  user_id              String                        @db.Uuid
+  generation_id        String?                       @db.Uuid
+  skill_name           String                        @db.VarChar(100)
+  skill_key            String?                       @db.VarChar(100)
+  proficiency_level    SkillProfileProficiencyLevel
+  confidence_score     Float
+  evidence_summary     String?
+  evidence_sources     Json?
+  status               SkillProfileStatus            @default(pending)
+  reviewed_by          String?                       @db.Uuid
+  admin_notes          String?
+  original_proficiency SkillProfileProficiencyLevel?
+  reviewed_at          DateTime?
+  superseded_at        DateTime?
+  created_at           DateTime                      @default(now())
+  updated_at           DateTime                      @default(now()) @updatedAt
 
-  user                     User                       @relation(fields: [user_id], references: [id])
-  generation               SkillProfileGeneration?    @relation(fields: [generation_id], references: [id])
-  reviewedBy               User?                      @relation("SkillProfileReviewedBy", fields: [reviewed_by], references: [id])
-  disputes                 Dispute[]
+  user            User                         @relation(fields: [user_id], references: [id])
+  generation      SkillProfileGeneration?      @relation(fields: [generation_id], references: [id])
+  reviewedBy      User?                        @relation("SkillProfileReviewedBy", fields: [reviewed_by], references: [id])
+  reviewDecisions SkillProfileReviewDecision[]
+  disputes        Dispute[]
 
   @@index([user_id])
   @@index([generation_id])
@@ -676,41 +684,61 @@ model SkillProfile {
   @@index([status])
 }
 
-model SkillProfileGeneration {
-  id                             String                       @id @default(uuid()) @db.Uuid
-  user_id                        String                       @db.Uuid
-  status                         SkillProfileGenerationStatus @default(queued)
-  selected_repositories          Json
-  evidence_snapshot              Json?
-  fraud_signals                  Json?
-  evidence_quality               String?                      @db.VarChar(20)
-  failure_reason                 String?
-  provider                       String?                      @db.VarChar(50)
-  model                          String?                      @db.VarChar(100)
-  prompt_version                 String?                      @db.VarChar(100)
-  schema_version                 String?                      @db.VarChar(100)
-  service_version                String?                      @db.VarChar(100)
-  selected_repository_count      Int                          @default(0)
-  snapshotted_repository_count   Int                          @default(0)
-  created_at                     DateTime                     @default(now())
-  updated_at                     DateTime                     @default(now()) @updatedAt
-  completed_at                   DateTime?
+model SkillProfileReviewDecision {
+  id                   String                        @id @default(uuid()) @db.Uuid
+  skill_profile_id     String                        @db.Uuid
+  reviewer_id          String                        @db.Uuid
+  action               SkillProfileReviewAction
+  previous_status      SkillProfileStatus
+  new_status           SkillProfileStatus
+  previous_proficiency SkillProfileProficiencyLevel?
+  new_proficiency      SkillProfileProficiencyLevel?
+  notes                String?
+  created_at           DateTime                      @default(now())
 
-  user                           User                         @relation(fields: [user_id], references: [id])
-  skillProfiles                  SkillProfile[]
+  skillProfile SkillProfile @relation(fields: [skill_profile_id], references: [id])
+  reviewer     User         @relation("SkillProfileReviewDecisionReviewer", fields: [reviewer_id], references: [id])
+
+  @@index([skill_profile_id])
+  @@index([reviewer_id])
+  @@index([action])
+}
+
+model SkillProfileGeneration {
+  id                           String                       @id @default(uuid()) @db.Uuid
+  user_id                      String                       @db.Uuid
+  status                       SkillProfileGenerationStatus @default(queued)
+  selected_repositories        Json
+  evidence_snapshot            Json?
+  fraud_signals                Json?
+  evidence_quality             String?                      @db.VarChar(20)
+  failure_reason               String?
+  provider                     String?                      @db.VarChar(50)
+  model                        String?                      @db.VarChar(100)
+  prompt_version               String?                      @db.VarChar(100)
+  schema_version               String?                      @db.VarChar(100)
+  service_version              String?                      @db.VarChar(100)
+  selected_repository_count    Int                          @default(0)
+  snapshotted_repository_count Int                          @default(0)
+  created_at                   DateTime                     @default(now())
+  updated_at                   DateTime                     @default(now()) @updatedAt
+  completed_at                 DateTime?
+
+  user          User           @relation(fields: [user_id], references: [id])
+  skillProfiles SkillProfile[]
 
   @@index([user_id])
   @@index([status])
 }
 
 model UsageTracker {
-  id           String             @id @default(uuid()) @db.Uuid
-  user_id      String             @db.Uuid
-  action_type  UserActionType
-  period_date  DateTime           @db.Date
-  count        Int                @default(0)
-  created_at   DateTime           @default(now())
-  updated_at   DateTime           @default(now()) @updatedAt
+  id          String         @id @default(uuid()) @db.Uuid
+  user_id     String         @db.Uuid
+  action_type UserActionType
+  period_date DateTime       @db.Date
+  count       Int            @default(0)
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @default(now()) @updatedAt
 
-  user         User               @relation(fields: [user_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
 }

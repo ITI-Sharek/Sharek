@@ -56,6 +56,7 @@ Ask which module owns the final state:
 - contribution task lifecycle -> `contribution-tasks`
 - contributor application status -> `applications`
 - skill candidates and approved skills -> `skill-profiles`
+- in-app notifications -> `notifications`
 - delivery review and ratings -> `delivery-reviews`
 - reputation score and history -> `reputation`
 - admin queues and moderation workflow -> `admin`
@@ -160,12 +161,13 @@ needs workflow code.
 | `github` | Implemented OAuth/account/repository listing and contributor-attributed evidence snapshots | GitHub controller, OAuth service, repository service, DTOs, GitHub API client, token encryption | webhook/sync handling and normalized persistent evidence tables if JSON snapshots no longer scale | Update when GitHub scopes, token handling, repo evidence, or import behavior changes |
 | `projects` | Implemented GitHub project import | root controller/service, DTOs, mapper | update draft, publish/archive, project discovery | Update when project lifecycle, visibility, metadata, or project APIs change |
 | `contributor-profiles` | Implemented authenticated profile ensure and profile-by-username reads | root controller/service, DTO, presenter, validator | richer profile editing and public profile sections as product scope expands | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
-| `skill-profiles` | Implemented durable selected-repository generation and pending-candidate policy | controller/service, generation service, BullMQ queue/worker, concrete repository | admin approval/rejection/adjustment APIs and file-level evidence evaluation | Update when skill state, evidence, AI generation, or approval rules are added |
+| `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
+| `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
 | `contribution-tasks` | Registered placeholder module | module README and module file | task create/update/open/close and task discovery | Update when task lifecycle, required skills, capacity, deadlines, or owner limits are added |
 | `applications` | Registered placeholder module | module README and module file | apply-to-task, eligibility recommendation, manual review, owner decision | Update when application status, AI decision handling, or application APIs are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
-| `admin` | Registered placeholder module | module README and module file | manual review queues, disputes, reports, moderation views | Update when admin queues, review actions, moderation, or audit views are added |
+| `admin` | Implemented admin skill review HTTP routes | admin skill review controller, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile facade | `AiService`, DTOs, strict FastAPI client, response validation tests | eligibility/guidance/embedding clients and broader contract tests | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `health` | Implemented health endpoint | health controller, response, module, test | readiness checks for database/Redis/external dependencies if needed | Update when health response shape or readiness checks change |
 
@@ -953,3 +955,78 @@ This keeps the system strong without making it heavy:
 - Risks/follow-up: generation remains blocked locally because the host firewall
   times out TCP traffic from backend Docker subnet `172.24.0.0/16` to port
   `8000`. Allow that narrow path or attach FastAPI to the backend Docker network.
+
+### 2026-07-19 - Admin skill review backend
+
+- Modules: `admin`, `skill-profiles`, and Prisma.
+- Requirement IDs: `TASK-2-04`, `FR-023`, `FR-024`, `FR-031`, `FR-032`.
+- Change type: backend implementation, database migration, tests, and docs.
+- Summary: Added admin-only skill review APIs for pending AI-generated skills,
+  approval, rejection, and proficiency adjustment. Review transitions are owned
+  by `SkillProfilesReviewService`, while `AdminSkillReviewsController` stays as
+  the HTTP boundary. Every review action appends a
+  `SkillProfileReviewDecision` audit row, and `SkillProfileSummaryService`
+  exposes an approved-only eligibility reader.
+- API changes: added `GET /admin/skill-reviews/pending`,
+  `POST /admin/skill-reviews/:skillProfileId/approve`,
+  `POST /admin/skill-reviews/:skillProfileId/reject`, and
+  `PATCH /admin/skill-reviews/:skillProfileId/proficiency`.
+- Database changes: added `SkillProfileReviewAction` enum and
+  `SkillProfileReviewDecision` model/table in
+  `prisma/migrations/20260719120000_admin_skill_review_decisions/migration.sql`.
+- Tests/checks: focused admin review tests passed; full Jest suite passed
+  (29 suites, 94 tests); architecture check passed; lint passed with 0 errors
+  and 10 existing warnings; type-check passed; build passed; Prisma validation
+  passed with local `DATABASE_URL`; `git diff --check` passed.
+- Docs updated: `docs/api-contracts.md`, `docs/database-plan.md`,
+  `src/modules/admin/README.md`, `src/modules/skill-profiles/README.md`,
+  `specs/002-admin-skill-review/*`, and this tracker.
+- Risks/follow-up: approval and notification writes are sequential across
+  exported services rather than one shared transaction, so failure handling
+  remains explicit at the service boundary.
+
+### 2026-07-19 - Contributor activation and skill-review notifications
+
+- Modules: `identity`, `notifications`, `skill-profiles`, `admin`, and Prisma.
+- Requirement IDs: `TASK-2-04`, `FR-023`, `FR-031`, `FR-032`.
+- Change type: backend implementation and documentation.
+- Summary: Added an exported identity account-status service that activates a
+  pending contributor after a successful skill approval, plus an exported
+  notifications service for skill-review outcome rows. `SkillProfilesReviewService`
+  now calls those exported services after approve and reject transitions while
+  keeping proficiency-only adjustments pending.
+- API changes: review responses now include activation and notification side
+  effect metadata for approve/reject outcomes.
+- Database changes: none; reused existing `User` and `Notification` tables.
+- Tests/checks: targeted unit tests passed for identity activation,
+  notification creation, and review side effects; architecture check, lint,
+  type-check, full Jest suite, build, Prisma validate, and `git diff --check`
+  all passed.
+- Docs updated: `specs/002-admin-skill-review/*`, `docs/api-contracts.md`,
+  `docs/database-plan.md`, `docs/developer-architecture-guide.md`,
+  `src/modules/*/README.md`, and this tracker.
+- Risks/follow-up: approval and notification writes are sequential across
+  exported services rather than one shared transaction, so failure handling
+  remains explicit at the service boundary.
+
+### 2026-07-19 - Real-time notification delivery
+
+- Modules: `notifications`, `skill-profiles`, and package dependencies.
+- Requirement IDs: `TASK-2-04`, `FR-023`, `FR-031`.
+- Change type: backend implementation, WebSocket dependency, tests, and docs.
+- Summary: Added a Socket.IO notifications namespace with access-token session
+  authentication, per-user rooms, invalid-session disconnect handling, and
+  `notification.created` delivery after `NotificationsService` persists a
+  notification row. Skill review responses now report
+  `notification.deliveredRealtime`.
+- API changes: added Socket.IO namespace `/notifications` with `auth.token` and
+  server event `notification.created`.
+- Database changes: none.
+- Tests/checks: focused gateway/service/review tests passed; architecture check
+  passed for 13 modules; lint passed with 0 errors and 10 existing warnings;
+  type-check passed; full Jest suite passed with 32 suites and 102 tests; build
+  passed; Prisma validation and `git diff --check` passed.
+- Docs updated: `docs/api-contracts.md`, `src/modules/notifications/README.md`,
+  `specs/002-admin-skill-review/*`, and this tracker.
+- Risks/follow-up: real-time delivery is best-effort and in-process. A future
+  multi-instance deployment should add a Socket.IO Redis adapter or event bus.
