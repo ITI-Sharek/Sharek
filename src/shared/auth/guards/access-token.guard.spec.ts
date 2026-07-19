@@ -51,7 +51,7 @@ describe('AccessTokenGuard', () => {
             },
           }),
         },
-      } as any,
+      } as never,
       new Reflector(),
     );
     const { context } = createContext({
@@ -78,7 +78,7 @@ describe('AccessTokenGuard', () => {
         authSession: {
           findFirst,
         },
-      } as any,
+      } as never,
       new Reflector(),
     );
     const { context, request } = createContext({

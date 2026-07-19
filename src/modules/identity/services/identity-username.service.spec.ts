@@ -30,10 +30,10 @@ function createService(database: {
         findUnique: database.findUnique ?? jest.fn(),
         update: database.update ?? jest.fn(),
       },
-    } as any,
+    } as never,
     {
       generateSuggestions: suggestionService?.generateSuggestions ?? jest.fn().mockResolvedValue(['suggestion-1', 'suggestion-2']),
-    } as any,
+    } as never,
   );
 }
 

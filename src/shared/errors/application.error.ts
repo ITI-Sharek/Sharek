@@ -3,7 +3,7 @@ export class ApplicationError extends Error {
     message: string,
     readonly code = 'APPLICATION_ERROR',
     readonly statusCode = 400,
-    readonly metadata?: Record<string, any>,
+    readonly metadata?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -28,7 +28,11 @@ export class NotFoundApplicationError extends ApplicationError {
 }
 
 export class ConflictApplicationError extends ApplicationError {
-  constructor(message: string, code = 'CONFLICT', metadata?: Record<string, any>) {
+  constructor(
+    message: string,
+    code = 'CONFLICT',
+    metadata?: Record<string, unknown>,
+  ) {
     super(message, code, 409, metadata);
   }
 }

@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 
@@ -39,7 +39,7 @@ describe('Contributor profile protected HTTP errors', () => {
     })
       .overrideGuard(AccessTokenGuard)
       .useValue({
-        canActivate: (context: any) => {
+        canActivate: (context: ExecutionContext) => {
           context.switchToHttp().getRequest().user = {
             id: 'owner-1',
             email: 'owner@example.com',

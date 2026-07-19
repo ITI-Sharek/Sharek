@@ -79,6 +79,12 @@ AI_LOW_CONFIDENCE_THRESHOLD=0.70
 
 Secrets in `.env.example` must be placeholders only.
 
+When `NODE_ENV=development`, the API accepts requests from any browser origin
+and reflects that origin in `Access-Control-Allow-Origin`. This supports local,
+mobile, emulator, and LAN clients while keeping credentialed requests valid;
+using the literal `*` header with credentials is not browser-compatible. In
+`test` and `production`, `CORS_ORIGINS` remains the comma-separated allowlist.
+
 Skill profiling requires Redis. BullMQ stores jobs durably, retries transient
 GitHub/AI failures three times, and recovers incomplete generation records when
 the backend restarts. Disable `SKILL_PROFILE_QUEUE_ENABLED` only in isolated

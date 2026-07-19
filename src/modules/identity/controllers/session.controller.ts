@@ -43,7 +43,11 @@ export class SessionController {
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles('admin')
   @Patch('users/:id/role')
-  assignRole(@Param('id') userId: string, @Body() body: AssignRoleRequest) {
-    return this.authService.assignRole(userId, body.role);
+  assignRole(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id') userId: string,
+    @Body() body: AssignRoleRequest,
+  ) {
+    return this.authService.assignRole(actor.id, userId, body.role);
   }
 }

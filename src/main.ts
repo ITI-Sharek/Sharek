@@ -3,14 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module';
+import { createCorsOptions } from './shared/config/cors.config';
 import { HttpExceptionFilter } from './shared/errors/http-exception.filter';
-
-function parseCorsOrigins(value: string): string[] {
-  return value
-    .split(',')
-    .map((origin) => origin.trim().replace(/^['"]|['"]$/g, ''))
-    .filter(Boolean);
-}
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -25,14 +19,15 @@ async function bootstrap(): Promise<void> {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const corsOrigins = parseCorsOrigins(
-    config.get<string>('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001'),
+  app.enableCors(
+    createCorsOptions(
+      config.get<string>('NODE_ENV', 'development'),
+      config.get<string>(
+        'CORS_ORIGINS',
+        'http://localhost:3000,http://localhost:3001',
+      ),
+    ),
   );
-
-  app.enableCors({
-    origin: corsOrigins,
-    credentials: true,
-  });
 
   const port = config.get<number>('PORT', 4000);
   await app.listen(port);

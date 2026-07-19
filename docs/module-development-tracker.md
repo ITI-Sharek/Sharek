@@ -829,3 +829,127 @@ This keeps the system strong without making it heavy:
   separate FastAPI AI service require their external credentials/services for
   full end-to-end testing. Prisma still reports the package.json configuration
   deprecation warning for a future Prisma 7 config migration.
+
+### 2026-07-19 - Verify Jira Sprint 1 backend completion
+
+- Modules: `identity`, with verification across `github`, `ai`, database, and
+  local Docker infrastructure.
+- Jira/task IDs: `SK-105` / `TASK-1-03`, `SK-106` / `TASK-1-04`, `SK-107` /
+  `TASK-1-05`, backend boundary of `SK-108` / `TASK-1-06`, and `SK-109` /
+  `TASK-1-07`.
+- Change type: authorization hardening, test repair, documentation, and Sprint
+  1 verification.
+- Summary: Added service-level active-admin authorization to role assignment,
+  updated the controller to pass the authenticated actor, repaired the OTP
+  sender expectation, and restored contributor-profile HTTP test dependency
+  wiring. Audited the Sprint 1 schema, auth/session/GitHub OAuth, normalized
+  GitHub ingestion, AI client boundary, and Docker Compose foundation against
+  their Jira acceptance criteria.
+- API changes: none; `PATCH /auth/users/:id/role` keeps the same public contract.
+- Authorization impact: role assignment now requires an active admin inside
+  `AuthService` in addition to the existing access-token and role guards.
+- Database changes: none; existing Prisma schema and migrations were reviewed.
+- Tests/checks: `npm run check:architecture`, `npm run lint`,
+  `npx tsc --noEmit`, `npm test -- --runInBand`, `npm run build`,
+  `DATABASE_URL=postgresql://sharek:sharek@localhost:5433/sharek?schema=public npx prisma validate`,
+  `docker compose config --quiet`, `docker compose exec -T api npx prisma migrate status`,
+  PostgreSQL pgvector verification, Redis `PING`, live `GET /health`, and
+  `git diff --check` passed. Final Jest result: 26 suites and 87 tests passed;
+  lint passed with no warnings.
+- Architecture check: passed for all 12 standard NestJS modules.
+- Docs updated: `src/modules/identity/README.md`, external Sprint 1 handoff, and
+  this tracker.
+- Risks/follow-up: live OAuth requires configured GitHub credentials. Live AI
+  contract and client/UX verification remain outside this backend repository
+  and are captured in the external handoff document.
+
+### 2026-07-19 - Allow arbitrary development CORS origins
+
+- Modules: backend bootstrap and shared configuration.
+- Requirement IDs: local development interoperability; no Jira task ID.
+- Change type: development runtime configuration, focused tests, and docs.
+- Summary: Development now reflects any requesting browser origin while
+  retaining credential support, allowing local, mobile, emulator, and LAN
+  clients to call the backend without maintaining a development allowlist.
+- API changes: none; routes and payload contracts are unchanged.
+- Authorization impact: none; authentication and authorization checks remain
+  unchanged.
+- Database changes: none; no Prisma schema or migration changes.
+- Tests/checks: focused CORS tests plus architecture, lint, type-check, full
+  tests, build, live arbitrary-origin preflight, and `git diff --check`.
+- Docs updated: `.env.example`, `docs/local-development.md`, and this tracker.
+- Risks/follow-up: non-development environments still require every trusted
+  browser origin to be listed explicitly in `CORS_ORIGINS`.
+
+### 2026-07-19 - Repair Google OAuth Docker configuration boundary
+
+- Modules: `identity` runtime configuration and Docker Compose.
+- Requirement IDs: Google social authentication development integration; no
+  Jira task ID.
+- Change type: environment wiring, external client handoff, and documentation.
+- Summary: Passed the existing Google OAuth client ID, secret, and callback URL
+  variables into the Dockerized API and documented the browser OAuth flow. Live
+  diagnosis confirmed backend development CORS responds correctly on port
+  `4000`; the observed client request incorrectly targeted port `3000`.
+- API changes: none; the existing Google OAuth routes and payloads are unchanged.
+- Authorization impact: none.
+- Database changes: none; no Prisma schema or migration changes.
+- Tests/checks: Docker Compose configuration validation, architecture, lint,
+  type-check, full tests, build, and `git diff --check`.
+- Docs updated: `.env.example`, Google OAuth client handoff, and this tracker.
+- Risks/follow-up: real Google sign-in remains unavailable until valid Google
+  credentials are added to `.env`, the callback URI is registered in Google
+  Cloud, and the client agent applies the separate handoff.
+
+### 2026-07-19 - Accept provider metadata on social-auth redirects
+
+- Modules: `identity`.
+- Requirement IDs: Google/GitHub social authentication callback integration;
+  no Jira task ID.
+- Change type: callback validation repair, focused tests, and documentation.
+- Summary: Browser GET callbacks now extract and validate only OAuth completion
+  fields while ignoring unrelated provider-controlled query metadata such as
+  Google's `iss`, `scope`, `authuser`, and `prompt`. Provider cancellation
+  errors are forwarded to the frontend callback. Strict POST callback DTO
+  validation and the global non-whitelisted-property policy remain enabled.
+- API changes: successful GET callbacks keep redirecting to
+  `${FRONTEND_URL}/auth/callback`; provider error callbacks now redirect with
+  `error` and optional `error_description` instead of returning validation JSON.
+- Authorization impact: none; OAuth state validation still occurs during the
+  POST completion workflow.
+- Database changes: none; no Prisma schema or migration changes.
+- Tests/checks: focused callback validator tests plus architecture, lint,
+  type-check, full tests, build, live Google-style callback redirect, and
+  `git diff --check`.
+- Docs updated: `src/modules/identity/README.md` and this tracker.
+- Risks/follow-up: a real provider round trip still depends on valid external
+  Google/GitHub credentials and registered callback URLs.
+
+### 2026-07-19 - Diagnose live AI skill-profile integration
+
+- Modules: `ai` and `skill-profiles` integration boundary.
+- Requirement IDs: backend boundary of `SK-108` / `TASK-1-06`.
+- Change type: runtime configuration correction, contract verification, and
+  external AI handoff documentation.
+- Summary: Corrected the ignored local backend environment to reach host-run
+  FastAPI through `host.docker.internal:8000`. Runtime OpenAPI inspection found
+  that FastAPI currently exposes `POST /profile/repos`, while NestJS requires
+  `POST /skill-profiles/generate`, and that both request and response schemas
+  plus bearer-token behavior are incompatible. Documented the exact AI work
+  required instead of weakening backend evidence and audit validation.
+- API changes: none in the NestJS backend.
+- Authorization impact: none; the required internal AI bearer-token boundary
+  remains unchanged.
+- Database changes: none; no Prisma schema or migration changes.
+- Tests/checks: FastAPI host health passed; Docker-network health timed out and
+  listener inspection confirmed Uvicorn was bound only to `127.0.0.1:8000`;
+  sanitized OpenAPI route/schema inspection and backend health passed, followed
+  by `git diff --check`.
+- Docs updated: AI skill-profile contract handoff and this tracker.
+- Follow-up verification: FastAPI now binds to `0.0.0.0:8000`, exposes the
+  required route with declared security, and accepts the backend bearer token.
+  An empty authenticated request reached schema validation and returned HTTP
+  422 as expected.
+- Risks/follow-up: generation remains blocked locally because the host firewall
+  times out TCP traffic from backend Docker subnet `172.24.0.0/16` to port
+  `8000`. Allow that narrow path or attach FastAPI to the backend Docker network.
