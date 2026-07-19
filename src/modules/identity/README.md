@@ -40,5 +40,6 @@ owns reset-code lifecycle. `SocialAuthService` links providers and reuses
 `code`, `state`, and provider error details while ignoring unrelated provider
 metadata. Frontend POST callback bodies remain strictly DTO-validated.
 
-The module exports `IdentityUsernameService` for profile workflows. Password
-hashing, token generation, and provider clients remain private.
+The module exports `IdentityUsernameService` for profile workflows and
+`IdentityAccountStatusService` for contributor activation after skill review.
+Password hashing, token generation, and provider clients remain private.

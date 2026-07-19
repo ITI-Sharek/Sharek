@@ -10,6 +10,7 @@ import { DeliveryReviewsModule } from './modules/delivery-reviews/delivery-revie
 import { GithubModule } from './modules/github/github.module';
 import { HealthModule } from './modules/health/health.module';
 import { IdentityModule } from './modules/identity/identity.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { ReputationModule } from './modules/reputation/reputation.module';
 import { SkillProfilesModule } from './modules/skill-profiles/skill-profiles.module';
@@ -37,6 +38,7 @@ import { ObservabilityModule } from './shared/observability/observability.module
     HealthModule,
     IdentityModule,
     GithubModule,
+    NotificationsModule,
     SkillProfilesModule,
     ProjectsModule,
     ContributionTasksModule,

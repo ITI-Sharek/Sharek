@@ -10,6 +10,7 @@ business decisions, and its database writes.
 | `projects` | implemented | project import and project-owned state |
 | `contributor-profiles` | implemented | contributor profile creation and views |
 | `skill-profiles` | implemented | asynchronous skill generation and candidate state |
+| `notifications` | implemented | in-app notification rows and notification writes |
 | `reputation` | partial | reputation summaries and future history |
 | `health` | implemented | backend health endpoint |
 | `contribution-tasks` | planned | project task requirements and lifecycle |
