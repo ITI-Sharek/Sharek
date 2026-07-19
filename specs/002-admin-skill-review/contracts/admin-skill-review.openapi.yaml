@@ -1,0 +1,114 @@
+openapi: 3.0.3
+info:
+  title: Admin Skill Review API
+  version: 0.1.0
+  description: Backend contract for admin review of AI-generated skills.
+servers:
+  - url: http://localhost:4000
+security:
+  - bearerAuth: []
+paths:
+  /admin/skill-reviews/pending:
+    get:
+      summary: List pending AI-generated skill reviews
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Pending review queue
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/skill-reviews/{skillProfileId}/approve:
+    post:
+      summary: Approve a pending skill
+      parameters:
+        - name: skillProfileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Skill approved; response includes review audit data and activation/notification side-effect metadata
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/skill-reviews/{skillProfileId}/reject:
+    post:
+      summary: Reject a pending skill
+      parameters:
+        - name: skillProfileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Skill rejected; response includes review audit data and notification side-effect metadata
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/skill-reviews/{skillProfileId}/proficiency:
+    patch:
+      summary: Adjust a skill proficiency label
+      parameters:
+        - name: skillProfileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Skill proficiency updated; response remains pending and does not include final side-effect metadata
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-access-token
+  responses:
+    Unauthorized:
+      description: Missing, expired, revoked, or invalid credentials/token
+    Forbidden:
+      description: Authenticated user is not allowed for this action
+    NotFound:
+      description: Skill review item was not found or is not reviewable
+    Conflict:
+      description: The skill could not be reviewed in its current state

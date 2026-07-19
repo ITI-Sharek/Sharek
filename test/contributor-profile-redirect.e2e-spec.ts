@@ -163,7 +163,7 @@ describe('Contributor profile redirect HTTP flow', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
   });
 
   it('logs in, ensures, then loads the owner profile by returned username', async () => {

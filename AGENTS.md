@@ -111,7 +111,7 @@ migrations, README/tracker updates, and known risks.
 - API contract, authorization, and database impact reviewed
 
 <!-- SPECKIT START -->
-Current Spec Kit plan: `specs/001-contributor-profile-redirect/plan.md`
+Current Spec Kit plan: `specs/002-admin-skill-review/plan.md`
 <!-- SPECKIT END -->
 
 Before finishing a code change, append a short record to

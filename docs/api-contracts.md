@@ -480,6 +480,169 @@ When generation succeeds, generated skill candidates are stored as
 Pending generated skills are reviewable evidence only. They must not qualify a
 contributor for application eligibility until an admin approves them.
 
+## Admin Skill Review Contracts
+
+Admin skill review endpoints require an authenticated active admin. The `admin`
+module exposes the HTTP routes, and the exported `SkillProfilesReviewService`
+from `skill-profiles` owns review transitions and database writes.
+
+Implemented endpoints:
+
+```text
+GET /admin/skill-reviews/pending
+POST /admin/skill-reviews/:skillProfileId/approve
+POST /admin/skill-reviews/:skillProfileId/reject
+PATCH /admin/skill-reviews/:skillProfileId/proficiency
+```
+
+`GET /admin/skill-reviews/pending?page=1&limit=20` returns only pending
+AI-generated skills. `page` must be at least `1`; `limit` must be between `1`
+and `100`.
+
+Response shape:
+
+```json
+{
+  "items": [
+    {
+      "skillProfileId": "skill-profile-uuid",
+      "contributorId": "user-uuid",
+      "contributorName": "Sharek Contributor",
+      "contributorUsername": "sharek-contributor",
+      "generationId": "generation-uuid",
+      "skillName": "TypeScript",
+      "proficiencyLevel": "intermediate",
+      "confidence": 0.91,
+      "status": "pending",
+      "evidenceSummary": "Authored TypeScript services.",
+      "evidenceSources": {
+        "evidenceIds": ["github:owner/repository"]
+      },
+      "createdAt": "2026-07-19T00:00:00.000Z"
+    }
+  ],
+  "page": 1,
+  "limit": 20,
+  "total": 1,
+  "totalPages": 1
+}
+```
+
+`POST /admin/skill-reviews/:skillProfileId/approve` approves a pending skill.
+The body may include an adjusted proficiency and optional notes:
+
+```json
+{
+  "proficiency": "advanced",
+  "notes": "Evidence supports the advanced label."
+}
+```
+
+`POST /admin/skill-reviews/:skillProfileId/reject` rejects a pending skill.
+`notes` are required:
+
+```json
+{
+  "notes": "Evidence is too weak for this skill claim."
+}
+```
+
+`PATCH /admin/skill-reviews/:skillProfileId/proficiency` adjusts a pending
+skill's proficiency without approving it:
+
+```json
+{
+  "proficiency": "intermediate",
+  "notes": "Adjusted before final approval."
+}
+```
+
+Each approve, reject, or adjustment action appends a
+`SkillProfileReviewDecision` audit row and updates the latest review fields on
+`SkillProfile`. Already reviewed or superseded skill rows return a conflict.
+Pending, rejected, disputed, and superseded skills are excluded from
+eligibility-oriented skill reads; downstream eligibility code must use the
+approved-only summary reader.
+
+Approve and reject outcomes also coordinate post-review side effects:
+
+- approving a pending contributor skill activates the contributor account when
+  needed through the exported identity service;
+- approving or rejecting a skill stores a contributor notification through the
+  exported notifications service;
+- stored notifications are emitted in real time to connected user sockets when
+  possible;
+- proficiency-only adjustments keep the skill pending and do not trigger final
+  activation or final-outcome notification side effects.
+
+Review action responses include `notification.deliveredRealtime`. `true` means
+at least one authenticated socket for that recipient was connected when the row
+was created. `false` does not mean notification failure; the notification row is
+still stored and can be read by a future inbox endpoint.
+
+## Real-Time Notification Socket Contract
+
+The notifications module exposes a Socket.IO namespace:
+
+```text
+/notifications
+```
+
+Clients authenticate during connection with the same opaque access token used by
+HTTP APIs:
+
+```ts
+io(`${API_URL}/notifications`, {
+  auth: {
+    token: accessToken,
+  },
+});
+```
+
+`auth.token` may be either the raw access token or `Bearer <token>`. The gateway
+also accepts an `Authorization: Bearer <token>` header for non-browser clients.
+Active users and pending contributors may connect. Invalid, expired, revoked,
+suspended, and deactivated sessions receive:
+
+```json
+{
+  "code": "NOTIFICATIONS_SOCKET_UNAUTHORIZED",
+  "message": "Invalid or expired session"
+}
+```
+
+and the socket is disconnected.
+
+When a notification is persisted for the connected user, the socket receives:
+
+```text
+notification.created
+```
+
+Payload:
+
+```json
+{
+  "notificationId": "notification-uuid",
+  "userId": "user-uuid",
+  "type": "skill_review",
+  "title": "Skill profile approved",
+  "message": "Your TypeScript skill was approved. Your contributor account is now active.",
+  "metadata": {
+    "skillProfileId": "skill-profile-uuid",
+    "skillName": "TypeScript",
+    "approved": true,
+    "activated": true
+  },
+  "isRead": false,
+  "readAt": null,
+  "createdAt": "2026-07-19T00:00:00.000Z"
+}
+```
+
+The gateway joins each socket to a server-side room derived from its own user ID
+and emits only to that room.
+
 ## AI Service Contracts
 
 AI implementation lives in a separate FastAPI AI repository. The NestJS backend
