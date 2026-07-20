@@ -8,8 +8,13 @@ const profile = {
   user_id: 'user-1',
   bio: null,
   availability: null,
+  experience_range: null,
+  declared_skills: [],
+  avatar_data: null,
+  avatar_mime_type: null,
   created_at: new Date(),
   updated_at: new Date(),
+  fields: [],
   user: {
     id: 'user-1',
     email: 'contributor@example.com',
@@ -47,7 +52,13 @@ describe('contributor profile presenter', () => {
       username: 'contributor-one',
       displayName: 'Contributor One',
       viewerRelationship: 'owner',
-      completionPrompts: ['add_bio', 'generate_skills', 'connect_github'],
+      completionPrompts: [
+        'add_bio',
+        'add_experience',
+        'add_fields',
+        'generate_skills',
+        'connect_github',
+      ],
     });
     expect(JSON.stringify(output)).not.toContain('password_hash');
     expect(JSON.stringify(output)).not.toContain('secret');

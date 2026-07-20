@@ -167,7 +167,11 @@ Implemented contributor profile endpoints:
 
 ```text
 POST /contributors/profiles/me/ensure
+PATCH /contributors/profiles/me
+PUT /contributors/profiles/me/avatar
+GET /contributors/profile-fields
 GET /contributors/profiles/:username
+GET /contributors/profiles/:username/avatar
 ```
 
 Both endpoints require:
@@ -175,6 +179,18 @@ Both endpoints require:
 ```text
 Authorization: Bearer <accessToken>
 ```
+
+All endpoints above require the access token except the avatar image read,
+which is public so browsers can render it directly. `PATCH` accepts any subset
+of `bio`, `availability`, `experienceRange`, `fieldIds`, and `declaredSkills`.
+Experience is one of `zero_to_one`, `two_to_four`, `five_to_ten`, or
+`ten_plus`. `fieldIds` must reference active options returned by
+`GET /contributors/profile-fields`.
+
+`PUT /contributors/profiles/me/avatar` accepts multipart field `file`; PNG,
+JPEG, and WebP are validated by file signature and limited to 2 MB. An explicit
+profile avatar takes precedence over OAuth provider avatars and remains in use
+until the contributor uploads another image.
 
 `POST /contributors/profiles/me/ensure` is idempotent. Active and pending
 contributors receive a public contributor profile response. Owner/admin users
@@ -193,6 +209,9 @@ Contributor profile response shape:
   "avatarUrl": null,
   "roleLabel": "Contributor",
   "bio": null,
+  "experienceRange": null,
+  "fields": [],
+  "declaredSkills": [],
   "skills": [],
   "availability": null,
   "githubStatus": {
@@ -204,7 +223,7 @@ Contributor profile response shape:
     "reviewsCount": 0
   },
   "contributionHistory": [],
-  "completionPrompts": ["add_bio", "generate_skills", "connect_github"],
+  "completionPrompts": ["add_bio", "add_experience", "add_fields", "generate_skills", "connect_github"],
   "viewerRelationship": "owner"
 }
 ```
@@ -227,6 +246,19 @@ Protected error outcomes:
 Profile responses must not include password hashes, access/refresh tokens,
 token hashes, private session fields, OAuth credentials, or internal security
 metadata.
+
+Admin field catalog endpoints require an active admin. `POST
+/admin/contributor-fields` creates a stable kebab-case key with Arabic and
+English labels and optional sort order. `PATCH /admin/contributor-fields/:id`
+updates labels, sort order, or active state. Deactivated fields stop appearing
+in profile responses and as selectable options; catalog rows are retained so
+the option can be reactivated without recreating its identity.
+
+`GET /admin/published-project-owners` requires an active admin and returns up to
+10 owners ordered by latest publication. Each row contains `ownerId`,
+`ownerName`, `ownerEmail`, `publishedProjectsCount`, `latestPublishedAt`, and
+`latestProject` (`id`, `title`, and `githubRepoUrl`). The projects module owns
+the query; the admin controller only exposes the protected route.
 
 Google and GitHub social auth are direct signup/signin flows. The frontend calls
 `GET /auth/{provider}/start?role=owner|contributor`, redirects the browser to

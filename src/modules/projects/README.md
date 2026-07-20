@@ -13,6 +13,8 @@ Owns project records, import workflow, and project publication state.
   saves the project as `draft` by default, or as `published` when the owner
   explicitly submits `status: "published"`. Publishing requires reviewed
   `category` and `difficulty` values.
+- Exported admin read used by `GET /admin/published-project-owners`: returns the
+  latest owners with published-project counts and their most recent project.
 
 ## Structure
 

@@ -107,6 +107,9 @@ describe('GitHub onboarding flow', () => {
     expect(
       new URL(startResponse.body.authorizationUrl).searchParams.get('scope'),
     ).toBe('read:user user:email public_repo');
+    expect(
+      new URL(startResponse.body.authorizationUrl).searchParams.get('prompt'),
+    ).toBe('select_account');
     expect(startResponse.body.state).toEqual(expect.any(String));
 
     mockFetchJson({
@@ -289,6 +292,9 @@ describe('GitHub onboarding flow', () => {
 
     expect(scope).toBe('read:user user:email');
     expect(scope).not.toContain('repo');
+    expect(
+      new URL(startResponse.body.authorizationUrl).searchParams.get('prompt'),
+    ).toBe('select_account');
   });
 });
 
