@@ -51,3 +51,10 @@ not qualify contributors for applications.
 
 The module exports `SkillProfilesService`, `SkillProfileSummaryService`, and
 `SkillProfilesReviewService`; its repository and jobs remain private.
+
+The contributor repository picker may start generation from repositories
+returned by the current repository OAuth connection after explicit selection
+and consent. The worker does not trust names supplied by the browser:
+`GitHubEvidenceService` confirms every selection is accessible with the
+connected user's encrypted OAuth token before evidence collection and AI
+analysis continue.

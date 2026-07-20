@@ -1,7 +1,20 @@
-import { Body, Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 
+import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
+import { CurrentUser } from '../../../shared/auth/current-user.decorator';
+import { AccessTokenGuard } from '../../../shared/auth/guards/access-token.guard';
 import { SocialAuthService } from '../services/social-auth.service';
 import { SocialAuthCallbackRequest } from '../dto/social-auth-callback.request';
 import { SocialAuthStartRequest } from '../dto/social-auth-start.request';
@@ -51,6 +64,26 @@ export class GitHubAuthController {
         ipAddress: request.ip,
       },
     });
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Post('account/callback')
+  completeGitHubAccountConnection(
+    @Body() body: SocialAuthCallbackRequest,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.socialAuthService.connectGitHubAccount({
+      userId: user.id,
+      code: body.code,
+      state: body.state,
+    });
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Delete('account')
+  async disconnectGitHubAccount(@CurrentUser() user: AuthenticatedUser) {
+    await this.socialAuthService.disconnectGitHubAccount(user.id);
+    return { success: true };
   }
 
   private getUserAgent(request: Request): string | undefined {

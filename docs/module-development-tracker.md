@@ -1147,3 +1147,104 @@ This keeps the system strong without making it heavy:
 - Docs updated: admin/projects READMEs, API contracts, and this tracker.
 - Risks/follow-up: the overview intentionally returns only the 10 most recently
   publishing owners; add pagination if this becomes a full admin directory.
+
+### 2026-07-21 - GitHub repeated-login account selection
+
+- Modules: `github`, `identity`, and frontend OAuth callback handling.
+- Requirement IDs: user-reported OAuth recovery defect (no dedicated backlog
+  ID).
+- Change type: OAuth authorization behavior, local callback configuration,
+  conflict recovery UX, tests, and documentation.
+- Summary: Added GitHub's `prompt=select_account` authorization parameter to
+  identity-only login and repository connection so a repeated flow opens the
+  account picker instead of silently reusing the browser's previous GitHub
+  identity. A `GITHUB_ACCOUNT_TAKEN` conflict now shows a clear Arabic message
+  and an account-picker retry action; repository connection failures no longer
+  erase the active Sharek session.
+- API changes: response schemas are unchanged; returned GitHub authorization
+  URLs now include `prompt=select_account`.
+- Database changes: none.
+- Tests/checks: architecture check and backend/frontend lint, type-check, and
+  production builds passed; full backend Jest suite passed with 35 suites and
+  122 tests; full frontend Vitest suite passed with 21 files and 111 tests. The
+  recreated API container compiled with zero errors, and live start responses
+  confirmed the account-picker parameter and distinct callback URLs.
+- Docs updated: GitHub/identity READMEs, API contracts, and this tracker.
+- Risks/follow-up: account selection depends on GitHub's browser account-picker
+  support and the user must still choose a GitHub identity not already owned by
+  another Sharek account.
+
+### 2026-07-21 - GitHub identity resolution by provider account ID
+
+- Modules: `identity`, `github`, and frontend OAuth callback handling.
+- Requirement IDs: `FR-011`; user-reported GitHub identity-mismatch defect.
+- Change type: authentication security fix, conflict recovery UX, focused tests,
+  and documentation.
+- Summary: Removed GitHub's verified-email fallback from social sign-in. An
+  existing Sharek user is now resolved only by GitHub's immutable numeric
+  account ID through the social-provider link or the exact GitHub connection.
+  Added a consistency guard that rejects historical social links when the same
+  Sharek user has a different repository-connected GitHub ID. Google
+  verified-email linking behavior remains unchanged.
+- API changes: route and success response shapes are unchanged. Added `409
+  GITHUB_SIGN_IN_EMAIL_CONFLICT` when an unrecognized GitHub identity reports
+  an email already registered in Sharek, and `409
+  GITHUB_AUTH_ACCOUNT_MISMATCH` when stored social and connected GitHub IDs
+  disagree. The frontend presents distinct Arabic recovery guidance and keeps
+  the GitHub account-picker retry action.
+- Authorization impact: GitHub email is now profile metadata only and cannot
+  authenticate an existing Sharek user. Session creation and provider upsert do
+  not run after either new conflict.
+- Database changes: none; no Prisma schema or migration changes.
+- Tests/checks: focused identity regression tests passed (6 tests); full backend
+  Jest passed with 35 suites and 124 tests; architecture check, backend/frontend
+  lint and type-check, backend/frontend production builds, full frontend Vitest
+  with 21 files and 111 tests, and `git diff --check` passed. Docker watch
+  compilation reported zero errors and restarted the API successfully.
+- Docs updated: identity/GitHub READMEs, API contracts, and this tracker.
+- Risks/follow-up: previously created mismatched provider rows are intentionally
+  rejected rather than silently reassigned or deleted. The user must sign in to
+  the existing Sharek account and disconnect/reconnect GitHub if they want to
+  change which GitHub identity that Sharek account owns. Two Sharek users still
+  cannot share one email because `User.email` is unique.
+
+### 2026-07-21 - Authenticated GitHub relinking and repository analysis
+
+- Modules: `identity`, `github`, `skill-profiles`, and frontend contributor
+  GitHub settings/repository selection.
+- Requirement IDs: `FR-011`, `FR-012`, `FR-027`, `FR-028`, `FR-029`, and
+  user-reported stale GitHub account-link and disabled-analysis defects.
+- Change type: authenticated OAuth account reconciliation, disconnect safety,
+  repository-evidence UX activation, tests, and documentation.
+- Summary: Added an authenticated GitHub account callback that binds the OAuth
+  state to the active Sharek user, rejects GitHub identities owned by another
+  user, and atomically replaces that user's stale GitHub sign-in provider row
+  with the exact selected GitHub numeric account ID. Unified disconnect now
+  removes both repository and sign-in links while preventing passwordless
+  account lockout. The contributor repository screen now supports OAuth-backed
+  selection of up to 10 repositories, requires explicit analysis consent, and
+  starts the existing durable skill-profile generation workflow instead of
+  displaying the former GitHub-App-only placeholder.
+- API changes: added protected `POST /auth/github/account/callback` and `DELETE
+  /auth/github/account`. Repository listing and `POST
+  /skill-profiles/me/generations` contracts are unchanged.
+- Authorization impact: repository OAuth state must belong to the authenticated
+  user; a selected GitHub ID cannot be reassigned from another Sharek user; and
+  disconnect is rejected with `GITHUB_DISCONNECT_WOULD_LOCK_ACCOUNT` when
+  GitHub is the user's only login method.
+- Database changes: none; reconciliation uses the existing `github_accounts`
+  and `auth_provider_accounts` ownership constraints and requires no migration.
+- Tests/checks: focused identity tests passed with 9 tests and callback e2e
+  tests passed with 4 tests; full backend Jest passed with 35 suites and 127
+  tests; full frontend Vitest passed with 21 files and 111 tests. Backend and
+  frontend lint, TypeScript checks, production builds, backend architecture
+  check, and `git diff --check` passed. Live Docker checks returned API health
+  200, Redis `PONG`, FastAPI health 200, and confirmed the configured FastAPI
+  OpenAPI contract exposes `POST /skill-profiles/generate`.
+- Docs updated: identity/GitHub/skill-profiles READMEs, API contracts, frontend
+  repository-flow specification, and this tracker.
+- Risks/follow-up: OAuth repository access is the current explicit-consent MVP;
+  a future GitHub App installation flow can offer narrower per-repository grants
+  without blocking the implemented analysis workflow. Existing mismatches are
+  reconciled only after the owner signs in and successfully completes Change
+  account; they are never silently moved between Sharek users.

@@ -6,6 +6,7 @@ import * as request from 'supertest';
 import { GitHubAuthController } from '../src/modules/identity/controllers/github-auth.controller';
 import { GoogleAuthController } from '../src/modules/identity/controllers/google-auth.controller';
 import { SocialAuthService } from '../src/modules/identity/services/social-auth.service';
+import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
 
 describe('Social auth browser callbacks', () => {
@@ -22,6 +23,8 @@ describe('Social auth browser callbacks', () => {
             startGitHub: jest.fn(),
             completeGoogle: jest.fn(),
             completeGitHub: jest.fn(),
+            connectGitHubAccount: jest.fn(),
+            disconnectGitHubAccount: jest.fn(),
           },
         },
         {
@@ -31,7 +34,10 @@ describe('Social auth browser callbacks', () => {
           },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(AccessTokenGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(
