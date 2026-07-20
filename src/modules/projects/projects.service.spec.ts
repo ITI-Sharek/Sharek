@@ -7,7 +7,9 @@ describe('ProjectsService', () => {
   const database = {
     project: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
+      groupBy: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -99,6 +101,57 @@ describe('ProjectsService', () => {
         used: 7,
         monthlyLimit: 20,
       },
+    });
+  });
+
+  it('lists owners with published projects for an active admin', async () => {
+    database.project.groupBy.mockResolvedValue([
+      {
+        owner_id: 'owner-id',
+        _count: { _all: 3 },
+        _max: { published_at: new Date('2026-07-20T08:00:00Z') },
+      },
+    ]);
+    database.project.findFirst.mockResolvedValue({
+      id: 'project-id',
+      title: 'Published project',
+      github_repo_url: 'https://github.com/sharek/published-project',
+      owner: {
+        id: 'owner-id',
+        email: 'owner@example.com',
+        first_name: 'Project',
+        last_name: 'Owner',
+      },
+    });
+
+    await expect(
+      service.listPublishedProjectOwners({
+        id: 'admin-id',
+        email: 'admin@example.com',
+        role: 'admin',
+        status: 'active',
+      }),
+    ).resolves.toEqual([
+      {
+        ownerId: 'owner-id',
+        ownerName: 'Project Owner',
+        ownerEmail: 'owner@example.com',
+        publishedProjectsCount: 3,
+        latestPublishedAt: new Date('2026-07-20T08:00:00Z'),
+        latestProject: {
+          id: 'project-id',
+          title: 'Published project',
+          githubRepoUrl: 'https://github.com/sharek/published-project',
+        },
+      },
+    ]);
+    expect(database.project.groupBy).toHaveBeenCalledWith({
+      by: ['owner_id'],
+      where: { status: ProjectStatus.published },
+      _count: { _all: true },
+      _max: { published_at: true },
+      orderBy: { _max: { published_at: 'desc' } },
+      take: 10,
     });
   });
 

@@ -2,6 +2,8 @@ import { ContributorProfileGitHubStatusDto, ContributorProfileSkillDto } from '.
 
 export function buildCompletionPrompts(input: {
   bio: string | null;
+  experienceRange?: string | null;
+  fields?: unknown[];
   skills: ContributorProfileSkillDto[];
   githubStatus: ContributorProfileGitHubStatusDto;
 }): string[] {
@@ -9,6 +11,14 @@ export function buildCompletionPrompts(input: {
 
   if (!input.bio?.trim()) {
     prompts.push('add_bio');
+  }
+
+  if (!input.experienceRange) {
+    prompts.push('add_experience');
+  }
+
+  if (input.fields?.length === 0) {
+    prompts.push('add_fields');
   }
 
   if (input.skills.length === 0) {

@@ -30,6 +30,13 @@ enum LanguageCode {
   en
 }
 
+enum ContributorExperienceRange {
+  zero_to_one
+  two_to_four
+  five_to_ten
+  ten_plus
+}
+
 enum SubscriptionPlanType {
   bronze
   silver
@@ -332,16 +339,47 @@ model PasswordResetOtp {
 }
 
 model ContributorProfile {
-  id           String   @id @default(uuid()) @db.Uuid
-  user_id      String   @unique @db.Uuid
-  bio          String?
-  availability String?  @db.VarChar(100)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @default(now()) @updatedAt
+  id               String                      @id @default(uuid()) @db.Uuid
+  user_id          String                      @unique @db.Uuid
+  bio              String?
+  availability     String?                     @db.VarChar(100)
+  experience_range ContributorExperienceRange?
+  declared_skills  String[]                    @default([])
+  avatar_data      Bytes?
+  avatar_mime_type String?                     @db.VarChar(50)
+  created_at       DateTime                    @default(now())
+  updated_at       DateTime                    @default(now()) @updatedAt
 
-  user User @relation(fields: [user_id], references: [id])
+  user   User                      @relation(fields: [user_id], references: [id])
+  fields ContributorProfileField[]
 
   @@index([user_id])
+}
+
+model ContributorField {
+  id         String                    @id @default(uuid()) @db.Uuid
+  key        String                    @unique @db.VarChar(50)
+  label_en   String                    @db.VarChar(100)
+  label_ar   String                    @db.VarChar(100)
+  active     Boolean                   @default(true)
+  sort_order Int                       @default(0)
+  created_at DateTime                  @default(now())
+  updated_at DateTime                  @default(now()) @updatedAt
+  profiles   ContributorProfileField[]
+
+  @@index([active, sort_order])
+}
+
+model ContributorProfileField {
+  profile_id String   @db.Uuid
+  field_id   String   @db.Uuid
+  created_at DateTime @default(now())
+
+  profile ContributorProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  field   ContributorField   @relation(fields: [field_id], references: [id], onDelete: Cascade)
+
+  @@id([profile_id, field_id])
+  @@index([field_id])
 }
 
 model AuthSession {

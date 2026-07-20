@@ -1,8 +1,22 @@
-import { ContributorProfile, User } from '@prisma/client';
+import {
+  ContributorExperienceRange,
+  ContributorField,
+  ContributorProfile,
+  ContributorProfileField,
+  User,
+} from '@prisma/client';
 
 export type ContributorProfileWithUser = ContributorProfile & {
   user: User;
+  fields: Array<ContributorProfileField & { field: ContributorField }>;
 };
+
+export interface ContributorFieldDto {
+  id: string;
+  key: string;
+  labelEn: string;
+  labelAr: string;
+}
 
 export interface ContributorProfileSkillDto {
   name: string;
@@ -28,6 +42,9 @@ export interface ContributorProfileDto {
   avatarUrl: string | null;
   roleLabel: string;
   bio: string | null;
+  experienceRange: ContributorExperienceRange | null;
+  fields: ContributorFieldDto[];
+  declaredSkills: string[];
   skills: ContributorProfileSkillDto[];
   availability: string | null;
   githubStatus: ContributorProfileGitHubStatusDto;

@@ -43,6 +43,7 @@ Every table has one owning module:
 ```text
 identity              users, auth_sessions, auth_provider_accounts, auth_oauth_states, email_verification_otps
 github                github_accounts, github_oauth_states, github_repositories, github_evidence
+contributor-profiles  contributor_profiles, contributor_fields, contributor_profile_fields
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications
 projects              projects, project_technologies, project_tags

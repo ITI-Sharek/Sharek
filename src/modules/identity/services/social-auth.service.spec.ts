@@ -210,6 +210,49 @@ describe('SocialAuthService', () => {
       }),
     });
   });
+
+  it('does not replace an existing avatar when another provider uses the same email', async () => {
+    const existingAvatar = 'https://sharek.example/user-selected-avatar.png';
+    const existingUser = getUser({
+      id: 'same-email-user',
+      email: 'shared@example.com',
+      role: UserRole.contributor,
+      avatar_url: existingAvatar,
+    });
+    database.authOAuthState.findFirst.mockResolvedValue({
+      id: 'state-id',
+      requested_role: UserRole.contributor,
+    });
+    googleOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
+      provider: AuthProvider.google,
+      providerUserId: 'google-456',
+      email: 'shared@example.com',
+      emailVerified: true,
+      displayName: 'Shared User',
+      avatarUrl: 'https://google.example/different-avatar.png',
+      rawProfileData: {},
+    });
+    database.authProviderAccount.findUnique.mockResolvedValue(null);
+    database.user.findUnique.mockResolvedValue(existingUser);
+    database.user.update.mockImplementation(({ data }) =>
+      Promise.resolve({ ...existingUser, ...data }),
+    );
+
+    await service.complete({
+      provider: AuthProvider.google,
+      code: 'oauth-code',
+      state: 'oauth-state',
+      context: {},
+    });
+
+    expect(database.user.update).toHaveBeenCalledWith({
+      where: { id: existingUser.id },
+      data: {
+        avatar_url: existingAvatar,
+        last_login_at: expect.any(Date),
+      },
+    });
+  });
 });
 
 function getUser(overrides: {
@@ -218,6 +261,7 @@ function getUser(overrides: {
   username?: string | null;
   role: UserRole;
   last_login_at?: Date | null;
+  avatar_url?: string | null;
 }) {
   return {
     id: overrides.id,
@@ -226,7 +270,7 @@ function getUser(overrides: {
     password_hash: null,
     first_name: 'Sharek',
     last_name: 'User',
-    avatar_url: null,
+    avatar_url: overrides.avatar_url ?? null,
     role: overrides.role,
     status: UserStatus.active,
     preferred_language: LanguageCode.en,

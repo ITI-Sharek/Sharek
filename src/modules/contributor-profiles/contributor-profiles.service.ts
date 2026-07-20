@@ -1,8 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, UserRole, UserStatus } from '@prisma/client';
+import {
+  ContributorExperienceRange,
+  Prisma,
+  UserRole,
+  UserStatus,
+} from '@prisma/client';
 
+import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
 import { DatabaseService } from '../../shared/database/database.service';
-import { NotFoundApplicationError } from '../../shared/errors/application.error';
+import {
+  BadRequestApplicationError,
+  ConflictApplicationError,
+  ForbiddenApplicationError,
+  NotFoundApplicationError,
+} from '../../shared/errors/application.error';
 import { GitHubAccountService } from '../github/services/github-account.service';
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { ReputationService } from '../reputation/reputation.service';
@@ -11,6 +22,7 @@ import {
   ContributorProfileDto,
   ContributorProfileWithUser,
 } from './dto/contributor-profile.dto';
+import { UpdateContributorProfileRequest } from './dto/update-contributor-profile.request';
 import { presentContributorProfile } from './utils/contributor-profile.presenter';
 import {
   assertCanEnsureContributorProfile,
@@ -64,6 +76,228 @@ export class ContributorProfilesService {
     );
   }
 
+  async update(
+    viewerUserId: string,
+    input: UpdateContributorProfileRequest,
+  ): Promise<ContributorProfileDto> {
+    const user = await this.identityUsernameService.getUserById(viewerUserId);
+    assertCanEnsureContributorProfile({
+      role: user.role as UserRole,
+      status: user.status as UserStatus,
+    });
+
+    const userWithUsername =
+      await this.identityUsernameService.ensureContributorUsernameForUser(user);
+    const current =
+      (await this.findByUserId(userWithUsername.id)) ??
+      (await this.createForUser(userWithUsername.id));
+    const fieldIds = input.fieldIds
+      ? [...new Set(input.fieldIds)]
+      : undefined;
+
+    if (fieldIds) {
+      const availableFields = await this.database.contributorField.count({
+        where: { id: { in: fieldIds }, active: true },
+      });
+      if (availableFields !== fieldIds.length) {
+        throw new BadRequestApplicationError(
+          'One or more contributor fields are unavailable',
+          'CONTRIBUTOR_FIELD_INVALID',
+        );
+      }
+    }
+
+    await this.database.$transaction(async (transaction) => {
+      await transaction.contributorProfile.update({
+        where: { id: current.id },
+        data: {
+          ...(input.bio !== undefined
+            ? { bio: this.normalizeOptionalText(input.bio) }
+            : {}),
+          ...(input.availability !== undefined
+            ? { availability: this.normalizeOptionalText(input.availability) }
+            : {}),
+          ...(input.experienceRange !== undefined
+            ? {
+                experience_range:
+                  input.experienceRange as ContributorExperienceRange | null,
+              }
+            : {}),
+          ...(input.declaredSkills !== undefined
+            ? {
+                declared_skills: this.normalizeDeclaredSkills(
+                  input.declaredSkills,
+                ),
+              }
+            : {}),
+        },
+      });
+
+      if (fieldIds) {
+        await transaction.contributorProfileField.deleteMany({
+          where: { profile_id: current.id },
+        });
+        if (fieldIds.length > 0) {
+          await transaction.contributorProfileField.createMany({
+            data: fieldIds.map((fieldId) => ({
+              profile_id: current.id,
+              field_id: fieldId,
+            })),
+          });
+        }
+      }
+    });
+
+    const updated = await this.findByUserId(userWithUsername.id);
+    if (!updated) {
+      throw new NotFoundApplicationError(
+        'Contributor profile was not found after update',
+        'PROFILE_NOT_FOUND',
+      );
+    }
+    return this.buildProfile(updated, 'owner');
+  }
+
+  async updateAvatar(
+    viewerUserId: string,
+    file: { buffer: Buffer; mimetype: string; size: number },
+  ): Promise<ContributorProfileDto> {
+    const user = await this.identityUsernameService.getUserById(viewerUserId);
+    assertCanEnsureContributorProfile({
+      role: user.role as UserRole,
+      status: user.status as UserStatus,
+    });
+    const userWithUsername =
+      await this.identityUsernameService.ensureContributorUsernameForUser(user);
+    const profile =
+      (await this.findByUserId(userWithUsername.id)) ??
+      (await this.createForUser(userWithUsername.id));
+    const mimeType = this.detectAvatarMimeType(file.buffer);
+
+    if (!mimeType || mimeType !== file.mimetype || file.size > 2_000_000) {
+      throw new BadRequestApplicationError(
+        'Avatar must be a PNG, JPEG, or WebP image no larger than 2 MB',
+        'PROFILE_AVATAR_INVALID',
+      );
+    }
+
+    await this.database.contributorProfile.update({
+      where: { id: profile.id },
+      data: {
+        avatar_data: Uint8Array.from(file.buffer),
+        avatar_mime_type: mimeType,
+      },
+    });
+    const updated = await this.findByUserId(userWithUsername.id);
+    if (!updated) {
+      throw new NotFoundApplicationError(
+        'Contributor profile was not found after avatar update',
+        'PROFILE_NOT_FOUND',
+      );
+    }
+    return this.buildProfile(updated, 'owner');
+  }
+
+  async getAvatar(username: string): Promise<{
+    data: Buffer;
+    mimeType: string;
+    updatedAt: Date;
+  }> {
+    const profile = await this.findByUsername(username);
+    if (
+      !profile ||
+      !isContributorProfileVisible(profile.user) ||
+      !profile.avatar_data ||
+      !profile.avatar_mime_type
+    ) {
+      throw new NotFoundApplicationError(
+        'Contributor avatar was not found',
+        'PROFILE_AVATAR_NOT_FOUND',
+      );
+    }
+    return {
+      data: Buffer.from(profile.avatar_data),
+      mimeType: profile.avatar_mime_type,
+      updatedAt: profile.updated_at,
+    };
+  }
+
+  async listFields(includeInactive = false) {
+    const fields = await this.database.contributorField.findMany({
+      where: includeInactive ? undefined : { active: true },
+      orderBy: [{ sort_order: 'asc' }, { label_en: 'asc' }],
+    });
+    return fields.map((field) => this.presentField(field));
+  }
+
+  async createField(
+    admin: AuthenticatedUser,
+    input: { key: string; labelEn: string; labelAr: string; sortOrder?: number },
+  ) {
+    this.assertActiveAdmin(admin);
+    try {
+      const field = await this.database.contributorField.create({
+        data: {
+          key: input.key,
+          label_en: input.labelEn.trim(),
+          label_ar: input.labelAr.trim(),
+          sort_order: input.sortOrder ?? 0,
+        },
+      });
+      return this.presentField(field);
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw new ConflictApplicationError(
+          'Contributor field key already exists',
+          'CONTRIBUTOR_FIELD_KEY_TAKEN',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async updateField(
+    admin: AuthenticatedUser,
+    fieldId: string,
+    input: {
+      labelEn?: string;
+      labelAr?: string;
+      active?: boolean;
+      sortOrder?: number;
+    },
+  ) {
+    this.assertActiveAdmin(admin);
+    try {
+      const field = await this.database.contributorField.update({
+        where: { id: fieldId },
+        data: {
+          ...(input.labelEn !== undefined
+            ? { label_en: input.labelEn.trim() }
+            : {}),
+          ...(input.labelAr !== undefined
+            ? { label_ar: input.labelAr.trim() }
+            : {}),
+          ...(input.active !== undefined ? { active: input.active } : {}),
+          ...(input.sortOrder !== undefined
+            ? { sort_order: input.sortOrder }
+            : {}),
+        },
+      });
+      return this.presentField(field);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundApplicationError(
+          'Contributor field was not found',
+          'CONTRIBUTOR_FIELD_NOT_FOUND',
+        );
+      }
+      throw error;
+    }
+  }
+
   private async buildProfile(
     profile: ContributorProfileWithUser,
     viewerRelationship: 'owner' | 'authenticated-viewer',
@@ -90,7 +324,7 @@ export class ContributorProfilesService {
   ): Promise<ContributorProfileWithUser | null> {
     return this.database.contributorProfile.findUnique({
       where: { user_id: userId },
-      include: { user: true },
+      include: { user: true, fields: { include: { field: true } } },
     });
   }
 
@@ -99,7 +333,7 @@ export class ContributorProfilesService {
   ): Promise<ContributorProfileWithUser | null> {
     return this.database.contributorProfile.findFirst({
       where: { user: { username } },
-      include: { user: true },
+      include: { user: true, fields: { include: { field: true } } },
     });
   }
 
@@ -109,7 +343,7 @@ export class ContributorProfilesService {
     try {
       return await this.database.contributorProfile.create({
         data: { user_id: userId },
-        include: { user: true },
+        include: { user: true, fields: { include: { field: true } } },
       });
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
@@ -132,5 +366,81 @@ export class ContributorProfilesService {
         'code' in error &&
         error.code === 'P2002')
     );
+  }
+
+  private normalizeOptionalText(value: string | null): string | null {
+    return value?.trim() || null;
+  }
+
+  private normalizeDeclaredSkills(skills: string[]): string[] {
+    const normalized = skills
+      .map((skill) => skill.trim())
+      .filter(Boolean)
+      .filter((skill, index, values) =>
+        values.findIndex(
+          (candidate) => candidate.toLowerCase() === skill.toLowerCase(),
+        ) === index,
+      );
+    if (normalized.length > 30) {
+      throw new BadRequestApplicationError(
+        'A maximum of 30 declared skills is allowed',
+        'DECLARED_SKILLS_LIMIT_EXCEEDED',
+      );
+    }
+    return normalized;
+  }
+
+  private detectAvatarMimeType(buffer: Buffer): string | null {
+    if (
+      buffer.length >= 8 &&
+      buffer.subarray(0, 8).equals(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      )
+    ) {
+      return 'image/png';
+    }
+    if (
+      buffer.length >= 3 &&
+      buffer[0] === 0xff &&
+      buffer[1] === 0xd8 &&
+      buffer[2] === 0xff
+    ) {
+      return 'image/jpeg';
+    }
+    if (
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+    ) {
+      return 'image/webp';
+    }
+    return null;
+  }
+
+  private assertActiveAdmin(admin: AuthenticatedUser): void {
+    if (admin.role !== 'admin' || admin.status !== 'active') {
+      throw new ForbiddenApplicationError(
+        'Active admin access is required',
+        'ADMIN_ACCESS_REQUIRED',
+      );
+    }
+  }
+
+  private presentField(field: {
+    id: string;
+    key: string;
+    label_en: string;
+    label_ar: string;
+    active: boolean;
+    sort_order: number;
+  }) {
+    return {
+      id: field.id,
+      key: field.key,
+      labelEn: field.label_en,
+      labelAr: field.label_ar,
+      active: field.active,
+      sortOrder: field.sort_order,
+    };
   }
 }

@@ -84,6 +84,7 @@ export class GitHubOAuthService {
     authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
     authorizationUrl.searchParams.set('scope', this.getOAuthScope(userRole));
     authorizationUrl.searchParams.set('state', state);
+    authorizationUrl.searchParams.set('prompt', 'select_account');
 
     return {
       authorizationUrl: authorizationUrl.toString(),
@@ -100,6 +101,7 @@ export class GitHubOAuthService {
     authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
     authorizationUrl.searchParams.set('scope', SOCIAL_AUTH_OAUTH_SCOPE);
     authorizationUrl.searchParams.set('state', state);
+    authorizationUrl.searchParams.set('prompt', 'select_account');
 
     return authorizationUrl.toString();
   }

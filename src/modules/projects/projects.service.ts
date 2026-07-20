@@ -7,8 +7,13 @@ import {
 } from '@prisma/client';
 
 import { GitHubEvidenceService } from '../github/services/github-evidence.service';
+import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
 import { DatabaseService } from '../../shared/database/database.service';
-import { ApplicationError } from '../../shared/errors/application.error';
+import {
+  ApplicationError,
+  ForbiddenApplicationError,
+} from '../../shared/errors/application.error';
+import { AdminPublishedProjectOwnerDto } from './dto/admin-published-project-owner.dto';
 import { ImportProjectDto } from './dto/import-project.dto';
 import { MyProjectsResponseDto } from './dto/my-projects.dto';
 import { ProjectResponseDto } from './dto/project-response.dto';
@@ -80,6 +85,65 @@ export class ProjectsService {
         monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT,
       },
     };
+  }
+
+  async listPublishedProjectOwners(
+    admin: AuthenticatedUser,
+    limit = 10,
+  ): Promise<AdminPublishedProjectOwnerDto[]> {
+    this.assertActiveAdmin(admin);
+    const ownerGroups = await this.database.project.groupBy({
+      by: ['owner_id'],
+      where: { status: ProjectStatus.published },
+      _count: { _all: true },
+      _max: { published_at: true },
+      orderBy: { _max: { published_at: 'desc' } },
+      take: limit,
+    });
+
+    const owners = await Promise.all(
+      ownerGroups.map(async (group) => {
+        const latestProject = await this.database.project.findFirst({
+          where: {
+            owner_id: group.owner_id,
+            status: ProjectStatus.published,
+          },
+          orderBy: { published_at: 'desc' },
+          select: {
+            id: true,
+            title: true,
+            github_repo_url: true,
+            owner: {
+              select: {
+                id: true,
+                email: true,
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        });
+        if (!latestProject) return null;
+
+        return {
+          ownerId: latestProject.owner.id,
+          ownerName:
+            `${latestProject.owner.first_name} ${latestProject.owner.last_name}`.trim(),
+          ownerEmail: latestProject.owner.email,
+          publishedProjectsCount: group._count._all,
+          latestPublishedAt: group._max.published_at,
+          latestProject: {
+            id: latestProject.id,
+            title: latestProject.title,
+            githubRepoUrl: latestProject.github_repo_url,
+          },
+        } satisfies AdminPublishedProjectOwnerDto;
+      }),
+    );
+
+    return owners.filter(
+      (owner): owner is AdminPublishedProjectOwnerDto => owner !== null,
+    );
   }
 
   async importFromGitHub(
@@ -164,6 +228,15 @@ export class ProjectsService {
         'Project category and difficulty are required before publication',
         'PROJECT_PUBLICATION_METADATA_REQUIRED',
         422,
+      );
+    }
+  }
+
+  private assertActiveAdmin(admin: AuthenticatedUser): void {
+    if (admin.role !== 'admin' || admin.status !== 'active') {
+      throw new ForbiddenApplicationError(
+        'Active admin access is required',
+        'ADMIN_ACCESS_REQUIRED',
       );
     }
   }

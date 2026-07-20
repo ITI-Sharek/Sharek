@@ -160,14 +160,14 @@ needs workflow code.
 | `identity` | Implemented auth/session endpoints | controllers, DTOs, auth/session/password-reset/social-auth services, mappers, security | account management and security hardening | Update when auth endpoints, user/session rules, roles, or account status change |
 | `github` | Implemented OAuth/account/repository listing and contributor-attributed evidence snapshots | GitHub controller, OAuth service, repository service, DTOs, GitHub API client, token encryption | webhook/sync handling and normalized persistent evidence tables if JSON snapshots no longer scale | Update when GitHub scopes, token handling, repo evidence, or import behavior changes |
 | `projects` | Implemented GitHub project import | root controller/service, DTOs, mapper | update draft, publish/archive, project discovery | Update when project lifecycle, visibility, metadata, or project APIs change |
-| `contributor-profiles` | Implemented authenticated profile ensure and profile-by-username reads | root controller/service, DTO, presenter, validator | richer profile editing and public profile sections as product scope expands | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
+| `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, and dynamic admin-managed contributor fields | root controller/service, DTOs, presenter, validator, field catalog | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
 | `contribution-tasks` | Registered placeholder module | module README and module file | task create/update/open/close and task discovery | Update when task lifecycle, required skills, capacity, deadlines, or owner limits are added |
 | `applications` | Registered placeholder module | module README and module file | apply-to-task, eligibility recommendation, manual review, owner decision | Update when application status, AI decision handling, or application APIs are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
-| `admin` | Implemented admin skill review HTTP routes | admin skill review controller, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
+| `admin` | Implemented admin skill review and contributor-field management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile facade | `AiService`, DTOs, strict FastAPI client, response validation tests | eligibility/guidance/embedding clients and broader contract tests | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `health` | Implemented health endpoint | health controller, response, module, test | readiness checks for database/Redis/external dependencies if needed | Update when health response shape or readiness checks change |
 
@@ -1088,3 +1088,62 @@ This keeps the system strong without making it heavy:
 - Risks/follow-up: quota is currently a fixed Silver-style monthly limit view
   until subscription-plan enforcement is implemented for owner contribution
   requests. Contributor discovery still must filter on `status = published`.
+
+### 2026-07-20 - Contributor profile settings and managed fields
+
+- Modules: `contributor-profiles`, `admin`, `identity`, and frontend contributor
+  settings/admin navigation.
+- Requirement IDs: frontend backend-handoff `P0-3`; user-requested contributor
+  profile settings extension (no dedicated backlog ID).
+- Change type: database migration, backend/frontend API implementation, image
+  upload, admin catalog management, tests, and documentation.
+- Summary: Persisted contributor brief, availability, exact experience ranges,
+  dynamic admin-managed fields, and declared skills. Added a settings dropdown,
+  explicit PNG/JPEG/WebP avatar upload, public avatar delivery, and an admin
+  page for adding, ordering, activating, and deactivating contributor fields.
+  Explicit profile images now override provider avatars, while social auth also
+  preserves an existing identity avatar when another provider shares the email.
+- API changes: added `PATCH /contributors/profiles/me`, `PUT
+  /contributors/profiles/me/avatar`, `GET /contributors/profile-fields`, `GET
+  /contributors/profiles/:username/avatar`, and admin contributor-field list,
+  create, and update endpoints.
+- Database changes: migration
+  `20260720100000_contributor_profile_settings` adds the experience enum,
+  declared skills and explicit avatar columns, contributor-field catalog, and
+  contributor-profile field join table, with initial catalog seeds.
+- Tests/checks: architecture check, Prisma validation/generation, backend and
+  frontend lint/type-check/build passed; full backend Jest suite passed with 35
+  suites and 121 tests; full frontend Vitest suite passed with 19 files and 105
+  tests; the migration was applied successfully to the local Docker database
+  and all new routes compiled with zero watch errors.
+- Docs updated: contributor-profiles/admin READMEs, API contracts, database
+  ownership plan, and this tracker.
+- Risks/follow-up: avatar bytes are stored in PostgreSQL for the current 2 MB
+  MVP limit; migrate to object storage if image traffic or database volume
+  grows materially.
+
+### 2026-07-20 - Admin workspace routing and operational overview
+
+- Modules: `admin`, `projects`, `skill-profiles`, and frontend admin routing.
+- Requirement IDs: `FR-003`, `FR-023`, `FR-031`; user-reported admin workspace
+  regression (no dedicated backlog ID).
+- Change type: frontend route correction, dashboard data presentation, backend
+  read endpoint, focused test, and documentation.
+- Summary: Corrected the `/admin` parent route to render nested sidebar pages
+  through its outlet, restoring skill reviews, notifications, and contributor
+  field management. The overview now lists contributors waiting for skill
+  approval and owners with published projects instead of showing only summary
+  cards.
+- API changes: added protected `GET /admin/published-project-owners`, delegated
+  to the exported `ProjectsService`.
+- Database changes: none.
+- Tests/checks: full backend Jest suite passed with 35 suites and 122 tests;
+  backend build/type-check/lint and architecture check passed. Frontend Vitest
+  passed with 19 files and 106 tests, lint and production build passed, and all
+  three nested admin URLs returned HTTP 200. Docker watch compilation reported
+  zero errors and mapped the new endpoint. The full frontend `tsc` gate is
+  currently blocked by an unrelated existing `roles-section.tsx` button
+  variant mismatch; the changed admin files pass lint and the production build.
+- Docs updated: admin/projects READMEs, API contracts, and this tracker.
+- Risks/follow-up: the overview intentionally returns only the 10 most recently
+  publishing owners; add pagination if this becomes a full admin directory.

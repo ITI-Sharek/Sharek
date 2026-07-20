@@ -22,9 +22,14 @@ describe('ContributorProfilesService', () => {
       user_id: user.id,
       bio: null,
       availability: null,
+      experience_range: null,
+      declared_skills: [],
+      avatar_data: null,
+      avatar_mime_type: null,
       created_at: new Date(),
       updated_at: new Date(),
       user,
+      fields: [],
     };
     const database = {
       contributorProfile: {
@@ -67,5 +72,89 @@ describe('ContributorProfilesService', () => {
       user.id,
       { includeGenerated: true },
     );
+  });
+
+  it('stores a validated explicit avatar and returns its stable profile URL', async () => {
+    const user = {
+      id: 'user-2',
+      email: 'avatar@example.com',
+      username: 'avatar-user',
+      password_hash: null,
+      first_name: 'Avatar',
+      last_name: 'User',
+      avatar_url: 'https://provider.example/old.png',
+      role: 'contributor',
+      status: 'active',
+      preferred_language: 'en',
+      created_at: new Date(),
+      updated_at: new Date(),
+      last_login_at: null,
+    };
+    const updatedAt = new Date('2026-07-20T09:00:00Z');
+    const original = {
+      id: 'profile-2',
+      user_id: user.id,
+      bio: null,
+      availability: null,
+      experience_range: null,
+      declared_skills: [],
+      avatar_data: null,
+      avatar_mime_type: null,
+      created_at: new Date(),
+      updated_at: updatedAt,
+      user,
+      fields: [],
+    };
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
+    const database = {
+      contributorProfile: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(original)
+          .mockResolvedValueOnce({
+            ...original,
+            avatar_data: Uint8Array.from(png),
+            avatar_mime_type: 'image/png',
+          }),
+        update: jest.fn().mockResolvedValue(undefined),
+      },
+    };
+    const service = new ContributorProfilesService(
+      database as never,
+      {
+        getUserById: jest.fn().mockResolvedValue(user),
+        ensureContributorUsernameForUser: jest.fn().mockResolvedValue(user),
+      } as never,
+      {
+        getStatusForUser: jest
+          .fn()
+          .mockResolvedValue({ connected: false, username: null }),
+      } as never,
+      { listSkillsForProfile: jest.fn().mockResolvedValue([]) } as never,
+      {
+        getSummaryForUser: jest
+          .fn()
+          .mockResolvedValue({ rating: null, reviewsCount: 0 }),
+      } as never,
+    );
+
+    await expect(
+      service.updateAvatar(user.id, {
+        buffer: png,
+        mimetype: 'image/png',
+        size: png.length,
+      }),
+    ).resolves.toMatchObject({
+      avatarUrl: `/contributors/profiles/avatar-user/avatar?v=${updatedAt.getTime()}`,
+    });
+    expect(database.contributorProfile.update).toHaveBeenCalledWith({
+      where: { id: original.id },
+      data: {
+        avatar_data: Uint8Array.from(png),
+        avatar_mime_type: 'image/png',
+      },
+    });
   });
 });
