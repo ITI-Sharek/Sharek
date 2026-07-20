@@ -11,6 +11,9 @@ export interface ProjectResponseDto {
   repoStatistics: unknown;
   status: 'draft' | 'published' | 'archived';
   readmeContent: string | null;
+  category: 'web' | 'mobile' | 'ai_ml' | 'devops' | 'tools_utilities' | null;
+  difficulty: 'beginner' | 'intermediate' | 'advanced' | null;
+  publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

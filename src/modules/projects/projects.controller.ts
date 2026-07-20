@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 
 import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
 import { RolesGuard } from '../../shared/auth/guards/roles.guard';
@@ -14,14 +14,18 @@ export class ProjectsController {
 
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles('owner', 'admin')
+  @Get('me')
+  getMyProjects(@CurrentUser() user: AuthenticatedUser) {
+    return this.projectsService.getMyProjects(user.id);
+  }
+
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles('owner', 'admin')
   @Post('import/github')
   importFromGitHub(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: ImportProjectDto,
   ) {
-    return this.projectsService.importFromGitHub(
-      user.id,
-      body.repoUrl ?? body.fullName ?? '',
-    );
+    return this.projectsService.importFromGitHub(user.id, body);
   }
 }
