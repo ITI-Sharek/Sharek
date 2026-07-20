@@ -265,13 +265,27 @@ Google and GitHub social auth are direct signup/signin flows. The frontend calls
 `authorizationUrl`, then completes with the provider `code` and Share-k `state`
 through `GET` or `POST /auth/{provider}/callback`.
 
+GitHub start responses include `prompt=select_account` in the provider
+authorization URL for both social identity and repository-connection flows.
+When the selected GitHub identity already belongs to another Sharek user, the
+backend keeps returning `409 GITHUB_ACCOUNT_TAKEN`; the frontend explains the
+conflict and offers to reopen the account picker without logging out the
+currently authenticated Sharek user.
+
 The `role` query parameter is used only when the backend must create a new
-Share-k user. Existing users keep their saved role. Social auth links by
-provider account first, then by verified email. GitHub social auth is identity
-only and requests the minimal GitHub `read:user user:email` scope. It must not
-request private repository access or mark the repository-evidence connection as
-complete. Contributors grant repository access later through
-`GET /github/oauth/start` during onboarding/profile setup.
+Share-k user. Existing users keep their saved role. GitHub sign-in resolves an
+existing user only by GitHub's immutable numeric account ID, through either the
+social-provider link or the exact repository-connected GitHub account. A
+matching provider email does not authenticate or silently link a different
+GitHub identity. An unrecognized GitHub identity whose verified email is
+already registered returns `409 GITHUB_SIGN_IN_EMAIL_CONFLICT`. A historical
+social link that disagrees with the user's repository-connected GitHub ID
+returns `409 GITHUB_AUTH_ACCOUNT_MISMATCH`. Google retains verified-email
+linking behavior. GitHub social auth is identity-only and requests the minimal
+GitHub `read:user user:email` scope. It must not request private repository
+access or mark the repository-evidence connection as complete. Contributors
+grant repository access later through `GET /github/oauth/start` during
+onboarding/profile setup.
 
 ## GitHub Connection Contracts
 
@@ -282,6 +296,8 @@ GET /github/oauth/start
 GET /github/oauth/callback
 POST /github/oauth/callback
 GET /auth/github/callback/repository
+POST /auth/github/account/callback
+DELETE /auth/github/account
 GET /github/account
 GET /github/repositories
 GET /github/readme
@@ -298,15 +314,28 @@ POST /projects/import/github
 short-lived OAuth state and returns the GitHub authorization URL. Browser flows
 use `GET /auth/github/callback/repository` as the GitHub redirect URI; that
 endpoint forwards the browser to the frontend `/auth/callback` page so the SPA
-can complete the connection with `POST /github/oauth/callback`. Contributor
-OAuth requests the GitHub `repo` scope so Share-k can read public and private
-repository evidence after explicit GitHub consent. Owner/admin OAuth keeps the
-lighter `public_repo` scope for the project-import shortcut.
+can complete the authenticated connection with `POST
+/auth/github/account/callback`. That endpoint verifies the OAuth state belongs
+to the authenticated user, rejects a GitHub ID owned by another Sharek user,
+stores the repository connection, and replaces that user's stale GitHub social
+provider link with the selected immutable GitHub ID. Contributor OAuth requests
+the GitHub `repo` scope so Share-k can read public and private repository
+evidence after explicit GitHub consent. Owner/admin OAuth keeps the lighter
+`public_repo` scope for the project-import shortcut. The older `POST
+/github/oauth/callback` remains available for compatibility but does not perform
+identity-link reconciliation.
 
 The callback validates the stored state, exchanges the GitHub code, fetches the
 GitHub profile, and stores the linked account. GitHub access tokens are never
 returned in API responses. Stored GitHub access and refresh tokens are encrypted
 at rest with AES-256-GCM.
+
+`DELETE /auth/github/account` is the unified authenticated disconnect route. It
+removes both the GitHub repository connection and the identity-owned GitHub
+provider link. It returns `409 GITHUB_DISCONNECT_WOULD_LOCK_ACCOUNT` when the
+user has neither a password nor another social provider, preventing accidental
+account lockout. `DELETE /github/account` remains the lower-level repository
+connection removal route.
 
 `GET /github/repositories?page=1&perPage=12` requires an authenticated user
 with a connected GitHub account. It returns normalized repository metadata
@@ -478,6 +507,15 @@ existing GitHub repository picker:
   ]
 }
 ```
+
+For the current MVP, the contributor repository OAuth grant is the evidence
+authorization boundary. The frontend requires the contributor to select up to
+10 repositories and accept a dedicated analysis-consent checkbox. During job
+processing, the backend resolves every selected full name through the encrypted
+OAuth token and returns `GITHUB_REPOSITORY_SELECTION_NOT_ALLOWED` when any
+selection is not accessible through the connected GitHub account. A future
+GitHub App installation may narrow provider-side access further, but it is not
+required to use the implemented generation workflow.
 
 Rules:
 

@@ -13,6 +13,7 @@ import { hashToken } from '../../../shared/auth/token-hash';
 import { DatabaseService } from '../../../shared/database/database.service';
 import { ApplicationError } from '../../../shared/errors/application.error';
 import { GitHubOAuthService } from '../../github/services/github-oauth.service';
+import { GitHubAccountDto } from '../../github/dto/github-account.dto';
 import { GoogleOAuthService } from './google-oauth.service';
 
 import { AuthSessionDto } from '../dto/auth-session.dto';
@@ -177,6 +178,36 @@ export class SocialAuthService {
     };
   }
 
+  async connectGitHubAccount(input: {
+    userId: string;
+    code: string;
+    state: string;
+  }): Promise<GitHubAccountDto> {
+    const account = await this.gitHubOAuthService.connectWithCallback(
+      input.code,
+      input.state,
+      {
+        expectedUserId: input.userId,
+        assertCanLink: (githubId) =>
+          this.assertGitHubIdentityCanLinkToUser(githubId, input.userId),
+      },
+    );
+
+    await this.replaceGitHubProviderAccount(input.userId, account);
+    return account;
+  }
+
+  async disconnectGitHubAccount(userId: string): Promise<void> {
+    await this.assertGitHubDisconnectKeepsLoginAvailable(userId);
+    await this.gitHubOAuthService.disconnect(userId);
+    await this.database.authProviderAccount.deleteMany({
+      where: {
+        provider: AuthProvider.github,
+        user_id: userId,
+      },
+    });
+  }
+
   private getAuthorizationUrl(
     provider: AuthProvider,
     role: SocialAuthRole,
@@ -215,6 +246,13 @@ export class SocialAuthService {
     });
 
     if (providerAccount) {
+      if (identity.provider === AuthProvider.github) {
+        await this.assertGitHubIdentityMatchesConnectedAccount(
+          identity.providerUserId,
+          providerAccount.user.id,
+        );
+      }
+
       return providerAccount.user;
     }
 
@@ -243,6 +281,14 @@ export class SocialAuthService {
     });
 
     if (existingUser) {
+      if (identity.provider === AuthProvider.github) {
+        throw new ApplicationError(
+          'A Sharek account with this email already exists. Sign in to that account and connect this GitHub account explicitly.',
+          'GITHUB_SIGN_IN_EMAIL_CONFLICT',
+          409,
+        );
+      }
+
       return existingUser;
     }
 
@@ -262,6 +308,118 @@ export class SocialAuthService {
         preferred_language: LanguageCode.en,
       },
     });
+  }
+
+  private async assertGitHubIdentityMatchesConnectedAccount(
+    providerUserId: string,
+    userId: string,
+  ): Promise<void> {
+    const connectedGitHubId =
+      await this.gitHubOAuthService.findLinkedGitHubIdForUser(userId);
+
+    if (connectedGitHubId && connectedGitHubId !== providerUserId) {
+      throw new ApplicationError(
+        'This Sharek account is connected to a different GitHub account',
+        'GITHUB_AUTH_ACCOUNT_MISMATCH',
+        409,
+      );
+    }
+  }
+
+  private async assertGitHubIdentityCanLinkToUser(
+    providerUserId: string,
+    userId: string,
+  ): Promise<void> {
+    const existingAccount = await this.database.authProviderAccount.findUnique({
+      where: {
+        provider_provider_account_id: {
+          provider: AuthProvider.github,
+          provider_account_id: providerUserId,
+        },
+      },
+    });
+
+    if (existingAccount && existingAccount.user_id !== userId) {
+      throw new ApplicationError(
+        'GitHub account is already linked to another user',
+        'GITHUB_ACCOUNT_TAKEN',
+        409,
+      );
+    }
+  }
+
+  private async replaceGitHubProviderAccount(
+    userId: string,
+    account: GitHubAccountDto,
+  ): Promise<void> {
+    await this.database.$transaction(async (transaction) => {
+      await transaction.authProviderAccount.deleteMany({
+        where: {
+          provider: AuthProvider.github,
+          user_id: userId,
+          provider_account_id: {
+            not: account.githubId,
+          },
+        },
+      });
+      await transaction.authProviderAccount.upsert({
+        where: {
+          provider_provider_account_id: {
+            provider: AuthProvider.github,
+            provider_account_id: account.githubId,
+          },
+        },
+        create: {
+          user_id: userId,
+          provider: AuthProvider.github,
+          provider_account_id: account.githubId,
+          email: null,
+          email_verified: false,
+          username: account.username,
+          avatar_url: account.avatarUrl,
+          profile_url: account.profileUrl,
+          last_login_at: new Date(),
+        },
+        update: {
+          username: account.username,
+          avatar_url: account.avatarUrl,
+          profile_url: account.profileUrl,
+          last_login_at: new Date(),
+        },
+      });
+    });
+  }
+
+  private async assertGitHubDisconnectKeepsLoginAvailable(
+    userId: string,
+  ): Promise<void> {
+    const user = await this.database.user.findUnique({
+      where: { id: userId },
+      select: {
+        password_hash: true,
+        authProviderAccounts: {
+          where: {
+            provider: {
+              not: AuthProvider.github,
+            },
+          },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!user) {
+      throw new ApplicationError('User was not found', 'USER_NOT_FOUND', 404);
+    }
+
+    if (!user.password_hash && user.authProviderAccounts.length === 0) {
+      throw new ApplicationError(
+        'Add a password or another sign-in provider before disconnecting GitHub',
+        'GITHUB_DISCONNECT_WOULD_LOCK_ACCOUNT',
+        409,
+      );
+    }
   }
 
   private getSocialSignupUsername(identity: ProviderIdentity): Promise<string | null> {

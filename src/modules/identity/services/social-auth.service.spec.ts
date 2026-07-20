@@ -9,12 +9,14 @@ import { SocialAuthService } from './social-auth.service';
 
 describe('SocialAuthService', () => {
   const database = {
+    $transaction: jest.fn(),
     authOAuthState: {
       create: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
     },
     authProviderAccount: {
+      deleteMany: jest.fn(),
       findUnique: jest.fn(),
       upsert: jest.fn(),
     },
@@ -31,7 +33,10 @@ describe('SocialAuthService', () => {
   const gitHubOAuthService = {
     getSocialAuthorizationUrl: jest.fn(),
     exchangeCodeForSocialIdentity: jest.fn(),
+    connectWithCallback: jest.fn(),
+    disconnect: jest.fn(),
     findLinkedUserId: jest.fn(),
+    findLinkedGitHubIdForUser: jest.fn(),
   };
   const googleOAuthService = {
     getSocialAuthorizationUrl: jest.fn(),
@@ -53,6 +58,7 @@ describe('SocialAuthService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    database.$transaction.mockImplementation((callback) => callback(database));
     sessionService.create.mockResolvedValue({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -209,6 +215,179 @@ describe('SocialAuthService', () => {
         username: 'root12335',
       }),
     });
+  });
+
+  it('does not sign in an existing user only because GitHub reports the same email', async () => {
+    const existingUser = getUser({
+      id: 'manual-user-id',
+      email: 'shared@example.com',
+      role: UserRole.contributor,
+    });
+    database.authOAuthState.findFirst.mockResolvedValue({
+      id: 'state-id',
+      requested_role: UserRole.contributor,
+    });
+    gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
+      provider: AuthProvider.github,
+      providerUserId: 'selected-github-id',
+      email: 'shared@example.com',
+      emailVerified: true,
+      username: 'selected-github-user',
+      rawProfileData: {},
+    });
+    database.authProviderAccount.findUnique.mockResolvedValue(null);
+    gitHubOAuthService.findLinkedUserId.mockResolvedValue(null);
+    database.user.findUnique.mockResolvedValue(existingUser);
+
+    await expect(
+      service.complete({
+        provider: AuthProvider.github,
+        code: 'oauth-code',
+        state: 'oauth-state',
+        context: {},
+      }),
+    ).rejects.toMatchObject({
+      code: 'GITHUB_SIGN_IN_EMAIL_CONFLICT',
+      statusCode: 409,
+    });
+
+    expect(database.authProviderAccount.upsert).not.toHaveBeenCalled();
+    expect(database.user.update).not.toHaveBeenCalled();
+    expect(sessionService.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a historical social link that conflicts with the connected GitHub account', async () => {
+    const existingUser = getUser({
+      id: 'mismatched-user-id',
+      email: 'shared@example.com',
+      role: UserRole.contributor,
+    });
+    database.authOAuthState.findFirst.mockResolvedValue({
+      id: 'state-id',
+      requested_role: UserRole.contributor,
+    });
+    gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
+      provider: AuthProvider.github,
+      providerUserId: 'selected-github-id',
+      email: 'shared@example.com',
+      emailVerified: true,
+      username: 'selected-github-user',
+      rawProfileData: {},
+    });
+    database.authProviderAccount.findUnique.mockResolvedValue({
+      user: existingUser,
+    });
+    gitHubOAuthService.findLinkedGitHubIdForUser.mockResolvedValue(
+      'different-connected-github-id',
+    );
+
+    await expect(
+      service.complete({
+        provider: AuthProvider.github,
+        code: 'oauth-code',
+        state: 'oauth-state',
+        context: {},
+      }),
+    ).rejects.toMatchObject({
+      code: 'GITHUB_AUTH_ACCOUNT_MISMATCH',
+      statusCode: 409,
+    });
+
+    expect(database.authProviderAccount.upsert).not.toHaveBeenCalled();
+    expect(database.user.update).not.toHaveBeenCalled();
+    expect(sessionService.create).not.toHaveBeenCalled();
+  });
+
+  it('replaces a stale GitHub provider link after an authenticated account connection', async () => {
+    const connectedAccount = {
+      id: 'github-account-id',
+      githubId: 'new-github-id',
+      username: 'new-github-user',
+      avatarUrl: 'https://github.com/new-avatar.png',
+      profileUrl: 'https://github.com/new-github-user',
+      ingestionStatus: 'pending' as const,
+      connectedAt: new Date('2026-07-21T00:00:00.000Z'),
+      lastSyncedAt: null,
+    };
+    database.authProviderAccount.findUnique.mockResolvedValue(null);
+    gitHubOAuthService.connectWithCallback.mockImplementation(
+      async (_code, _state, options) => {
+        await options.assertCanLink(connectedAccount.githubId);
+        return connectedAccount;
+      },
+    );
+
+    const result = await service.connectGitHubAccount({
+      userId: 'manual-user-id',
+      code: 'oauth-code',
+      state: 'oauth-state',
+    });
+
+    expect(gitHubOAuthService.connectWithCallback).toHaveBeenCalledWith(
+      'oauth-code',
+      'oauth-state',
+      expect.objectContaining({
+        expectedUserId: 'manual-user-id',
+        assertCanLink: expect.any(Function),
+      }),
+    );
+    expect(database.authProviderAccount.deleteMany).toHaveBeenCalledWith({
+      where: {
+        provider: AuthProvider.github,
+        user_id: 'manual-user-id',
+        provider_account_id: { not: 'new-github-id' },
+      },
+    });
+    expect(database.authProviderAccount.upsert).toHaveBeenCalledWith({
+      where: {
+        provider_provider_account_id: {
+          provider: AuthProvider.github,
+          provider_account_id: 'new-github-id',
+        },
+      },
+      create: expect.objectContaining({
+        user_id: 'manual-user-id',
+        provider: AuthProvider.github,
+        provider_account_id: 'new-github-id',
+        username: 'new-github-user',
+      }),
+      update: expect.objectContaining({ username: 'new-github-user' }),
+    });
+    expect(result).toBe(connectedAccount);
+  });
+
+  it('disconnects both the repository account and GitHub sign-in link when another login remains', async () => {
+    database.user.findUnique.mockResolvedValue({
+      password_hash: 'password-hash',
+      authProviderAccounts: [],
+    });
+
+    await service.disconnectGitHubAccount('manual-user-id');
+
+    expect(gitHubOAuthService.disconnect).toHaveBeenCalledWith('manual-user-id');
+    expect(database.authProviderAccount.deleteMany).toHaveBeenCalledWith({
+      where: {
+        provider: AuthProvider.github,
+        user_id: 'manual-user-id',
+      },
+    });
+  });
+
+  it('prevents disconnecting GitHub when it is the only available login method', async () => {
+    database.user.findUnique.mockResolvedValue({
+      password_hash: null,
+      authProviderAccounts: [],
+    });
+
+    await expect(
+      service.disconnectGitHubAccount('github-only-user-id'),
+    ).rejects.toMatchObject({
+      code: 'GITHUB_DISCONNECT_WOULD_LOCK_ACCOUNT',
+      statusCode: 409,
+    });
+
+    expect(gitHubOAuthService.disconnect).not.toHaveBeenCalled();
+    expect(database.authProviderAccount.deleteMany).not.toHaveBeenCalled();
   });
 
   it('does not replace an existing avatar when another provider uses the same email', async () => {

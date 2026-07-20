@@ -39,6 +39,23 @@ owns reset-code lifecycle. `SocialAuthService` links providers and reuses
 `SessionService`. Browser OAuth GET callbacks validate and forward only
 `code`, `state`, and provider error details while ignoring unrelated provider
 metadata. Frontend POST callback bodies remain strictly DTO-validated.
+GitHub authorization starts request `prompt=select_account`, so repeated login
+attempts do not silently reuse the last GitHub browser identity. Provider
+account uniqueness remains enforced; a GitHub identity linked to another
+Sharek user still returns a conflict rather than being reassigned. GitHub
+sign-in resolves users only through GitHub's immutable numeric account ID,
+using either the identity-owned provider link or the exported GitHub account
+lookup. A matching email never silently links an unrecognized GitHub identity
+to an existing Sharek user. Existing social links that disagree with the
+user's repository-connected GitHub ID are rejected as conflicts.
+
+Authenticated repository connection completion is exposed through `POST
+/auth/github/account/callback`. It verifies the OAuth state owner, prevents a
+GitHub identity already owned by another Sharek user from being taken, and
+replaces the authenticated user's stale GitHub provider link with the selected
+numeric ID. `DELETE /auth/github/account` removes both the repository connection
+and GitHub provider link, but refuses to disconnect GitHub when doing so would
+leave a passwordless user with no login method.
 
 The module exports `IdentityUsernameService` for profile workflows and
 `IdentityAccountStatusService` for contributor activation after skill review.

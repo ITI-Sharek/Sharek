@@ -51,6 +51,11 @@ export interface GitHubSocialIdentity {
   tokenExpiresAt?: Date;
 }
 
+export interface GitHubConnectionOptions {
+  expectedUserId?: string;
+  assertCanLink?: (githubId: string) => Promise<void>;
+}
+
 @Injectable()
 export class GitHubOAuthService {
   private readonly logger = new Logger(GitHubOAuthService.name);
@@ -106,7 +111,11 @@ export class GitHubOAuthService {
     return authorizationUrl.toString();
   }
 
-  async connectWithCallback(code: string, state: string): Promise<GitHubAccountDto> {
+  async connectWithCallback(
+    code: string,
+    state: string,
+    options: GitHubConnectionOptions = {},
+  ): Promise<GitHubAccountDto> {
     const normalizedCode = code?.trim();
     const normalizedState = state?.trim();
 
@@ -130,8 +139,20 @@ export class GitHubOAuthService {
       throw new ApplicationError('Invalid or expired GitHub OAuth state', 'GITHUB_OAUTH_INVALID_STATE', 401);
     }
 
+    if (
+      options.expectedUserId &&
+      storedState.user_id !== options.expectedUserId
+    ) {
+      throw new ApplicationError(
+        'GitHub OAuth state belongs to a different user',
+        'GITHUB_OAUTH_STATE_USER_MISMATCH',
+        403,
+      );
+    }
+
     const token = await this.exchangeCodeForToken(normalizedCode);
     const profile = await this.fetchProfile(token.accessToken);
+    await options.assertCanLink?.(profile.githubId);
     const encryptedAccessToken = this.tokenEncryption.encrypt(token.accessToken);
     const encryptedRefreshToken = token.refreshToken
       ? this.tokenEncryption.encrypt(token.refreshToken)
@@ -247,6 +268,19 @@ export class GitHubOAuthService {
     });
 
     return account?.user_id ?? null;
+  }
+
+  async findLinkedGitHubIdForUser(userId: string): Promise<string | null> {
+    const account = await this.database.gitHubAccount.findUnique({
+      where: {
+        user_id: userId,
+      },
+      select: {
+        github_id: true,
+      },
+    });
+
+    return account?.github_id ?? null;
   }
 
   private async exchangeCodeForToken(
