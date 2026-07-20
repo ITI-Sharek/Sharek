@@ -1,11 +1,20 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, ProjectStatus } from '@prisma/client';
+import {
+  ApplicationStatus,
+  ContributionRequestStatus,
+  Prisma,
+  ProjectStatus,
+} from '@prisma/client';
 
 import { GitHubEvidenceService } from '../github/services/github-evidence.service';
 import { DatabaseService } from '../../shared/database/database.service';
 import { ApplicationError } from '../../shared/errors/application.error';
+import { ImportProjectDto } from './dto/import-project.dto';
+import { MyProjectsResponseDto } from './dto/my-projects.dto';
 import { ProjectResponseDto } from './dto/project-response.dto';
 import { toProjectResponseDto } from './mappers/project.mapper';
+
+const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT = 20;
 
 @Injectable()
 export class ProjectsService {
@@ -14,10 +23,70 @@ export class ProjectsService {
     private readonly gitHubEvidenceService: GitHubEvidenceService,
   ) {}
 
+  async getMyProjects(ownerId: string): Promise<MyProjectsResponseDto> {
+    const monthStart = this.getCurrentMonthStart();
+    const [projects, monthlyRequestCount] = await Promise.all([
+      this.database.project.findMany({
+        where: {
+          owner_id: ownerId,
+        },
+        orderBy: {
+          updated_at: 'desc',
+        },
+        include: {
+          contributionRequests: {
+            select: {
+              status: true,
+              applications: {
+                select: {
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.database.contributionRequest.count({
+        where: {
+          owner_id: ownerId,
+          created_at: {
+            gte: monthStart,
+          },
+        },
+      }),
+    ]);
+
+    return {
+      projects: projects.map((project) => ({
+        id: project.id,
+        title: project.title,
+        slug: this.resolveProjectSlug(project.github_repo_url, project.title),
+        status: project.status,
+        openRequestsCount: project.contributionRequests.filter(
+          (request) => request.status === ContributionRequestStatus.published,
+        ).length,
+        pendingApplicationsCount: project.contributionRequests.reduce(
+          (count, request) =>
+            count +
+            request.applications.filter((application) =>
+              this.isPendingOwnerApplication(application.status),
+            ).length,
+          0,
+        ),
+        lastActivityLabel: this.formatLastActivityLabel(project.updated_at),
+      })),
+      quota: {
+        used: monthlyRequestCount,
+        monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT,
+      },
+    };
+  }
+
   async importFromGitHub(
     ownerId: string,
-    repositoryReference: string,
+    input: ImportProjectDto,
   ): Promise<ProjectResponseDto> {
+    const repositoryReference = input.repoUrl ?? input.fullName ?? '';
     const snapshot =
       await this.gitHubEvidenceService.getPublicImportSnapshot(
         repositoryReference,
@@ -38,38 +107,171 @@ export class ProjectsService {
       );
     }
 
+    const status = input.status ?? existingProject?.status ?? ProjectStatus.draft;
+    const projectMetadata = {
+      title: this.resolveTitle(repository.name, input.title),
+      description: this.resolveDescription(
+        repository.description,
+        input.description,
+      ),
+      github_repo_id: repository.githubRepoId,
+      languages: repository.languages,
+      tags: this.resolveStringArray(repository.topics, input.tags),
+      technologies: this.resolveStringArray(
+        snapshot.technologies,
+        input.technologies,
+      ),
+      category: input.category ?? existingProject?.category ?? null,
+      difficulty: input.difficulty ?? existingProject?.difficulty ?? null,
+      repo_statistics: snapshot.repoStatistics as Prisma.InputJsonObject,
+      readme_content: snapshot.readmeContent,
+      status,
+      published_at: this.resolvePublishedAt(
+        status,
+        existingProject?.published_at ?? null,
+      ),
+    };
+    this.assertCanSaveProjectStatus(projectMetadata);
+
     const project = existingProject
       ? await this.database.project.update({
           where: {
             id: existingProject.id,
           },
-          data: {
-            title: repository.name,
-            description: repository.description,
-            github_repo_id: repository.githubRepoId,
-            languages: repository.languages,
-            tags: repository.topics,
-            technologies: snapshot.technologies,
-            repo_statistics: snapshot.repoStatistics as Prisma.InputJsonObject,
-            readme_content: snapshot.readmeContent,
-          },
+          data: projectMetadata,
         })
       : await this.database.project.create({
           data: {
             owner_id: ownerId,
-            title: repository.name,
-            description: repository.description,
             github_repo_url: repository.htmlUrl,
-            github_repo_id: repository.githubRepoId,
-            languages: repository.languages,
-            tags: repository.topics,
-            technologies: snapshot.technologies,
-            repo_statistics: snapshot.repoStatistics as Prisma.InputJsonObject,
-            status: ProjectStatus.draft,
-            readme_content: snapshot.readmeContent,
+            ...projectMetadata,
           },
         });
 
     return toProjectResponseDto(project);
+  }
+
+  private assertCanSaveProjectStatus(project: {
+    status: ProjectStatus;
+    category: unknown;
+    difficulty: unknown;
+  }): void {
+    if (
+      project.status === ProjectStatus.published &&
+      (project.category === null || project.difficulty === null)
+    ) {
+      throw new ApplicationError(
+        'Project category and difficulty are required before publication',
+        'PROJECT_PUBLICATION_METADATA_REQUIRED',
+        422,
+      );
+    }
+  }
+
+  private resolveTitle(repositoryName: string, reviewedTitle?: string): string {
+    const title = reviewedTitle?.trim();
+
+    return title || repositoryName;
+  }
+
+  private resolveDescription(
+    repositoryDescription: string | null,
+    reviewedDescription?: string | null,
+  ): string | null {
+    if (reviewedDescription === undefined) {
+      return repositoryDescription;
+    }
+
+    const description = reviewedDescription?.trim();
+
+    return description || null;
+  }
+
+  private resolveStringArray(
+    repositoryValues: string[],
+    reviewedValues?: string[],
+  ): string[] {
+    const values = reviewedValues ?? repositoryValues;
+
+    return Array.from(
+      new Set(
+        values
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0),
+      ),
+    );
+  }
+
+  private resolvePublishedAt(
+    status: ProjectStatus,
+    existingPublishedAt: Date | null,
+  ): Date | null {
+    if (status === ProjectStatus.published) {
+      return existingPublishedAt ?? new Date();
+    }
+
+    if (status === ProjectStatus.draft) {
+      return null;
+    }
+
+    return existingPublishedAt;
+  }
+
+  private isPendingOwnerApplication(status: ApplicationStatus): boolean {
+    return (
+      status === ApplicationStatus.pending_validation ||
+      status === ApplicationStatus.eligible
+    );
+  }
+
+  private getCurrentMonthStart(): Date {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  private resolveProjectSlug(repoUrl: string, title: string): string {
+    try {
+      const url = new URL(repoUrl);
+      const repoName = url.pathname.split('/').filter(Boolean)[1];
+      if (repoName) {
+        return this.slugify(repoName.replace(/\.git$/i, ''));
+      }
+    } catch {
+      // Fall back to the reviewed title when the stored URL is not parseable.
+    }
+
+    return this.slugify(title);
+  }
+
+  private slugify(value: string): string {
+    const slug = value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return slug || 'project';
+  }
+
+  private formatLastActivityLabel(updatedAt: Date): string {
+    const elapsedMs = Date.now() - updatedAt.getTime();
+    if (elapsedMs < 60 * 60 * 1000) {
+      return 'اليوم';
+    }
+
+    const elapsedDays = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
+    if (elapsedDays <= 0) {
+      return 'اليوم';
+    }
+
+    if (elapsedDays === 1) {
+      return 'منذ يوم';
+    }
+
+    if (elapsedDays <= 10) {
+      return `منذ ${elapsedDays} أيام`;
+    }
+
+    return `منذ ${elapsedDays} يوم`;
   }
 }

@@ -1030,3 +1030,61 @@ This keeps the system strong without making it heavy:
   `specs/002-admin-skill-review/*`, and this tracker.
 - Risks/follow-up: real-time delivery is best-effort and in-process. A future
   multi-instance deployment should add a Socket.IO Redis adapter or event bus.
+
+### 2026-07-20 - Project metadata publication import
+
+- Modules: `projects` and `github`.
+- Requirement IDs: `TASK-2-03`, `FR-034`, `FR-035`, `FR-036`, `FR-037`,
+  `FR-039`.
+- Change type: backend API contract, service workflow, tests, and docs.
+- Summary: Extended `POST /projects/import/github` so owner/admin imports
+  still auto-fetch public GitHub metadata but can now save reviewed project
+  metadata as `draft` or `published`. New imports default to `draft`, published
+  saves set `published_at`, and draft saves clear it so projects remain hidden
+  until owner confirmation.
+- API changes: request body now accepts optional `status`, reviewed `title`,
+  `description`, `tags`, `technologies`, `category`, and `difficulty`;
+  responses now include `category`, `difficulty`, and `publishedAt`.
+- Database changes: none; reused existing `Project.status`, `published_at`,
+  `category`, `difficulty`, JSON metadata, and GitHub snapshot columns.
+- Tests/checks: `npm test -- --runInBand src/modules/projects/projects.service.spec.ts`
+  passed; `npm test -- --runInBand test/github-onboarding.spec.ts` passed;
+  `npm test -- --runInBand` passed with 35 suites and 117 tests;
+  `npm run check:architecture` passed; `npm run lint` passed;
+  `npx tsc --noEmit` passed; `npx prisma validate` passed; `npm run build`
+  passed.
+- Docs updated: `docs/api-contracts.md`, `sharek-api.http`,
+  `src/modules/projects/README.md`, and this tracker.
+- Risks/follow-up: contributor-facing project discovery is still future work;
+  it must filter on `status = published` when implemented.
+
+### 2026-07-20 - Owner projects frontend API connection
+
+- Modules: `projects` and `github`.
+- Requirement IDs: `TASK-2-03`, `TASK-4-02`, `FR-034`, `FR-035`, `FR-036`,
+  `FR-037`, `FR-039`, `FR-050`.
+- Change type: backend API contract, frontend integration support, tests, and
+  docs.
+- Summary: Added `GET /projects/me` for the owner workspace so the updated
+  frontend no longer needs mocked owner project data. The endpoint returns the
+  authenticated owner's projects, per-project contribution request/application
+  counters, and the monthly request quota view. Also tightened project
+  publication so direct API calls cannot publish without reviewed `category`
+  and `difficulty`.
+- API changes: added protected owner/admin `GET /projects/me`; documented that
+  `POST /projects/import/github` published saves require `category` and
+  `difficulty`.
+- Database changes: none; reused existing project, contribution request, and
+  application relations.
+- Tests/checks: `npm run check:architecture` passed; backend `npm run lint`
+  passed; backend `npx tsc --noEmit` passed; `npx prisma validate` passed;
+  focused backend tests passed with 2 suites and 10 tests; full backend
+  `npm test -- --runInBand` passed with 35 suites and 119 tests; backend
+  `npm run build` passed. Frontend `npx tsc --noEmit`, `npm run lint`,
+  `npm test`, and `npm run build` passed.
+- Docs updated: `docs/api-contracts.md`, `sharek-api.http`,
+  `src/modules/projects/README.md`, frontend owner project contract comment,
+  and this tracker.
+- Risks/follow-up: quota is currently a fixed Silver-style monthly limit view
+  until subscription-plan enforcement is implemented for owner contribution
+  requests. Contributor discovery still must filter on `status = published`.

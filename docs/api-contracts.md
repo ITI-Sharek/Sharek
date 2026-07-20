@@ -258,6 +258,7 @@ GET /github/repository/statistics
 GET /github/repository/contribution-activity
 GET /github/repository/commit-signals
 DELETE /github/account
+GET /projects/me
 POST /projects/import/github
 ```
 
@@ -316,12 +317,40 @@ contribution-activity, or recent-commit signal views using the encrypted
 server-side GitHub token. Missing `fullName` returns
 `GITHUB_REPOSITORY_FULL_NAME_REQUIRED`.
 
+`GET /projects/me` requires an authenticated `owner` or `admin` and returns the
+current user's owner-project dashboard data:
+
+```json
+{
+  "projects": [
+    {
+      "id": "project-id",
+      "title": "sharek-api",
+      "slug": "sharek-api",
+      "status": "draft",
+      "openRequestsCount": 0,
+      "pendingApplicationsCount": 0,
+      "lastActivityLabel": "اليوم"
+    }
+  ],
+  "quota": {
+    "used": 0,
+    "monthlyLimit": 20
+  }
+}
+```
+
+The response includes all projects owned by the authenticated owner, including
+drafts. It is an owner workspace endpoint, not contributor discovery. Contributor
+discovery must continue to filter on published projects only.
+
 `POST /projects/import/github` requires an authenticated `owner` or `admin`
 and accepts:
 
 ```json
 {
-  "fullName": "owner/repository"
+  "fullName": "owner/repository",
+  "status": "draft"
 }
 ```
 
@@ -329,19 +358,36 @@ or:
 
 ```json
 {
-  "repoUrl": "https://github.com/owner/repository"
+  "repoUrl": "https://github.com/owner/repository",
+  "status": "published",
+  "title": "Reviewed project title",
+  "description": "Owner-reviewed project description",
+  "tags": ["nestjs", "api"],
+  "technologies": ["TypeScript", "PostgreSQL"],
+  "category": "web",
+  "difficulty": "intermediate"
 }
 ```
+
+`status` is optional and may be `draft` or `published`. New imports default to
+`draft`, so the project remains hidden until the owner explicitly confirms
+publication. `title`, `description`, `tags`, `technologies`, `category`, and
+`difficulty` are optional owner-reviewed overrides. If an override is omitted,
+the backend uses the GitHub-fetched value where available. Published saves
+require `category` and `difficulty`; missing values return
+`PROJECT_PUBLICATION_METADATA_REQUIRED`.
 
 Owner GitHub connection is not required for project import. The endpoint uses
 GitHub's public repository API, so private owner repositories are intentionally
 outside the MVP import path.
 
-The response is a draft project created or refreshed from GitHub metadata. The
-backend stores the GitHub repo URL, GitHub repo ID, language breakdown, topics,
-repository statistics, README content snapshot, contribution activity, and
-recent commit signals where GitHub exposes them. This is the handoff point for
-later repository ingestion/background jobs and FastAPI AI evidence generation.
+The response is a project created or refreshed from GitHub metadata. The backend
+stores the GitHub repo URL, GitHub repo ID, language breakdown, topics,
+technologies, repository statistics, README content snapshot, contribution
+activity, and recent commit signals where GitHub exposes them. Published
+responses include `status: "published"` and `publishedAt`; draft responses use
+`status: "draft"` and `publishedAt: null`. This is the handoff point for later
+repository ingestion/background jobs and FastAPI AI evidence generation.
 
 Normalized GitHub evidence currently contains:
 

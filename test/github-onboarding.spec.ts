@@ -213,6 +213,28 @@ describe('GitHub onboarding flow', () => {
           },
         });
       });
+
+    await request(app.getHttpServer())
+      .get('/projects/me')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          projects: [
+            {
+              title: 'sharek-api',
+              slug: 'sharek-api',
+              status: 'draft',
+              openRequestsCount: 0,
+              pendingApplicationsCount: 0,
+            },
+          ],
+          quota: {
+            used: 0,
+            monthlyLimit: 20,
+          },
+        });
+      });
   });
 
   it('redirects repository OAuth browser callbacks to the frontend callback route', async () => {
@@ -354,6 +376,9 @@ type ProjectRecord = {
   repo_statistics: unknown;
   status: 'draft' | 'published' | 'archived';
   readme_content: string | null;
+  category: 'web' | 'mobile' | 'ai_ml' | 'devops' | 'tools_utilities' | null;
+  difficulty: 'beginner' | 'intermediate' | 'advanced' | null;
+  published_at: Date | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -719,6 +744,16 @@ class InMemoryDatabase {
   };
 
   project = {
+    findMany: jest.fn(({ where }: { where: { owner_id: string } }) =>
+      Promise.resolve(
+        this.projects
+          .filter((project) => project.owner_id === where.owner_id)
+          .map((project) => ({
+            ...project,
+            contributionRequests: [],
+          })),
+      ),
+    ),
     findUnique: jest.fn(({ where }: { where: { github_repo_url: string } }) =>
       Promise.resolve(
         this.projects.find(
@@ -741,6 +776,9 @@ class InMemoryDatabase {
         repo_statistics: data.repo_statistics ?? {},
         status: data.status ?? 'draft',
         readme_content: data.readme_content ?? null,
+        category: data.category ?? null,
+        difficulty: data.difficulty ?? null,
+        published_at: data.published_at ?? null,
         created_at: now,
         updated_at: now,
       };
@@ -766,6 +804,10 @@ class InMemoryDatabase {
         return Promise.resolve(project);
       },
     ),
+  };
+
+  contributionRequest = {
+    count: jest.fn(() => Promise.resolve(0)),
   };
 }
 

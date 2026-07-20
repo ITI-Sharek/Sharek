@@ -641,6 +641,10 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 # Send either:
 # - fullName: GitHub repo full name in "owner/repository" format.
 # - repoUrl: public GitHub repo URL, like "https://github.com/owner/repo".
+# Optional:
+# - status: "draft" or "published". New imports default to "draft".
+# - title, description, tags, technologies, category, difficulty can override
+#   fetched metadata after owner review.
 #
 # Important:
 # Owner GitHub connect is not required for this step. The backend uses GitHub's
@@ -675,6 +679,9 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 #     }
 #   },
 #   "status": "draft",
+#   "category": "web",
+#   "difficulty": "intermediate",
+#   "publishedAt": null,
 #   "readmeContent": "...",
 #   "createdAt": "...",
 #   "updatedAt": "..."
@@ -689,13 +696,49 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 #   signals for the normalized snapshot.
 # - GitHub stats endpoints can return pending/unavailable. In that case import
 #   still succeeds and repoStatistics contains an unavailableReason.
+# - Projects remain hidden from contributor discovery while status is "draft".
+# - Published saves require category and difficulty.
 POST {{baseUrl}}/projects/import/github
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json
 
 {
-  "repoUrl": "{{githubRepoUrl}}"
+  "repoUrl": "{{githubRepoUrl}}",
+  "status": "draft"
 }
+
+
+### 11A - DONE - List my owner projects
+# What it does:
+# Returns the authenticated owner's projects for the owner workspace.
+#
+# Auth:
+# Protected. Role must be "owner" or "admin".
+#
+# Expected success response:
+# {
+#   "projects": [
+#     {
+#       "id": "...",
+#       "title": "...",
+#       "slug": "...",
+#       "status": "draft",
+#       "openRequestsCount": 0,
+#       "pendingApplicationsCount": 0,
+#       "lastActivityLabel": "اليوم"
+#     }
+#   ],
+#   "quota": {
+#     "used": 0,
+#     "monthlyLimit": 20
+#   }
+# }
+#
+# Notes:
+# - Draft projects are included because this endpoint is for the owner workspace.
+# - Contributor discovery must only expose published projects.
+GET {{baseUrl}}/projects/me
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 
 ### 11B - DONE - Ensure my contributor profile

@@ -16,6 +16,9 @@ export function toProjectResponseDto(project: Project): ProjectResponseDto {
     repoStatistics: project.repo_statistics,
     status: project.status,
     readmeContent: project.readme_content,
+    category: project.category,
+    difficulty: project.difficulty,
+    publishedAt: project.published_at,
     createdAt: project.created_at,
     updatedAt: project.updated_at,
   };
