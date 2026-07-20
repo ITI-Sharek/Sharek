@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, UserRole } from '@prisma/client';
 import { randomBytes, scrypt as scryptCallback } from 'crypto';
 import { promisify } from 'util';
 
@@ -11,36 +11,65 @@ async function hashPassword(password: string): Promise<string> {
   return `scrypt$${salt}$${derivedKey.toString('hex')}`;
 }
 
+const DEV_PASSWORD = 'Admin@1234';
+
+const DEV_USERS: Array<{
+  email: string;
+  role: UserRole;
+  firstName: string;
+  lastName: string;
+}> = [
+  {
+    email: 'admin@sharek.local',
+    role: 'admin',
+    firstName: 'System',
+    lastName: 'Admin',
+  },
+  {
+    email: 'owner@sharek.local',
+    role: 'owner',
+    firstName: 'Dev',
+    lastName: 'Owner',
+  },
+  {
+    email: 'contributor@sharek.local',
+    role: 'contributor',
+    firstName: 'Dev',
+    lastName: 'Contributor',
+  },
+];
+
 async function main() {
   console.log('Starting database seed...');
 
-  const adminEmail = 'admin@sharek.local';
-  const existingAdmin = await prisma.user.findUnique({
-    where: { email: adminEmail },
-  });
+  for (const user of DEV_USERS) {
+    const existing = await prisma.user.findUnique({
+      where: { email: user.email },
+    });
 
-  if (existingAdmin) {
-    console.log('Admin user already exists. Skipping creation.');
-    return;
+    if (existing) {
+      console.log(`${user.email} already exists. Skipping creation.`);
+      continue;
+    }
+
+    const passwordHash = await hashPassword(DEV_PASSWORD);
+
+    await prisma.user.create({
+      data: {
+        email: user.email,
+        password_hash: passwordHash,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        role: user.role,
+        status: 'active',
+        preferred_language: 'en',
+      },
+    });
+
+    console.log(`✅ ${user.role} user created: ${user.email}`);
   }
 
-  const passwordHash = await hashPassword('Admin@1234');
-
-  await prisma.user.create({
-    data: {
-      email: adminEmail,
-      password_hash: passwordHash,
-      first_name: 'System',
-      last_name: 'Admin',
-      role: 'admin',
-      status: 'active',
-      preferred_language: 'en',
-    },
-  });
-
-  console.log('✅ Admin user successfully created!');
-  console.log(`📧 Email: ${adminEmail}`);
-  console.log(`🔑 Password: Admin@1234`);
+  console.log(`🔑 Password for all dev users: ${DEV_PASSWORD}`);
 }
 
 main()
