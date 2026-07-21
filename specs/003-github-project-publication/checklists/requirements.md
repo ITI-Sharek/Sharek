@@ -34,10 +34,14 @@
 ## Notes
 
 - Validation iteration 1 passed all content-quality and completeness checks.
+- Validation iteration 2 passed after refining minimal public published reads,
+  deterministic preview timing, the fifteen-minute freshness/invalidation rule,
+  stale-publication recovery, and the separate repository-free feature boundary.
 - The specification contains no `[NEEDS CLARIFICATION]` markers. Its explicit
-  unresolved questions preserve current compatibility defaults instead of
-  inventing policy.
+  unresolved-decision statement records that the supplied policy decisions are
+  complete for this feature.
 - Clarification resolved the account capability, duplicate repository,
-  repository-control, and lifecycle questions. Constitution v3.0.0 now
-  synchronizes the account-neutral project-creation rule, so the specification
-  is ready for `/speckit-plan`.
+  repository-control, lifecycle, public-read, freshness, preview timing, and
+  repository-free scope questions. Constitution v3.0.0 and the specification
+  are aligned, so the specification is ready for `/speckit-clarify` validation
+  or `/speckit-plan`.

@@ -88,6 +88,19 @@ export class ContributorFieldsController {
   }
 }
 
+// Public (no auth): registration step 3 collects experience level before an
+// account or session exists, unlike profile-fields which is only read once
+// authenticated.
+@Controller('contributors/experience-levels')
+export class ContributorExperienceLevelsController {
+  constructor(private readonly contributorProfilesService: ContributorProfilesService) {}
+
+  @Get()
+  list() {
+    return this.contributorProfilesService.listExperienceLevels();
+  }
+}
+
 @Controller('contributors/profiles')
 export class ContributorProfileAvatarsController {
   constructor(private readonly contributorProfilesService: ContributorProfilesService) {}

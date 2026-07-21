@@ -30,13 +30,6 @@ enum LanguageCode {
   en
 }
 
-enum ContributorExperienceRange {
-  zero_to_one
-  two_to_four
-  five_to_ten
-  ten_plus
-}
-
 enum SubscriptionPlanType {
   bronze
   silver
@@ -339,21 +332,23 @@ model PasswordResetOtp {
 }
 
 model ContributorProfile {
-  id               String                      @id @default(uuid()) @db.Uuid
-  user_id          String                      @unique @db.Uuid
-  bio              String?
-  availability     String?                     @db.VarChar(100)
-  experience_range ContributorExperienceRange?
-  declared_skills  String[]                    @default([])
-  avatar_data      Bytes?
-  avatar_mime_type String?                     @db.VarChar(50)
-  created_at       DateTime                    @default(now())
-  updated_at       DateTime                    @default(now()) @updatedAt
+  id                 String                      @id @default(uuid()) @db.Uuid
+  user_id            String                      @unique @db.Uuid
+  bio                String?
+  availability       String?                     @db.VarChar(100)
+  experience_level_id String?                    @db.Uuid
+  declared_skills    String[]                    @default([])
+  avatar_data        Bytes?
+  avatar_mime_type   String?                     @db.VarChar(50)
+  created_at         DateTime                    @default(now())
+  updated_at         DateTime                    @default(now()) @updatedAt
 
-  user   User                      @relation(fields: [user_id], references: [id])
-  fields ContributorProfileField[]
+  user             User                        @relation(fields: [user_id], references: [id])
+  experience_level ContributorExperienceLevel? @relation(fields: [experience_level_id], references: [id], onDelete: SetNull)
+  fields           ContributorProfileField[]
 
   @@index([user_id])
+  @@index([experience_level_id])
 }
 
 model ContributorField {
@@ -366,6 +361,20 @@ model ContributorField {
   created_at DateTime                  @default(now())
   updated_at DateTime                  @default(now()) @updatedAt
   profiles   ContributorProfileField[]
+
+  @@index([active, sort_order])
+}
+
+model ContributorExperienceLevel {
+  id         String               @id @default(uuid()) @db.Uuid
+  key        String               @unique @db.VarChar(50)
+  label_en   String               @db.VarChar(100)
+  label_ar   String               @db.VarChar(100)
+  active     Boolean              @default(true)
+  sort_order Int                  @default(0)
+  created_at DateTime             @default(now())
+  updated_at DateTime             @default(now()) @updatedAt
+  profiles   ContributorProfile[]
 
   @@index([active, sort_order])
 }

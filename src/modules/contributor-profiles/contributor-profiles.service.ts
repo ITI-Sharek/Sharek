@@ -1,10 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  ContributorExperienceRange,
-  Prisma,
-  UserRole,
-  UserStatus,
-} from '@prisma/client';
+import { Prisma, UserRole, UserStatus } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
 import { DatabaseService } from '../../shared/database/database.service';
@@ -107,6 +102,18 @@ export class ContributorProfilesService {
       }
     }
 
+    if (input.experienceLevelId !== undefined && input.experienceLevelId !== null) {
+      const level = await this.database.contributorExperienceLevel.findFirst({
+        where: { id: input.experienceLevelId, active: true },
+      });
+      if (!level) {
+        throw new BadRequestApplicationError(
+          'Experience level is unavailable',
+          'EXPERIENCE_LEVEL_INVALID',
+        );
+      }
+    }
+
     await this.database.$transaction(async (transaction) => {
       await transaction.contributorProfile.update({
         where: { id: current.id },
@@ -117,11 +124,8 @@ export class ContributorProfilesService {
           ...(input.availability !== undefined
             ? { availability: this.normalizeOptionalText(input.availability) }
             : {}),
-          ...(input.experienceRange !== undefined
-            ? {
-                experience_range:
-                  input.experienceRange as ContributorExperienceRange | null,
-              }
+          ...(input.experienceLevelId !== undefined
+            ? { experience_level_id: input.experienceLevelId }
             : {}),
           ...(input.declaredSkills !== undefined
             ? {
@@ -298,6 +302,82 @@ export class ContributorProfilesService {
     }
   }
 
+  async listExperienceLevels(includeInactive = false) {
+    const levels = await this.database.contributorExperienceLevel.findMany({
+      where: includeInactive ? undefined : { active: true },
+      orderBy: [{ sort_order: 'asc' }, { label_en: 'asc' }],
+    });
+    return levels.map((level) => this.presentExperienceLevel(level));
+  }
+
+  async createExperienceLevel(
+    admin: AuthenticatedUser,
+    input: { key: string; labelEn: string; labelAr: string; sortOrder?: number },
+  ) {
+    this.assertActiveAdmin(admin);
+    try {
+      const level = await this.database.contributorExperienceLevel.create({
+        data: {
+          key: input.key,
+          label_en: input.labelEn.trim(),
+          label_ar: input.labelAr.trim(),
+          sort_order: input.sortOrder ?? 0,
+        },
+      });
+      return this.presentExperienceLevel(level);
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw new ConflictApplicationError(
+          'Experience level key already exists',
+          'EXPERIENCE_LEVEL_KEY_TAKEN',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async updateExperienceLevel(
+    admin: AuthenticatedUser,
+    levelId: string,
+    input: {
+      labelEn?: string;
+      labelAr?: string;
+      active?: boolean;
+      sortOrder?: number;
+    },
+  ) {
+    this.assertActiveAdmin(admin);
+    try {
+      const level = await this.database.contributorExperienceLevel.update({
+        where: { id: levelId },
+        data: {
+          ...(input.labelEn !== undefined
+            ? { label_en: input.labelEn.trim() }
+            : {}),
+          ...(input.labelAr !== undefined
+            ? { label_ar: input.labelAr.trim() }
+            : {}),
+          ...(input.active !== undefined ? { active: input.active } : {}),
+          ...(input.sortOrder !== undefined
+            ? { sort_order: input.sortOrder }
+            : {}),
+        },
+      });
+      return this.presentExperienceLevel(level);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundApplicationError(
+          'Experience level was not found',
+          'EXPERIENCE_LEVEL_NOT_FOUND',
+        );
+      }
+      throw error;
+    }
+  }
+
   private async buildProfile(
     profile: ContributorProfileWithUser,
     viewerRelationship: 'owner' | 'authenticated-viewer',
@@ -324,7 +404,11 @@ export class ContributorProfilesService {
   ): Promise<ContributorProfileWithUser | null> {
     return this.database.contributorProfile.findUnique({
       where: { user_id: userId },
-      include: { user: true, fields: { include: { field: true } } },
+      include: {
+        user: true,
+        experience_level: true,
+        fields: { include: { field: true } },
+      },
     });
   }
 
@@ -333,7 +417,11 @@ export class ContributorProfilesService {
   ): Promise<ContributorProfileWithUser | null> {
     return this.database.contributorProfile.findFirst({
       where: { user: { username } },
-      include: { user: true, fields: { include: { field: true } } },
+      include: {
+        user: true,
+        experience_level: true,
+        fields: { include: { field: true } },
+      },
     });
   }
 
@@ -343,7 +431,11 @@ export class ContributorProfilesService {
     try {
       return await this.database.contributorProfile.create({
         data: { user_id: userId },
-        include: { user: true, fields: { include: { field: true } } },
+        include: {
+          user: true,
+          experience_level: true,
+          fields: { include: { field: true } },
+        },
       });
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
@@ -441,6 +533,24 @@ export class ContributorProfilesService {
       labelAr: field.label_ar,
       active: field.active,
       sortOrder: field.sort_order,
+    };
+  }
+
+  private presentExperienceLevel(level: {
+    id: string;
+    key: string;
+    label_en: string;
+    label_ar: string;
+    active: boolean;
+    sort_order: number;
+  }) {
+    return {
+      id: level.id,
+      key: level.key,
+      labelEn: level.label_en,
+      labelAr: level.label_ar,
+      active: level.active,
+      sortOrder: level.sort_order,
     };
   }
 }

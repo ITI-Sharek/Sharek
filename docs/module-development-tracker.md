@@ -160,14 +160,14 @@ needs workflow code.
 | `identity` | Implemented auth/session endpoints | controllers, DTOs, auth/session/password-reset/social-auth services, mappers, security | account management and security hardening | Update when auth endpoints, user/session rules, roles, or account status change |
 | `github` | Implemented OAuth/account/repository listing and contributor-attributed evidence snapshots | GitHub controller, OAuth service, repository service, DTOs, GitHub API client, token encryption | webhook/sync handling and normalized persistent evidence tables if JSON snapshots no longer scale | Update when GitHub scopes, token handling, repo evidence, or import behavior changes |
 | `projects` | Implemented GitHub project import | root controller/service, DTOs, mapper | update draft, publish/archive, project discovery | Update when project lifecycle, visibility, metadata, or project APIs change |
-| `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, and dynamic admin-managed contributor fields | root controller/service, DTOs, presenter, validator, field catalog | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
+| `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, and dynamic admin-managed contributor fields and experience levels | root controller/service, DTOs, presenter, validator, field/experience-level catalogs | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
 | `contribution-tasks` | Registered placeholder module | module README and module file | task create/update/open/close and task discovery | Update when task lifecycle, required skills, capacity, deadlines, or owner limits are added |
 | `applications` | Registered placeholder module | module README and module file | apply-to-task, eligibility recommendation, manual review, owner decision | Update when application status, AI decision handling, or application APIs are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
-| `admin` | Implemented admin skill review and contributor-field management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
+| `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile facade | `AiService`, DTOs, strict FastAPI client, response validation tests | eligibility/guidance/embedding clients and broader contract tests | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `health` | Implemented health endpoint | health controller, response, module, test | readiness checks for database/Redis/external dependencies if needed | Update when health response shape or readiness checks change |
 
@@ -1121,6 +1121,41 @@ This keeps the system strong without making it heavy:
 - Risks/follow-up: avatar bytes are stored in PostgreSQL for the current 2 MB
   MVP limit; migrate to object storage if image traffic or database volume
   grows materially.
+
+### 2026-07-21 - Admin-managed experience levels
+
+- Modules: `contributor-profiles`, `admin`, and frontend contributor
+  settings/registration/admin navigation.
+- Requirement IDs: user-requested — the registration step-3 "years of
+  experience" field was a hardcoded client array with no admin edit path
+  (no dedicated backlog ID).
+- Change type: database migration, backend/frontend API implementation, admin
+  catalog management, tests, and documentation.
+- Summary: Replaced the fixed `ContributorExperienceRange` enum with an
+  admin-managed `ContributorExperienceLevel` catalog (same shape as
+  `ContributorField`), referenced from `ContributorProfile` by
+  `experience_level_id`. This unifies the previously divergent hardcoded value
+  sets used by the registration step-3 chips (`junior/mid/senior/expert`) and
+  the profile-settings dropdown (`zero_to_one/two_to_four/five_to_ten/ten_plus`)
+  into one source of truth. Added an admin page for adding, ordering,
+  activating, and deactivating experience levels, mirroring the existing
+  contributor-fields admin page.
+- API changes: added `GET /contributors/experience-levels` (public — no
+  access token, since registration step 3 needs the catalog before an
+  account/session exists, unlike `/contributors/profile-fields`) and admin
+  experience-level list, create, and update endpoints
+  (`GET|POST /admin/experience-levels`, `PATCH /admin/experience-levels/:levelId`);
+  `PATCH /contributors/profiles/me` now accepts `experienceLevelId` instead of
+  `experienceRange`, and the profile response returns `experienceLevel` (an
+  object) instead of `experienceRange` (an enum string).
+- Database changes: migration `20260721120000_contributor_experience_levels`
+  adds the `ContributorExperienceLevel` table (seeded from the old enum
+  values), adds `ContributorProfile.experience_level_id` with a backfill from
+  the old `experience_range` column, then drops that column and the
+  `ContributorExperienceRange` enum type.
+- Docs updated: contributor-profiles/admin READMEs and this tracker.
+- Risks/follow-up: none — the migration backfills existing profile data before
+  dropping the old column, so no profile-level experience data is lost.
 
 ### 2026-07-20 - Admin workspace routing and operational overview
 

@@ -170,6 +170,7 @@ POST /contributors/profiles/me/ensure
 PATCH /contributors/profiles/me
 PUT /contributors/profiles/me/avatar
 GET /contributors/profile-fields
+GET /contributors/experience-levels
 GET /contributors/profiles/:username
 GET /contributors/profiles/:username/avatar
 ```
@@ -180,12 +181,16 @@ Both endpoints require:
 Authorization: Bearer <accessToken>
 ```
 
-All endpoints above require the access token except the avatar image read,
-which is public so browsers can render it directly. `PATCH` accepts any subset
-of `bio`, `availability`, `experienceRange`, `fieldIds`, and `declaredSkills`.
-Experience is one of `zero_to_one`, `two_to_four`, `five_to_ten`, or
-`ten_plus`. `fieldIds` must reference active options returned by
-`GET /contributors/profile-fields`.
+All endpoints above require the access token except the avatar image read and
+`GET /contributors/experience-levels`, which are public. Experience levels are
+public because registration step 3 collects a selection before an account or
+session exists; profile-fields stays authenticated since it is only read from
+the authenticated settings/registration-completion flow (looked up by key
+after signup, not rendered pre-auth). `PATCH` accepts any subset of `bio`,
+`availability`, `experienceLevelId`, `fieldIds`, and `declaredSkills`.
+`experienceLevelId` must reference an active option returned by
+`GET /contributors/experience-levels`; `fieldIds` must reference active options
+returned by `GET /contributors/profile-fields`.
 
 `PUT /contributors/profiles/me/avatar` accepts multipart field `file`; PNG,
 JPEG, and WebP are validated by file signature and limited to 2 MB. An explicit
@@ -209,7 +214,7 @@ Contributor profile response shape:
   "avatarUrl": null,
   "roleLabel": "Contributor",
   "bio": null,
-  "experienceRange": null,
+  "experienceLevel": null,
   "fields": [],
   "declaredSkills": [],
   "skills": [],
@@ -253,6 +258,12 @@ English labels and optional sort order. `PATCH /admin/contributor-fields/:id`
 updates labels, sort order, or active state. Deactivated fields stop appearing
 in profile responses and as selectable options; catalog rows are retained so
 the option can be reactivated without recreating its identity.
+
+Admin experience-level catalog endpoints (`GET|POST /admin/experience-levels`,
+`PATCH /admin/experience-levels/:levelId`) follow the identical contract and
+require an active admin. The active catalog is exposed publicly through
+`GET /contributors/experience-levels` and drives both the registration step-3
+experience selector and the profile-settings experience dropdown.
 
 `GET /admin/published-project-owners` requires an active admin and returns up to
 10 owners ordered by latest publication. Each row contains `ownerId`,

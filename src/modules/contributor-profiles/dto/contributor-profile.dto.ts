@@ -1,5 +1,5 @@
 import {
-  ContributorExperienceRange,
+  ContributorExperienceLevel,
   ContributorField,
   ContributorProfile,
   ContributorProfileField,
@@ -8,6 +8,7 @@ import {
 
 export type ContributorProfileWithUser = ContributorProfile & {
   user: User;
+  experience_level: ContributorExperienceLevel | null;
   fields: Array<ContributorProfileField & { field: ContributorField }>;
 };
 
@@ -17,6 +18,8 @@ export interface ContributorFieldDto {
   labelEn: string;
   labelAr: string;
 }
+
+export type ContributorExperienceLevelDto = ContributorFieldDto;
 
 export interface ContributorProfileSkillDto {
   name: string;
@@ -42,7 +45,7 @@ export interface ContributorProfileDto {
   avatarUrl: string | null;
   roleLabel: string;
   bio: string | null;
-  experienceRange: ContributorExperienceRange | null;
+  experienceLevel: ContributorExperienceLevelDto | null;
   fields: ContributorFieldDto[];
   declaredSkills: string[];
   skills: ContributorProfileSkillDto[];

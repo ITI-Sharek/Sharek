@@ -79,14 +79,24 @@ describe('Contributor profile redirect HTTP flow', () => {
         findUnique: jest.fn(({ where }: { where: { user_id: string } }) =>
           Promise.resolve(
             contributorProfile?.user_id === where.user_id
-              ? { ...contributorProfile, user: { ...contributor }, fields: [] }
+              ? {
+                  ...contributorProfile,
+                  user: { ...contributor },
+                  experience_level: null,
+                  fields: [],
+                }
               : null,
           ),
         ),
         findFirst: jest.fn(() =>
           Promise.resolve(
             contributorProfile
-              ? { ...contributorProfile, user: { ...contributor }, fields: [] }
+              ? {
+                  ...contributorProfile,
+                  user: { ...contributor },
+                  experience_level: null,
+                  fields: [],
+                }
               : null,
           ),
         ),
@@ -96,7 +106,7 @@ describe('Contributor profile redirect HTTP flow', () => {
             user_id: data.user_id,
             bio: null,
             availability: null,
-            experience_range: null,
+            experience_level_id: null,
             declared_skills: [],
             avatar_data: null,
             avatar_mime_type: null,
@@ -106,6 +116,7 @@ describe('Contributor profile redirect HTTP flow', () => {
           return Promise.resolve({
             ...contributorProfile,
             user: { ...contributor },
+            experience_level: null,
             fields: [],
           });
         }),

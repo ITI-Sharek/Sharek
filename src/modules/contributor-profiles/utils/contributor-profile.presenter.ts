@@ -28,7 +28,14 @@ export function presentContributorProfile(input: {
       : profile.user.avatar_url,
     roleLabel: 'Contributor',
     bio: profile.bio,
-    experienceRange: profile.experience_range,
+    experienceLevel: profile.experience_level
+      ? {
+          id: profile.experience_level.id,
+          key: profile.experience_level.key,
+          labelEn: profile.experience_level.label_en,
+          labelAr: profile.experience_level.label_ar,
+        }
+      : null,
     fields: activeFields.map(({ field }) => ({
       id: field.id,
       key: field.key,
@@ -44,7 +51,7 @@ export function presentContributorProfile(input: {
     completionPrompts: isOwner
       ? buildCompletionPrompts({
           bio: profile.bio,
-          experienceRange: profile.experience_range,
+          experienceLevelId: profile.experience_level_id,
           fields: activeFields,
           skills,
           githubStatus,
