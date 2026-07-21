@@ -1248,3 +1248,54 @@ This keeps the system strong without making it heavy:
   without blocking the implemented analysis workflow. Existing mismatches are
   reconciled only after the owner signs in and successfully completes Change
   account; they are never silently moved between Sharek users.
+
+### 2026-07-21 - Constitution and Sprint 2 governance reconciliation
+
+- Modules: project-wide governance and planning templates; no runtime module
+  behavior changed.
+- Requirement/task IDs: project-wide constitution; ADR-002; SK-112, SK-113,
+  and SK-114 planning alignment.
+- Change type: constitution amendment, Spec Kit template synchronization, and
+  Sprint 2 planning correction only.
+- Summary: Reconciled the constitution with the accepted standard NestJS
+  feature-first architecture, three account roles plus contextual resource
+  authorization, GitHub App-only private repository access target, evidence
+  privacy, advisory AI, explicit state transitions, forward-only migrations,
+  brownfield delivery discipline, and integration resilience. Updated the
+  Sprint 2 plan to recognize the implemented SK-112/SK-113 work and require a
+  gap audit before any bounded corrective specification.
+- API/database changes: none; no product code or Prisma migration changed.
+- Checks: constitution/template consistency checks, architecture check, and
+  whitespace validation are recorded in the task handoff.
+- Docs updated: `.specify/memory/constitution.md`, Spec Kit plan/spec/tasks
+  templates, `docs/sprints/sprint_2_backend_first_specKit_plan.md`, and this
+  tracker.
+- Risks/follow-up: synchronize the later advisory-only AI policy with the
+  canonical decision log and affected PRD requirements; record and plan the
+  GitHub App migration because current repository OAuth behavior does not yet
+  meet the approved private-access target; revalidate Jira status before any
+  Jira mutation.
+
+### 2026-07-21 - Account-mode capability constitution amendment
+
+- Modules: project-wide governance and SK-112 planning artifacts; no runtime
+  module behavior changed.
+- Requirement/task IDs: constitution v3.0.0; Jira SK-112; backlog TASK-2-03;
+  PRD FR-034 through FR-039.
+- Change type: governance and specification synchronization only.
+- Summary: Recorded the clarified decision that OWNER and CONTRIBUTOR remain
+  account modes for primary journeys but may both create and own projects and
+  contribute elsewhere without changing role. Preserved contextual ownership,
+  application, assignment, account-status, and explicit Admin authorization.
+  Also synchronized public personal-repository identity proof and
+  organization/shared GitHub App selection rules.
+- API/database changes: none; current OWNER/ADMIN project routes and persistence
+  remain unchanged until the approved SK-112 implementation plan is executed.
+- Checks: constitution, templates, active specification, decision log, Sprint 2
+  guidance, architecture rules, and whitespace/version consistency validated.
+- Docs updated: constitution, canonical decision log, Spec Kit templates,
+  clarified SK-112 specification/checklist, Sprint 2 plan, and this tracker.
+- Risks/follow-up: SK-112 planning must address current route authorization,
+  duplicate-draft/publication uniqueness, explicit preview/draft/publication,
+  published-to-archived withdrawal, GitHub App persistence, and migration/data
+  compatibility without duplicating the existing project module.

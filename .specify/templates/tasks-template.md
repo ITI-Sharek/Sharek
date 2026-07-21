@@ -9,7 +9,7 @@ description: "Task list template for Share-k backend feature implementation"
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: Generate tests according to the constitution and feature risk. Important status transitions, domain rules, AI failure paths, and core user-visible workflows require tests.
+**Tests**: Every backend feature requires unit, integration, authorization/security, API contract, and relevant E2E coverage. Include important state transitions, visibility/redaction, Admin bypasses, AI uncertainty, and external dependency failure paths when applicable.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -23,10 +23,10 @@ description: "Task list template for Share-k backend feature implementation"
 ## Path Conventions
 
 - **Modules**: `src/modules/<module-name>/`
-- **Presentation**: `src/modules/<module-name>/presentation/`
-- **Application**: `src/modules/<module-name>/application/`
-- **Domain**: `src/modules/<module-name>/domain/`
-- **Infrastructure**: `src/modules/<module-name>/infrastructure/`
+- **Small-module controller/service**: `src/modules/<module-name>/<module-name>.controller.ts`, `src/modules/<module-name>/<module-name>.service.ts`
+- **Grouped controllers/services**: `src/modules/<module-name>/controllers/`, `src/modules/<module-name>/services/` only when multiple files need grouping
+- **DTOs**: `src/modules/<module-name>/dto/`
+- **Optional technical folders**: `integrations/`, `repositories/`, `jobs/`, `events/`, `security/`, `mappers/`, `validators/`, or `utils/` only when real files require them
 - **Shared technical code**: `src/shared/`
 - **Prisma schema/migrations**: `prisma/schema.prisma`, `prisma/migrations/`
 - **Tests**: colocated `*.spec.ts` files or `test/` E2E/integration files, matching existing repo practice
@@ -56,9 +56,10 @@ description: "Task list template for Share-k backend feature implementation"
 **Purpose**: Establish the owning module scope, contracts, and supporting configuration.
 
 - [ ] T001 Confirm owning module and requirement/task IDs in specs/[###-feature-name]/plan.md
-- [ ] T002 Create or update module README in src/modules/[module]/README.md
-- [ ] T003 [P] Add or update API contract documentation in docs/api-contracts.md if the frontend-facing API changes
-- [ ] T004 [P] Add or update environment documentation in .env.example if configuration changes
+- [ ] T002 Record current behavior, approved target behavior, assumptions, unresolved decisions, and existing uncommitted changes in specs/[###-feature-name]/plan.md
+- [ ] T003 Create or update module README in src/modules/[module]/README.md
+- [ ] T004 [P] Add or update API contract documentation in docs/api-contracts.md if the frontend-facing API changes
+- [ ] T005 [P] Add or update environment documentation in .env.example if configuration changes
 
 ---
 
@@ -70,13 +71,17 @@ description: "Task list template for Share-k backend feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T005 Define request/response DTO shapes in src/modules/[module]/presentation/
-- [ ] T006 Define use-case input/output DTOs and ports in src/modules/[module]/application/
-- [ ] T007 Define domain policy/status transition rules in src/modules/[module]/domain/
-- [ ] T008 Update Prisma schema and create migration in prisma/ if persistence changes
-- [ ] T009 Implement Prisma repository or external adapter interfaces in src/modules/[module]/infrastructure/
-- [ ] T010 Add global error mapping or application/domain errors where needed
-- [ ] T011 Add audit snapshot model/fields for AI-assisted business decisions where applicable
+- [ ] T006 Define validated request and explicit response DTOs in src/modules/[module]/dto/
+- [ ] T007 Define account-mode journey rules, contextual authorization matrix,
+  Admin bypass, and state-transition rules in the owning service plan/tests; do
+  not treat OWNER and CONTRIBUTOR as exclusive project/contribution capability
+  silos
+- [ ] T008 Define exported service dependencies and module-local integration contracts without importing another module's private files
+- [ ] T009 Define evidence visibility, provenance, freshness, redaction, and revocation behavior where applicable
+- [ ] T010 Update Prisma schema and create a forward-only, data-preserving migration in prisma/ if persistence changes
+- [ ] T011 Add concrete module-local repository or integration client only when the existing service would otherwise be hard to understand or test
+- [ ] T012 Add stable error mapping and explicit public DTO allowlists
+- [ ] T013 Add audit snapshot model/fields for important Admin or AI-assisted decisions where applicable
 
 **Checkpoint**: Module boundaries, contracts, and persistence plan are ready.
 
@@ -90,19 +95,20 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add domain tests for [policy/status transition] in src/modules/[module]/domain/[name].spec.ts
-- [ ] T013 [P] [US1] Add use-case tests with fake ports in src/modules/[module]/application/[use-case].spec.ts
-- [ ] T014 [P] [US1] Add controller or E2E test for [endpoint/user flow] in [test path]
+- [ ] T014 [P] [US1] Add service/validator unit tests for [authorization/policy/status transition] in src/modules/[module]/[confirmed path].spec.ts
+- [ ] T015 [P] [US1] Add integration tests for [Prisma/exported service/provider contract] in [test path]
+- [ ] T016 [P] [US1] Add authorization/security and API contract tests for [endpoint/user flow] in [test path]
+- [ ] T017 [P] [US1] Add relevant E2E coverage for [user-visible flow] in [test path]
 
 ### Implementation for User Story 1
 
-- [ ] T015 [P] [US1] Implement request DTO validation in src/modules/[module]/presentation/
-- [ ] T016 [P] [US1] Implement response DTO/presenter in src/modules/[module]/presentation/
-- [ ] T017 [US1] Implement domain rule or policy in src/modules/[module]/domain/
-- [ ] T018 [US1] Implement use case orchestration in src/modules/[module]/application/
-- [ ] T019 [US1] Implement repository/adapter behavior in src/modules/[module]/infrastructure/
-- [ ] T020 [US1] Implement controller route that calls one use case in src/modules/[module]/presentation/
-- [ ] T021 [US1] Add audit/status history/event emission where required by the plan
+- [ ] T018 [P] [US1] Implement request DTO validation in src/modules/[module]/dto/
+- [ ] T019 [P] [US1] Implement explicit response DTO mapping in src/modules/[module]/dto/ or mappers/ when needed
+- [ ] T020 [US1] Implement authorization, workflow, state transitions, and final decisions in a focused owning service
+- [ ] T021 [US1] Implement module-owned Prisma persistence or a justified concrete repository
+- [ ] T022 [US1] Implement module-local provider client behavior behind the owning service when applicable
+- [ ] T023 [US1] Implement a thin controller route that delegates to the owning service
+- [ ] T024 [US1] Add audit/status history/completed-fact event emission where required by the plan
 
 **Checkpoint**: User Story 1 is fully functional and testable independently.
 
@@ -116,14 +122,15 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] Add domain/use-case tests for [business behavior] in src/modules/[module]/
-- [ ] T023 [P] [US2] Add integration or adapter test for [repository/external service] in [test path]
+- [ ] T025 [P] [US2] Add service/state-transition tests for [business behavior] in src/modules/[module]/
+- [ ] T026 [P] [US2] Add integration/provider contract tests for [repository/external service] in [test path]
+- [ ] T027 [P] [US2] Add authorization/security, API contract, and relevant E2E coverage in [test path]
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Implement [domain/application behavior] in src/modules/[module]/
-- [ ] T025 [US2] Implement [controller/API behavior] in src/modules/[module]/presentation/
-- [ ] T026 [US2] Integrate with public reader port, application service, or event if another module is involved
+- [ ] T028 [US2] Implement [service workflow/final decision] in src/modules/[module]/
+- [ ] T029 [US2] Implement [controller/API DTO behavior] in src/modules/[module]/
+- [ ] T030 [US2] Integrate through an exported provider-module service or completed-fact event if another module is involved
 
 **Checkpoint**: User Stories 1 and 2 both work independently.
 
@@ -137,12 +144,15 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 3
 
-- [ ] T027 [P] [US3] Add focused tests for [rule/workflow] in [test path]
+- [ ] T031 [P] [US3] Add unit tests for [rule/state transition] in [test path]
+- [ ] T032 [P] [US3] Add integration tests for [persistence/exported service/provider] in [test path]
+- [ ] T033 [P] [US3] Add authorization/security and API contract tests for [endpoint] in [test path]
+- [ ] T034 [P] [US3] Add relevant E2E coverage for [user-visible flow] in [test path]
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Implement [feature behavior] in src/modules/[module]/
-- [ ] T029 [US3] Update docs/contracts for user-facing behavior changes
+- [ ] T035 [US3] Implement [feature behavior] in the focused controller/service/DTO files under src/modules/[module]/
+- [ ] T036 [US3] Update docs/contracts for user-facing behavior changes
 
 **Checkpoint**: All selected user stories are independently functional.
 
@@ -158,9 +168,13 @@ Examples of foundational tasks (adjust based on your project):
 
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup without changing module boundaries
-- [ ] TXXX [P] Additional tests for uncovered domain/use-case branches
-- [ ] TXXX Security review for auth, ownership, secrets, and safe logging
-- [ ] TXXX Verify pagination, DTO stability, and error responses for list/API endpoints
+- [ ] TXXX [P] Additional tests for uncovered service, state-transition, and failure branches
+- [ ] TXXX Security review for account-mode journeys, cross-journey
+  project/contribution capability, persisted relationships, Admin bypasses,
+  secrets, evidence privacy, and safe logging
+- [ ] TXXX Verify pagination, explicit DTO allowlists, compatibility, and stable error responses for list/API endpoints
+- [ ] TXXX Verify timeout, rate-limit, revocation, retry, idempotency, concurrency, and partial-failure behavior for external dependencies
+- [ ] TXXX Verify GitHub-connected and repository-free workflows remain compatible
 - [ ] TXXX Run Docker/local quickstart validation when runtime wiring changes
 - [ ] TXXX Run relevant lint, test, build, and migration checks
 
@@ -186,16 +200,16 @@ Examples of foundational tasks (adjust based on your project):
 ### Within Each User Story
 
 - Tests for required risk areas before or alongside implementation, with failures verified when practical
-- Domain rules before use-case orchestration
-- Use cases before controllers
-- Repository/adapter implementations behind application ports
-- Controller routes call one use case and return response DTOs
+- Authorization and state rules before workflow orchestration
+- Owning service workflow before controller routes
+- Concrete repositories/integration clients remain module-local and are added only when justified
+- Controller routes delegate to one focused owning service and return explicit response DTOs
 - Story complete before moving to the next priority when working sequentially
 
 ### Parallel Opportunities
 
 - All Setup tasks marked [P] can run in parallel
-- DTO, domain, and adapter tests marked [P] can run in parallel when they touch different files
+- DTO, service, repository, integration-client, and contract tests marked [P] can run in parallel when they touch different files
 - Independent user stories can run in parallel after Foundational completion
 - Documentation and contract updates can run in parallel with implementation when file ownership does not conflict
 
@@ -205,9 +219,10 @@ Examples of foundational tasks (adjust based on your project):
 
 ```bash
 # Launch independent tests for User Story 1 together:
-Task: "Add domain tests for [policy/status transition] in src/modules/[module]/domain/[name].spec.ts"
-Task: "Add use-case tests with fake ports in src/modules/[module]/application/[use-case].spec.ts"
-Task: "Add controller or E2E test for [endpoint/user flow] in [test path]"
+Task: "Add service/validator tests for [authorization/policy/status transition] in src/modules/[module]/[confirmed path].spec.ts"
+Task: "Add integration/provider contract tests for [dependency] in [test path]"
+Task: "Add authorization/security and API contract tests for [endpoint] in [test path]"
+Task: "Add relevant E2E test for [user-visible flow] in [test path]"
 ```
 
 ---
@@ -239,7 +254,7 @@ With multiple developers:
    - Developer A: User Story 1
    - Developer B: User Story 2
    - Developer C: User Story 3
-3. Integrate only through declared public module APIs, reader ports, or events
+3. Integrate only through exported NestJS services or events describing completed facts
 
 ---
 
@@ -248,4 +263,4 @@ With multiple developers:
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to a specific user story for traceability
 - Each user story remains independently completable and testable
-- Avoid vague tasks, same-file conflicts, direct cross-module infrastructure imports, raw Prisma rows in responses, and AI output directly changing final business state
+- Avoid vague tasks, same-file conflicts, legacy layer/use-case/port architecture, direct cross-module private imports, raw Prisma/provider objects in responses, and AI output directly changing final business state
