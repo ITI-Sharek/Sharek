@@ -5,6 +5,7 @@ import { IdentityModule } from '../identity/identity.module';
 import { ReputationModule } from '../reputation/reputation.module';
 import { SkillProfilesModule } from '../skill-profiles/skill-profiles.module';
 import {
+  ContributorExperienceLevelsController,
   ContributorFieldsController,
   ContributorProfileAvatarsController,
   ContributorProfilesController,
@@ -16,6 +17,7 @@ import { ContributorProfilesService } from './contributor-profiles.service';
   controllers: [
     ContributorProfilesController,
     ContributorFieldsController,
+    ContributorExperienceLevelsController,
     ContributorProfileAvatarsController,
   ],
   providers: [ContributorProfilesService],

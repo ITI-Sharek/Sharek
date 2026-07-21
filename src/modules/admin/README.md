@@ -12,6 +12,9 @@ admin decisions.
 - `GET /admin/contributor-fields`
 - `POST /admin/contributor-fields`
 - `PATCH /admin/contributor-fields/:fieldId`
+- `GET /admin/experience-levels`
+- `POST /admin/experience-levels`
+- `PATCH /admin/experience-levels/:levelId`
 - `GET /admin/published-project-owners`
 
 ## Structure
@@ -20,10 +23,12 @@ admin decisions.
 controllers/
   admin-skill-reviews.controller.ts
   admin-contributor-fields.controller.ts
+  admin-experience-levels.controller.ts
   admin-published-project-owners.controller.ts
 dto/
   admin-skill-review.request.ts
   contributor-field.request.ts
+  experience-level.request.ts
 admin.module.ts
 README.md
 ```
@@ -38,10 +43,11 @@ defensive check so review transitions cannot be invoked by non-admin callers.
 Approval and rejection side effects are handled by exported `identity` and
 `notifications` services through the skill-profiles workflow.
 
-Contributor field routes delegate to the exported
+Contributor field and experience-level routes delegate to the exported
 `ContributorProfilesService`; the admin module does not write contributor
 profile-owned tables directly. Admins can add bilingual options, order them,
-and activate/deactivate their appearance in contributor settings.
+and activate/deactivate their appearance in contributor settings and the
+registration flow.
 
 The published-project owner route delegates to the exported `ProjectsService`.
 It provides the admin overview with owner identity, an accurate published

@@ -1,6 +1,6 @@
 # Feature Specification: GitHub-Backed Project Draft and Publication
 
-**Feature Branch**: Current branch retained; no branch-creation hook is configured
+**Feature Branch**: `feature/sk-112-github-project-publication`
 
 **Created**: 2026-07-21
 
@@ -41,8 +41,10 @@ PRD FR-034 through FR-039; constitution v3.0.0; ADR-002
   remain absent from every public path. A published project may be withdrawn
   only to `archived`, never directly to `draft`. Provider details remain
   redacted, manual edits survive refresh, and provider or indexing failure
-  cannot corrupt a valid draft. GitHub-backed and future repository-free
-  projects coexist.
+  cannot corrupt a valid draft. Minimal public list and detail capabilities make
+  successful publication observable without adding search or broader discovery.
+  Every project created by SK-112 is GitHub-backed; the Project concept remains
+  compatible with a separately specified future repository-free workflow.
 - **Assumptions**: Public repository preview and private drafting do not require
   proof of repository control; publication does. Suspended or deactivated
   accounts cannot gain project capabilities. Private source material is never
@@ -72,6 +74,27 @@ PRD FR-034 through FR-039; constitution v3.0.0; ADR-002
   personal repository requires an authenticated GitHub identity matching its
   owner; an organization/shared repository requires an active GitHub App
   installation and explicit selection.
+- Q: What public discovery does SK-112 provide? → A: Only minimal public
+  published-project list and detail capabilities. Search, filtering, semantic
+  discovery, ranking, recommendations, indexing implementation, and frontend
+  discovery remain outside this feature.
+- Q: When is repository evidence stale? → A: Fifteen minutes after the last
+  successful required-data read, or immediately after a known revocation,
+  repository unselection, ownership transfer, deletion, visibility change, or
+  equivalent invalidation signal.
+- Q: Does SK-112 implement repository-free publication? → A: No. It preserves
+  compatibility for a separately specified future repository-free workflow.
+- Q: What preview timing is guaranteed? → A: Provider work ends within eight
+  seconds and ShareK returns an allowlisted preview or safe actionable failure
+  within ten seconds, excluding client or network transport outside ShareK.
+- Q: What happens when an already-published project's repository access or
+  control is later lost? → A: The project remains published, affected repository
+  attribution and content are withheld immediately, source use stops, the owner
+  sees stale or revoked status, and only an explicit owner archive action removes
+  the project from public view.
+- Q: What owner-controlled information is required for publication? → A: A
+  non-empty title, category, and difficulty are required. Description, tags, and
+  technologies are optional but must be valid when supplied.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -87,8 +110,8 @@ PRD FR-034 through FR-039; constitution v3.0.0; ADR-002
 - **Authenticated non-owner**: Has no access to another user's draft merely
   because they are signed in, contributed elsewhere, or can access the source
   repository through GitHub.
-- **Visitor**: May see only information from published projects that is approved
-  for public disclosure.
+- **Visitor**: May use the minimal published-project list and detail
+  capabilities and see only information approved for public disclosure.
 - **Admin**: Has no implicit access to another user's private draft. Any future
   support or moderation bypass requires separate approval, an explicit action,
   auditability, and authorization coverage.
@@ -123,6 +146,10 @@ project.
    repository reference, **When** a preview is requested, **Then** the user
    receives a safe actionable result that does not disclose whether unrelated
    private content exists.
+4. **Given** any preview attempt, **When** provider work succeeds, fails, or
+   reaches its deadline, **Then** provider work ends within eight seconds and
+   ShareK returns an allowlisted preview or safe actionable failure within ten
+   seconds, excluding client or network transport outside ShareK.
 
 ---
 
@@ -201,6 +228,14 @@ overrides remain, and freshness/failure status is visible.
    **When** refresh is requested, **Then** no private read occurs, the saved
    draft is not corrupted, and its authorization/freshness status becomes
    actionable.
+4. **Given** the last successful required-data read occurred at least fifteen
+   minutes ago, **When** the owner reviews or attempts to publish the draft,
+   **Then** the source is identified as stale and publication requires successful
+   revalidation.
+5. **Given** a known revocation, repository unselection, ownership transfer,
+   deletion, visibility change, or equivalent invalidation signal, **When** it
+   is recognized, **Then** the source becomes stale immediately and affected
+   source use stops until successful revalidation permits it.
 
 ---
 
@@ -218,56 +253,80 @@ transition and safe rejection behavior.
 
 **Acceptance Scenarios**:
 
-1. **Given** a complete owned draft, **When** the owner explicitly confirms
+1. **Given** a complete owned draft with current required source facts and
+   verified repository control, **When** the owner explicitly confirms
    publication, **Then** it becomes published once with an auditable publication
    time.
-2. **Given** an incomplete or invalid draft, **When** publication is requested,
-   **Then** it remains private and the owner receives field-specific guidance.
-3. **Given** a public-repository-backed draft without verified repository
+2. **Given** a draft with a missing or invalid title, category, or difficulty,
+   or an invalid supplied description, tag, or technology value, **When**
+   publication is requested, **Then** it remains private and the owner receives
+   field-specific guidance.
+3. **Given** a stale draft, **When** publication is requested and required
+   source facts cannot be successfully revalidated, **Then** it remains an
+   unchanged private draft and the owner receives a safe retryable result.
+4. **Given** a public-repository-backed draft without verified repository
    control, **When** publication is attempted, **Then** it remains private and
    the owner receives safe guidance for establishing control.
-4. **Given** a personal public repository, **When** the authenticated GitHub
+5. **Given** a personal public repository, **When** the authenticated GitHub
    identity matches the repository owner, **Then** its owner-control requirement
    is satisfied without treating OAuth as repository-access authorization.
-5. **Given** an organization or shared public repository, **When** it has an
+6. **Given** an organization or shared public repository, **When** it has an
    active GitHub App installation and explicit selection, **Then** its
    owner-control requirement is satisfied.
-6. **Given** a preview or unsaved import, **When** publication is attempted,
+7. **Given** a preview or unsaved import, **When** publication is attempted,
    **Then** it cannot bypass draft creation and review.
-7. **Given** AI or semantic indexing is delayed or unavailable, **When** a valid
+8. **Given** AI or semantic indexing is delayed or unavailable, **When** a valid
    draft is explicitly published, **Then** publication succeeds independently
    and later processing can report its own status.
-8. **Given** another project is already published for the same canonical
+9. **Given** another project is already published for the same canonical
    repository, **When** an owner attempts publication, **Then** their project
    remains a draft and the conflict exposes only information already public.
-9. **Given** an owner withdraws their published project, **When** the withdrawal
-   succeeds, **Then** the project becomes archived and non-public without being
-   represented as a never-published draft.
+10. **Given** an owner withdraws their published project, **When** the withdrawal
+    succeeds, **Then** the project becomes archived and non-public without being
+    represented as a never-published draft.
+11. **Given** an already-published project whose repository access or control is
+    later lost, **When** the loss is recognized, **Then** the project remains
+    published, affected repository attribution and content are withheld, later
+    source use stops, and only an explicit owner archive removes the project from
+    public view.
 
 ---
 
-### User Story 6 - Keep Unpublished Projects Private (Priority: P1)
+### User Story 6 - View Only Published Projects Publicly (Priority: P1)
 
-As a visitor or authenticated non-owner, I cannot view or discover an
-unpublished project through any public or contributor-facing path.
+As a visitor, I can use a minimal public list and detail view for published
+projects while unpublished projects remain invisible and undiscoverable.
 
-**Why this priority**: Draft privacy is a platform invariant, not a frontend
-display preference.
+**Why this priority**: Publication needs an observable public result, while
+draft privacy remains a platform invariant rather than a frontend preference.
 
-**Independent Test**: Create a draft and attempt to reach it through every
-public listing, direct detail, search, discovery, indexing, and related public
-aggregate; verify that it never appears and its existence is not leaked.
+**Independent Test**: Create published, draft, and archived projects; use the
+minimal public list and detail capabilities and verify that only the allowlisted
+published project appears, while guessed unpublished identifiers reveal
+nothing.
 
 **Acceptance Scenarios**:
 
-1. **Given** a draft, **When** any visitor or non-owner uses a public listing,
-   detail, search, discovery, or indexing path, **Then** the draft and its
-   metadata are absent.
-2. **Given** a guessed draft identifier, **When** a non-owner requests it,
+1. **Given** a published project, **When** a visitor uses the minimal public
+   list or detail capability, **Then** the project appears with only explicitly
+   approved public information.
+2. **Given** draft and archived projects, **When** a visitor uses the minimal
+   public list or detail capability, **Then** those projects and their metadata
+   are absent.
+3. **Given** a guessed unpublished project identifier, **When** a non-owner
+   requests it,
    **Then** the result does not reveal whether a private draft exists.
-3. **Given** a published project and a draft, **When** public counts or owner
+4. **Given** a published project and a draft, **When** public counts or owner
    summaries are produced, **Then** only explicitly public aggregates include
    the published project and no private draft details leak.
+5. **Given** a present or future public search, discovery, indexing, or related
+   read path, **When** it evaluates projects, **Then** it applies the same
+   published-only visibility rule even though implementing those broader paths
+   is outside SK-112.
+6. **Given** an already-published project whose repository access or control is
+   lost, **When** a visitor uses the public list or detail capability, **Then**
+   the project remains visible but affected repository attribution and content
+   are withheld immediately.
 
 ---
 
@@ -287,16 +346,27 @@ internals.
 
 **Acceptance Scenarios**:
 
-1. **Given** a successfully previewed or refreshed repository, **When** the
-   owner reviews source status, **Then** source identity, permitted visibility,
-   selection/authorization status, source version when available, and freshness
-   time are understandable.
-2. **Given** a failed or partial refresh, **When** the owner reviews status,
+1. **Given** a successful required-data read less than fifteen minutes ago and
+   no invalidation signal, **When** the owner reviews source status, **Then**
+   source identity, permitted visibility, selection/authorization status,
+   source version when available, and fresh status are understandable.
+2. **Given** the last successful required-data read occurred at least fifteen
+   minutes ago, **When** the owner reviews source status, **Then** the source is
+   shown as stale with the last successful read time and a recovery action.
+3. **Given** a known revocation, unselection, transfer, deletion, visibility
+   change, or equivalent invalidation signal, **When** the owner reviews source
+   status, **Then** the source is immediately stale and the applicable safe
+   authorization or availability status is visible.
+4. **Given** a failed or partial refresh, **When** the owner reviews status,
    **Then** the last successful freshness time remains visible alongside a safe
    failure state and suggested next action.
-3. **Given** a public viewer, **When** they view a published project, **Then**
+5. **Given** a public viewer, **When** they view a published project, **Then**
    they receive only explicitly public attribution and never installation,
    authorization, private-source, or provider-error details.
+6. **Given** a published project whose repository access or control is lost,
+   **When** its owner reviews source status, **Then** stale or revoked status and
+   a safe archive or recovery action are visible without exposing provider
+   internals.
 
 ### Edge Cases
 
@@ -317,12 +387,21 @@ internals.
 - Two eligible owners concurrently attempt to publish separate drafts backed
   by the same canonical repository.
 - A published project is withdrawn while a refresh or public read is in flight.
+- Repository access or control is lost after publication while a public read or
+  owner refresh is in flight.
 - The source changes after preview but before draft creation or publication.
+- A source reaches exactly fifteen minutes since its last successful
+  required-data read while publication is being requested.
+- A revocation, unselection, transfer, deletion, visibility change, or
+  equivalent invalidation signal arrives while refresh or publication is in
+  progress.
 - Authorization is revoked during a private repository refresh.
 - A private-backed draft is published without any provider-derived private
   content being eligible for public disclosure.
 - Indexing fails after publication or receives the same publication fact more
   than once.
+- Public list pagination reaches its boundary while a project is published or
+  archived concurrently.
 
 ## Requirements *(mandatory)*
 
@@ -366,14 +445,21 @@ internals.
   refresh, GitHub, or downstream indexing fails.
 - **FR-015**: The system MUST publish only a saved draft that passes the
   approved completeness and validity rules and receives a separate explicit
-  publication confirmation from its persisted owner. A public-repository-backed
-  draft MUST also have a current verified repository-control relationship.
+  publication confirmation from its persisted owner. Publication requires a
+  non-empty title, category, and difficulty; description, tags, and technologies
+  are optional but MUST be valid when supplied. Because every draft created by
+  SK-112 is repository-backed, publication MUST also require current required
+  source facts and the applicable verified repository-control relationship.
 - **FR-016**: Preview, import, draft creation, edit, and refresh MUST NOT
   implicitly publish a project.
 - **FR-017**: AI analysis and semantic indexing MUST remain outside this
   feature and MUST NOT be prerequisites for publishing a valid draft.
-- **FR-018**: The feature MUST preserve compatibility with a future project
-  creation journey that has no GitHub repository.
+- **FR-018**: The feature MUST preserve compatibility with a separately
+  specified future project creation and publication journey that has no GitHub
+  repository, without implementing that journey in SK-112 or making source
+  evidence mandatory for the broader Project concept. Repository-specific
+  identity, authorization, freshness, attribution, and duplicate-publication
+  requirements apply only when a Project has a repository source.
 - **FR-019**: The system MUST allow multiple intentional private drafts to
   reference the same canonical repository while permitting at most one
   `published` project for that canonical repository at a time. A publication
@@ -388,6 +474,16 @@ internals.
   organization or shared repository, an active GitHub App installation MUST
   authorize the explicitly selected repository. Control MUST be re-evaluated
   when identity, installation authorization, selection, or ownership changes.
+- **FR-022**: The system MUST provide minimal public list and detail
+  capabilities for published projects, return only explicitly approved public
+  information, and exclude draft and archived projects without implementing
+  public search, filtering, semantic discovery, ranking, recommendations, or
+  indexing in this feature.
+- **FR-023**: Loss of repository access or control after publication MUST NOT
+  automatically archive or hide the ShareK project. The system MUST immediately
+  withhold affected repository attribution and content, stop later source use,
+  expose safe stale or revoked status to the owner, and keep archival as an
+  explicit persisted-owner action.
 
 ### Draft and Publication State Requirements
 
@@ -411,6 +507,9 @@ internals.
 - **SR-009**: Reactivation, republishing from `archived`, and deletion are not
   defined by this feature and MUST NOT be inferred from the publication or
   withdrawal flow.
+- **SR-010**: Post-publication loss of repository access or control MUST leave
+  the Project in `published`; only the explicit owner withdrawal defined by
+  SR-008 may move it to `archived` through this feature.
 
 ### Imported Versus Owner-Controlled Data Requirements
 
@@ -423,7 +522,9 @@ internals.
 - **DR-003**: Owner-controlled project data MUST include the reviewed project
   title, project description, project tags/technologies, category, difficulty,
   and only additional ShareK presentation fields explicitly approved by a
-  later specification amendment.
+  later specification amendment. Title, category, and difficulty are required
+  for publication; description, tags, and technologies are optional but subject
+  to their validation rules when supplied.
 - **DR-004**: The owner-visible project view MUST distinguish the latest source
   snapshot from owner-controlled effective values and MUST identify manual
   overrides.
@@ -449,7 +550,9 @@ internals.
   its private source identity or content.
 - **PR-004**: Revocation, repository unselection, or loss of installation access
   MUST stop all later private reads and downstream use of private source
-  material.
+  material. For an already-published project, affected repository attribution
+  and content MUST be withheld immediately without silently changing the
+  Project's publication state.
 - **PR-005**: Safe inaccessible/not-found responses MUST avoid confirming the
   existence, ownership, or selection of a private repository to an unauthorized
   user.
@@ -460,7 +563,8 @@ internals.
 
 - **VR-001**: Validation MUST cover repository reference format, supported host,
   canonical identity, source availability, visibility, selection, authorization,
-  and project publication completeness.
+  required title/category/difficulty, optional supplied owner fields, and project
+  publication completeness.
 - **VR-002**: The system MUST provide safe actionable outcomes for invalid
   references, unsupported repositories, not-found or inaccessible sources,
   authorization expiry/revocation, rate limits, timeouts, provider outages,
@@ -492,6 +596,14 @@ internals.
   partially refreshed, failed, and authorization-revoked source states.
 - **IR-007**: Freshness MUST identify the last successful source read and, when
   available, the source version or source update time used for that read.
+- **IR-008**: A source MUST become stale fifteen minutes after its last
+  successful required-data read, and MUST become stale immediately after a
+  known revocation, repository unselection, ownership transfer, deletion,
+  visibility change, or equivalent invalidation signal.
+- **IR-009**: Publication of a stale draft MUST require successful revalidation
+  of required source facts, identity, visibility, and repository control. Failed
+  revalidation MUST leave the saved draft unchanged and return a safe retryable
+  result.
 
 ### Trust, Safety, and Audit Requirements
 
@@ -512,8 +624,9 @@ internals.
 ### Key Entities
 
 - **Project**: A ShareK collaboration opportunity with a persisted owner,
-  owner-controlled presentation, explicit visibility state, and optional source
-  association.
+  owner-controlled presentation, explicit visibility state, and a source
+  association that is required for projects created by SK-112 but remains
+  optional for the broader Project concept.
 - **Repository Source**: The canonical GitHub repository identity and its
   visibility, version/update markers, and permitted source metadata.
 - **Metadata Preview**: A non-persistent, normalized review view created from a
@@ -532,8 +645,10 @@ internals.
 
 - **Interaction(s)**: Repository submission and preview; draft creation and
   owner-only retrieval/edit; source refresh/status; explicit publication; and
-  public published-project reads. Exact transport paths are deferred to the
-  implementation plan after the current contract is audited for reuse.
+  minimal public published-project list and detail reads. Exact transport paths
+  are deferred to the implementation plan after the current contract is audited
+  for reuse. Public search, filtering, semantic discovery, ranking,
+  recommendations, and indexing are not introduced.
 - **Request validation**: Repository reference and expected source context;
   owner-controlled project fields; explicit draft creation or publication
   intent; and concurrency context where required. Identity, ownership, role,
@@ -547,11 +662,14 @@ internals.
 
 ### External Dependency Behavior
 
-- **Timeout/rate limit**: Return a safe retryable outcome with useful retry
-  guidance; do not mutate a saved draft on an incomplete refresh.
-- **Revocation/deletion**: Stop private reads immediately, mark authorization or
-  source status accordingly, and prevent later public/private-evidence leakage
-  while retaining the owner's valid ShareK draft.
+- **Timeout/rate limit**: End preview provider work within eight seconds and
+  return an allowlisted preview or safe actionable failure within ten seconds,
+  excluding client or network transport outside ShareK. Return useful retry
+  guidance and do not mutate a saved draft on an incomplete refresh.
+- **Revocation/deletion**: Stop affected private reads immediately, mark the
+  source stale and its authorization or availability status accordingly, and
+  prevent later public/private-evidence leakage while retaining the owner's
+  valid ShareK draft.
 - **Retry/idempotency/concurrency**: Retried and overlapping actions follow the
   requirements above and never create unintended duplicate projects or discard
   newer manual edits silently.
@@ -565,44 +683,53 @@ internals.
 | FR-001–FR-007, VR-001–VR-003 | User Story 1 | SC-001, SC-002, SC-006 |
 | FR-008–FR-010, SR-001–SR-003 | User Stories 2 and 6 | SC-002, SC-003 |
 | FR-011, DR-001–DR-007 | User Stories 3 and 7 | SC-004, SC-006 |
-| FR-012–FR-014, VR-004–VR-005, IR-005–IR-007 | User Stories 4 and 7 | SC-004, SC-007 |
+| FR-012–FR-014, VR-004–VR-005, IR-005–IR-009 | User Stories 4, 5, and 7 | SC-004, SC-005, SC-007 |
 | FR-015–FR-017, SR-004–SR-009 | User Story 5 | SC-005, SC-009 |
 | FR-018–FR-021, PR-001–PR-006, TS-001–TS-005 | User Stories 2, 3, 5, and 6 | SC-003, SC-006, SC-010 |
+| FR-022–FR-023, SR-010 | User Stories 5, 6, and 7 | SC-003, SC-005–SC-007 |
 | IR-001–IR-004 | User Stories 1, 2, 4, and 5 | SC-008 |
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: At least 95% of users with an allowed repository can obtain a
-  preview or a clear actionable error within 10 seconds under normal provider
-  conditions.
+- **SC-001**: Every preview attempt ends provider work within eight seconds and
+  returns an allowlisted preview or safe actionable failure within ten seconds,
+  excluding client or network transport outside ShareK.
 - **SC-002**: In acceptance coverage, 100% of previews create no project and
   100% of newly created projects begin as private drafts.
-- **SC-003**: In authorization and public-contract coverage, 100% of drafts are
-  absent from public listing, detail, search, discovery, indexing, and public
-  aggregate paths.
+- **SC-003**: In authorization and public-contract coverage, 100% of published
+  projects eligible for public disclosure are available through the minimal
+  public list and detail capabilities, while 100% of draft and archived projects
+  are absent from those reads and every other public aggregate or path.
 - **SC-004**: In refresh coverage, 100% of owner-controlled manual edits survive
   successful, partial, failed, and retried refreshes unless the owner explicitly
   restores a source value.
 - **SC-005**: In state-transition coverage, 100% of published projects have a
   prior saved draft, an explicit owner confirmation, valid mandatory project
-  information, required repository-control evidence, and exactly one effective
-  publication transition; 100% of owner withdrawals transition to `archived`
-  and never directly to `draft`.
+  information consisting of a non-empty title, category, and difficulty, valid
+  optional supplied owner fields, current required source facts, required
+  repository-control evidence, and exactly one effective publication
+  transition; 100% of stale drafts with failed revalidation remain unchanged
+  and private, and 100% of owner withdrawals transition to `archived` and never
+  directly to `draft`. Post-publication repository access or control loss causes
+  zero automatic archive or hidden-state transitions.
 - **SC-006**: Security and contract verification finds zero disclosures of
   provider tokens, installation details, private repository content, private
   evidence, raw provider/persistence objects, or internal provider errors.
 - **SC-007**: Provider timeout, rate-limit, outage, revocation, and partial-data
-  scenarios preserve 100% of previously valid draft and owner-controlled data.
+  scenarios preserve 100% of previously valid draft and owner-controlled data;
+  post-publication access or control loss withholds affected source attribution
+  and content without changing the explicit Project state.
 - **SC-008**: Repeated or concurrent accepted operations create no unintended
   duplicate project or publication fact and never silently discard a newer
   manual edit.
 - **SC-009**: A valid publication completes without waiting for AI or semantic
   indexing in 100% of dependency-failure acceptance scenarios.
-- **SC-010**: Review of the resulting project contract confirms that GitHub is
-  optional for the project concept and does not prevent a later repository-free
-  creation journey.
+- **SC-010**: Review of the resulting project contract confirms that every
+  SK-112-created project is GitHub-backed while GitHub remains optional for the
+  broader Project concept and does not prevent a separately specified future
+  repository-free creation and publication journey.
 
 ## Assumptions
 
@@ -619,13 +746,22 @@ internals.
 - Existing account-status restrictions remain in force; this feature does not
   reactivate suspended or deactivated accounts.
 - Title, description, tags/technologies, category, and difficulty are the
-  initial owner-controlled fields, consistent with the current review behavior.
+  initial owner-controlled fields. A non-empty title, category, and difficulty
+  are required for publication; description, tags, and technologies remain
+  optional but must be valid when supplied.
 - Repository identity, visibility, provider update markers, language facts,
   README-derived content, and repository statistics remain source-owned.
 - Multiple intentional private drafts may reference one canonical repository,
   but only one may be published for that repository at a time.
-- Public project discovery and semantic indexing may be delivered separately,
-  but every current or future public consumer must honor the visibility rules
+- Every project created by SK-112 has a GitHub repository source. A future
+  repository-free creation and publication journey requires a separate feature
+  specification and is not inferred from source-optional compatibility.
+  Repository-specific checks do not become general publication prerequisites
+  for a future Project that has no repository source.
+- Minimal public published-project list and detail capabilities are delivered
+  here. Search, filtering, semantic discovery, ranking, recommendations,
+  indexing implementation, and frontend discovery may be delivered separately,
+  and every current or future public consumer must honor the visibility rules
   defined here.
 
 ## Out of Scope
@@ -633,16 +769,17 @@ internals.
 - Frontend screens, forms, navigation, or client-side behavior.
 - AI-authored project content, AI publication decisions, skill matching, or
   semantic indexing implementation.
-- Public discovery implementation beyond enforcing that drafts cannot appear
-  in any present or future public path.
+- Public search, filtering, semantic discovery, ranking, recommendations,
+  indexing implementation, and frontend discovery beyond the minimal public
+  published-project list and detail capabilities.
 - Contribution requests, applications, assignments, delivery, reputation,
   chat, notifications, subscriptions, or billing.
 - GitHub repository writes, issue creation, pull request actions, or any
   write-capable provider permission.
 - Public registration or post-registration account-role change workflows; this
   feature changes project-creation capability, not stored account-role values.
-- A general repository-free creation flow; only compatibility with that future
-  flow is required.
+- Repository-free project creation or publication; only compatibility with that
+  separately specified future workflow is required.
 - Admin support/moderation access to another user's draft.
 - Reactivation or republishing from `archived`, deletion, ownership transfer,
   team ownership, or project-fork workflows.

@@ -1,8 +1,6 @@
-import { ContributorExperienceRange } from '@prisma/client';
 import {
   ArrayMaxSize,
   IsArray,
-  IsEnum,
   IsOptional,
   IsString,
   IsUUID,
@@ -21,8 +19,8 @@ export class UpdateContributorProfileRequest {
   availability?: string | null;
 
   @IsOptional()
-  @IsEnum(ContributorExperienceRange)
-  experienceRange?: ContributorExperienceRange | null;
+  @IsUUID('4')
+  experienceLevelId?: string | null;
 
   @IsOptional()
   @IsArray()
