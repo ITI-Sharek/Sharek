@@ -111,7 +111,8 @@ migrations, README/tracker updates, and known risks.
 - API contract, authorization, and database impact reviewed
 
 <!-- SPECKIT START -->
-Current Spec Kit plan: `specs/002-admin-skill-review/plan.md`
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
 <!-- SPECKIT END -->
 
 Before finishing a code change, append a short record to

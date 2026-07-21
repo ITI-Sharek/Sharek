@@ -8,6 +8,15 @@
 
 **Input**: User description: "$ARGUMENTS"
 
+**Traceability**: [Jira key, PRD requirement IDs, approved decision IDs, and ADRs where available]
+
+## Source Classification *(mandatory for brownfield features)*
+
+- **Current behavior**: [What code, schema, contracts, and tests do now]
+- **Approved target behavior**: [What the governing decisions require]
+- **Assumptions**: [Temporary assumptions that do not override approved policy]
+- **Unresolved decisions**: [Questions that require authority before planning or implementation]
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -103,9 +112,16 @@
 
 ### Trust, Safety, and Audit Requirements *(include when applicable)*
 
-- **TS-001**: System MUST preserve owner/contributor/admin authorization and ownership boundaries for [workflow]
-- **TS-002**: System MUST record status history or audit snapshots for [important state change or AI-assisted decision]
-- **TS-003**: System MUST route low-confidence, malformed, or unavailable AI results to [retry/manual review/user-safe failure path]
+- **TS-001**: System MUST distinguish account-mode journey rules from contextual
+  resource capability, allow OWNER and CONTRIBUTOR accounts to own projects and
+  contribute without a role change, and enforce persisted relationships without
+  trusting request-supplied identity, ownership, role, or Admin flags
+- **TS-002**: System MUST define explicit allowed and terminal state transitions and revoke relationship-derived access in terminal states
+- **TS-003**: System MUST preserve required evidence identity, visibility, permission/selection, freshness, version, provenance, confidence, uncertainty, and redaction metadata
+- **TS-004**: System MUST prevent private evidence from entering public APIs, profiles, projects, retrieval paths, logs, or AI responses
+- **TS-005**: System MUST keep AI advisory, traceable to permitted evidence, and unable to automatically accept, reject, hide, rank out, or eliminate applications
+- **TS-006**: System MUST record status history or audit snapshots for [important state change or AI-assisted decision]
+- **TS-007**: System MUST route low-confidence, malformed, unavailable, or insufficient-evidence AI results to [retry/manual review/uncertainty/user-safe failure path]
 
 ### Key Entities *(include if feature involves data)*
 
@@ -116,8 +132,15 @@
 
 - **Endpoint(s)**: [List route names and methods without implementation details]
 - **Request validation**: [Business fields that must be validated]
-- **Response contract**: [Stable response shape users/frontends depend on]
+- **Response contract**: [Explicit allowlisted response shape users/frontends depend on; no raw database/provider objects]
 - **Pagination**: [Required for list endpoints or N/A]
+
+### External Dependency Behavior *(include when applicable)*
+
+- **Timeout/rate limit**: [Safe response, retry, and observability behavior]
+- **Revocation/deletion**: [How access and derived data stop being used]
+- **Retry/idempotency/concurrency**: [Duplicate and overlapping request behavior]
+- **Partial failure**: [What remains valid and what is reported unavailable]
 
 ## Success Criteria *(mandatory)*
 
