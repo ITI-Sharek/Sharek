@@ -1,835 +1,880 @@
 {
-    "info": {
-        "name": "Sharek Backend API",
-        "description": "Postman collection for all backend endpoints currently implemented in the NestJS project.",
-        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-    },
-    "item": [
-        {
-            "name": "Health",
-            "item": [
-                {
-                    "name": "Health Check",
-                    "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/health",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "health"
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "Auth",
-            "item": [
-                {
-                    "name": "Register Owner",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{password}}\",\n  \"firstName\": \"Sharek\",\n  \"lastName\": \"Owner\",\n  \"role\": \"owner\",\n  \"preferredLanguage\": \"en\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/register",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "register"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Register Contributor",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"email\": \"{{contributorEmail}}\",\n  \"password\": \"{{password}}\",\n  \"firstName\": \"Sharek\",\n  \"lastName\": \"Contributor\",\n  \"role\": \"contributor\",\n  \"preferredLanguage\": \"ar\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/register",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "register"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Verify Email",
-                    "event": [
-                        {
-                            "listen": "test",
-                            "script": {
-                                "exec": [
-                                    "const json = pm.response.json();",
-                                    "if (json && json.tokens) {",
-                                    "  pm.environment.set('accessToken', json.tokens.accessToken);",
-                                    "  pm.environment.set('refreshToken', json.tokens.refreshToken);",
-                                    "  if (json.user && json.user.id) {",
-                                    "    pm.environment.set('userId', json.user.id);",
-                                    "  }",
-                                    "}"
-                                ],
-                                "type": "text/javascript"
-                            }
-                        }
-                    ],
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"code\": \"123456\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/verify-email",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "verify-email"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Resend Email Verification",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"email\": \"{{ownerEmail}}\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/verify-email/resend",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "verify-email",
-                                "resend"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Login",
-                    "event": [
-                        {
-                            "listen": "test",
-                            "script": {
-                                "exec": [
-                                    "const json = pm.response.json();",
-                                    "if (json && json.tokens) {",
-                                    "  pm.environment.set('accessToken', json.tokens.accessToken);",
-                                    "  pm.environment.set('refreshToken', json.tokens.refreshToken);",
-                                    "  if (json.user && json.user.id) {",
-                                    "    pm.environment.set('userId', json.user.id);",
-                                    "  }",
-                                    "}"
-                                ],
-                                "type": "text/javascript"
-                            }
-                        }
-                    ],
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{password}}\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/login",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "login"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Refresh Token",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/refresh",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "refresh"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Current User",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/me",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "me"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Logout",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/logout",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "logout"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Assign Role",
-                    "request": {
-                        "method": "PATCH",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"role\": \"admin\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/users/{{userIdToPromote}}/role",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "users",
-                                "{{userIdToPromote}}",
-                                "role"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Forgot Password",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"email\": \"{{ownerEmail}}\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/forgot-password",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "forgot-password"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Reset Password",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"code\": \"123456\",\n  \"newPassword\": \"NewPassword123!\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/reset-password",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "reset-password"
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "GitHub",
-            "item": [
-                {
-                    "name": "Start GitHub OAuth",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/oauth/start",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "oauth",
-                                "start"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "GitHub OAuth Callback Redirect",
-                    "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/oauth/callback?code={{githubCode}}&state={{githubState}}",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "oauth",
-                                "callback"
-                            ],
-                            "query": [
-                                {
-                                    "key": "code",
-                                    "value": "{{githubCode}}"
-                                },
-                                {
-                                    "key": "state",
-                                    "value": "{{githubState}}"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "GitHub OAuth Callback from Frontend",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"code\": \"{{githubCode}}\",\n  \"state\": \"{{githubState}}\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/github/oauth/callback",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "oauth",
-                                "callback"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Connected GitHub Account",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/account",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "account"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "List GitHub Repositories",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/repositories",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "repositories"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Repository README",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/readme?fullName={{githubRepoFullName}}",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "readme"
-                            ],
-                            "query": [
-                                {
-                                    "key": "fullName",
-                                    "value": "{{repoFullName}}"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Disconnect GitHub Account",
-                    "request": {
-                        "method": "DELETE",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/account",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "account"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Repository Description",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/repository/description?fullName={{repoFullName}}",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "repository",
-                                "description"
-                            ],
-                            "query": [
-                                {
-                                    "key": "fullName",
-                                    "value": "{{repoFullName}}"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Repository Statistics",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/repository/statistics?fullName={{repoFullName}}",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "repository",
-                                "statistics"
-                            ],
-                            "query": [
-                                {
-                                    "key": "fullName",
-                                    "value": "{{repoFullName}}"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Contribution Activity",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/repository/contribution-activity?fullName={{repoFullName}}",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "repository",
-                                "contribution-activity"
-                            ],
-                            "query": [
-                                {
-                                    "key": "fullName",
-                                    "value": "{{repoFullName}}"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Get Commit Signals",
-                    "request": {
-                        "method": "GET",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}",
-                                "type": "text"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/github/repository/commit-signals?fullName={{repoFullName}}&author=abdullah",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "github",
-                                "repository",
-                                "commit-signals"
-                            ],
-                            "query": [
-                                {
-                                    "key": "fullName",
-                                    "value": "{{repoFullName}}"
-                                },
-                                {
-                                    "key": "author",
-                                    "value": "abdullah"
-                                }
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "Projects",
-            "item": [
-                {
-                    "name": "Import GitHub Project",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{accessToken}}"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"fullName\": \"{{githubRepoFullName}}\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/projects/import/github",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "projects",
-                                "import",
-                                "github"
-                            ]
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "Google",
-            "item": [
-                {
-                    "name": "Start Google OAuth",
-                    "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/google/start?role=contributor",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "google",
-                                "start"
-                            ],
-                            "query": [
-                                {
-                                    "key": "role",
-                                    "value": "contributor"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Google OAuth Callback Redirect",
-                    "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/google/callback?code={{googleCode}}&state={{googleState}}",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "google",
-                                "callback"
-                            ],
-                            "query": [
-                                {
-                                    "key": "code",
-                                    "value": "{{googleCode}}"
-                                },
-                                {
-                                    "key": "state",
-                                    "value": "{{googleState}}"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "Google OAuth Callback from Frontend",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n  \"code\": \"{{googleCode}}\",\n  \"state\": \"{{googleState}}\"\n}"
-                        },
-                        "url": {
-                            "raw": "{{baseUrl}}/auth/google/callback",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "auth",
-                                "google",
-                                "callback"
-                            ]
-                        }
-                    }
-                }
-            ]
-        }
-    ],
-    "variable": [
-        {
-            "key": "baseUrl",
-            "value": "http://localhost:4000"
-        },
-        {
-            "key": "ownerEmail",
-            "value": "owner@example.com"
-        },
-        {
-            "key": "contributorEmail",
-            "value": "contributor@example.com"
-        },
-        {
-            "key": "adminEmail",
-            "value": "admin@example.com"
-        },
-        {
-            "key": "password",
-            "value": "Password123!"
-        },
-        {
-            "key": "accessToken",
-            "value": ""
-        },
-        {
-            "key": "refreshToken",
-            "value": ""
-        },
-        {
-            "key": "userId",
-            "value": ""
-        },
-        {
-            "key": "userIdToPromote",
-            "value": "replace-with-real-user-id"
-        },
-        {
-            "key": "githubRepoFullName",
-            "value": "openai/openai-node"
-        },
-        {
-            "key": "githubCode",
-            "value": "replace-with-github-code"
-        },
-        {
-            "key": "githubState",
-            "value": "replace-with-oauth-state"
-        },
-        {
-            "key": "googleCode",
-            "value": "replace-with-google-code"
-        },
-        {
-            "key": "googleState",
-            "value": "replace-with-oauth-state"
-        }
-    ]
+	"info": {
+		"name": "Sharek Backend API",
+		"description": "Postman collection for all backend endpoints currently implemented in the NestJS project.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register Owner",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{password}}\",\n  \"firstName\": \"Sharek\",\n  \"lastName\": \"Owner\",\n  \"role\": \"owner\",\n  \"preferredLanguage\": \"en\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					}
+				},
+				{
+					"name": "Register Contributor",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{contributorEmail}}\",\n  \"password\": \"{{password}}\",\n  \"firstName\": \"Sharek\",\n  \"lastName\": \"Contributor\",\n  \"role\": \"contributor\",\n  \"preferredLanguage\": \"ar\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					}
+				},
+				{
+					"name": "Verify Email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const json = pm.response.json();",
+									"if (json && json.tokens) {",
+									"  pm.environment.set('accessToken', json.tokens.accessToken);",
+									"  pm.environment.set('refreshToken', json.tokens.refreshToken);",
+									"  if (json.user && json.user.id) {",
+									"    pm.environment.set('userId', json.user.id);",
+									"  }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/verify-email",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"verify-email"
+							]
+						}
+					}
+				},
+				{
+					"name": "Resend Email Verification",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{ownerEmail}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/verify-email/resend",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"verify-email",
+								"resend"
+							]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const json = pm.response.json();",
+									"if (json && json.tokens) {",
+									"  pm.environment.set('accessToken', json.tokens.accessToken);",
+									"  pm.environment.set('refreshToken', json.tokens.refreshToken);",
+									"  if (json.user && json.user.id) {",
+									"    pm.environment.set('userId', json.user.id);",
+									"  }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						}
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"logout"
+							]
+						}
+					}
+				},
+				{
+					"name": "Assign Role",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/users/{{userIdToPromote}}/role",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"users",
+								"{{userIdToPromote}}",
+								"role"
+							]
+						}
+					}
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{ownerEmail}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/forgot-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"forgot-password"
+							]
+						}
+					}
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"code\": \"123456\",\n  \"newPassword\": \"NewPassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/reset-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"reset-password"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "GitHub",
+			"item": [
+				{
+					"name": "Start GitHub OAuth",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/oauth/start",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"oauth",
+								"start"
+							]
+						}
+					}
+				},
+				{
+					"name": "GitHub OAuth Callback Redirect",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/github/oauth/callback?code={{githubCode}}&state={{githubState}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"oauth",
+								"callback"
+							],
+							"query": [
+								{
+									"key": "code",
+									"value": "{{githubCode}}"
+								},
+								{
+									"key": "state",
+									"value": "{{githubState}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "GitHub OAuth Callback from Frontend",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"{{githubCode}}\",\n  \"state\": \"{{githubState}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/github/oauth/callback",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"oauth",
+								"callback"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Connected GitHub Account",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/account",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"account"
+							]
+						}
+					}
+				},
+				{
+					"name": "List GitHub Repositories",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/repositories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"repositories"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Repository README",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/readme?fullName={{githubRepoFullName}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"readme"
+							],
+							"query": [
+								{
+									"key": "fullName",
+									"value": "{{repoFullName}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Disconnect GitHub Account",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/account",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"account"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Repository Description",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/repository/description?fullName={{repoFullName}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"repository",
+								"description"
+							],
+							"query": [
+								{
+									"key": "fullName",
+									"value": "{{repoFullName}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Repository Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/repository/statistics?fullName={{repoFullName}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"repository",
+								"statistics"
+							],
+							"query": [
+								{
+									"key": "fullName",
+									"value": "{{repoFullName}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Contribution Activity",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/repository/contribution-activity?fullName={{repoFullName}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"repository",
+								"contribution-activity"
+							],
+							"query": [
+								{
+									"key": "fullName",
+									"value": "{{repoFullName}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Commit Signals",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/github/repository/commit-signals?fullName={{repoFullName}}&author=abdullah",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"github",
+								"repository",
+								"commit-signals"
+							],
+							"query": [
+								{
+									"key": "fullName",
+									"value": "{{repoFullName}}"
+								},
+								{
+									"key": "author",
+									"value": "abdullah"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Projects",
+			"item": [
+				{
+					"name": "Import GitHub Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullName\": \"{{githubRepoFullName}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/projects/import/github",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"projects",
+								"import",
+								"github"
+							]
+						}
+					}
+				},
+				{
+					"name": "Import Project from GitHub",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{auth_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"repoUrl\": \"https://github.com/nestjs/nest\",\n    \"status\": \"draft\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/projects/import/github",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects",
+								"import",
+								"github"
+							]
+						},
+						"description": "Imports a GitHub repository and auto-fetches title, description, languages, tags, technologies, and statistics. Supports saving as unpublished (draft) or published."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Google",
+			"item": [
+				{
+					"name": "Start Google OAuth",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/google/start?role=contributor",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"google",
+								"start"
+							],
+							"query": [
+								{
+									"key": "role",
+									"value": "contributor"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Google OAuth Callback Redirect",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/google/callback?code={{googleCode}}&state={{googleState}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"google",
+								"callback"
+							],
+							"query": [
+								{
+									"key": "code",
+									"value": "{{googleCode}}"
+								},
+								{
+									"key": "state",
+									"value": "{{googleState}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Google OAuth Callback from Frontend",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"{{googleCode}}\",\n  \"state\": \"{{googleState}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/google/callback",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"google",
+								"callback"
+							]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:4000"
+		},
+		{
+			"key": "ownerEmail",
+			"value": "owner@example.com"
+		},
+		{
+			"key": "contributorEmail",
+			"value": "contributor@example.com"
+		},
+		{
+			"key": "adminEmail",
+			"value": "admin@example.com"
+		},
+		{
+			"key": "password",
+			"value": "Password123!"
+		},
+		{
+			"key": "accessToken",
+			"value": ""
+		},
+		{
+			"key": "refreshToken",
+			"value": ""
+		},
+		{
+			"key": "userId",
+			"value": ""
+		},
+		{
+			"key": "userIdToPromote",
+			"value": "replace-with-real-user-id"
+		},
+		{
+			"key": "githubRepoFullName",
+			"value": "openai/openai-node"
+		},
+		{
+			"key": "githubCode",
+			"value": "replace-with-github-code"
+		},
+		{
+			"key": "githubState",
+			"value": "replace-with-oauth-state"
+		},
+		{
+			"key": "googleCode",
+			"value": "replace-with-google-code"
+		},
+		{
+			"key": "googleState",
+			"value": "replace-with-oauth-state"
+		}
+	]
 }
