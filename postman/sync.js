@@ -1,7 +1,7 @@
 const fs = require('fs');
 const https = require('https');
 
-const apiKey = 'PMAK-6a4e6256e690c8000189b692-c13d386d5f0bef9b324f4ae052e949de2c';
+const apiKey = 'PMAK-69e4cb756f0bc80001eb26dc-6df7f4ada17288e92e06e3aabbdd4acb2c';
 const collectionId = '49916304-ce4a4ce2-a944-4d26-93ca-c2cbd75fd14f';
 const environmentId = '49916304-3364e9e1-739b-4f1e-a5d6-aac3d8ede7a3';
 
