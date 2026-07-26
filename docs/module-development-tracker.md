@@ -1334,3 +1334,27 @@ This keeps the system strong without making it heavy:
   duplicate-draft/publication uniqueness, explicit preview/draft/publication,
   published-to-archived withdrawal, GitHub App persistence, and migration/data
   compatibility without duplicating the existing project module.
+
+### 2026-07-26 - Project discovery APIs (TASK-3-05)
+
+- Modules: `projects`.
+- Requirement/task IDs: backlog TASK-3-05 (deps TASK-2-03, TASK-2-05);
+  PRD FR-038.
+- Change type: new read endpoint plus supporting DTOs, mapper, and tests.
+- Summary: Added `GET /projects/discover`, an authenticated
+  contributor/owner/admin discovery feed that returns published projects only.
+  Supports pagination and filtering by technology stack, category, difficulty,
+  and a title/description keyword search. Each item carries `discoveryMetadata`
+  (source attribution plus a keyword set and composed semantic text) mirroring
+  the metadata indexed for semantic discovery. Draft and archived projects are
+  excluded via a published-only Prisma `where` guard.
+- API/database changes: new `GET /projects/discover` route; no schema or Prisma
+  migration change (reads existing project-owned columns only).
+- Checks: `check:architecture`, `eslint`, `tsc --noEmit`, `jest` (130 tests),
+  and `nest build` all pass.
+- Docs updated: `src/modules/projects/README.md`, `docs/api-contracts.md`, and
+  this tracker.
+- Risks/follow-up: technology filtering uses Postgres JSON `array_contains`, so
+  matches are case-sensitive against stored values; a normalized technology
+  facet/aggregation for the frontend filter (TASK-3-06) and the FastAPI semantic
+  ranking layer (TASK-2-05) remain follow-ups.
