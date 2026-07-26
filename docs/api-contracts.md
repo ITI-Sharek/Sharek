@@ -317,6 +317,7 @@ GET /github/repository/statistics
 GET /github/repository/contribution-activity
 GET /github/repository/commit-signals
 DELETE /github/account
+GET /projects/discover
 GET /projects/me
 POST /projects/import/github
 ```
@@ -388,6 +389,61 @@ They return normalized README, description, repository statistics,
 contribution-activity, or recent-commit signal views using the encrypted
 server-side GitHub token. Missing `fullName` returns
 `GITHUB_REPOSITORY_FULL_NAME_REQUIRED`.
+
+`GET /projects/discover` requires an authenticated `contributor`, `owner`, or
+`admin` and returns the contributor discovery feed of published projects. It
+accepts optional query parameters:
+
+```text
+GET /projects/discover?page=1&limit=12&technologies=TypeScript,NestJS&category=web&difficulty=intermediate&search=api
+```
+
+`page` (default 1) and `limit` (default 12, max 50) drive pagination.
+`technologies` accepts a comma-separated list or repeated values and matches
+projects whose technology stack contains any of them. `category` and
+`difficulty` filter by the published enum values. `search` performs a
+case-insensitive keyword match over project title and description. The response
+only ever includes `status: "published"` projects; drafts and archived projects
+are excluded:
+
+```json
+{
+  "projects": [
+    {
+      "id": "project-id",
+      "title": "sharek-api",
+      "slug": "sharek-api",
+      "description": "Backend service",
+      "category": "web",
+      "difficulty": "intermediate",
+      "technologies": ["TypeScript", "PostgreSQL"],
+      "tags": ["nestjs"],
+      "languages": { "TypeScript": 1000 },
+      "githubRepoUrl": "https://github.com/ITI-Sharek/sharek-api",
+      "repoStatistics": { "stars": 5 },
+      "publishedAt": "2026-07-20T00:00:00.000Z",
+      "discoveryMetadata": {
+        "source": "project",
+        "sourceId": "project-id",
+        "keywords": ["typescript", "postgresql", "nestjs", "web", "intermediate"],
+        "semanticText": "sharek-api. Backend service. Technologies: TypeScript, PostgreSQL. Tags: nestjs. Category: web. Difficulty: intermediate"
+      }
+    }
+  ],
+  "pagination": { "page": 1, "limit": 12, "total": 1, "totalPages": 1 },
+  "appliedFilters": {
+    "technologies": ["TypeScript", "NestJS"],
+    "category": "web",
+    "difficulty": "intermediate",
+    "search": "api"
+  }
+}
+```
+
+`discoveryMetadata` mirrors the published-project metadata indexed into the RAG
+store (TASK-2-05) and carries `source`/`sourceId` attribution so semantic
+matches remain retrievable back to the project. Results are ordered by most
+recently published first.
 
 `GET /projects/me` requires an authenticated `owner` or `admin` and returns the
 current user's owner-project dashboard data:
