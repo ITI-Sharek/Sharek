@@ -4,6 +4,13 @@ Owns project records, import workflow, and project publication state.
 
 ## Current API
 
+- `GET /projects/discover`: authenticated contributor/owner/admin discovery feed
+  of **published** projects only. Supports pagination (`page`, `limit`) and
+  filtering by technology stack (`technologies`, comma-separated or repeated),
+  `category`, `difficulty`, and a keyword `search` over title/description. Each
+  item carries `discoveryMetadata` (source attribution plus the keyword set and
+  composed semantic text) mirroring the metadata indexed for semantic discovery.
+  Draft and archived projects are always excluded.
 - `GET /projects/me`: owner/admin dashboard list for the authenticated owner's
   projects. Returns draft, published, and archived owner projects with
   contribution request/application counters plus the current monthly request
