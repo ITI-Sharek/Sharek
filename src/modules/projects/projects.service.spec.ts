@@ -10,6 +10,7 @@ describe('ProjectsService', () => {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       groupBy: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -101,6 +102,126 @@ describe('ProjectsService', () => {
         used: 7,
         monthlyLimit: 20,
       },
+    });
+  });
+
+  it('discovers only published projects with filters, pagination, and indexed metadata', async () => {
+    database.project.count.mockResolvedValue(1);
+    database.project.findMany.mockResolvedValue([getPublishedProjectRecord()]);
+
+    const result = await service.discoverPublishedProjects({
+      page: 1,
+      limit: 12,
+      technologies: ['TypeScript'],
+      category: ProjectCategory.web,
+      difficulty: ProjectDifficulty.intermediate,
+      search: 'api',
+    });
+
+    const expectedWhere = {
+      AND: [
+        { status: ProjectStatus.published },
+        { category: ProjectCategory.web },
+        { difficulty: ProjectDifficulty.intermediate },
+        {
+          OR: [{ technologies: { array_contains: ['TypeScript'] } }],
+        },
+        {
+          OR: [
+            { title: { contains: 'api', mode: 'insensitive' } },
+            { description: { contains: 'api', mode: 'insensitive' } },
+          ],
+        },
+      ],
+    };
+
+    expect(database.project.count).toHaveBeenCalledWith({ where: expectedWhere });
+    expect(database.project.findMany).toHaveBeenCalledWith({
+      where: expectedWhere,
+      orderBy: [{ published_at: 'desc' }, { created_at: 'desc' }],
+      skip: 0,
+      take: 12,
+    });
+    expect(result).toEqual({
+      projects: [
+        {
+          id: 'discover-project-id',
+          title: 'Share-k API',
+          slug: 'sharek-api',
+          description: 'Backend service',
+          category: ProjectCategory.web,
+          difficulty: ProjectDifficulty.intermediate,
+          technologies: ['TypeScript', 'PostgreSQL'],
+          tags: ['nestjs'],
+          languages: { TypeScript: 1000 },
+          githubRepoUrl: 'https://github.com/ITI-Sharek/sharek-api',
+          repoStatistics: { stars: 5 },
+          publishedAt: new Date('2026-07-20T00:00:00Z'),
+          discoveryMetadata: {
+            source: 'project',
+            sourceId: 'discover-project-id',
+            keywords: [
+              'typescript',
+              'postgresql',
+              'nestjs',
+              'web',
+              'intermediate',
+            ],
+            semanticText:
+              'Share-k API. Backend service. Technologies: TypeScript, PostgreSQL. Tags: nestjs. Category: web. Difficulty: intermediate',
+          },
+        },
+      ],
+      pagination: { page: 1, limit: 12, total: 1, totalPages: 1 },
+      appliedFilters: {
+        technologies: ['TypeScript'],
+        category: ProjectCategory.web,
+        difficulty: ProjectDifficulty.intermediate,
+        search: 'api',
+      },
+    });
+  });
+
+  it('restricts discovery to published projects when no filters are provided', async () => {
+    database.project.count.mockResolvedValue(0);
+    database.project.findMany.mockResolvedValue([]);
+
+    const result = await service.discoverPublishedProjects({});
+
+    expect(database.project.findMany).toHaveBeenCalledWith({
+      where: { AND: [{ status: ProjectStatus.published }] },
+      orderBy: [{ published_at: 'desc' }, { created_at: 'desc' }],
+      skip: 0,
+      take: 12,
+    });
+    expect(result.pagination).toEqual({
+      page: 1,
+      limit: 12,
+      total: 0,
+      totalPages: 0,
+    });
+    expect(result.appliedFilters).toEqual({
+      technologies: [],
+      category: null,
+      difficulty: null,
+      search: null,
+    });
+  });
+
+  it('paginates discovery results with the requested page and limit', async () => {
+    database.project.count.mockResolvedValue(25);
+    database.project.findMany.mockResolvedValue([]);
+
+    const result = await service.discoverPublishedProjects({ page: 3, limit: 10 });
+
+    expect(database.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 20, take: 10 }),
+    );
+    expect(result.pagination).toEqual({
+      page: 3,
+      limit: 10,
+      total: 25,
+      totalPages: 3,
     });
   });
 
@@ -311,6 +432,28 @@ describe('ProjectsService', () => {
     });
   });
 });
+
+function getPublishedProjectRecord() {
+  return {
+    id: 'discover-project-id',
+    owner_id: 'owner-id',
+    title: 'Share-k API',
+    description: 'Backend service',
+    github_repo_url: 'https://github.com/ITI-Sharek/sharek-api',
+    github_repo_id: '123',
+    languages: { TypeScript: 1000 },
+    tags: ['nestjs'],
+    technologies: ['TypeScript', 'PostgreSQL'],
+    repo_statistics: { stars: 5 },
+    category: ProjectCategory.web,
+    difficulty: ProjectDifficulty.intermediate,
+    status: ProjectStatus.published,
+    readme_content: '# Share-k API',
+    published_at: new Date('2026-07-20T00:00:00Z'),
+    created_at: new Date('2026-07-19T00:00:00Z'),
+    updated_at: new Date('2026-07-20T00:00:00Z'),
+  };
+}
 
 function getSnapshot() {
   return {
