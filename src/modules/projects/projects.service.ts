@@ -3,6 +3,8 @@ import {
   ApplicationStatus,
   ContributionRequestStatus,
   Prisma,
+  ProjectCategory,
+  ProjectDifficulty,
   ProjectStatus,
 } from '@prisma/client';
 
@@ -14,10 +16,15 @@ import {
   ForbiddenApplicationError,
 } from '../../shared/errors/application.error';
 import { AdminPublishedProjectOwnerDto } from './dto/admin-published-project-owner.dto';
+import { DiscoverProjectsQuery } from './dto/discover-projects.query';
+import { DiscoverProjectsResponseDto } from './dto/discovered-project.dto';
 import { ImportProjectDto } from './dto/import-project.dto';
 import { MyProjectsResponseDto } from './dto/my-projects.dto';
 import { ProjectResponseDto } from './dto/project-response.dto';
-import { toProjectResponseDto } from './mappers/project.mapper';
+import {
+  toDiscoveredProjectDto,
+  toProjectResponseDto,
+} from './mappers/project.mapper';
 
 const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT = 20;
 
@@ -85,6 +92,97 @@ export class ProjectsService {
         monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT,
       },
     };
+  }
+
+  async discoverPublishedProjects(
+    query: DiscoverProjectsQuery,
+  ): Promise<DiscoverProjectsResponseDto> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 12;
+    const technologies = query.technologies ?? [];
+    const category = query.category ?? null;
+    const difficulty = query.difficulty ?? null;
+    const search = query.search?.trim() || null;
+
+    const where = this.buildDiscoveryWhere({
+      technologies,
+      category,
+      difficulty,
+      search,
+    });
+
+    const [total, projects] = await Promise.all([
+      this.database.project.count({ where }),
+      this.database.project.findMany({
+        where,
+        orderBy: [{ published_at: 'desc' }, { created_at: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      projects: projects.map((project) =>
+        toDiscoveredProjectDto(
+          project,
+          this.resolveProjectSlug(project.github_repo_url, project.title),
+        ),
+      ),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+      appliedFilters: {
+        technologies,
+        category,
+        difficulty,
+        search,
+      },
+    };
+  }
+
+  private buildDiscoveryWhere(filters: {
+    technologies: string[];
+    category: ProjectCategory | null;
+    difficulty: ProjectDifficulty | null;
+    search: string | null;
+  }): Prisma.ProjectWhereInput {
+    // Contributor discovery is limited to published projects; drafts and
+    // archived projects must never appear in the discovery feed.
+    const conditions: Prisma.ProjectWhereInput[] = [
+      { status: ProjectStatus.published },
+    ];
+
+    if (filters.category) {
+      conditions.push({ category: filters.category });
+    }
+
+    if (filters.difficulty) {
+      conditions.push({ difficulty: filters.difficulty });
+    }
+
+    if (filters.technologies.length > 0) {
+      // A project matches when its technology stack contains any of the
+      // requested technologies.
+      conditions.push({
+        OR: filters.technologies.map((technology) => ({
+          technologies: { array_contains: [technology] },
+        })),
+      });
+    }
+
+    if (filters.search) {
+      conditions.push({
+        OR: [
+          { title: { contains: filters.search, mode: 'insensitive' } },
+          { description: { contains: filters.search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    return { AND: conditions };
   }
 
   async listPublishedProjectOwners(
