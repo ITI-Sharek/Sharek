@@ -3,7 +3,7 @@
 **Prepared:** 2026-07-21
 
 **Scope:** Planning only. No implementation, migrations, API changes, Jira mutations, or commits.
-**Primary sources:** canonical PRD decision log; accepted ADRs; current backend docs, contracts, Prisma schema, modules, tests, and tracker; Jira project `SK`, board 34; `bmad/_bmad-output/sharek-backlog.md`; and the business documents under `bmad/docs/` as historical product context.
+**Primary sources:** canonical PRD decision log; accepted ADRs; current backend docs, contracts, Prisma schema, modules, tests, and tracker; Jira project `SK`, board 34; `../docs/product/backlog/sharek-backlog.md`; and the business documents under `../docs/archive/source-material/` as historical product context.
 
 ## 1. Executive decision
 
@@ -767,8 +767,8 @@ Treat the current Jira board as a useful execution tracker, not a complete speci
 
 - [ShareK Jira backlog board](https://karimmuhammad.atlassian.net/jira/software/projects/SK/boards/34/backlog)
 - [GitHub Spec Kit official repository and command workflow](https://github.com/github/spec-kit)
-- Canonical decision log: `bmad/_bmad-output/planning-artifacts/prds/prd-Grad_Project-2026-06-17/.decision-log.md`
-- Accepted architecture: `bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`
-- Local business source: `bmad/docs/Sharek_Comprehensive_documentation.pdf`
-- Local business source: `bmad/docs/Sharek_Project_Pitch.pdf`
-- Local backlog: `bmad/_bmad-output/sharek-backlog.md`
+- Canonical decision log: `../docs/product/prd/.decision-log.md`
+- Accepted architecture: `../docs/archive/bmad/adr-002-standard-nestjs-module-architecture.md`
+- Local business source: `../docs/archive/source-material/Sharek_Comprehensive_documentation.pdf`
+- Local business source: `../docs/archive/source-material/Sharek_Project_Pitch.pdf`
+- Local backlog: `../docs/product/backlog/sharek-backlog.md`

@@ -50,7 +50,7 @@ Done:
 - Postman endpoint guide: `docs/postman-api-guide.md`
 - Sprint template: `docs/sprint-template.md`
 - Sprint 1 foundation plan: `docs/sprints/sprint-01-backend-foundation.md`
-- Architecture ADR: `bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`
+- Architecture ADR: `../docs/archive/bmad/adr-002-standard-nestjs-module-architecture.md`
 
 ### NestJS Skeleton
 

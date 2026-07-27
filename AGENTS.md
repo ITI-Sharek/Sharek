@@ -8,15 +8,20 @@ review, or module-boundary work when Codex skills are available.
 
 Before editing code, read:
 
-1. `docs/architecture.md`
-2. `docs/developer-architecture-guide.md`
-3. `docs/module-development-tracker.md`
-4. `docs/backend-conventions.md`
-5. `docs/ai-agent-rules.md`
-6. `docs/definition-of-done.md`
-7. The relevant `src/modules/<module>/README.md`
-8. The relevant sprint/task in `bmad/_bmad-output/sharek-backlog.md`
-9. The relevant PRD requirement under `bmad/_bmad-output/planning-artifacts/prds/`
+1. `../docs/CONTEXT.md`
+2. `../docs/product/governance/decision-log.md`
+3. Relevant ADRs under `../docs/adr/`
+4. The current sprint and backlog under `../docs/product/`
+5. `docs/architecture.md`
+6. `docs/developer-architecture-guide.md`
+7. `docs/module-development-tracker.md`
+8. `docs/backend-conventions.md`
+9. `docs/ai-agent-rules.md`
+10. `docs/definition-of-done.md`
+11. The relevant `src/modules/<module>/README.md`
+
+Repository-local specs may add backend detail but must not contradict the
+shared product contract. See `docs/SHARED-PRODUCT-DOCS.md`.
 
 ## Architecture Facts
 
