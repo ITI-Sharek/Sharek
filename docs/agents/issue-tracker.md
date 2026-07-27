@@ -1,6 +1,6 @@
-# Issue tracker: GitHub (source of truth) + local scratch (working notes)
+# Issue tracker: GitHub
 
-GitHub is the source of truth for issues and PRDs in this repo (`ITI-Sharek/Backend`). `.scratch/<feature-slug>/` holds in-progress planning notes and drafts — specs, half-formed tickets, wayfinding maps — before or alongside their GitHub counterpart. Whatever gets referenced, closed, and linked from PRs is the GitHub issue, not the scratch file.
+Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
 ## Conventions
 
@@ -12,13 +12,6 @@ GitHub is the source of truth for issues and PRDs in this repo (`ITI-Sharek/Back
 - **Close**: `gh issue close <number> --comment "..."`
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
-
-## Drafting in `.scratch/` before publishing
-
-- One feature per directory: `.scratch/<feature-slug>/`
-- Draft specs/PRDs live at `.scratch/<feature-slug>/spec.md`; draft tickets at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`
-- These are working notes, not the tracker of record. Once a draft ticket is ready, publish it as a GitHub issue (see below) — don't treat the scratch file itself as the thing that gets closed or linked from a PR
-- It's fine for a scratch file to persist alongside its GitHub issue (e.g. as extended design notes); if so, cross-link: put the issue number in the scratch file and the scratch path in the issue body
 
 ## Pull requests as a triage surface
 
@@ -34,11 +27,11 @@ GitHub shares one number space across issues and PRs, so a bare `#42` may be eit
 
 ## When a skill says "publish to the issue tracker"
 
-Create a GitHub issue. If a matching draft exists under `.scratch/`, base the issue body on it and cross-link both ways.
+Create a GitHub issue.
 
 ## When a skill says "fetch the relevant ticket"
 
-Run `gh issue view <number> --comments`. If a `.scratch/` draft is cross-linked from the issue body, read that too for extended notes.
+Run `gh issue view <number> --comments`.
 
 ## Wayfinding operations
 
