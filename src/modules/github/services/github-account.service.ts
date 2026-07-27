@@ -33,15 +33,26 @@ export class GitHubAccountService {
   }
 
   async getAccessToken(userId: string): Promise<string> {
+    const cutover = await this.database.gitHubEvidenceCutover?.findUnique({
+      where: { id: 'github-evidence' },
+      select: { cutover_at: true },
+    });
+    if (cutover?.cutover_at) {
+      throw new ApplicationError(
+        'Legacy GitHub repository OAuth has been migrated',
+        'GITHUB_REPOSITORY_OAUTH_MIGRATED',
+        410,
+      );
+    }
     const account = await this.database.gitHubAccount.findUnique({
       where: { user_id: userId },
     });
 
-    if (!account) {
+    if (!account?.access_token) {
       throw new ApplicationError(
-        'GitHub account is not connected',
-        'GITHUB_ACCOUNT_NOT_CONNECTED',
-        404,
+        'Legacy GitHub repository OAuth access is unavailable',
+        account ? 'GITHUB_REPOSITORY_OAUTH_MIGRATED' : 'GITHUB_ACCOUNT_NOT_CONNECTED',
+        account ? 410 : 404,
       );
     }
 

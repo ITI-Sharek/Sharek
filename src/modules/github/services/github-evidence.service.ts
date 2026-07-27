@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 
 import {
   GitHubRepositoryCommitSignalsDto,
@@ -18,6 +18,8 @@ import {
   GitHubWeeklyCommitActivityPayload,
 } from '../integrations/github-api.client';
 import { GitHubAccountService } from './github-account.service';
+import { GitHubAppService } from './github-app.service';
+import { GitHubAppApiClient } from '../integrations/github-app-api.client';
 
 const DEFAULT_SKILL_PROFILING_REPOSITORY_LIMIT = 10;
 const MAX_SKILL_PROFILING_REPOSITORY_LIMIT = 30;
@@ -29,6 +31,8 @@ export class GitHubEvidenceService {
   constructor(
     private readonly gitHubAccountService: GitHubAccountService,
     private readonly gitHubApiClient: GitHubApiClient,
+    @Optional() private readonly gitHubAppService?: GitHubAppService,
+    @Optional() private readonly gitHubAppApiClient?: GitHubAppApiClient,
   ) {}
 
   async getImportSnapshot(
@@ -119,6 +123,65 @@ export class GitHubEvidenceService {
       });
     });
 
+    return { snapshots, failures };
+  }
+
+  async getGitHubAppSkillProfilingEvidence(
+    userId: string,
+    installationLinkId: string,
+    repositoryIds: string[],
+  ): Promise<GitHubSelectedSkillProfilingEvidenceDto> {
+    if (!this.gitHubAppService || !this.gitHubAppApiClient) {
+      throw new ApplicationError(
+        'GitHub App evidence is unavailable',
+        'GITHUB_APP_NOT_CONFIGURED',
+        503,
+      );
+    }
+    const authorization = await this.gitHubAppService.verifyRepositorySelection(
+      userId,
+      installationLinkId,
+      repositoryIds,
+    );
+    const installationCredential =
+      await this.gitHubAppApiClient.createInstallationToken(
+        authorization.providerInstallationId,
+      );
+    const settledSnapshots = await Promise.allSettled(
+      authorization.repositories.map(async (selected) => {
+        const repository = await this.gitHubApiClient.getRepository(
+          installationCredential.token,
+          selected.fullName,
+        );
+        if (String(repository.id) !== selected.repositoryId) {
+          throw new ApplicationError(
+            'GitHub repository identity changed during evidence collection',
+            'GITHUB_APP_REPOSITORY_ACCESS_REVOKED',
+            403,
+          );
+        }
+        return this.buildRepositorySnapshot(
+          installationCredential.token,
+          repository,
+          authorization.githubLogin,
+        );
+      }),
+    );
+    const snapshots: GitHubRepositoryImportSnapshot[] = [];
+    const failures: GitHubSelectedSkillProfilingEvidenceDto['failures'] = [];
+    settledSnapshots.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        snapshots.push(result.value);
+      } else {
+        failures.push({
+          fullName: authorization.repositories[index].fullName,
+          code:
+            result.reason instanceof ApplicationError
+              ? result.reason.code
+              : 'GITHUB_REPOSITORY_EVIDENCE_UNAVAILABLE',
+        });
+      }
+    });
     return { snapshots, failures };
   }
 

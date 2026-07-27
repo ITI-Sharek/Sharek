@@ -15,8 +15,8 @@ const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 const GITHUB_USER_URL = 'https://api.github.com/user';
 const GITHUB_EMAILS_URL = 'https://api.github.com/user/emails';
 const SOCIAL_AUTH_OAUTH_SCOPE = 'read:user user:email';
-const CONTRIBUTOR_OAUTH_SCOPE = 'read:user user:email repo';
-const DEFAULT_OAUTH_SCOPE = 'read:user user:email public_repo';
+const CONTRIBUTOR_OAUTH_SCOPE = SOCIAL_AUTH_OAUTH_SCOPE;
+const DEFAULT_OAUTH_SCOPE = SOCIAL_AUTH_OAUTH_SCOPE;
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 type GitHubOAuthUserRole = 'owner' | 'contributor' | 'admin';
@@ -67,6 +67,7 @@ export class GitHubOAuthService {
   ) {}
 
   async startOAuth(userId: string): Promise<GitHubOAuthStartDto> {
+    await this.assertRepositoryOAuthAvailable();
     const clientId = this.getRequiredConfig('GITHUB_CLIENT_ID');
     const callbackUrl = this.getRequiredConfig('GITHUB_OAUTH_CALLBACK_URL');
     const userRole = await this.getUserRole(userId);
@@ -116,6 +117,7 @@ export class GitHubOAuthService {
     state: string,
     options: GitHubConnectionOptions = {},
   ): Promise<GitHubAccountDto> {
+    await this.assertRepositoryOAuthAvailable();
     const normalizedCode = code?.trim();
     const normalizedState = state?.trim();
 
@@ -211,6 +213,7 @@ export class GitHubOAuthService {
   }
 
   async getAccount(userId: string): Promise<GitHubAccountDto> {
+    await this.assertRepositoryOAuthAvailable();
     const account = await this.database.gitHubAccount.findUnique({
       where: {
         user_id: userId,
@@ -225,6 +228,7 @@ export class GitHubOAuthService {
   }
 
   async disconnect(userId: string): Promise<void> {
+    await this.assertRepositoryOAuthAvailable();
     await this.database.gitHubAccount.deleteMany({
       where: {
         user_id: userId,
@@ -410,6 +414,20 @@ export class GitHubOAuthService {
     }
 
     return value;
+  }
+
+  private async assertRepositoryOAuthAvailable(): Promise<void> {
+    const cutover = await this.database.gitHubEvidenceCutover?.findUnique({
+      where: { id: 'github-evidence' },
+      select: { cutover_at: true },
+    });
+    if (cutover?.cutover_at) {
+      throw new ApplicationError(
+        'Legacy GitHub repository OAuth has been migrated',
+        'GITHUB_REPOSITORY_OAUTH_MIGRATED',
+        410,
+      );
+    }
   }
 
   private getSocialCallbackUrl(): string {
