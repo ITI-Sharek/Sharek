@@ -517,5 +517,5 @@ These tests verify the shared HTTP behavior without changing database state:
 
 - REST Client requests: `sharek-api.http`
 - Stable API and AI contract rules: `docs/api-contracts.md`
-- Architecture decision: `bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`
+- Architecture decision: `../docs/archive/bmad/adr-002-standard-nestjs-module-architecture.md`
 - Local startup: `docs/local-development.md`

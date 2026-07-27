@@ -5,8 +5,9 @@
 Share-k uses a **NestJS feature-first modular monolith with standard controllers,
 services, DTOs, and Prisma**. It does not use Clean Architecture layers.
 
-ADR-002 is the authoritative decision record:
-`bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md`.
+This file is the current backend implementation architecture, subordinate to
+the shared product contract in `../../docs/`. Historical rationale is preserved
+in `../../docs/archive/bmad/adr-002-standard-nestjs-module-architecture.md`.
 
 ## Runtime Shape
 
