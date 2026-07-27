@@ -1,5 +1,11 @@
 # Identity Module
 
+Email verification activates a registered account independently of GitHub and
+independently of skill review. GitHub social login is identity-only and remains
+separate from GitHub App repository authorization. Disconnecting a repository
+installation link does not delete the identity provider link or lock a
+passwordless GitHub user out.
+
 Owns users, credentials, roles, account status, sessions, verification/reset
 codes, and social identity linkage.
 

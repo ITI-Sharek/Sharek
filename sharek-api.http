@@ -79,7 +79,10 @@
 # - [DONE] POST /contributors/profiles/me/ensure
 # - [DONE] GET /contributors/profiles/:username
 # - [DONE] POST /skill-profiles/me/generations
+# - [DONE] GET /skill-profiles/me/generations/latest
 # - [DONE] GET /skill-profiles/me/generations/:generationId
+# - [DONE] POST /skill-profiles/me/generations/:generationId/retry
+# - [DONE] GET /github/app/installations/attempts/:attemptId
 # - [DONE] DELETE /github/account
 # - [DONE] PATCH /auth/users/:id/role
 # - [DONE] POST /auth/refresh
@@ -88,10 +91,9 @@
 # GitHub flow status:
 # - [DONE] Register/login with Share-k auth.
 # - [DONE] Register/login directly with Google or GitHub social auth.
-# - [DONE] Connect GitHub after login through OAuth.
-# - [DONE] List connected GitHub repositories. Contributors request GitHub
-#   `repo` consent so this can include public and private repositories for
-#   skill evidence. Owners/admins keep lighter public repository consent.
+# - [DONE] Connect selected repositories after login through the GitHub App.
+# - [DONE] Keep identity-only GitHub social login separate from repository
+#   installation and explicit skill-analysis consent.
 # - [DONE] Import a GitHub project with README, languages, repository stats,
 #   contribution activity, and recent commit signals where GitHub exposes them.
 # - [MANUAL] Real browser OAuth still needs a real GitHub OAuth app/code.
@@ -108,6 +110,10 @@
 @passwordResetOtp = replace-with-password-reset-otp
 @githubRepoFullName = openai/openai-node
 @githubRepoUrl = https://github.com/openai/openai-node
+@githubAppAttemptId = replace-with-callback-attempt-uuid
+@installationLinkId = replace-with-installation-link-uuid
+@githubRepositoryId = replace-with-numeric-github-repository-id
+@skillProfileGenerationId = replace-with-generation-uuid
 @userIdToPromote = replace-with-real-user-id
 
 
@@ -768,11 +774,10 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 # Starts selected-repository AI skill profiling for the logged-in contributor.
 # The generated skills are saved as pending and do not qualify for tasks until
 # admin review approves them.
-# Selections must come from the connected account repository list. Public
-# repositories that are not in that authenticated list are rejected.
+# Selections must come from the owned GitHub App installation repository list.
 #
 # Auth:
-# Protected. Use a contributor token with GitHub repository access connected.
+# Protected. Use a contributor token with an active GitHub App installation.
 #
 # Expected success response:
 # {
@@ -789,9 +794,12 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json
 
 {
-  "repositories": [
-    { "fullName": "{{githubRepoFullName}}" }
-  ]
+  "installationLinkId": "{{installationLinkId}}",
+  "repositoryIds": ["{{githubRepositoryId}}"],
+  "consent": {
+    "accepted": true,
+    "version": "github-skill-analysis-v1"
+  }
 }
 
 
@@ -915,3 +923,78 @@ Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 # After logout, protected requests using this session return 401.
 POST {{baseUrl}}/auth/logout
 Authorization: Bearer {{ownerRefresh.response.body.$.accessToken}}
+
+
+### 20 - Start optional GitHub App installation
+# @name githubAppStart
+POST {{baseUrl}}/github/app/installations/start
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "flowType": "install_and_authorize"
+}
+
+
+### 20b - Read safe candidates after the browser callback
+GET {{baseUrl}}/github/app/installations/attempts/{{githubAppAttemptId}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 20c - Complete the selected candidate
+POST {{baseUrl}}/github/app/installations/callback
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "attemptId": "{{githubAppAttemptId}}",
+  "providerInstallationId": "replace-with-candidate-provider-installation-id"
+}
+
+
+### 21 - List linked GitHub App installations
+GET {{baseUrl}}/github/app/installations
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 22 - List selected installation repositories
+GET {{baseUrl}}/github/app/repositories?installationLinkId={{installationLinkId}}&page=1&perPage=30
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 23 - Explicitly start GitHub-backed skill generation
+POST {{baseUrl}}/skill-profiles/me/generations
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "installationLinkId": "{{installationLinkId}}",
+  "repositoryIds": ["{{githubRepositoryId}}"],
+  "consent": {
+    "accepted": true,
+    "version": "github-skill-analysis-v1"
+  }
+}
+
+
+### 23b - Recover the latest generation after reload
+GET {{baseUrl}}/skill-profiles/me/generations/latest
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 23c - Retry a failed or needs-more-evidence generation with new consent
+POST {{baseUrl}}/skill-profiles/me/generations/{{skillProfileGenerationId}}/retry
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "consent": {
+    "accepted": true,
+    "version": "github-skill-analysis-v1"
+  }
+}
+
+
+### 24 - Disconnect one local installation link (does not uninstall)
+DELETE {{baseUrl}}/github/app/installations/{{installationLinkId}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}

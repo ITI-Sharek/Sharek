@@ -62,6 +62,16 @@ GITHUB_CLIENT_SECRET=
 GITHUB_OAUTH_CALLBACK_URL=http://localhost:4000/auth/github/callback/repository
 GITHUB_AUTH_CALLBACK_URL=http://localhost:4000/auth/github/callback
 GITHUB_TOKEN_ENCRYPTION_KEY=change-this-github-token-encryption-key-32-chars-min
+GITHUB_APP_ID=
+GITHUB_APP_CLIENT_ID=
+GITHUB_APP_CLIENT_SECRET=
+GITHUB_APP_PRIVATE_KEY_BASE64=
+GITHUB_APP_WEBHOOK_SECRET=
+GITHUB_APP_WEBHOOK_PROXY_URL=
+GITHUB_APP_SLUG=
+GITHUB_APP_INSTALLATION_URL=https://github.com/apps/your-app-slug/installations/new
+GITHUB_APP_CALLBACK_URL=http://localhost:4000/auth/github/app/callback
+GITHUB_APP_FRONTEND_RETURN_URL=http://localhost:3001/profile/github
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_OAUTH_CALLBACK_URL=http://localhost:4000/auth/google/callback
@@ -78,6 +88,40 @@ AI_LOW_CONFIDENCE_THRESHOLD=0.70
 ```
 
 Secrets in `.env.example` must be placeholders only.
+
+### GitHub App repository evidence
+
+The repository-evidence GitHub App is separate from the GitHub OAuth App used
+for social identity. Configure it for selected repositories, request user
+authorization during installation, grant only Metadata read and Contents read,
+and leave the setup URL unset. Its callback URL is
+`GITHUB_APP_CALLBACK_URL`; the browser is redirected afterward only to
+`GITHUB_APP_FRONTEND_RETURN_URL` with an opaque Share-k attempt identifier.
+
+Download the App private key outside the repository, restrict its filesystem
+permissions, and encode the complete PEM (including header/footer and line
+breaks) as Base64 for `GITHUB_APP_PRIVATE_KEY_BASE64`. Never paste the decoded
+key into source, logs, HTTP files, or committed environment examples.
+
+For local webhooks, put the private Smee channel in
+`GITHUB_APP_WEBHOOK_PROXY_URL` and run
+`npx smee-client --url <channel-url> --target http://localhost:4000/webhooks/github/app`,
+and configure the GitHub App webhook URL with that channel. Use the same strong
+secret in GitHub and `GITHUB_APP_WEBHOOK_SECRET`. Smee is a development relay;
+production must use the public HTTPS backend webhook endpoint directly.
+
+Webhook delivery IDs are idempotency keys. A processed duplicate is accepted
+without applying state twice; an operationally failed delivery may be redelivered
+with the same ID and increments its retry count. Expiring member authorization
+is refreshed and rotated transactionally during live checks. Refresh expiry or
+failure moves only that user link to `reauthorization_required`; provider user
+revocation moves matching member links to `revoked`. The user must complete a
+new state-bound authorization flow before later private reads.
+
+Local disconnect immediately clears the selected link's member credentials and
+blocks reads without uninstalling the app or affecting another verified member
+of the same organization installation. GitHub's installation settings page is
+returned separately for an authorized organization owner to manage/uninstall.
 
 When `NODE_ENV=development`, the API accepts requests from any browser origin
 and reflects that origin in `Access-Control-Allow-Origin`. This supports local,
