@@ -16,7 +16,13 @@ export type SkillProfileGenerationWithSkills = SkillProfileGeneration & {
 
 export interface CreateSkillProfileGenerationInput {
   userId: string;
-  selectedRepositories: { fullName: string }[];
+  installationLinkId: string;
+  providerInstallationId: string;
+  selectedRepositories: { repositoryId: string; fullName: string }[];
+  consentVersion: string;
+  consentedAt: Date;
+  authorizationVerifiedAt: Date;
+  retryOfGenerationId?: string;
 }
 
 interface SaveGeneratedSkillInput {
@@ -67,6 +73,12 @@ export class SkillProfileGenerationRepository {
         user_id: input.userId,
         selected_repositories: this.toJson(input.selectedRepositories),
         selected_repository_count: input.selectedRepositories.length,
+        github_app_installation_link_id: input.installationLinkId,
+        provider_installation_id: input.providerInstallationId,
+        consent_version: input.consentVersion,
+        consented_at: input.consentedAt,
+        authorization_verified_at: input.authorizationVerifiedAt,
+        retry_of_generation_id: input.retryOfGenerationId,
       },
     });
   }
@@ -107,6 +119,26 @@ export class SkillProfileGenerationRepository {
     });
   }
 
+  findLatestForUser(
+    userId: string,
+  ): Promise<SkillProfileGenerationWithSkills | null> {
+    return this.database.skillProfileGeneration.findFirst({
+      where: {
+        user_id: userId,
+      },
+      include: {
+        skillProfiles: {
+          orderBy: {
+            created_at: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+  }
+
   findIncomplete(): Promise<SkillProfileGeneration[]> {
     return this.database.skillProfileGeneration.findMany({
       where: {
@@ -120,6 +152,21 @@ export class SkillProfileGenerationRepository {
       },
       orderBy: {
         created_at: 'asc',
+      },
+    });
+  }
+
+  findActiveForUser(userId: string): Promise<SkillProfileGeneration | null> {
+    return this.database.skillProfileGeneration.findFirst({
+      where: {
+        user_id: userId,
+        status: {
+          in: [
+            SkillProfileGenerationStatus.queued,
+            SkillProfileGenerationStatus.collecting_evidence,
+            SkillProfileGenerationStatus.analyzing,
+          ],
+        },
       },
     });
   }
@@ -260,6 +307,28 @@ export class SkillProfileGenerationRepository {
         completed_at: new Date(),
       },
     });
+  }
+
+  async transitionUnresolvedLegacyCandidates(): Promise<number> {
+    const result = await this.database.skillProfileGeneration.updateMany({
+      where: {
+        consented_at: null,
+        status: {
+          in: [
+            SkillProfileGenerationStatus.queued,
+            SkillProfileGenerationStatus.collecting_evidence,
+            SkillProfileGenerationStatus.analyzing,
+            SkillProfileGenerationStatus.pending_review,
+          ],
+        },
+      },
+      data: {
+        status: SkillProfileGenerationStatus.needs_more_evidence,
+        failure_reason: 'Legacy private evidence was retired; reconnect and provide new consent.',
+        completed_at: new Date(),
+      },
+    });
+    return result.count;
   }
 
   private toJson(value: unknown): Prisma.InputJsonValue {

@@ -12,6 +12,7 @@ export function presentContributorProfile(input: {
   profile: ContributorProfileWithUser;
   viewerRelationship: ViewerRelationship;
   githubStatus: ContributorProfileGitHubStatusDto;
+  githubInstallations?: ContributorProfileDto['githubInstallations'];
   skills: ContributorProfileSkillDto[];
   reputationSummary: ContributorProfileReputationSummaryDto;
 }): ContributorProfileDto {
@@ -46,6 +47,7 @@ export function presentContributorProfile(input: {
     skills,
     availability: profile.availability,
     githubStatus,
+    githubInstallations: isOwner ? (input.githubInstallations ?? []) : [],
     reputationSummary: input.reputationSummary,
     contributionHistory: [],
     completionPrompts: isOwner

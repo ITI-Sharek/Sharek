@@ -31,7 +31,10 @@ describe('SkillProfileSummaryService', () => {
         proficiencyLevel: 'advanced',
         confidence: 0.9,
         evidenceSummary: 'Authored TypeScript services',
-        evidenceSources: { evidenceIds: ['github:owner/repo'] },
+        evidenceSources: {
+          evidenceIds: ['github:owner/repo'],
+          limitations: [],
+        },
       },
     ]);
     expect(database.skillProfile.findMany).toHaveBeenCalledWith({
@@ -43,5 +46,30 @@ describe('SkillProfileSummaryService', () => {
         created_at: 'asc',
       },
     });
+  });
+
+  it('omits private evidence summaries from other-user profile projections', async () => {
+    const database = {
+      skillProfile: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            skill_name: 'TypeScript',
+            proficiency_level: 'advanced',
+            confidence_score: 0.9,
+            status: SkillProfileStatus.approved,
+            evidence_summary: 'private-owner/private-repo details',
+          },
+        ]),
+      },
+    };
+    const service = new SkillProfileSummaryService(database as never);
+    await expect(
+      service.listSkillsForProfile('user-1', { includeGenerated: false }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        name: 'TypeScript',
+        evidenceSummary: null,
+      }),
+    ]);
   });
 });

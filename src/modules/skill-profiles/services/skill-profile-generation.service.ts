@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'crypto';
 import {
   SkillProfileGenerationStatus,
   SkillProfileProficiencyLevel,
@@ -12,19 +13,19 @@ import {
 } from '../../ai/dto/skill-profile-ai.dto';
 import { AiService } from '../../ai/ai.service';
 import { GitHubRepositoryImportSnapshot } from '../../github/dto/github-repository.dto';
-import { GitHubAccountService } from '../../github/services/github-account.service';
 import { GitHubEvidenceService } from '../../github/services/github-evidence.service';
 import { SkillProfileGenerationRepository } from '../repositories/skill-profile-generation.repository';
 import { canonicalizeSkillName } from '../utils/skill-name.util';
+import { DatabaseService } from '../../../shared/database/database.service';
 
 @Injectable()
 export class SkillProfileGenerationService {
   constructor(
     private readonly generations: SkillProfileGenerationRepository,
     private readonly gitHubEvidenceService: GitHubEvidenceService,
-    private readonly gitHubAccountService: GitHubAccountService,
     private readonly aiService: AiService,
     private readonly config: ConfigService,
+    @Optional() private readonly database?: DatabaseService,
   ) {}
 
   async process(generationId: string): Promise<void> {
@@ -41,19 +42,33 @@ export class SkillProfileGenerationService {
     const selectedRepositories = this.readSelectedRepositories(
       generation.selected_repositories,
     );
+    if (!generation.github_app_installation_link_id) {
+      await this.generations.fail(
+        generationId,
+        'GitHub App installation authorization is required.',
+      );
+      return;
+    }
     await this.generations.updateStatus(
       generationId,
       SkillProfileGenerationStatus.collecting_evidence,
     );
 
     const selectedEvidence =
-      await this.gitHubEvidenceService.getSelectedSkillProfilingEvidence(
+      await this.gitHubEvidenceService.getGitHubAppSkillProfilingEvidence(
         generation.user_id,
-        selectedRepositories,
+        generation.github_app_installation_link_id,
+        selectedRepositories.map((repository) => repository.repositoryId),
       );
-    const evidenceCapsules = selectedEvidence.snapshots.map((snapshot) =>
-      this.toEvidenceCapsule(snapshot),
-    );
+    const evidenceCapsules = selectedEvidence.snapshots.map((snapshot) => {
+      const selection = selectedRepositories.find(
+        (repository) => repository.fullName === snapshot.repository.fullName,
+      );
+      return this.toEvidenceCapsule(
+        snapshot,
+        this.opaqueEvidenceId(generation.id, selection?.repositoryId ?? ''),
+      );
+    });
     const evidenceSnapshot = {
       repositories: evidenceCapsules,
       failures: selectedEvidence.failures,
@@ -83,9 +98,7 @@ export class SkillProfileGenerationService {
       return;
     }
 
-    const githubLogin = await this.gitHubAccountService.getConnectedUsername(
-      generation.user_id,
-    );
+    const githubLogin = evidenceCapsules[0]?.authorship.githubLogin || '';
     const aiResult = await this.aiService.generateSkillProfile({
       contributorId: generation.user_id,
       githubLogin,
@@ -128,13 +141,29 @@ export class SkillProfileGenerationService {
       });
   }
 
+  async transitionUnresolvedLegacyCandidates(now = new Date()): Promise<number> {
+    if (!this.database) return 0;
+    const cutover = await this.database.gitHubEvidenceCutover.findUnique({
+      where: { id: 'github-evidence' },
+      select: { legacy_evidence_cleanup_due_at: true },
+    });
+    if (
+      !cutover?.legacy_evidence_cleanup_due_at ||
+      now < cutover.legacy_evidence_cleanup_due_at
+    ) {
+      return 0;
+    }
+    return this.generations.transitionUnresolvedLegacyCandidates();
+  }
+
   private toEvidenceCapsule(
     snapshot: GitHubRepositoryImportSnapshot,
+    evidenceId: string,
   ): RepositoryEvidenceCapsule {
     const repository = snapshot.repository;
 
     return {
-      evidenceId: `github:${repository.fullName}`,
+      evidenceId,
       fullName: repository.fullName,
       htmlUrl: repository.htmlUrl,
       private: repository.private,
@@ -217,7 +246,9 @@ export class SkillProfileGenerationService {
     }));
   }
 
-  private readSelectedRepositories(value: unknown): string[] {
+  private readSelectedRepositories(
+    value: unknown,
+  ): Array<{ repositoryId: string; fullName: string }> {
     if (!Array.isArray(value)) {
       return [];
     }
@@ -226,7 +257,16 @@ export class SkillProfileGenerationService {
       .filter((item): item is Record<string, unknown> =>
         typeof item === 'object' && item !== null && !Array.isArray(item),
       )
-      .map((item) => item.fullName)
-      .filter((fullName): fullName is string => typeof fullName === 'string');
+      .flatMap((item) =>
+        typeof item.repositoryId === 'string' && typeof item.fullName === 'string'
+          ? [{ repositoryId: item.repositoryId, fullName: item.fullName }]
+          : [],
+      );
+  }
+
+  private opaqueEvidenceId(generationId: string, repositoryId: string): string {
+    return `github-evidence:${createHash('sha256')
+      .update(`${generationId}:${repositoryId}`)
+      .digest('base64url')}`;
   }
 }

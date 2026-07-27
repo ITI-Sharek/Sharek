@@ -17,6 +17,12 @@ export function presentSkillProfileGeneration(
       snapshottedRepositoryCount: generation.snapshotted_repository_count,
     },
     failureReason: generation.failure_reason,
+    installationLinkId: generation.github_app_installation_link_id,
+    providerInstallationId: generation.provider_installation_id,
+    consentVersion: generation.consent_version,
+    consentedAt: generation.consented_at,
+    authorizationVerifiedAt: generation.authorization_verified_at,
+    retryOfGenerationId: generation.retry_of_generation_id,
     selectedRepositories: readSelectedRepositories(
       generation.selected_repositories,
     ),
@@ -53,9 +59,11 @@ function readSelectedRepositories(
   return (value as unknown[])
     .filter(isRecord)
     .map((item) => ({
+      repositoryId:
+        typeof item.repositoryId === 'string' ? item.repositoryId : '',
       fullName: typeof item.fullName === 'string' ? item.fullName : '',
     }))
-    .filter((item) => item.fullName.length > 0);
+    .filter((item) => item.repositoryId.length > 0 && item.fullName.length > 0);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

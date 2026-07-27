@@ -1,12 +1,26 @@
 # Skill Profiles Module
 
+GitHub-backed generation is optional and starts only after an authenticated
+contributor submits an owned `installationLinkId`, one to ten immutable GitHub
+repository IDs, and accepted consent version `github-skill-analysis-v1`.
+Installation or repository selection alone never enqueues work. Display names
+are derived by the GitHub module after live member/repository validation.
+
+Retry is allowed only for the contributor's own `failed` or
+`needs_more_evidence` generation. It requires new consent, revalidates access,
+and creates a new generation linked to the prior one. Generated skills remain
+`pending` until admin review. Public profiles expose approved skill facts but no
+private evidence identifiers or summaries.
+
 Owns skill-generation requests, evidence snapshots, generated candidates,
 review state, and skill-profile records.
 
 ## Current API
 
 - `POST /skill-profiles/me/generations`
+- `GET /skill-profiles/me/generations/latest`
 - `GET /skill-profiles/me/generations/:generationId`
+- `POST /skill-profiles/me/generations/:generationId/retry`
 
 Admin review routes are exposed by the `admin` module, but the review state and
 database writes stay in this module through the exported
@@ -52,9 +66,8 @@ not qualify contributors for applications.
 The module exports `SkillProfilesService`, `SkillProfileSummaryService`, and
 `SkillProfilesReviewService`; its repository and jobs remain private.
 
-The contributor repository picker may start generation from repositories
-returned by the current repository OAuth connection after explicit selection
-and consent. The worker does not trust names supplied by the browser:
-`GitHubEvidenceService` confirms every selection is accessible with the
-connected user's encrypted OAuth token before evidence collection and AI
-analysis continue.
+The latest-generation endpoint restores polling after a reload. Duplicate starts
+return the owned active generation ID in stable error metadata. The worker does
+not trust browser-supplied names: `GitHubEvidenceService` revalidates the member,
+installation, and immutable repository IDs, then obtains an on-demand
+installation token before evidence collection and AI analysis continue.

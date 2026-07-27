@@ -3,24 +3,42 @@ import {
   ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
+  IsBoolean,
+  IsDefined,
   IsString,
-  Matches,
+  IsUUID,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
 
-export class SkillProfileGenerationRepositoryRequest {
+export class SkillProfileGenerationConsentRequest {
+  @IsBoolean()
+  accepted!: boolean;
+
   @IsString()
-  @MaxLength(200)
-  @Matches(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
-  fullName!: string;
+  @MaxLength(100)
+  version!: string;
 }
 
 export class StartSkillProfileGenerationRequest {
+  @IsUUID()
+  installationLinkId!: string;
+
   @IsArray()
   @ArrayNotEmpty()
   @ArrayMaxSize(10)
-  @ValidateNested({ each: true })
-  @Type(() => SkillProfileGenerationRepositoryRequest)
-  repositories!: SkillProfileGenerationRepositoryRequest[];
+  @IsString({ each: true })
+  repositoryIds!: string[];
+
+  @ValidateNested()
+  @IsDefined()
+  @Type(() => SkillProfileGenerationConsentRequest)
+  consent!: SkillProfileGenerationConsentRequest;
+}
+
+export class RetrySkillProfileGenerationRequest {
+  @ValidateNested()
+  @IsDefined()
+  @Type(() => SkillProfileGenerationConsentRequest)
+  consent!: SkillProfileGenerationConsentRequest;
 }

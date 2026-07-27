@@ -1,4 +1,5 @@
 export interface SkillProfileGenerationRepositorySelectionDto {
+  repositoryId: string;
   fullName: string;
 }
 
@@ -27,6 +28,12 @@ export interface SkillProfileGenerationDto {
     | 'failed';
   progress: SkillProfileGenerationProgressDto;
   failureReason: string | null;
+  installationLinkId: string | null;
+  providerInstallationId: string | null;
+  consentVersion: string | null;
+  consentedAt: Date | null;
+  authorizationVerifiedAt: Date | null;
+  retryOfGenerationId: string | null;
   selectedRepositories: SkillProfileGenerationRepositorySelectionDto[];
   skills: SkillProfileGenerationSkillDto[];
   fraudSignals: unknown[];

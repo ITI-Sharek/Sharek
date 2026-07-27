@@ -1,6 +1,25 @@
 import { SkillProfileGenerationRepository } from './skill-profile-generation.repository';
 
 describe('SkillProfileGenerationRepository', () => {
+  it('loads the authenticated user latest generation with skills', async () => {
+    const database = {
+      skillProfileGeneration: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const repository = new SkillProfileGenerationRepository(database as never);
+
+    await repository.findLatestForUser('user-1');
+
+    expect(database.skillProfileGeneration.findFirst).toHaveBeenCalledWith({
+      where: { user_id: 'user-1' },
+      include: {
+        skillProfiles: { orderBy: { created_at: 'asc' } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+  });
+
   it('supersedes older pending aliases before creating current candidates', async () => {
     const database = {
       skillProfileGeneration: {
