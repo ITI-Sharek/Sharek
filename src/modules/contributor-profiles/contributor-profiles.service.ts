@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
@@ -10,6 +10,7 @@ import {
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { GitHubAccountService } from '../github/services/github-account.service';
+import { GitHubAppService } from '../github/services/github-app.service';
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { ReputationService } from '../reputation/reputation.service';
 import { SkillProfileSummaryService } from '../skill-profiles/services/skill-profile-summary.service';
@@ -27,12 +28,15 @@ import {
 
 @Injectable()
 export class ContributorProfilesService {
+  private readonly logger = new Logger(ContributorProfilesService.name);
+
   constructor(
     private readonly database: DatabaseService,
     private readonly identityUsernameService: IdentityUsernameService,
     private readonly githubAccountService: GitHubAccountService,
     private readonly skillProfileSummaryService: SkillProfileSummaryService,
     private readonly reputationService: ReputationService,
+    @Optional() private readonly githubAppService?: GitHubAppService,
   ) {}
 
   async ensure(viewerUserId: string): Promise<ContributorProfileDto> {
@@ -382,12 +386,13 @@ export class ContributorProfilesService {
     profile: ContributorProfileWithUser,
     viewerRelationship: 'owner' | 'authenticated-viewer',
   ): Promise<ContributorProfileDto> {
-    const [githubStatus, skills, reputationSummary] = await Promise.all([
+    const [githubStatus, skills, reputationSummary, githubInstallations] = await Promise.all([
       this.githubAccountService.getStatusForUser(profile.user_id),
       this.skillProfileSummaryService.listSkillsForProfile(profile.user_id, {
         includeGenerated: viewerRelationship === 'owner',
       }),
       this.reputationService.getSummaryForUser(profile.user_id),
+      this.listGitHubInstallationsSafely(profile.user_id, viewerRelationship),
     ]);
 
     return presentContributorProfile({
@@ -396,7 +401,32 @@ export class ContributorProfilesService {
       githubStatus,
       skills,
       reputationSummary,
+      githubInstallations,
     });
+  }
+
+  /**
+   * GitHub is optional and must never block profile creation or viewing. A
+   * provider outage — or a stale generated client — degrades to "no
+   * installations" instead of failing `ensure`/profile reads.
+   */
+  private async listGitHubInstallationsSafely(
+    userId: string,
+    viewerRelationship: 'owner' | 'authenticated-viewer',
+  ): Promise<ContributorProfileDto['githubInstallations']> {
+    if (viewerRelationship !== 'owner' || !this.githubAppService) {
+      return [];
+    }
+
+    try {
+      return await this.githubAppService.listInstallationLinks(userId);
+    } catch (error) {
+      this.logger.error(
+        `Failed to read GitHub App installations for user ${userId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      return [];
+    }
   }
 
   private findByUserId(

@@ -4,7 +4,6 @@ import { ConfigService } from '@nestjs/config';
 import { SkillProfileGenerationService } from './skill-profile-generation.service';
 import { GitHubRepositoryImportSnapshot } from '../../github/dto/github-repository.dto';
 import { SkillProfileGenerationRepository } from '../repositories/skill-profile-generation.repository';
-import { GitHubAccountService } from '../../github/services/github-account.service';
 import { GitHubEvidenceService } from '../../github/services/github-evidence.service';
 import { AiService } from '../../ai/ai.service';
 
@@ -12,7 +11,7 @@ const generation = {
   id: 'generation-1',
   user_id: 'user-1',
   status: SkillProfileGenerationStatus.queued,
-  selected_repositories: [{ fullName: 'owner/repo' }],
+  selected_repositories: [{ repositoryId: '1', fullName: 'owner/repo' }],
   evidence_snapshot: null,
   fraud_signals: null,
   evidence_quality: null,
@@ -24,6 +23,13 @@ const generation = {
   service_version: null,
   selected_repository_count: 1,
   snapshotted_repository_count: 0,
+  github_app_installation_link_id: 'installation-link-1',
+  provider_installation_id: '987',
+  consent_version: 'github-skill-analysis-v1',
+  consented_at: new Date('2026-07-14T00:00:00.000Z'),
+  authorization_verified_at: new Date('2026-07-14T00:00:00.000Z'),
+  authorization_failure_code: null,
+  retry_of_generation_id: null,
   created_at: new Date('2026-07-14T00:00:00.000Z'),
   updated_at: new Date('2026-07-14T00:00:00.000Z'),
   completed_at: null,
@@ -95,9 +101,10 @@ function createProcessor() {
     completeWithPendingSkills: jest.fn().mockResolvedValue(undefined),
     completeNeedsMoreEvidence: jest.fn().mockResolvedValue(undefined),
     fail: jest.fn().mockResolvedValue(undefined),
+    transitionUnresolvedLegacyCandidates: jest.fn().mockResolvedValue(2),
   };
   const gitHubRepositoryService = {
-    getSelectedSkillProfilingEvidence: jest.fn().mockResolvedValue({
+    getGitHubAppSkillProfilingEvidence: jest.fn().mockResolvedValue({
       snapshots: [snapshot],
       failures: [],
     }),
@@ -140,18 +147,28 @@ function createProcessor() {
   const config = {
     get: jest.fn().mockReturnValue(0.7),
   };
+  const database = {
+    gitHubEvidenceCutover: {
+      findUnique: jest.fn().mockResolvedValue({
+        legacy_evidence_cleanup_due_at: new Date(
+          '2026-08-26T12:00:00.000Z',
+        ),
+      }),
+    },
+  };
 
   return {
     processor: new SkillProfileGenerationService(
       generations as unknown as SkillProfileGenerationRepository,
       gitHubRepositoryService as unknown as GitHubEvidenceService,
-      gitHubRepositoryService as unknown as GitHubAccountService,
       aiService as unknown as AiService,
       config as unknown as ConfigService,
+      database as never,
     ),
     generations,
     gitHubRepositoryService,
     aiService,
+    database,
   };
 }
 
@@ -170,8 +187,8 @@ describe('SkillProfileGenerationService', () => {
       'generation-1',
       SkillProfileGenerationStatus.collecting_evidence,
     );
-    expect(gitHubRepositoryService.getSelectedSkillProfilingEvidence)
-      .toHaveBeenCalledWith('user-1', ['owner/repo']);
+    expect(gitHubRepositoryService.getGitHubAppSkillProfilingEvidence)
+      .toHaveBeenCalledWith('user-1', 'installation-link-1', ['1']);
     expect(aiService.generateSkillProfile).toHaveBeenCalledWith(
       expect.objectContaining({
         contributorId: 'user-1',
@@ -193,6 +210,25 @@ describe('SkillProfileGenerationService', () => {
       }),
     );
     expect(generations.fail).not.toHaveBeenCalled();
+  });
+
+  it('transitions only unresolved legacy generations at or after the deadline', async () => {
+    const { processor, generations } = createProcessor();
+    await expect(
+      processor.transitionUnresolvedLegacyCandidates(
+        new Date('2026-08-26T11:59:59.999Z'),
+      ),
+    ).resolves.toBe(0);
+    expect(
+      generations.transitionUnresolvedLegacyCandidates,
+    ).not.toHaveBeenCalled();
+
+    await expect(
+      processor.transitionUnresolvedLegacyCandidates(
+        new Date('2026-08-26T12:00:00.000Z'),
+      ),
+    ).resolves.toBe(2);
+    expect(generations.transitionUnresolvedLegacyCandidates).toHaveBeenCalledTimes(1);
   });
 
   it('throws when AI processing fails so BullMQ can retry it', async () => {

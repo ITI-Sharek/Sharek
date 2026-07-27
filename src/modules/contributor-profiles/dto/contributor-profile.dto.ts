@@ -34,6 +34,15 @@ export interface ContributorProfileGitHubStatusDto {
   username: string | null;
 }
 
+export interface ContributorProfileGitHubInstallationDto {
+  installationLinkId: string;
+  accountLogin: string;
+  accountType: 'user' | 'organization';
+  status: 'active' | 'disconnected' | 'reauthorization_required' | 'revoked';
+  verifiedAt: Date | null;
+  manageUrl: string | null;
+}
+
 export interface ContributorProfileReputationSummaryDto {
   rating: number | null;
   reviewsCount: number;
@@ -51,6 +60,7 @@ export interface ContributorProfileDto {
   skills: ContributorProfileSkillDto[];
   availability: string | null;
   githubStatus: ContributorProfileGitHubStatusDto;
+  githubInstallations: ContributorProfileGitHubInstallationDto[];
   reputationSummary: ContributorProfileReputationSummaryDto;
   contributionHistory: unknown[];
   completionPrompts: string[];

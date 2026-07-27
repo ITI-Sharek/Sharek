@@ -30,6 +30,7 @@ import {
   SkillProfileReviewNotificationDto,
   SkillProfileReviewResultDto,
 } from '../dto/admin-skill-review.dto';
+import { toBoundedSkillEvidenceSources } from '../utils/skill-profile-evidence-projection.util';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -335,7 +336,9 @@ export class SkillProfilesReviewService {
       confidence: skill.confidence_score,
       status: skill.status,
       evidenceSummary: skill.evidence_summary,
-      evidenceSources: skill.evidence_sources as Prisma.JsonValue,
+      evidenceSources: toBoundedSkillEvidenceSources(
+        skill.evidence_sources,
+      ) as unknown as Prisma.JsonValue,
       createdAt: skill.created_at,
     };
   }
@@ -352,7 +355,9 @@ export class SkillProfilesReviewService {
       confidence: skill.confidence_score,
       status: skill.status,
       evidenceSummary: skill.evidence_summary,
-      evidenceSources: skill.evidence_sources as Prisma.JsonValue,
+      evidenceSources: toBoundedSkillEvidenceSources(
+        skill.evidence_sources,
+      ) as unknown as Prisma.JsonValue,
       originalProficiency: skill.original_proficiency,
       adminNotes: skill.admin_notes,
       reviewedBy: skill.reviewed_by,

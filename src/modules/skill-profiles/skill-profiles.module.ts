@@ -12,6 +12,7 @@ import { SkillProfileGenerationRepository } from './repositories/skill-profile-g
 import { SkillProfileGenerationQueue } from './jobs/skill-profile-generation.queue';
 import { SkillProfileGenerationWorker } from './jobs/skill-profile-generation.worker';
 import { SkillProfilesController } from './controllers/skill-profiles.controller';
+import { SkillProfileLegacyCleanupService } from './services/skill-profile-legacy-cleanup.service';
 
 @Module({
   imports: [AiModule, GithubModule, IdentityModule, NotificationsModule],
@@ -24,6 +25,7 @@ import { SkillProfilesController } from './controllers/skill-profiles.controller
     SkillProfileGenerationWorker,
     SkillProfileGenerationQueue,
     SkillProfileGenerationRepository,
+    SkillProfileLegacyCleanupService,
   ],
   exports: [
     SkillProfilesService,

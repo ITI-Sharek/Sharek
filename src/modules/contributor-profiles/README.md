@@ -1,5 +1,10 @@
 # Contributor Profiles Module
 
+Contributor profiles are usable without GitHub. A missing repository
+installation is represented as an optional/disconnected state and does not
+block profile management or project discovery. Skill-gated behavior continues
+to depend on approved skills, not on account activation or installation alone.
+
 Owns contributor profile records and assembles authenticated profile views.
 
 ## Current API

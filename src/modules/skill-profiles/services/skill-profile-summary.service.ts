@@ -3,6 +3,7 @@ import { SkillProfileStatus } from '@prisma/client';
 
 import { DatabaseService } from '../../../shared/database/database.service';
 import { SkillProfileEligibilitySkillDto } from '../dto/admin-skill-review.dto';
+import { toBoundedSkillEvidenceSources } from '../utils/skill-profile-evidence-projection.util';
 
 export interface SkillProfileSummaryDto {
   name: string;
@@ -36,7 +37,7 @@ export class SkillProfileSummaryService {
       proficiencyLevel: skill.proficiency_level,
       confidence: skill.confidence_score,
       evidenceSummary: skill.evidence_summary,
-      evidenceSources: skill.evidence_sources,
+      evidenceSources: toBoundedSkillEvidenceSources(skill.evidence_sources),
     }));
   }
 
@@ -67,7 +68,7 @@ export class SkillProfileSummaryService {
       proficiencyLevel: skill.proficiency_level,
       confidence: skill.confidence_score,
       status: skill.status,
-      evidenceSummary: skill.evidence_summary,
+      evidenceSummary: options.includeGenerated ? skill.evidence_summary : null,
     }));
   }
 }

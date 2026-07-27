@@ -159,4 +159,67 @@ describe('ContributorProfilesService', () => {
       },
     });
   });
+  it('keeps profile ensure working when GitHub App installations cannot be read', async () => {
+    const user = {
+      id: 'user-3',
+      email: 'resilient@example.com',
+      username: 'resilient-user',
+      password_hash: null,
+      first_name: 'Resilient',
+      last_name: 'User',
+      avatar_url: null,
+      role: 'contributor',
+      status: 'active',
+      preferred_language: 'en',
+      created_at: new Date(),
+      updated_at: new Date(),
+      last_login_at: null,
+    };
+    const profile = {
+      id: 'profile-3',
+      user_id: user.id,
+      bio: null,
+      availability: null,
+      experience_level_id: null,
+      experience_level: null,
+      declared_skills: [],
+      avatar_data: null,
+      avatar_mime_type: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+      user,
+      fields: [],
+    };
+    const listInstallationLinks = jest
+      .fn()
+      .mockRejectedValue(new TypeError("Cannot read properties of undefined"));
+    const service = new ContributorProfilesService(
+      {
+        contributorProfile: { findUnique: jest.fn().mockResolvedValue(profile) },
+      } as never,
+      {
+        getUserById: jest.fn().mockResolvedValue(user),
+        ensureContributorUsernameForUser: jest.fn().mockResolvedValue(user),
+      } as never,
+      {
+        getStatusForUser: jest
+          .fn()
+          .mockResolvedValue({ connected: false, username: null }),
+      } as never,
+      { listSkillsForProfile: jest.fn().mockResolvedValue([]) } as never,
+      {
+        getSummaryForUser: jest
+          .fn()
+          .mockResolvedValue({ rating: null, reviewsCount: 0 }),
+      } as never,
+      { listInstallationLinks } as never,
+    );
+
+    // GitHub is optional: an unreadable installation list must not 500 ensure.
+    await expect(service.ensure(user.id)).resolves.toMatchObject({
+      username: 'resilient-user',
+      githubInstallations: [],
+    });
+    expect(listInstallationLinks).toHaveBeenCalledWith(user.id);
+  });
 });
