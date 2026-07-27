@@ -15,7 +15,7 @@
 ---
 
 ## SPRINT 1 — Foundation Platform Setup
-**Goal:** Establish authentication, GitHub connection, database foundations, Pinecone setup, and base UI scaffolding for Share-k.
+**Goal:** Establish authentication, optional GitHub integration, database foundations, Pinecone setup, and base UI scaffolding for Share-k.
 **Duration:** Week 1
 
 ### Scrum Tasks
@@ -27,7 +27,7 @@
 - **Story Points:** 5
 - **Task breakdown:**
   1. Design the primary flows for registration.
-  2. Design the GitHub connection flow.
+  2. Design the optional profile-based GitHub App installation flow.
   3. Design the role selection flow.
   4. Design the project publishing flow.
   5. Design the project discovery flow.
@@ -81,7 +81,7 @@
 - **Dependencies:** None
 - **Sprint Goal Contribution:** Creates the persistent data model for auth, GitHub data, project publishing, applications, and reputation.
 
-#### TASK-1-04 — Implement Auth and GitHub OAuth Backend
+#### TASK-1-04 — Implement Auth and GitHub Identity Backend
 - **Type:** Story
 - **Priority:** High
 - **Assigned To:** M4 — Backend & Integration
@@ -90,15 +90,15 @@
   1. Implement registration.
   2. Implement login and session handling.
   3. Implement role assignment.
-  4. Implement GitHub OAuth connection.
+  4. Keep optional GitHub sign-in identity separate from repository access.
   5. Support project owners.
   6. Support contributors.
-  7. Acceptance: authenticated users can connect GitHub.
-  8. Acceptance: store account linkage.
+  7. Acceptance: registration and profile access do not require GitHub.
+  8. Acceptance: optional GitHub identity linkage is stored separately from repository installation access.
   9. Acceptance: support later ingestion and repository import.
 
 - **Dependencies:** TASK-1-03
-- **Sprint Goal Contribution:** Delivers the identity and GitHub connection foundation required by owner and contributor onboarding.
+- **Sprint Goal Contribution:** Delivers independent identity registration and optional GitHub identity linkage without coupling registration to repository analysis.
 
 #### TASK-1-05 — Configure GitHub API Ingestion Service Foundation
 - **Type:** Story
@@ -158,7 +158,7 @@
 ---
 
 ## SPRINT 2 — Onboarding, Admin Review, and Project Publishing
-**Goal:** Complete user onboarding, pending AI skill review support, and owner project publication from GitHub metadata.
+**Goal:** Complete profile-based skill status, pending AI skill review support, and owner project publication from GitHub metadata.
 **Duration:** Week 2
 
 ### Scrum Tasks
@@ -169,7 +169,7 @@
 - **Assigned To:** M1 — UI/UX & Testing
 - **Story Points:** 5
 - **Task breakdown:**
-  1. Design detailed screens for contributor onboarding.
+  1. Design detailed profile states for optional contributor skill generation.
   2. Design GitHub ingestion status screen.
   3. Design pending skill profile review screen.
   4. Design admin skill adjustment screen.
@@ -192,8 +192,8 @@
 - **Assigned To:** M3 — Frontend & Integration
 - **Story Points:** 8
 - **Task breakdown:**
-  1. Implement contributor GitHub connection screens.
-  2. Implement onboarding status views.
+  1. Implement contributor GitHub App installation and repository-selection screens inside the normal profile experience.
+  2. Implement profile skill-generation status views.
   3. Implement owner repository URL submission.
   4. Implement metadata review/edit form.
   5. Implement project publication UI.
@@ -202,7 +202,7 @@
   8. Acceptance: project publication APIs.
 
 - **Dependencies:** TASK-2-01, TASK-1-02, TASK-1-04
-- **Sprint Goal Contribution:** Gives users visible workflows for registration, GitHub connection, and project publishing.
+- **Sprint Goal Contribution:** Gives users independent registration, optional profile-based GitHub skill analysis, and project-publishing workflows.
 
 #### TASK-2-03 — Implement Project Metadata Fetch and Publication APIs
 - **Type:** Story
@@ -263,14 +263,14 @@
 - **Story Points:** 5
 - **Task breakdown:**
   1. Write Sprint 2 tests.
-  2. Run tests for auth-aware onboarding states.
+  2. Run tests for auth-aware profile skill states and repository-free profile access.
   3. Test project metadata review behavior.
   4. Test admin skill review API behavior.
   5. Test pending skill exclusion rules.
   6. Acceptance: passing tests for the new frontend flows and backend endpoints.
 
 - **Dependencies:** TASK-2-02, TASK-2-03, TASK-2-04
-- **Sprint Goal Contribution:** Verifies that onboarding, publication, and admin review foundations behave correctly.
+- **Sprint Goal Contribution:** Verifies that optional skill profiling, publication, and admin review foundations behave correctly.
 
 #### TASK-2-07 — Add API Contract Checks for Frontend Integration
 - **Type:** Task
@@ -346,7 +346,7 @@
 - **Assigned To:** M4 — Backend & Integration
 - **Story Points:** 5
 - **Task breakdown:**
-  1. Add backend orchestration to trigger skill profiling after GitHub connection and persist generated skills in pending state.
+  1. Add backend orchestration to trigger skill profiling only after an authenticated contributor selects repositories from an active GitHub App installation, consents to analysis, and explicitly starts generation; persist generated skills in pending state.
   2. Acceptance: generated skills to remain unavailable for task eligibility until admin approval.
 
 - **Dependencies:** TASK-3-02, TASK-2-04
@@ -840,7 +840,7 @@
 - **Story Points:** 8
 - **Task breakdown:**
   1. Write and run E2E tests covering registration.
-  2. Design the GitHub connection flow.
+  2. Design the optional profile-based GitHub App connection flow.
   3. Cover admin skill approval in E2E tests.
   4. Design the project publishing flow.
   5. Cover discovery in E2E tests.
@@ -956,7 +956,7 @@
   2. Cover owner flows.
   3. Cover contributor flows.
   4. Cover admin/support flows.
-  5. Acceptance: script demonstrates GitHub onboarding.
+  5. Acceptance: script demonstrates optional GitHub App installation and explicit skill analysis from the profile.
   6. Acceptance: AI skill review.
   7. Acceptance: project publishing.
   8. Acceptance: AI-gated application.
@@ -1078,9 +1078,9 @@
 
 | Member | Role | Sprint-by-sprint primary focus summary |
 |---|---|---|
-| M1 | M1 — UI/UX & Testing | S1: UX flows and design system baseline; S2: onboarding/admin/project publishing design plus tests; S3: skill profile/discovery design plus tests; S4: AI-gated application flow design plus E2E tests; S5: delivery/reputation/guidance design plus tests; S6: premium/matching design plus tests; S7: accessibility polish and E2E suite; S8: demo UX script and regression testing. |
+| M1 | M1 — UI/UX & Testing | S1: UX flows and design system baseline; S2: profile skill-status/admin/project publishing design plus tests; S3: skill profile/discovery design plus tests; S4: AI-gated application flow design plus E2E tests; S5: delivery/reputation/guidance design plus tests; S6: premium/matching design plus tests; S7: accessibility polish and E2E suite; S8: demo UX script and regression testing. |
 | M2 | M2 — AI Engineer | S1: AI, RAG, and Pinecone contracts; S2: RAG indexing; S3: Skill Profiling Agent; S4: Skill Validation Agent; S5: Skill Gap Guidance Agent; S6: Contributor Matching Agent; S7: AI observability and quality tracing; S8: AI quality validation and demo data readiness. |
-| M3 | M3 — Frontend & Integration | S1: Next.js app shell; S2: onboarding and project publishing UI; S3: skill profile, admin review, and discovery UI; S4: contribution request, task feed, and owner application review UI; S5: delivery review and reputation UI; S6: premium and matching UI; S7: integration support for polished flows; S8: support final UI fixes found during regression. |
+| M3 | M3 — Frontend & Integration | S1: Next.js app shell; S2: optional profile skill flow and project publishing UI; S3: skill profile, admin review, and discovery UI; S4: contribution request, task feed, and owner application review UI; S5: delivery review and reputation UI; S6: premium and matching UI; S7: integration support for polished flows; S8: support final UI fixes found during regression. |
 | M4 | M4 — Backend & Integration | S1: database and auth foundations; S2: project metadata publication APIs; S3: skill profile persistence; S4: contribution request APIs; S5: delivery and review APIs; S6: subscription enforcement plus dispute/report APIs; S7: backend hardening; S8: production data and admin readiness. |
 | M5 | M5 — Backend & Integration | S1: GitHub API ingestion service; S2: admin skill review backend; S3: discovery APIs; S4: AI-gated application orchestration; S5: reputation APIs; S6: premium benefit APIs; S7: GitHub Actions CI/CD; S8: AWS deployment. |
 | M6 | M6 — DevOps & QA Automation | S1: Docker/local development baseline; S2: API contract checks; S3: available for automation support; S4: available for validation support; S5: available for test infrastructure support; S6: available for premium test automation support; S7: automated test infrastructure and Sentry monitoring; S8: CloudWatch, Langfuse, production smoke tests, and release sign-off. |

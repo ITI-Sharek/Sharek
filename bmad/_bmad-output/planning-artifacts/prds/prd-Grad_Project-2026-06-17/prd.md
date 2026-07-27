@@ -55,8 +55,8 @@ Contributors are developers seeking real-world experience, open-source contribut
 
 Functional requirements:
 
-- FR-011: The system must allow a contributor to register and connect a GitHub account.
-- FR-012: The system must generate an initial skill profile from the contributor's GitHub repositories, programming languages, contribution activity, and technologies used.
+- FR-011: The system must allow a contributor to register, verify their account, and use their profile without connecting GitHub; GitHub connection remains an optional profile action.
+- FR-012: After a contributor explicitly installs the Share-k GitHub App, selects repositories, and consents to analysis, the system must allow them to generate an initial skill profile from repository languages, contribution activity, and technologies used.
 - FR-013: The system must show skill levels with structured proficiency labels such as Beginner, Intermediate, and Advanced.
 - FR-014: The system must keep AI-generated skills pending until admin review approves them for use in eligibility decisions.
 - FR-015: The system must allow contributors to browse and filter published projects.
@@ -81,11 +81,11 @@ Functional requirements:
 
 ### Feature 1: Registration and AI Skill Profiling
 
-When a user registers, they connect their GitHub profile. The system fetches repository data, programming languages, contribution activity, and technologies used in projects. The AI Skill Profiling Agent analyzes this evidence and creates a structured skill profile.
+Registration and GitHub skill profiling are separate experiences. After registration and email verification, a user opens their normal profile without being forced through a combined onboarding screen. A contributor may optionally install the Share-k GitHub App from their profile, explicitly select repositories, consent to analysis, and start skill generation. The system then fetches permitted repository evidence and the AI Skill Profiling Agent creates a structured skill profile.
 
 Functional requirements:
 
-- FR-027: The system must start GitHub ingestion after a user connects a GitHub account during registration.
+- FR-027: The system must start GitHub ingestion only after an authenticated contributor installs the Share-k GitHub App, explicitly selects repositories, consents to analysis, and requests skill generation from their profile.
 - FR-028: The system must fetch repositories, README content, code evidence, programming languages, contribution activity, commit signals, and project technology indicators where available.
 - FR-029: The system must generate a structured skill profile containing skill name, proficiency level, confidence, and evidence source.
 - FR-030: The system must persist generated skills in a pending state until admin approval.
@@ -95,7 +95,10 @@ Functional requirements:
 
 Acceptance criteria:
 
-- A newly registered contributor cannot become fully active for AI-gated contribution applications until the generated skill profile is reviewed.
+- Registration and email verification can be completed without GitHub, and the user is not redirected into a mandatory GitHub onboarding screen.
+- A contributor can discover and browse the platform without GitHub but cannot qualify for AI-gated contribution applications until relevant generated skills are approved.
+- Installing the GitHub App does not automatically start analysis; repository selection, consent, and an explicit generation action are required.
+- Private repository evidence is read only from repositories selected in an active GitHub App installation.
 - Skill profile output can represent examples such as Python - Advanced, React - Intermediate, and Docker - Beginner.
 - Each approved skill is traceable to evidence from the contributor's GitHub activity.
 
@@ -265,7 +268,7 @@ Functional requirements:
 
 Functional requirements:
 
-- FR-090: The system must include a GitHub Ingestion and Skill Profiling Agent that creates structured skill profiles from GitHub evidence during registration.
+- FR-090: The system must include a GitHub Ingestion and Skill Profiling Agent that creates structured skill profiles after an authenticated contributor explicitly starts analysis of repositories selected through the Share-k GitHub App.
 - FR-091: The system must include a Skill Validation Agent that compares verified contributor skills with task requirements on application.
 - FR-092: The system must include a Skill Gap Guidance Agent for Gold-tier rejected contributors.
 - FR-093: The system must include a Contributor Matching Agent for eligible Silver/Gold owner matching features.

@@ -1,21 +1,21 @@
-# Sprint 2 — Onboarding, Admin Review, and Project Publishing
+# Sprint 2 — Profile Skill Status, Admin Review, and Project Publishing
 
-**Sprint Goal:** Complete user onboarding, pending AI skill review support, and owner project publication from GitHub metadata.
+**Sprint Goal:** Complete optional profile-based skill generation status, pending AI skill review support, and owner project publication from GitHub metadata.
 **Duration:** Week 2
 
 ---
 
-## Feature 1: Contributor Onboarding Flow
+## Feature 1: Contributor Profile Skill Status
 
-### User Story 2.1 — View Onboarding Status as a Contributor
+### User Story 2.1 — View Skill Generation Status in My Profile
 
 > **As a** contributor,
-> **I want to** see clear onboarding status updates after connecting my GitHub account,
-> **So that** I understand where I am in the activation process and what's happening behind the scenes.
+> **I want to** see clear skill-generation status updates in my normal profile after I choose to analyze GitHub repositories,
+> **So that** I understand the optional verification process without being forced through a separate onboarding screen.
 
 **Acceptance Criteria:**
 
-- After GitHub connection, the contributor sees a status screen with distinct states:
+- After the contributor explicitly starts analysis, the profile shows distinct states:
   - **Ingesting**: "Analyzing your GitHub activity…" with a spinner/progress indicator.
   - **Pending Review**: "Your skill profile has been generated and is awaiting admin review."
   - **Approved**: "Your profile is active! Start exploring projects."
@@ -27,12 +27,12 @@
 **Related Tasks:** TASK-2-01, TASK-2-02
 **PRD References:** FR-014, FR-030
 
-### User Journey 2.1 — Contributor Onboarding Status
+### User Journey 2.1 — Contributor Profile Skill Status
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 1. Contributor logs in after email verification + GitHub connection         │
-│    └─> Redirected to Onboarding Status screen                              │
+│ 1. Contributor opens their profile after signing in                        │
+│    └─> GitHub connection and skill analysis remain optional                │
 │                                                                             │
 │ 2. State: INGESTING                                                         │
 │    └─> UI shows animated spinner with "Analyzing your GitHub activity…"    │

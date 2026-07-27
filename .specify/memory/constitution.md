@@ -1,38 +1,36 @@
 <!--
 Sync Impact Report
-Version change: 2.0.0 -> 3.0.0
-Version rationale: MAJOR because the account-role principle is redefined so
-OWNER and CONTRIBUTOR select different primary journeys without being exclusive
-project-ownership or contribution capability silos.
+Version change: 3.0.0 -> 3.1.0
+Version rationale: MINOR because the GitHub principle now defines the optional,
+post-registration profile journey and the explicit consent boundary for skill
+analysis while preserving the existing GitHub App private-access rule.
 Modified principles:
-- II. Account Roles and Contextual Authorization: OWNER and CONTRIBUTOR now
-  control primary journeys rather than mutually exclusive project/contribution
-  capabilities; both may own projects and contribute without changing role.
-- IV. GitHub Identity and Repository Access: clarified personal-repository
-  identity proof and organization/shared repository installation proof.
+- IV. GitHub Identity and Repository Access: GitHub repository access is an
+  optional profile capability, separate from registration and social identity;
+  installation, explicit selection, consent, and an explicit start action are
+  required before skill analysis.
 Modified sections:
-- Delivery Workflow: plans identify account-mode journey rules and contextual
-  capabilities instead of assuming exclusive account-role gates.
+- Delivery Workflow: plans must separate registration, identity linkage,
+  repository installation, selection/consent, and analysis triggers.
 Added sections: None
 Removed sections: None
 Templates and guidance synchronized:
 - ✅ .specify/templates/plan-template.md
-- ✅ .specify/templates/spec-template.md
-- ✅ .specify/templates/tasks-template.md
+- ✅ .specify/templates/spec-template.md (reviewed; no change required)
+- ✅ .specify/templates/tasks-template.md (reviewed; no change required)
 - ✅ .specify/templates/checklist-template.md (reviewed; no change required)
 - ✅ .specify/templates/constitution-template.md (reviewed; no change required)
-- ✅ specs/003-github-project-publication/spec.md
-- ✅ specs/003-github-project-publication/checklists/requirements.md
-- ✅ docs/sprints/sprint_2_backend_first_specKit_plan.md
-- ✅ bmad/_bmad-output/planning-artifacts/prds/prd-Grad_Project-2026-06-17/.decision-log.md
+- ✅ bmad/_bmad-output/planning-artifacts/prds/prd-Grad_Project-2026-06-17/prd.md
+- ✅ bmad/_bmad-output/sharek-backlog.md
+- ✅ bmad/_bmad-output/user-stories-and-journeys/sprint-1-foundation-platform-setup.md
+- ✅ bmad/_bmad-output/user-stories-and-journeys/sprint-2-onboarding-admin-review-project-publishing.md
+- ✅ bmad/_bmad-output/user-stories-and-journeys/sprint-3-skill-profiling-and-discovery.md
 - ✅ .specify/templates/commands/*.md (directory not present)
 Follow-up TODOs:
-- Implement and contract-test the approved account-neutral project-creation
-  capability during SK-112; current routes still enforce OWNER/ADMIN.
-- Synchronize FR-005/FR-018/FR-051-FR-059 editorial wording with the canonical
-  advisory-only AI decision.
-- Plan the migration from the current broad repository OAuth grant to the
-  approved GitHub App private-access boundary.
+- Plan and implement migration from the current broad repository OAuth grant
+  to the approved GitHub App installation boundary.
+- Preserve optional GitHub social sign-in as identity-only or retire it through
+  an explicit compatibility plan; do not reuse it for repository evidence.
 -->
 # ShareK Backend Constitution
 
@@ -107,11 +105,20 @@ accepted, navigable module shape without weakening ownership.
 
 ### IV. GitHub Identity and Repository Access
 
-GitHub OAuth establishes identity only. Private repository access MUST require
-an active GitHub App installation and explicit repository selection. Access
-MUST be read-only, revocable, and least-privilege; OAuth identity, a repository
-name supplied by a client, or historical access MUST NOT authorize a private
-read.
+Registration, email verification, profile access, and unrelated browsing MUST
+NOT require GitHub. GitHub repository access is an optional capability started
+from the authenticated user's normal profile; it MUST NOT be embedded as a
+mandatory registration or single-screen onboarding step. Optional GitHub social
+authorization establishes identity only and MUST remain separate from repository
+evidence authorization.
+
+Repository evidence access MUST require an active GitHub App installation and
+explicit repository selection. Skill analysis MUST NOT begin merely because an
+account registered, linked a GitHub identity, or installed the app. It MUST
+require the contributor to select repositories, give analysis consent, and
+explicitly start generation. Access MUST be read-only, revocable, and
+least-privilege; OAuth identity, a repository name supplied by a client, an
+unverified installation ID, or historical access MUST NOT authorize a read.
 
 For public-source publication control, OAuth identity MAY prove only that an
 authenticated GitHub account matches a personal repository owner; it does not
@@ -211,7 +218,9 @@ hardcoded, returned, or logged.
 Every implementation plan MUST identify account-mode journey rules, contextual
 capabilities and authorization, owning modules/tables, public DTOs, state
 transitions, migration impact, evidence/privacy impact, external failure
-behavior, and required tests.
+behavior, and required tests. GitHub-related plans MUST distinguish registration,
+optional social identity, GitHub App installation, repository selection,
+analysis consent, and the explicit workflow trigger.
 Exceptions require concrete repository evidence, the rejected compliant
 alternative, risk and migration analysis, an accountable owner, and approval in
 the governing decision record before implementation.
@@ -249,4 +258,4 @@ review, and final handoff. A violation MUST be fixed or approved through the
 documented exception process before the affected implementation is considered
 complete.
 
-**Version**: 3.0.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-21
+**Version**: 3.1.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-26

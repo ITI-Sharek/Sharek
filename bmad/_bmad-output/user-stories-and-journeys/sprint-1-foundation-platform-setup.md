@@ -1,6 +1,6 @@
 # Sprint 1 — Foundation Platform Setup
 
-**Sprint Goal:** Establish authentication, GitHub connection, database foundations, Pinecone setup, and base UI scaffolding for Share-k.
+**Sprint Goal:** Establish authentication, optional GitHub integration, database foundations, Pinecone setup, and base UI scaffolding for Share-k.
 **Duration:** Week 1
 
 ---
@@ -19,7 +19,7 @@
 - Role options include "Project Owner" and "Contributor."
 - After submitting the form, the user receives an email verification link.
 - The account is created with status `pending` until email is verified.
-- Upon email verification, the owner account status becomes `active` (after GitHub connection).
+- Upon email verification, the owner account can use its normal profile and unrelated platform capabilities without GitHub.
 - The system stores preferred language (Arabic / English).
 
 **Priority:** High
@@ -49,8 +49,8 @@
 │    └─> A banner prompts: "Connect your GitHub account to get started"      │
 │                                                                             │
 │ 5. Account Status                                                           │
-│    └─> Status is `pending` until GitHub is connected                       │
-│    └─> After GitHub connection → status becomes `active`                   │
+│    └─> Email verification controls normal account access                   │
+│    └─> GitHub remains optional and controls only GitHub-backed capabilities│
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -92,8 +92,8 @@
 │    └─> System marks email as verified                                      │
 │                                                                             │
 │ 4. Post-Verification Redirect                                              │
-│    └─> User is redirected to an onboarding screen                          │
-│    └─> Prompt: "Connect your GitHub account to generate your skill profile"│
+│    └─> User is redirected to their normal profile/dashboard                │
+│    └─> GitHub skill analysis is presented as an optional profile action    │
 │                                                                             │
 │ 5. Account Status                                                           │
 │    └─> Status remains `pending`                                            │
@@ -104,21 +104,21 @@
 
 ---
 
-## Feature 2: GitHub OAuth Connection
+## Feature 2: Optional GitHub Connection
 
 ### User Story 1.3 — Connect GitHub Account (Owner)
 
 > **As a** project owner,
-> **I want to** connect my GitHub account via OAuth,
+> **I want to** optionally connect GitHub from my profile,
 > **So that** I can import repository data and publish projects on Share-k.
 
 **Acceptance Criteria:**
 
-- A "Connect GitHub" button is visible on the dashboard after registration.
-- Clicking it initiates a GitHub OAuth flow (redirect to GitHub → authorize → callback).
-- On success, the linked GitHub account ID, username, and access token are stored.
+- A "Connect GitHub" action is visible in profile settings after registration.
+- Connecting GitHub is optional and does not control access to unrelated profile or browsing features.
+- Repository access uses a Share-k GitHub App installation with explicit repository selection.
 - The owner's account status transitions to `active`.
-- If the OAuth flow fails or is cancelled, the user sees a clear error message and can retry.
+- If GitHub App installation fails or is cancelled, the user sees a clear error message, keeps normal profile access, and can retry.
 
 **Priority:** High
 **Related Tasks:** TASK-1-04
@@ -127,14 +127,14 @@
 ### User Story 1.4 — Connect GitHub Account (Contributor)
 
 > **As a** contributor,
-> **I want to** connect my GitHub account via OAuth,
+> **I want to** optionally install the Share-k GitHub App from my profile and choose repositories,
 > **So that** Share-k can analyze my repositories and generate my AI skill profile.
 
 **Acceptance Criteria:**
 
-- After email verification, the contributor is prompted to connect GitHub.
-- The OAuth flow works identically to the owner flow.
-- On successful connection, the system triggers GitHub data ingestion in the background.
+- After email verification, the contributor can use their profile without GitHub.
+- The contributor may start GitHub App installation from the profile and explicitly choose repositories.
+- Installation alone does not start ingestion; the contributor must select repositories for analysis, consent, and start generation.
 - The contributor is shown a loading/status indicator: "Analyzing your GitHub activity…"
 - The account remains `pending` until the resulting skill profile is reviewed by an admin.
 
@@ -142,24 +142,23 @@
 **Related Tasks:** TASK-1-04, TASK-1-05
 **PRD References:** FR-011, FR-027, FR-028
 
-### User Journey 1.3/1.4 — GitHub OAuth Connection (Both Roles)
+### User Journey 1.3/1.4 — Optional GitHub App Connection
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 1. Dashboard / Onboarding Screen                                           │
-│    └─> User sees "Connect GitHub" button with GitHub logo                  │
+│ 1. Profile Settings                                                        │
+│    └─> User sees an optional "Connect GitHub" action                       │
 │    └─> Clicks "Connect GitHub"                                             │
 │                                                                             │
-│ 2. GitHub OAuth Redirect                                                    │
-│    └─> Browser redirects to github.com/login/oauth/authorize               │
-│    └─> User reviews permissions requested by Share-k                       │
-│    └─> User clicks "Authorize Share-k"                                     │
+│ 2. GitHub App Installation                                                 │
+│    └─> Browser redirects to the Share-k GitHub App installation page       │
+│    └─> User reviews read-only permissions and selects repositories         │
+│    └─> User installs Share-k for the selected repositories                 │
 │                                                                             │
-│ 3. OAuth Callback                                                           │
-│    └─> GitHub redirects back to Share-k with authorization code            │
-│    └─> Backend exchanges code for access token                             │
-│    └─> System stores: github_user_id, github_username, access_token        │
-│    └─> Short-lived OAuth state record is cleaned up                        │
+│ 3. Installation Verification                                               │
+│    └─> GitHub redirects back to Share-k                                    │
+│    └─> Backend verifies installation ownership and selected repositories   │
+│    └─> Profile shows the verified installation and available repositories  │
 │                                                                             │
 │ 4a. Owner Path                                                              │
 │    └─> Account status → `active`                                           │
@@ -167,13 +166,14 @@
 │    └─> Dashboard now shows "Publish a Project" CTA                         │
 │                                                                             │
 │ 4b. Contributor Path                                                        │
-│    └─> System triggers GitHub data ingestion (background job)              │
+│    └─> Contributor selects repositories, consents, and starts analysis     │
+│    └─> System then triggers GitHub data ingestion (background job)         │
 │    └─> UI shows: "Analyzing your GitHub activity… This may take a moment." │
 │    └─> Account remains `pending`                                           │
 │    └─> After ingestion completes → skill profile is generated (Sprint 3)   │
 │                                                                             │
 │ 5. Error Handling                                                           │
-│    └─> If user denies OAuth → "GitHub connection cancelled. Try again."    │
+│    └─> If user cancels installation → "GitHub connection cancelled."      │
 │    └─> If network error → "Connection failed. Please retry."              │
 │    └─> If token exchange fails → log error, show generic retry message     │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -195,7 +195,7 @@
 - On success, the system creates an auth session and returns access + refresh tokens.
 - The user is redirected to their role-specific dashboard.
 - If the account is `suspended` or `deactivated`, login is rejected with a clear message.
-- If the account is `pending`, the user can log in but sees a limited onboarding view.
+- If the account is awaiting skill review, the user can log in and use the normal profile and browsing views while skill-gated actions remain limited.
 - Invalid credentials show: "Incorrect email or password."
 
 **Priority:** High
@@ -217,7 +217,7 @@
 │                                                                             │
 │ 3. Account Status Check                                                     │
 │    ├─> `active` → redirect to full dashboard                               │
-│    ├─> `pending` → redirect to onboarding/limited view                     │
+│    ├─> awaiting skill review → normal profile with skill-status messaging  │
 │    ├─> `suspended` → "Your account has been suspended. Contact support."   │
 │    └─> `deactivated` → "This account is no longer active."                 │
 │                                                                             │
@@ -392,7 +392,7 @@
 │                                                                             │
 │ 2. Environment Setup                                                        │
 │    └─> cp .env.example .env                                                │
-│    └─> Fill in required values (DB credentials, GitHub OAuth secrets, etc.) │
+│    └─> Fill in required values (DB credentials, GitHub App secrets, etc.)   │
 │                                                                             │
 │ 3. Start Services                                                           │
 │    └─> docker compose up -d                                                │

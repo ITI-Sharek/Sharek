@@ -10,12 +10,12 @@
 ### User Story 3.1 — Generate AI Skill Profile from GitHub Data
 
 > **As a** contributor,
-> **I want** the system to automatically analyze my GitHub repositories and generate a structured skill profile,
+> **I want** the system to analyze GitHub repositories I explicitly selected and generate a structured skill profile,
 > **So that** my technical abilities are objectively assessed based on real evidence rather than self-declaration.
 
 **Acceptance Criteria:**
 
-- After GitHub data ingestion completes, the Skill Profiling Agent runs automatically.
+- The Skill Profiling Agent runs only after the contributor installs the Share-k GitHub App, explicitly selects repositories, consents to analysis, and starts generation.
 - The agent analyzes: repositories, README content, programming languages, contribution activity, commit signals, and project technologies.
 - Output for each detected skill includes:
   - **Skill name** (e.g., "Python," "React," "Docker")
@@ -34,7 +34,8 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 1. Trigger                                                                  │
-│    └─> GitHub ingestion job completes for contributor "Sara"                │
+│    └─> Sara selects installed repositories, consents, and starts analysis  │
+│    └─> GitHub ingestion job completes for those repositories               │
 │    └─> System dispatches: GenerateSkillProfile event                       │
 │                                                                             │
 │ 2. AI Agent Execution                                                       │
@@ -74,7 +75,7 @@
 │        confidence_score, evidence_sources (JSON), status                    │
 │                                                                             │
 │ 7. Notification                                                             │
-│    └─> Contributor's onboarding status updates to "Pending Admin Review"   │
+│    └─> Contributor's profile skill status becomes "Pending Admin Review"   │
 │    └─> Admin receives notification: "New skill profile to review"          │
 │                                                                             │
 │ 8. Failure Handling                                                         │

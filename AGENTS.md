@@ -113,7 +113,7 @@ migrations, README/tracker updates, and known risks.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/003-github-project-publication/plan.md
+at specs/004-optional-github-skill-profile/plan.md
 <!-- SPECKIT END -->
 
 Before finishing a code change, append a short record to
