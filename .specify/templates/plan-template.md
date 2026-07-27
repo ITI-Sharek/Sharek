@@ -47,7 +47,7 @@
   Admin bypasses are explicit and auditable.
 - **Module Ownership**: Owning module and tables are identified; no writes cross ownership; cross-module behavior uses exported NestJS services or completed-fact events.
 - **HTTP Flow**: Route follows controller -> validated DTO -> focused service -> Prisma, exported service, or module-local integration client -> explicit response DTO.
-- **GitHub and Evidence**: OAuth is identity-only; private access requires GitHub App installation plus explicit selection; visibility, provenance, freshness, redaction, and revocation are planned where relevant.
+- **GitHub and Evidence**: Registration and normal profile access remain repository-free; optional social authorization is identity-only; repository evidence requires a verified GitHub App installation, explicit repository selection, analysis consent, and an explicit start action; visibility, provenance, freshness, redaction, and revocation are planned where relevant.
 - **AI Boundary**: AI remains advisory and evidence-linked; it cannot automatically accept, reject, hide, rank out, or eliminate applications; NestJS owns final decisions and audit snapshots.
 - **State and Persistence**: State transitions are explicit; public visibility is backend-enforced; Prisma migrations are forward-only and preserve data; GitHub-connected and repository-free workflows remain compatible.
 - **API Contract**: Request/response DTO allowlists, error mapping, pagination, compatibility, and frontend-facing documentation are planned; raw ORM/provider objects are never public contracts.
