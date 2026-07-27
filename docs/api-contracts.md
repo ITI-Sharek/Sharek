@@ -557,41 +557,39 @@ Implemented contributor skill profile generation endpoints:
 
 ```text
 POST /skill-profiles/me/generations
+GET /skill-profiles/me/generations/latest
 GET /skill-profiles/me/generations/:generationId
+POST /skill-profiles/me/generations/:generationId/retry
 ```
 
 Both endpoints require an authenticated contributor. Pending contributors may
 use these endpoints during onboarding. Owner/admin users and suspended or
 deactivated contributors cannot start generation.
 
-`POST /skill-profiles/me/generations` accepts selected repositories from the
-existing GitHub repository picker:
+`POST /skill-profiles/me/generations` accepts immutable repository IDs from an
+owned GitHub App installation link plus current explicit consent:
 
 ```json
 {
-  "repositories": [
-    { "fullName": "owner/repository" }
-  ]
+  "installationLinkId": "00000000-0000-4000-8000-000000000001",
+  "repositoryIds": ["123456789"],
+  "consent": {
+    "accepted": true,
+    "version": "github-skill-analysis-v1"
+  }
 }
 ```
 
-For the current MVP, the contributor repository OAuth grant is the evidence
-authorization boundary. The frontend requires the contributor to select up to
-10 repositories and accept a dedicated analysis-consent checkbox. During job
-processing, the backend resolves every selected full name through the encrypted
-OAuth token and returns `GITHUB_REPOSITORY_SELECTION_NOT_ALLOWED` when any
-selection is not accessible through the connected GitHub account. A future
-GitHub App installation may narrow provider-side access further, but it is not
-required to use the implemented generation workflow.
+The backend revalidates the member, installation link, and selected repository
+IDs through GitHub before creating the durable generation. Display names are
+server-derived snapshots and are not accepted as authorization input.
 
 Rules:
 
-- `repositories` must contain at least one item.
+- `repositoryIds` must contain at least one numeric GitHub repository ID.
 - At most 10 repositories can be selected for one generation.
-- `fullName` must use `owner/repository` format.
-- Every selection must appear in GitHub's authenticated `GET /user/repos`
-  result for the connected account. Supplying an arbitrary public repository
-  name is rejected.
+- Repository IDs must be unique and currently selected for the installation.
+- Consent must be accepted with version `github-skill-analysis-v1`.
 - Repository evidence records commits/additions attributable to the exact
   connected GitHub login. Repository-wide activity is not treated as personal
   authorship.
@@ -608,8 +606,9 @@ initial response is shaped like:
     "snapshottedRepositoryCount": 0
   },
   "failureReason": null,
+  "installationLinkId": "00000000-0000-4000-8000-000000000001",
   "selectedRepositories": [
-    { "fullName": "owner/repository" }
+    { "repositoryId": "123456789", "fullName": "owner/repository" }
   ],
   "skills": [],
   "fraudSignals": [],
@@ -625,8 +624,12 @@ initial response is shaped like:
 }
 ```
 
-`GET /skill-profiles/me/generations/:generationId` returns the same shape with
-current status. Status values are:
+`GET /skill-profiles/me/generations/latest` recovers the authenticated user's
+newest generation after a reload. `GET
+/skill-profiles/me/generations/:generationId` returns a known owned generation.
+Both return the same shape with current status. A duplicate start returns
+`SKILL_PROFILE_GENERATION_ALREADY_ACTIVE` with
+`metadata.generationId` so polling can resume. Status values are:
 
 ```text
 queued
@@ -827,6 +830,60 @@ The gateway joins each socket to a server-side room derived from its own user ID
 and emits only to that room.
 
 ## AI Service Contracts
+
+## GitHub App repository evidence
+
+Repository evidence is optional and is authorized separately from GitHub social
+login. The GitHub App requests only Metadata read and Contents read for selected
+repositories. Installation alone never creates a skill generation.
+
+```text
+POST   /github/app/installations/start
+GET    /auth/github/app/callback
+GET    /github/app/installations/attempts/:attemptId
+POST   /github/app/installations/callback
+GET    /github/app/installations
+GET    /github/app/repositories?installationLinkId=<uuid>&page=1&perPage=30
+DELETE /github/app/installations/:installationLinkId
+POST   /webhooks/github/app
+```
+
+The browser callback exchanges the single-use provider code on the backend and
+redirects with only `attemptId` or a stable error code. The authenticated
+attempt endpoint returns safe provider installation candidates for that owned,
+unexpired, unconsumed attempt. Protected completion accepts the opaque attempt
+plus one candidate provider installation ID and revalidates access. Installation
+and repository responses are allowlisted and never include credentials or raw
+provider payloads.
+
+Generation now requires an owned active installation link, immutable GitHub
+repository IDs, and current explicit consent:
+
+```json
+{
+  "installationLinkId": "00000000-0000-4000-8000-000000000001",
+  "repositoryIds": ["123456789"],
+  "consent": {
+    "accepted": true,
+    "version": "github-skill-analysis-v1"
+  }
+}
+```
+
+`POST /skill-profiles/me/generations/:generationId/retry` accepts a new
+`consent` object and creates a new generation only when the owned prior
+generation is `failed` or `needs_more_evidence`. Access is revalidated.
+`GET /skill-profiles/me/generations/latest` provides reload recovery. A duplicate
+start includes the active `generationId` in the error envelope metadata.
+
+Stable errors include `GITHUB_APP_NOT_CONFIGURED`, `GITHUB_APP_STATE_INVALID`,
+`GITHUB_APP_INSTALLATION_ACCESS_NOT_VERIFIED`,
+`GITHUB_APP_REPOSITORY_NOT_SELECTED`,
+`GITHUB_APP_WEBHOOK_SIGNATURE_INVALID`,
+`SKILL_PROFILE_ANALYSIS_CONSENT_REQUIRED`, and
+`SKILL_PROFILE_GENERATION_NOT_RETRYABLE`. After audited cutover, legacy private
+repository OAuth routes fail with `GITHUB_REPOSITORY_OAUTH_MIGRATED`; anonymous
+public-project import and identity-only GitHub login remain independent.
 
 AI implementation lives in a separate FastAPI AI repository. The NestJS backend
 calls that service through `AiService` and integration clients and owns all business decisions,

@@ -1358,3 +1358,149 @@ This keeps the system strong without making it heavy:
   matches are case-sensitive against stored values; a normalized technology
   facet/aggregation for the frontend filter (TASK-3-06) and the FastAPI semantic
   ranking layer (TASK-2-05) remain follow-ups.
+
+### 2026-07-26 - Optional GitHub skill-profiling specification
+
+- Modules: project-wide product governance; future changes will be owned by
+  `github`, `skill-profiles`, `contributor-profiles`, `identity`, and `ai`.
+- Requirement/task IDs: PRD FR-011 through FR-014, FR-027 through FR-033,
+  FR-083, FR-084, FR-088, FR-090, FR-094; backlog TASK-1-04, TASK-1-05, and
+  TASK-3-02 through TASK-3-04; Constitution v3.1.0; ADR-002.
+- Change type: product requirement synchronization, constitution amendment,
+  and Spec Kit specification/technical planning only.
+- Summary: Separated registration and normal profile access from optional
+  GitHub skill profiling. Defined the target GitHub App installation boundary,
+  explicit repository selection, analysis consent, explicit generation start,
+  profile-based status presentation, admin review, and revocation behavior.
+- API/database changes: none; current broad repository OAuth implementation is
+  documented as brownfield behavior to migrate during later implementation.
+- Checks: Spec Kit requirements checklist passed without clarification markers;
+  pre/post-design constitution gates passed; constitution version/template
+  consistency and `git diff --check` passed.
+- Docs updated: Feature 1 PRD, backlog, Sprint 1-3 journeys, Constitution v3.1.0,
+  Spec Kit plan template, active feature pointer, managed `AGENTS.md` plan
+  reference, and
+  `specs/004-optional-github-skill-profile/`.
+- Task generation: added 66 dependency-ordered tasks across configuration,
+  additive persistence, repository-free profile behavior, verified GitHub App
+  installation, explicit-consent generation, revocation, cutover, tests, and
+  final verification in `specs/004-optional-github-skill-profile/tasks.md`.
+- Post-analysis remediation: ran the Spec Kit clarification workflow with five
+  accepted decisions, then synchronized plan/research/model/contracts/quickstart
+  and regenerated task coverage for pending-user permissions, multiple
+  installations, 30-day legacy evidence cleanup, local disconnect versus
+  provider uninstall, explicit retry, public private-evidence redaction tests,
+  latency/revocation thresholds, bounded provider retries, and usability
+  validation. The specification checklist remains 16/16 passing.
+- Final Spec Kit analysis remediation (2026-07-27): clarified that one canonical
+  organization GitHub App installation may have multiple independently verified
+  Share-k user links while each user's selection, consent, generations, skills,
+  and disconnect remain isolated. Updated the data model and contracts to use an
+  installation/link join boundary and live access checks rather than an
+  undefined verification-age threshold. Replaced the incorrect `AuthService`
+  authorization task with audit-first guard/controller tests, added the retry
+  controller task and explicit AI/log redaction paths, inventoried legacy fields,
+  split the 30-day cleanup into module-owned controlled-clock tasks/tests, and
+  classified the ten-person usability exercise as external release evidence.
+- Risks/follow-up: create the technical plan before code changes; register a
+  development GitHub App only after callback, setup, webhook, credential, data
+  migration, and compatibility contracts are planned. The optional agent-context
+  refresh could not run because Python with PyYAML is unavailable; no context
+  file was changed.
+
+### 2026-07-27 - Optional GitHub App skill-profiling implementation
+
+- Modules: `github`, `skill-profiles`, `contributor-profiles`, with preserved
+  identity-only GitHub login and anonymous public-project import boundaries.
+- Requirement/task IDs: Feature 1 FR-001 through FR-021, TS-001 through TS-008,
+  PRD FR-011 through FR-014 and FR-027 through FR-033; completed Spec Kit tasks
+  are recorded individually in `specs/004-optional-github-skill-profile/tasks.md`.
+- Summary: added selected-repository GitHub App configuration, RS256 app JWT and
+  raw-body HMAC boundaries, provider client, canonical installations, isolated
+  verified member links, mutable immutable-ID repository membership, expiring
+  single-use callback attempts, selected-repository picker, local disconnect,
+  signed idempotent lifecycle webhooks, explicit versioned generation consent,
+  retry-as-new-generation, on-demand installation-token evidence, pending skill
+  review preservation, public evidence redaction, audited broad-OAuth cutover,
+  and module-owned day-30 cleanup operations. Installation alone never enqueues
+  analysis. Organization installations may be shared only through separately
+  verified member links.
+- API changes: added `POST /github/app/installations/start`, browser `GET
+  /auth/github/app/callback`, protected completion/status/repository/disconnect
+  routes, `POST /webhooks/github/app`, and generation retry. Generation start now
+  requires `installationLinkId`, immutable `repositoryIds`, and consent version
+  `github-skill-analysis-v1`. Legacy repository OAuth routes return the stable
+  migration error after the database cutover clock is set; new OAuth grants no
+  longer request `repo` or `public_repo`.
+- Authorization/privacy impact: every picker/start/worker boundary performs live
+  member and repository validation; installation credentials are ephemeral;
+  member/refresh tokens are encrypted per user link; callback codes/tokens never
+  reach the frontend; local disconnect does not uninstall or delete social
+  identity; other-user/public skill output excludes private evidence summaries.
+- Database changes: additive migration
+  `20260727120000_add_github_app_foundation` creates installation/link/repository,
+  callback-attempt, webhook-delivery, and singleton cutover state plus immutable
+  generation authorization/consent snapshots. Forward migration
+  `20260727140000_nullable_legacy_github_credentials` makes the legacy access
+  token nullable for audited purge. Both migrations were applied with `prisma
+  migrate deploy` to the running local Docker PostgreSQL database; `prisma
+  migrate status` reports all 16 repository migrations applied. No staging or
+  production database was changed.
+- Configuration: documented and passed through GitHub App IDs, client secret,
+  Base64 private key, webhook secret/proxy, installation/callback/return URLs,
+  and existing slug/full-app-URL forms. Existing `.env` values and GitHub App
+  configuration were not changed.
+- Verification: `docker compose exec -T api npx prisma migrate deploy` applied
+  both Feature 1 migrations; containerized `npx prisma migrate status` reported
+  the schema current. `npx prisma validate` and `npx prisma generate` passed;
+  focused GitHub/skill-profile acceptance tests passed; `npm run
+  check:architecture` passed for 13 modules; `npm run lint`, `npx tsc --noEmit`,
+  `npm run build`, and `git diff --check` passed. The final permitted full
+  `npx jest --runInBand` run passed 51 suites and 210 tests. Initial
+  unprivileged E2E failures were solely local socket `EPERM`; the permitted runs
+  passed.
+- Documentation: updated module READMEs, local development/Smee guidance, API
+  contracts and REST examples, database cutover plan, team onboarding, Feature 1
+  research/quickstart/tasks, and this tracker.
+- Known risks/release blockers: the two migrations still require representative
+  brownfield/staging validation and rollback review; live GitHub provider,
+  organization-approval, webhook replay, and end-to-end revocation exercises
+  require external credentials/public HTTPS. The SC-004 usability result remains
+  honestly `0/10` and pending external validation. T065 is now the only unchecked
+  task because it requires a deployed pre-release environment and ten real
+  representative contributors; all repository-executable tasks are complete.
+
+### 2026-07-27 - Feature 1 frontend integration-gap remediation
+
+- Modules: `github` and `skill-profiles`.
+- Requirement IDs: Feature 1 installation completion, explicit provider
+  installation choice, idempotent generation recovery, and frontend handoff.
+- Summary: added authenticated callback-attempt candidate retrieval so a
+  frontend receiving an opaque `attemptId` can safely select a server-verified
+  personal or organization installation before protected completion. Added
+  latest-generation retrieval and active-generation conflict metadata so a
+  contributor can recover polling after reload or a duplicate start.
+- API changes: added `GET
+  /github/app/installations/attempts/:attemptId` and `GET
+  /skill-profiles/me/generations/latest`. The existing
+  `SKILL_PROFILE_GENERATION_ALREADY_ACTIVE` 409 response now includes the owned
+  active `generationId` in `metadata`.
+- Authorization/privacy impact: attempt lookup requires the normal access-token
+  guard and filters by attempt ID, authenticated user, callback-processed state,
+  unconsumed completion, and expiry. It returns only provider installation ID,
+  account login/type, attempt ID, and expiry; pending credentials, state hashes,
+  and raw provider payloads remain private. Reauthorization attempts expose only
+  their intended target candidate. Latest-generation lookup is user-scoped.
+- Database changes: none; both operations read existing GitHub-owned and
+  skill-profiles-owned tables, so no Prisma migration was needed.
+- Documentation: corrected stale legacy repository-name generation examples and
+  updated the Feature 1 HTTP contract, module READMEs, API contracts, and REST
+  examples with the candidate and reload-recovery flows.
+- Verification: focused service/repository tests passed 32/32; updated HTTP
+  contract suites passed 10/10; `npm run check:architecture`, `npm run lint`,
+  `npx tsc --noEmit`, `npx prisma validate`, `npm run build`, and `git diff
+  --check` passed. The full `npx jest --runInBand` run passed 51 suites and 218
+  tests.
+- Known risks/follow-up: repository-executable frontend blockers are resolved.
+  Real GitHub provider/organization approval and SC-004 ten-contributor
+  pre-release validation remain external release evidence.

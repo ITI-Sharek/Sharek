@@ -90,6 +90,10 @@ These values usually need teammate-specific setup:
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 - `GITHUB_OAUTH_CALLBACK_URL`
+- `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, and `GITHUB_APP_CLIENT_SECRET`
+- `GITHUB_APP_PRIVATE_KEY_BASE64` and `GITHUB_APP_WEBHOOK_SECRET`
+- `GITHUB_APP_INSTALLATION_URL`, `GITHUB_APP_CALLBACK_URL`, and
+  `GITHUB_APP_FRONTEND_RETURN_URL`
 - `AI_SERVICE_URL`
 - `AI_SERVICE_AUTH_TOKEN`
 
@@ -106,6 +110,12 @@ Use this repository-connect callback in `.env`:
 ```text
 http://localhost:4000/auth/github/callback/repository
 ```
+
+Repository evidence now uses a separate GitHub App. Ask for its development
+configuration through the private team channel; never share the PEM file or a
+real Base64 private key in the repository. Configure selected repositories,
+Metadata read, Contents read, authorization during installation, no setup URL,
+and forward local webhook deliveries as described in `docs/local-development.md`.
 
 For AI features, run the separate FastAPI AI repository and point
 `AI_SERVICE_URL` at it. When the backend runs in Docker and the AI service runs

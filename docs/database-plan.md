@@ -113,6 +113,29 @@ aliases such as `ts`, `js`, and `c sharp` with the same canonical policy.
 
 ## Migration Rules
 
+## GitHub repository-evidence cutover
+
+The GitHub App tables are introduced additively before any legacy credential is
+removed. `GitHubEvidenceCutover` is the only authoritative cutover clock. The
+audited operation first persists that clock, attempts provider revocation for
+each broad repository OAuth credential, records aggregate success/failure,
+purges the local credential regardless of provider outcome, and reports the
+count requiring manual provider revocation. It does not delete identity-owned
+social-login links, approved skills, or admin decisions.
+
+The same record sets `legacy_evidence_cleanup_due_at` to exactly 30 days after
+cutover. At or after that time, module-owned idempotent operations remove
+GitHub-owned raw profile JSON and skill-profiles-owned private/unknown evidence
+using fail-closed allowlists. Approved skill rows and review decisions remain;
+unresolved legacy generations transition to `needs_more_evidence`. Rollback may
+restore application code before cutover, but cannot restore purged provider
+credentials or private evidence afterward.
+
+Pre-release verification must apply both forward migrations to representative
+identity-only, broad-OAuth, pending-generation, approved-skill, and no-GitHub
+fixtures; inspect dry-run counts; execute cutover once; rerun it to prove
+idempotency; and exercise cleanup immediately before, at, and after its due time.
+
 - Every schema change requires a Prisma migration.
 - Do not edit production data manually as a normal workflow.
 - Add indexes for common filters and foreign keys.
