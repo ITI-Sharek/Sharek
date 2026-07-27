@@ -30,11 +30,11 @@ This folder is the operating manual for the backend repo.
 
 When documents conflict, use this order:
 
-1. Current sprint/task brief.
-2. PRD requirement IDs in `bmad/_bmad-output/planning-artifacts/prds/prd-Grad_Project-2026-06-17/prd.md`.
-3. ADR-002 in `bmad/_bmad-output/planning-artifacts/architecture/`.
-4. Backend docs in this folder.
-5. Older notes or informal chat history.
+1. Shared decision log, `CONTEXT.md`, and accepted ADRs in `../../docs/`.
+2. Current shared sprint and approved task brief.
+3. Unaffected PRD requirements in `../../docs/product/prd/`.
+4. Backend implementation specifications and docs in this repository.
+5. Historical files under `../../docs/archive/` and informal chat history.
 
 ## How To Use These Docs
 

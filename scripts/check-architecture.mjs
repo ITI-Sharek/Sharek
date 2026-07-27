@@ -84,7 +84,7 @@ function checkRequiredFiles(modules) {
     'docs/definition-of-done.md',
     'docs/folder-structure.md',
     'docs/examples/module-skeleton.md',
-    'bmad/_bmad-output/planning-artifacts/architecture/adr-002-standard-nestjs-module-architecture.md',
+    'docs/SHARED-PRODUCT-DOCS.md',
   ];
 
   for (const file of files) {

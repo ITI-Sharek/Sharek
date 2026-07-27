@@ -1504,3 +1504,20 @@ This keeps the system strong without making it heavy:
 - Known risks/follow-up: repository-executable frontend blockers are resolved.
   Real GitHub provider/organization approval and SC-004 ten-contributor
   pre-release validation remain external release evidence.
+
+### 2026-07-27 - Canonical documentation architecture-check repair
+
+- Modules: all backend modules; no runtime module behavior changed.
+- Requirement/task IDs: DEC-040 documentation ownership; backend PR #45 CI.
+- Change type: architecture tooling and documentation.
+- Summary: Replaced the architecture check's required path to the deleted local
+  BMAD ADR copy with the repository-local canonical-documentation pointer.
+  `docs/architecture.md` remains the required and enforced backend architecture
+  contract, while historical rationale stays in the shared Documentation
+  repository.
+- API/database changes: none.
+- Tests/checks: `npm run check:architecture`, `git diff --check`.
+- Docs updated: this tracker.
+- Risks/follow-up: backend CI verifies the local pointer and implementation
+  contract but does not clone or validate the separate private Documentation
+  repository.
