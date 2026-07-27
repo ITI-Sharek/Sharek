@@ -1,0 +1,26 @@
+{
+  "installationPermissions": {
+    "metadata": "read",
+    "contents": "read"
+  },
+  "allowedOperations": [
+    "GET /user/installations",
+    "GET /user/installations/{installation_id}/repositories",
+    "GET /app/installations/{installation_id}",
+    "POST /app/installations/{installation_id}/access_tokens",
+    "GET /installation/repositories",
+    "GET /repos/{owner}/{repo}",
+    "GET /repos/{owner}/{repo}/languages",
+    "GET /repos/{owner}/{repo}/readme",
+    "GET /repos/{owner}/{repo}/stats/contributors",
+    "GET /repos/{owner}/{repo}/stats/commit_activity",
+    "GET /repos/{owner}/{repo}/commits"
+  ],
+  "forbiddenPermissions": [
+    "administration:write",
+    "contents:write",
+    "members:read",
+    "metadata:write",
+    "pull_requests:write"
+  ]
+}

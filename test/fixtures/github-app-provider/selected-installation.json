@@ -1,0 +1,16 @@
+{
+  "id": 987654321,
+  "account": {
+    "id": 42,
+    "login": "sharek-example",
+    "type": "Organization"
+  },
+  "app_id": 123456,
+  "repository_selection": "selected",
+  "permissions": {
+    "metadata": "read",
+    "contents": "read"
+  },
+  "suspended_at": null,
+  "created_at": "2026-07-01T00:00:00Z"
+}

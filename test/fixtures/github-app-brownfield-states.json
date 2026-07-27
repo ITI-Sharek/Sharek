@@ -1,0 +1,37 @@
+{
+  "identityOnlyOAuth": {
+    "authProviderAccount": {
+      "provider": "github",
+      "provider_account_id": "101",
+      "raw_profile_data": { "id": 101, "login": "identity-user" }
+    },
+    "githubAccount": null
+  },
+  "repositoryOAuth": {
+    "githubAccount": {
+      "access_token": "encrypted-legacy-token",
+      "refresh_token": null,
+      "raw_profile_data": { "id": 102, "login": "legacy-user" }
+    }
+  },
+  "pendingGeneration": {
+    "status": "pending_review",
+    "selected_repositories": [{ "fullName": "private-owner/private-repo" }],
+    "evidence_snapshot": { "repositories": [{ "readmeContent": "private" }] }
+  },
+  "approvedSkill": {
+    "status": "approved",
+    "evidence_summary": "reviewed summary",
+    "evidence_sources": { "evidenceIds": ["github:private-owner/private-repo"] },
+    "reviewDecision": { "action": "approve" }
+  },
+  "noGitHubUser": {
+    "authProviderAccount": null,
+    "githubAccount": null,
+    "installationLinks": []
+  },
+  "unknownPrivateKeysFailClosed": {
+    "evidence_snapshot": { "future_private_key": "remove" },
+    "expectedDisposition": "purge"
+  }
+}

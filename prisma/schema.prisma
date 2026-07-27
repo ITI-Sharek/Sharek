@@ -124,6 +124,50 @@ enum GitHubAccountIngestionStatus {
   failed
 }
 
+enum GitHubAppAccountType {
+  user
+  organization
+}
+
+enum GitHubAppRepositorySelection {
+  selected
+  all
+}
+
+enum GitHubAppInstallationStatus {
+  active
+  suspended
+  deleted
+  verification_failed
+}
+
+enum GitHubAppInstallationLinkStatus {
+  active
+  disconnected
+  reauthorization_required
+  revoked
+}
+
+enum GitHubAppLinkFlowType {
+  install_and_authorize
+  authorize_existing_installation
+}
+
+enum GitHubAppLinkStateStatus {
+  issued
+  callback_processed
+  completed
+  expired
+  rejected
+}
+
+enum GitHubWebhookDeliveryStatus {
+  received
+  processed
+  failed
+  ignored
+}
+
 enum NotificationType {
   application_status
   skill_review
@@ -259,6 +303,8 @@ model User {
   authProviderAccounts        AuthProviderAccount[]
   authOAuthStates             AuthOAuthState[]
   githubOAuthStates           GitHubOAuthState[]
+  githubAppInstallationLinks  GitHubAppInstallationLink[]
+  githubAppLinkStates         GitHubAppLinkState[]
   emailVerificationOtps       EmailVerificationOtp[]
   passwordResetOtps           PasswordResetOtp[]
 }
@@ -332,16 +378,16 @@ model PasswordResetOtp {
 }
 
 model ContributorProfile {
-  id                 String                      @id @default(uuid()) @db.Uuid
-  user_id            String                      @unique @db.Uuid
-  bio                String?
-  availability       String?                     @db.VarChar(100)
-  experience_level_id String?                    @db.Uuid
-  declared_skills    String[]                    @default([])
-  avatar_data        Bytes?
-  avatar_mime_type   String?                     @db.VarChar(50)
-  created_at         DateTime                    @default(now())
-  updated_at         DateTime                    @default(now()) @updatedAt
+  id                  String   @id @default(uuid()) @db.Uuid
+  user_id             String   @unique @db.Uuid
+  bio                 String?
+  availability        String?  @db.VarChar(100)
+  experience_level_id String?  @db.Uuid
+  declared_skills     String[] @default([])
+  avatar_data         Bytes?
+  avatar_mime_type    String?  @db.VarChar(50)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now()) @updatedAt
 
   user             User                        @relation(fields: [user_id], references: [id])
   experience_level ContributorExperienceLevel? @relation(fields: [experience_level_id], references: [id], onDelete: SetNull)
@@ -618,7 +664,7 @@ model GitHubAccount {
   user_id          String                       @unique @db.Uuid
   github_id        String                       @unique @db.VarChar(50)
   username         String                       @db.VarChar(100)
-  access_token     String                       @db.VarChar(500)
+  access_token     String?                      @db.VarChar(500)
   refresh_token    String?                      @db.VarChar(500)
   avatar_url       String?                      @db.VarChar(500)
   profile_url      String?                      @db.VarChar(500)
@@ -629,6 +675,134 @@ model GitHubAccount {
   last_synced_at   DateTime?
 
   user User @relation(fields: [user_id], references: [id])
+}
+
+model GitHubAppInstallation {
+  id                   String                       @id @default(uuid()) @db.Uuid
+  installation_id      String                       @unique @db.VarChar(50)
+  account_id           String                       @db.VarChar(50)
+  account_login        String                       @db.VarChar(100)
+  account_type         GitHubAppAccountType
+  repository_selection GitHubAppRepositorySelection
+  permissions          Json
+  status               GitHubAppInstallationStatus  @default(verification_failed)
+  installed_at         DateTime
+  last_verified_at     DateTime?
+  suspended_at         DateTime?
+  deleted_at           DateTime?
+  created_at           DateTime                     @default(now())
+  updated_at           DateTime                     @default(now()) @updatedAt
+
+  links        GitHubAppInstallationLink[]
+  repositories GitHubAppRepository[]
+  linkStates   GitHubAppLinkState[]
+
+  @@index([account_id])
+  @@index([status])
+}
+
+model GitHubAppInstallationLink {
+  id                       String                          @id @default(uuid()) @db.Uuid
+  installation_id          String                          @db.Uuid
+  user_id                  String                          @db.Uuid
+  github_user_id           String                          @db.VarChar(50)
+  github_login             String                          @db.VarChar(100)
+  encrypted_user_token     String?                         @db.Text
+  user_token_expires_at    DateTime?
+  encrypted_refresh_token  String?                         @db.Text
+  refresh_token_expires_at DateTime?
+  status                   GitHubAppInstallationLinkStatus @default(active)
+  last_verified_at         DateTime?
+  linked_at                DateTime                        @default(now())
+  disconnected_at          DateTime?
+  revoked_at               DateTime?
+  created_at               DateTime                        @default(now())
+  updated_at               DateTime                        @default(now()) @updatedAt
+
+  installation GitHubAppInstallation    @relation(fields: [installation_id], references: [id], onDelete: Restrict)
+  user         User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  generations  SkillProfileGeneration[]
+
+  @@unique([installation_id, user_id])
+  @@index([user_id, status])
+  @@index([github_user_id])
+}
+
+model GitHubAppRepository {
+  id                   String    @id @default(uuid()) @db.Uuid
+  installation_id      String    @db.Uuid
+  github_repository_id String    @db.VarChar(50)
+  full_name            String    @db.VarChar(255)
+  visibility           String    @db.VarChar(20)
+  default_branch       String?   @db.VarChar(255)
+  selected_at          DateTime  @default(now())
+  last_verified_at     DateTime
+  removed_at           DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @default(now()) @updatedAt
+
+  installation GitHubAppInstallation @relation(fields: [installation_id], references: [id], onDelete: Cascade)
+
+  @@unique([installation_id, github_repository_id])
+  @@index([installation_id, removed_at])
+}
+
+model GitHubAppLinkState {
+  id                                 String                   @id @default(uuid()) @db.Uuid
+  user_id                            String                   @db.Uuid
+  flow_type                          GitHubAppLinkFlowType
+  target_installation_id             String?                  @db.Uuid
+  state_hash                         String                   @unique @db.VarChar(128)
+  status                             GitHubAppLinkStateStatus @default(issued)
+  expires_at                         DateTime
+  callback_consumed_at               DateTime?
+  completion_consumed_at             DateTime?
+  verified_github_user_id            String?                  @db.VarChar(50)
+  verified_github_login              String?                  @db.VarChar(100)
+  accessible_installation_candidates Json?
+  encrypted_pending_user_token       String?                  @db.Text
+  pending_user_token_expires_at      DateTime?
+  encrypted_pending_refresh_token    String?                  @db.Text
+  pending_refresh_token_expires_at   DateTime?
+  failure_code                       String?                  @db.VarChar(100)
+  created_at                         DateTime                 @default(now())
+  updated_at                         DateTime                 @default(now()) @updatedAt
+
+  user               User                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  targetInstallation GitHubAppInstallation? @relation(fields: [target_installation_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, status])
+  @@index([expires_at])
+}
+
+model GitHubWebhookDelivery {
+  id                       String                      @id @default(uuid()) @db.Uuid
+  delivery_id              String                      @unique @db.VarChar(100)
+  event                    String                      @db.VarChar(100)
+  action                   String?                     @db.VarChar(100)
+  provider_installation_id String?                     @db.VarChar(50)
+  status                   GitHubWebhookDeliveryStatus @default(received)
+  retry_count              Int                         @default(0)
+  safe_error_code          String?                     @db.VarChar(100)
+  received_at              DateTime                    @default(now())
+  processed_at             DateTime?
+
+  @@index([provider_installation_id])
+  @@index([status])
+}
+
+model GitHubEvidenceCutover {
+  id                                  String    @id @default("github-evidence") @db.VarChar(50)
+  cutover_at                          DateTime?
+  executed_by                         String?   @db.VarChar(100)
+  legacy_credentials_purged_at        DateTime?
+  provider_revocation_succeeded_count Int       @default(0)
+  provider_revocation_failed_count    Int       @default(0)
+  legacy_evidence_cleanup_due_at      DateTime?
+  legacy_evidence_cleaned_at          DateTime?
+  last_error_code                     String?   @db.VarChar(100)
+  created_at                          DateTime  @default(now())
+  updated_at                          DateTime  @default(now()) @updatedAt
 }
 
 model Notification {
@@ -752,30 +926,42 @@ model SkillProfileReviewDecision {
 }
 
 model SkillProfileGeneration {
-  id                           String                       @id @default(uuid()) @db.Uuid
-  user_id                      String                       @db.Uuid
-  status                       SkillProfileGenerationStatus @default(queued)
-  selected_repositories        Json
-  evidence_snapshot            Json?
-  fraud_signals                Json?
-  evidence_quality             String?                      @db.VarChar(20)
-  failure_reason               String?
-  provider                     String?                      @db.VarChar(50)
-  model                        String?                      @db.VarChar(100)
-  prompt_version               String?                      @db.VarChar(100)
-  schema_version               String?                      @db.VarChar(100)
-  service_version              String?                      @db.VarChar(100)
-  selected_repository_count    Int                          @default(0)
-  snapshotted_repository_count Int                          @default(0)
-  created_at                   DateTime                     @default(now())
-  updated_at                   DateTime                     @default(now()) @updatedAt
-  completed_at                 DateTime?
+  id                              String                       @id @default(uuid()) @db.Uuid
+  user_id                         String                       @db.Uuid
+  status                          SkillProfileGenerationStatus @default(queued)
+  selected_repositories           Json
+  evidence_snapshot               Json?
+  fraud_signals                   Json?
+  evidence_quality                String?                      @db.VarChar(20)
+  failure_reason                  String?
+  provider                        String?                      @db.VarChar(50)
+  model                           String?                      @db.VarChar(100)
+  prompt_version                  String?                      @db.VarChar(100)
+  schema_version                  String?                      @db.VarChar(100)
+  service_version                 String?                      @db.VarChar(100)
+  selected_repository_count       Int                          @default(0)
+  snapshotted_repository_count    Int                          @default(0)
+  github_app_installation_link_id String?                      @db.Uuid
+  provider_installation_id        String?                      @db.VarChar(50)
+  consent_version                 String?                      @db.VarChar(100)
+  consented_at                    DateTime?
+  authorization_verified_at       DateTime?
+  authorization_failure_code      String?                      @db.VarChar(100)
+  retry_of_generation_id          String?                      @db.Uuid
+  created_at                      DateTime                     @default(now())
+  updated_at                      DateTime                     @default(now()) @updatedAt
+  completed_at                    DateTime?
 
-  user          User           @relation(fields: [user_id], references: [id])
-  skillProfiles SkillProfile[]
+  user                      User                       @relation(fields: [user_id], references: [id])
+  skillProfiles             SkillProfile[]
+  githubAppInstallationLink GitHubAppInstallationLink? @relation(fields: [github_app_installation_link_id], references: [id], onDelete: SetNull)
+  retryOf                   SkillProfileGeneration?    @relation("SkillProfileGenerationRetries", fields: [retry_of_generation_id], references: [id], onDelete: SetNull)
+  retries                   SkillProfileGeneration[]   @relation("SkillProfileGenerationRetries")
 
   @@index([user_id])
   @@index([status])
+  @@index([github_app_installation_link_id])
+  @@index([retry_of_generation_id])
 }
 
 model UsageTracker {

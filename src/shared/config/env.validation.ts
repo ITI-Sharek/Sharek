@@ -21,6 +21,18 @@ export const envValidationSchema = Joi.object({
   GITHUB_OAUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
   GITHUB_AUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
   GITHUB_TOKEN_ENCRYPTION_KEY: Joi.string().min(32).allow('').optional(),
+  GITHUB_APP_ID: Joi.string().pattern(/^\d+$/).allow('').optional(),
+  GITHUB_APP_CLIENT_ID: Joi.string().allow('').optional(),
+  GITHUB_APP_CLIENT_SECRET: Joi.string().allow('').optional(),
+  GITHUB_APP_PRIVATE_KEY_BASE64: Joi.string().base64().allow('').optional(),
+  GITHUB_APP_WEBHOOK_SECRET: Joi.string().min(32).allow('').optional(),
+  GITHUB_APP_WEBHOOK_PROXY_URL: Joi.string().uri().allow('').optional(),
+  // Existing environments may store either the bare app slug or its public
+  // GitHub Apps URL. Runtime code treats this as display/management metadata.
+  GITHUB_APP_SLUG: Joi.string().allow('').optional(),
+  GITHUB_APP_INSTALLATION_URL: Joi.string().uri().allow('').optional(),
+  GITHUB_APP_CALLBACK_URL: Joi.string().uri().allow('').optional(),
+  GITHUB_APP_FRONTEND_RETURN_URL: Joi.string().uri().allow('').optional(),
 
   SMTP_HOST: Joi.string().allow('').optional(),
   SMTP_PORT: Joi.number().port().default(587),

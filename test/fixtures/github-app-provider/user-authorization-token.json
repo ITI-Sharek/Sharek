@@ -1,0 +1,7 @@
+{
+  "access_token": "fixture-user-token",
+  "expires_in": 28800,
+  "refresh_token": "fixture-refresh-token",
+  "refresh_token_expires_in": 15897600,
+  "scope": ""
+}

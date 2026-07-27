@@ -1,0 +1,13 @@
+{
+  "total_count": 1,
+  "repositories": [
+    {
+      "id": 123456789,
+      "name": "backend",
+      "full_name": "sharek-example/backend",
+      "private": true,
+      "visibility": "private",
+      "default_branch": "main"
+    }
+  ]
+}
