@@ -106,7 +106,7 @@ describe('GitHub onboarding flow', () => {
     expect(startResponse.body.authorizationUrl).toContain('state=');
     expect(
       new URL(startResponse.body.authorizationUrl).searchParams.get('scope'),
-    ).toBe('read:user user:email public_repo');
+    ).toBe('read:user user:email');
     expect(
       new URL(startResponse.body.authorizationUrl).searchParams.get('prompt'),
     ).toBe('select_account');
@@ -250,7 +250,7 @@ describe('GitHub onboarding flow', () => {
       );
   });
 
-  it('requests private repository OAuth scope for contributors', async () => {
+  it('does not request broad repository OAuth scope for contributors', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send({
@@ -278,7 +278,7 @@ describe('GitHub onboarding flow', () => {
 
     expect(
       new URL(startResponse.body.authorizationUrl).searchParams.get('scope'),
-    ).toBe('read:user user:email repo');
+    ).toBe('read:user user:email');
   });
 
   it('uses minimal GitHub scope for social signup before repository consent', async () => {

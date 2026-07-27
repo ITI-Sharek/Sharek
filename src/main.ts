@@ -7,7 +7,7 @@ import { createCorsOptions } from './shared/config/cors.config';
 import { HttpExceptionFilter } from './shared/errors/http-exception.filter';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
 
   app.useGlobalPipes(

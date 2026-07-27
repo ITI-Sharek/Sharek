@@ -20,6 +20,7 @@ describe('ProjectsService', () => {
   };
   const gitHubRepositoryService = {
     getPublicImportSnapshot: jest.fn(),
+    getImportSnapshot: jest.fn(),
   };
   const service = new ProjectsService(
     database as never,
@@ -328,6 +329,25 @@ describe('ProjectsService', () => {
       status: ProjectStatus.draft,
       publishedAt: null,
     });
+  });
+
+  it('keeps anonymous public repository import independent of OAuth cutover', async () => {
+    database.project.findUnique.mockResolvedValue(null);
+    database.project.create.mockImplementation(({ data }) =>
+      Promise.resolve({
+        id: 'public-project-id',
+        created_at: new Date(),
+        updated_at: new Date(),
+        ...data,
+      }),
+    );
+    await service.importFromGitHub('user-id', {
+      repoUrl: 'https://github.com/ITI-Sharek/sharek-api',
+    });
+    expect(gitHubRepositoryService.getPublicImportSnapshot).toHaveBeenCalledWith(
+      'https://github.com/ITI-Sharek/sharek-api',
+    );
+    expect(gitHubRepositoryService.getImportSnapshot).not.toHaveBeenCalled();
   });
 
   it('creates a published project with reviewed metadata overrides', async () => {
