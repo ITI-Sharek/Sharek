@@ -735,6 +735,191 @@
 			]
 		},
 		{
+			"name": "Applications",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"const requestId = pm.environment.get('contributionRequestId');",
+							"const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;",
+							"if (!uuidV4.test(requestId || '')) {",
+							"  pm.environment.set('contributionRequestId', 'e9f13368-6922-4b96-9bb3-51bba1ac632e');",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"item": [
+				{
+					"name": "01 - Login Owner",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body.tokens) {",
+									"  pm.environment.set('ownerAccessToken', body.tokens.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "02 - Login Contributor",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const body = pm.response.json();",
+									"if (body.tokens) {",
+									"  pm.environment.set('contributorAccessToken', body.tokens.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{contributorEmail}}\",\n  \"password\": \"{{contributorPassword}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "03 - Submit Application",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"  const body = pm.response.json();",
+									"  pm.environment.set('applicationId', body.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"contributionApproach\": \"I will implement and test the requested NestJS workflow.\",\n  \"proposedDeliveryDurationDays\": 5,\n  \"idempotencyKey\": \"{{applicationIdempotencyKey}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/tasks/{{contributionRequestId}}/applications",
+							"host": ["{{baseUrl}}"],
+							"path": ["tasks", "{{contributionRequestId}}", "applications"]
+						},
+						"description": "Submit one Application as an active contributor. Reuse applicationIdempotencyKey to test replay behavior."
+					}
+				},
+				{
+					"name": "04 - List Request Applications as Owner",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/tasks/{{contributionRequestId}}/applications",
+							"host": ["{{baseUrl}}"],
+							"path": ["tasks", "{{contributionRequestId}}", "applications"]
+						},
+						"description": "List pending Applications as the owning Project owner. Set accessToken to an owner session token."
+					}
+				},
+				{
+					"name": "05 - Get Application as Owner",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/applications/{{applicationId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["applications", "{{applicationId}}"]
+						},
+						"description": "Inspect an Application as its contributor or the owning Project owner."
+					}
+				},
+				{
+					"name": "06 - Withdraw Application",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{withdrawalIdempotencyKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/applications/{{applicationId}}/withdraw",
+							"host": ["{{baseUrl}}"],
+							"path": ["applications", "{{applicationId}}", "withdraw"]
+						},
+						"description": "Withdraw a pending Application as its contributor. Reuse withdrawalIdempotencyKey to test replay behavior."
+					}
+				}
+			]
+		},
+		{
 			"name": "Google",
 			"item": [
 				{
@@ -826,11 +1011,11 @@
 		},
 		{
 			"key": "ownerEmail",
-			"value": "owner@example.com"
+			"value": "abdullahelsman294@gmail.com"
 		},
 		{
 			"key": "contributorEmail",
-			"value": "contributor@example.com"
+			"value": "contributor@sharek.local"
 		},
 		{
 			"key": "adminEmail",
@@ -838,7 +1023,7 @@
 		},
 		{
 			"key": "password",
-			"value": "Password123!"
+			"value": "Admin@1234"
 		},
 		{
 			"key": "accessToken",
@@ -875,6 +1060,38 @@
 		{
 			"key": "googleState",
 			"value": "replace-with-oauth-state"
+		},
+		{
+			"key": "contributionRequestId",
+			"value": "e9f13368-6922-4b96-9bb3-51bba1ac632e"
+		},
+		{
+			"key": "applicationId",
+			"value": ""
+		},
+		{
+			"key": "applicationIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000001"
+		},
+		{
+			"key": "withdrawalIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000002"
+		},
+		{
+			"key": "contributorAccessToken",
+			"value": ""
+		},
+		{
+			"key": "ownerAccessToken",
+			"value": ""
+		},
+		{
+			"key": "ownerPassword",
+			"value": ""
+		},
+		{
+			"key": "contributorPassword",
+			"value": "Admin@1234"
 		}
 	]
 }

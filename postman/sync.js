@@ -1,9 +1,23 @@
 const fs = require('fs');
 const https = require('https');
+const path = require('path');
 
-const apiKey = 'PMAK-69e4cb756f0bc80001eb26dc-6df7f4ada17288e92e06e3aabbdd4acb2c';
-const collectionId = '49916304-ce4a4ce2-a944-4d26-93ca-c2cbd75fd14f';
-const environmentId = '49916304-3364e9e1-739b-4f1e-a5d6-aac3d8ede7a3';
+const credentialsPath = path.resolve(__dirname, '..', 'API-Key.txt');
+const credentials = fs.readFileSync(credentialsPath, 'utf8');
+const apiKey =
+    process.env.POSTMAN_API_KEY || credentials.match(/PMAK-[A-Za-z0-9-]+/)?.[0];
+const collectionId =
+    process.env.POSTMAN_COLLECTION_ID ||
+    credentials.match(/api\.postman\.com\/collections\/([A-Za-z0-9-]+)/i)?.[1];
+const environmentId =
+    process.env.POSTMAN_ENVIRONMENT_ID ||
+    '49916304-3364e9e1-739b-4f1e-a5d6-aac3d8ede7a3';
+
+if (!apiKey || !collectionId) {
+    throw new Error(
+        'API-Key.txt must contain a Postman API key and collection URL',
+    );
+}
 
 const updatePostman = (type, id, filePath) => {
     return new Promise((resolve, reject) => {
@@ -26,7 +40,11 @@ const updatePostman = (type, id, filePath) => {
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', () => {
                 console.log(`Updated ${type}:`, res.statusCode, data);
-                resolve();
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    resolve();
+                    return;
+                }
+                reject(new Error(`Postman ${type} update failed (${res.statusCode})`));
             });
         });
 
