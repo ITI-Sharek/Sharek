@@ -16,19 +16,19 @@ import {
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { ContributionTasksService } from '../contribution-tasks/contribution-tasks.service';
+import { ContributorProfilesService } from '../contributor-profiles/contributor-profiles.service';
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SkillProfileSummaryService } from '../skill-profiles/services/skill-profile-summary.service';
 import {
   ApplicationDto,
   ApplicationEvidenceSummaryDto,
+  ApplicationProfileContextDto,
   ApplicationRequirementSnapshotDto,
   ApplicationStatusDto,
   OwnerApplicationsDto,
 } from './dto/application-response.dto';
-import {
-  ApplicationRequestContextDto,
-} from '../contribution-tasks/dto/application-request-context.dto';
+import { ApplicationRequestContextDto } from '../contribution-tasks/dto/application-request-context.dto';
 import {
   ApplicationRequestScopeDto,
   PendingApplicationsOwnerWorkspaceSummaryDto,
@@ -44,7 +44,8 @@ type ApplicationWithSnapshots = Prisma.ApplicationGetPayload<{
   include: typeof APPLICATION_INCLUDE;
 }>;
 
-const IDEMPOTENCY_KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const IDEMPOTENCY_KEY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class ApplicationsService {
@@ -55,12 +56,13 @@ export class ApplicationsService {
     private readonly skillProfiles: SkillProfileSummaryService,
     private readonly identity: IdentityUsernameService,
     private readonly notifications: NotificationsService,
+    private readonly contributorProfiles: ContributorProfilesService,
   ) {}
 
   async submit(input: {
     actor: AuthenticatedUser;
     contributionRequestId: string;
-    contributionApproach: string | null;
+    contributionApproach: string;
     proposedDeliveryDurationDays: number;
     idempotencyKey: string;
   }): Promise<ApplicationDto> {
@@ -83,27 +85,31 @@ export class ApplicationsService {
       return this.present(replay);
     }
 
-    const context = await this.contributionTasks.getApplicationSubmissionContext(
-      input.contributionRequestId,
-    );
+    const context =
+      await this.contributionTasks.getApplicationSubmissionContext(
+        input.contributionRequestId,
+      );
     this.assertRequestAcceptsApplications(context, new Date());
-    const [user, approvedSkills] = await Promise.all([
+    const [user, approvedSkills, profileContext] = await Promise.all([
       this.identity.getUserById(input.actor.id),
       this.skillProfiles.listApprovedSkillsForEligibility(input.actor.id),
+      this.contributorProfiles.getApplicationProfileContext(input.actor.id),
     ]);
     const contributorContext = {
       id: user.id,
       username: user.username,
       displayName: `${user.first_name} ${user.last_name}`.trim(),
+      profile: profileContext,
     };
 
     let application: ApplicationWithSnapshots;
     try {
       application = await this.database.$transaction(async (transaction) => {
-        const locked = await this.contributionTasks.lockApplicationSubmissionContext(
-          input.contributionRequestId,
-          transaction,
-        );
+        const locked =
+          await this.contributionTasks.lockApplicationSubmissionContext(
+            input.contributionRequestId,
+            transaction,
+          );
         const now = new Date();
         this.assertRequestAcceptsApplications(locked, now);
         const transactionReplay = await this.readReplayFromTransaction({
@@ -134,15 +140,24 @@ export class ApplicationsService {
             id: requirementSnapshotId,
             contribution_request_id: input.contributionRequestId,
             source_request_updated_at: locked!.updatedAt,
-            requirements: locked!.requirements as unknown as Prisma.InputJsonValue,
+            requirements: locked!.requirements.map((requirement) => ({
+              id: requirement.id,
+              kind: requirement.kind,
+              position: requirement.position,
+              text: requirement.text,
+            })) as unknown as Prisma.InputJsonValue,
           },
         });
         await transaction.applicationEvidenceSnapshot.create({
           data: {
             id: evidenceSnapshotId,
             contributor_id: input.actor.id,
-            contributor_context: contributorContext,
-            evidence: approvedSkills as unknown as Prisma.InputJsonValue,
+            contributor_context:
+              contributorContext as unknown as Prisma.InputJsonValue,
+            evidence: approvedSkills.map((skill) => ({
+              ...skill,
+              evidenceSources: this.jsonObject(skill.evidenceSources),
+            })) as unknown as Prisma.InputJsonValue,
           },
         });
         const created = await transaction.application.create({
@@ -175,7 +190,10 @@ export class ApplicationsService {
         return created;
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
         const lostRace = await this.readReplay({
           actorId: input.actor.id,
           action: ApplicationAuditAction.submitted,
@@ -197,10 +215,12 @@ export class ApplicationsService {
     contributionRequestId: string,
   ): Promise<OwnerApplicationsDto> {
     this.assertActiveOwner(actor);
-    const context = await this.contributionTasks.getApplicationSubmissionContext(
-      contributionRequestId,
-    );
-    if (!context || context.ownerId !== actor.id) throw this.applicationNotFound();
+    const context =
+      await this.contributionTasks.getApplicationSubmissionContext(
+        contributionRequestId,
+      );
+    if (!context || context.ownerId !== actor.id)
+      throw this.applicationNotFound();
     const applications = await this.database.application.findMany({
       where: {
         contribution_request_id: contributionRequestId,
@@ -209,7 +229,11 @@ export class ApplicationsService {
       orderBy: [{ submitted_at: 'asc' }, { id: 'asc' }],
       include: APPLICATION_INCLUDE,
     });
-    return { applications: applications.map((application) => this.present(application)) };
+    return {
+      applications: applications.map((application) =>
+        this.present(application),
+      ),
+    };
   }
 
   async getForActor(
@@ -259,44 +283,44 @@ export class ApplicationsService {
     try {
       application = await this.database.$transaction(async (transaction) => {
         const current = await transaction.application.findFirst({
-        where: { id: input.applicationId, contributor_id: input.actor.id },
-        include: APPLICATION_INCLUDE,
-      });
-      if (!current) throw this.applicationNotFound();
-      if (current.status === ApplicationStatus.withdrawn) return current;
-      if (current.status !== ApplicationStatus.pending_owner_review) {
-        throw new ConflictApplicationError(
-          'Only a pending Application can be withdrawn',
-          'APPLICATION_TERMINAL',
-          { status: current.status },
-        );
-      }
-      const updated = await transaction.application.updateMany({
-        where: {
-          id: input.applicationId,
-          contributor_id: input.actor.id,
-          status: ApplicationStatus.pending_owner_review,
-        },
-        data: { status: ApplicationStatus.withdrawn },
-      });
-      if (updated.count !== 1) {
-        throw new ConflictApplicationError(
-          'Application changed during withdrawal',
-          'APPLICATION_CONCURRENT_MODIFICATION',
-        );
-      }
-      await transaction.applicationAudit.create({
-        data: {
-          application_id: input.applicationId,
-          actor_id: input.actor.id,
-          action: ApplicationAuditAction.withdrawn,
-          from_status: ApplicationStatus.pending_owner_review,
-          to_status: ApplicationStatus.withdrawn,
-          idempotency_key: idempotencyKey,
-          command_fingerprint: fingerprint,
-          metadata: { payloadVersion: 1 },
-        },
-      });
+          where: { id: input.applicationId, contributor_id: input.actor.id },
+          include: APPLICATION_INCLUDE,
+        });
+        if (!current) throw this.applicationNotFound();
+        if (current.status === ApplicationStatus.withdrawn) return current;
+        if (current.status !== ApplicationStatus.pending_owner_review) {
+          throw new ConflictApplicationError(
+            'Only a pending Application can be withdrawn',
+            'APPLICATION_TERMINAL',
+            { status: current.status },
+          );
+        }
+        const updated = await transaction.application.updateMany({
+          where: {
+            id: input.applicationId,
+            contributor_id: input.actor.id,
+            status: ApplicationStatus.pending_owner_review,
+          },
+          data: { status: ApplicationStatus.withdrawn },
+        });
+        if (updated.count !== 1) {
+          throw new ConflictApplicationError(
+            'Application changed during withdrawal',
+            'APPLICATION_CONCURRENT_MODIFICATION',
+          );
+        }
+        await transaction.applicationAudit.create({
+          data: {
+            application_id: input.applicationId,
+            actor_id: input.actor.id,
+            action: ApplicationAuditAction.withdrawn,
+            from_status: ApplicationStatus.pending_owner_review,
+            to_status: ApplicationStatus.withdrawn,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: fingerprint,
+            metadata: { payloadVersion: 1 },
+          },
+        });
         return transaction.application.findUniqueOrThrow({
           where: { id: input.applicationId },
           include: APPLICATION_INCLUDE,
@@ -329,9 +353,12 @@ export class ApplicationsService {
     requestScopes: ApplicationRequestScopeDto[];
   }): Promise<PendingApplicationsOwnerWorkspaceSummaryDto> {
     const contributionRequestIds = [
-      ...new Set(input.requestScopes.flatMap((scope) => scope.contributionRequestIds)),
+      ...new Set(
+        input.requestScopes.flatMap((scope) => scope.contributionRequestIds),
+      ),
     ];
-    if (contributionRequestIds.length === 0) return this.emptySummary(input.requestScopes);
+    if (contributionRequestIds.length === 0)
+      return this.emptySummary(input.requestScopes);
     const counts = await this.database.application.groupBy({
       by: ['contribution_request_id'],
       where: {
@@ -422,9 +449,9 @@ export class ApplicationsService {
   }
 
   private presentReplay(
-    audit: (Prisma.ApplicationAuditGetPayload<{
+    audit: Prisma.ApplicationAuditGetPayload<{
       include: { application: { include: typeof APPLICATION_INCLUDE } };
-    }> | null),
+    }> | null,
     fingerprint: string,
   ): ApplicationWithSnapshots | null {
     if (!audit) return null;
@@ -438,18 +465,26 @@ export class ApplicationsService {
   }
 
   private present(application: ApplicationWithSnapshots): ApplicationDto {
-    const context = this.jsonObject(application.evidenceSnapshot?.contributor_context);
-    const requirements = this.jsonArray(application.requirementSnapshot?.requirements);
+    const context = this.jsonObject(
+      application.evidenceSnapshot?.contributor_context,
+    );
+    const requirements = this.jsonArray(
+      application.requirementSnapshot?.requirements,
+    );
     const evidence = this.jsonArray(application.evidenceSnapshot?.evidence);
     return {
       id: application.id,
       contributionRequestId: application.contribution_request_id,
       contributor: {
         id: application.contributor_id,
-        username: typeof context.username === 'string' ? context.username : null,
+        username:
+          typeof context.username === 'string' ? context.username : null,
         displayName:
-          typeof context.displayName === 'string' ? context.displayName : 'Contributor',
+          typeof context.displayName === 'string'
+            ? context.displayName
+            : 'Contributor',
       },
+      profileContext: this.presentProfileContext(context.profile),
       contributionApproach:
         application.contribution_approach ?? application.cover_message,
       proposedDeliveryDurationDays: application.proposed_delivery_duration_days,
@@ -462,7 +497,9 @@ export class ApplicationsService {
     };
   }
 
-  private presentRequirements(items: unknown[]): ApplicationRequirementSnapshotDto {
+  private presentRequirements(
+    items: unknown[],
+  ): ApplicationRequirementSnapshotDto {
     const mapped = items.map((item) => this.jsonObject(item));
     const project = (kind: string) =>
       mapped
@@ -483,12 +520,55 @@ export class ApplicationsService {
         typeof value.skillProfileId === 'string' ? value.skillProfileId : '',
       name: typeof value.name === 'string' ? value.name : '',
       proficiencyLevel:
-        typeof value.proficiencyLevel === 'string' ? value.proficiencyLevel : 'beginner',
+        typeof value.proficiencyLevel === 'string'
+          ? value.proficiencyLevel
+          : 'beginner',
       evidenceSummary:
-        typeof value.evidenceSummary === 'string' ? value.evidenceSummary : null,
+        typeof value.evidenceSummary === 'string'
+          ? value.evidenceSummary
+          : null,
       limitations: Array.isArray(sources.limitations)
-        ? sources.limitations.filter((item): item is string => typeof item === 'string')
+        ? sources.limitations.filter(
+            (item): item is string => typeof item === 'string',
+          )
         : [],
+    };
+  }
+
+  private presentProfileContext(value: unknown): ApplicationProfileContextDto {
+    const profile = this.jsonObject(value);
+    const experience = this.jsonObject(profile.experienceLevel);
+    const fields = this.jsonArray(profile.fields).map((field) =>
+      this.jsonObject(field),
+    );
+    return {
+      bio: typeof profile.bio === 'string' ? profile.bio : null,
+      availability:
+        typeof profile.availability === 'string' ? profile.availability : null,
+      experienceLevel:
+        typeof experience.key === 'string'
+          ? {
+              key: experience.key,
+              labelEn:
+                typeof experience.labelEn === 'string'
+                  ? experience.labelEn
+                  : '',
+              labelAr:
+                typeof experience.labelAr === 'string'
+                  ? experience.labelAr
+                  : '',
+            }
+          : null,
+      fields: fields
+        .filter((field) => typeof field.key === 'string')
+        .map((field) => ({
+          key: field.key as string,
+          labelEn: typeof field.labelEn === 'string' ? field.labelEn : '',
+          labelAr: typeof field.labelAr === 'string' ? field.labelAr : '',
+        })),
+      declaredSkills: this.jsonArray(profile.declaredSkills).filter(
+        (skill): skill is string => typeof skill === 'string',
+      ),
     };
   }
 

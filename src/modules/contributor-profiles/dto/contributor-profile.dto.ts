@@ -66,3 +66,15 @@ export interface ContributorProfileDto {
   completionPrompts: string[];
   viewerRelationship: 'owner' | 'authenticated-viewer';
 }
+
+export interface ContributorApplicationProfileContextDto {
+  bio: string | null;
+  availability: string | null;
+  experienceLevel: {
+    key: string;
+    labelEn: string;
+    labelAr: string;
+  } | null;
+  fields: Array<{ key: string; labelEn: string; labelAr: string }>;
+  declaredSkills: string[];
+}

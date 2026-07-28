@@ -1,26 +1,15 @@
 import { Transform } from 'class-transformer';
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Length,
-  Max,
-  Min,
-  ValidateIf,
-} from 'class-validator';
+import { IsInt, IsString, IsUUID, Length, Max, Min } from 'class-validator';
 
-function normalizeOptionalString({ value }: { value: unknown }): unknown {
+function normalizeString({ value }: { value: unknown }): unknown {
   return typeof value === 'string' ? value.trim() : value;
 }
 
 export class SubmitApplicationDto {
-  @IsOptional()
-  @Transform(normalizeOptionalString)
-  @ValidateIf((_object, value) => value !== null)
+  @Transform(normalizeString)
   @IsString()
   @Length(10, 5000)
-  contributionApproach?: string | null;
+  contributionApproach!: string;
 
   @IsInt()
   @Min(1)

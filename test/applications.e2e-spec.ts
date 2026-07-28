@@ -41,7 +41,8 @@ describe('Applications HTTP contract', () => {
       .overrideGuard(AccessTokenGuard)
       .useValue({
         canActivate: (context: ExecutionContext) => {
-          if (!authenticated) throw new UnauthorizedException('Missing bearer token');
+          if (!authenticated)
+            throw new UnauthorizedException('Missing bearer token');
           context.switchToHttp().getRequest().user = contributor;
           return true;
         },
@@ -64,7 +65,9 @@ describe('Applications HTTP contract', () => {
     authenticated = true;
     jest.resetAllMocks();
     service.submit.mockResolvedValue(applicationDto());
-    service.listForOwner.mockResolvedValue({ applications: [applicationDto()] });
+    service.listForOwner.mockResolvedValue({
+      applications: [applicationDto()],
+    });
     service.getForActor.mockResolvedValue(applicationDto());
     service.withdraw.mockResolvedValue(applicationDto({ status: 'WITHDRAWN' }));
   });
@@ -94,7 +97,10 @@ describe('Applications HTTP contract', () => {
   it('validates duration and idempotency before calling the service', async () => {
     await request(app.getHttpServer())
       .post(`/tasks/${requestId}/applications`)
-      .send({ contributionApproach: 'Too short', proposedDeliveryDurationDays: 0 })
+      .send({
+        contributionApproach: 'Too short',
+        proposedDeliveryDurationDays: 0,
+      })
       .expect(400);
 
     expect(service.submit).not.toHaveBeenCalled();
@@ -111,7 +117,10 @@ describe('Applications HTTP contract', () => {
       .expect(({ body }) => expect(body.id).toBe(applicationId));
 
     expect(service.listForOwner).toHaveBeenCalledWith(contributor, requestId);
-    expect(service.getForActor).toHaveBeenCalledWith(contributor, applicationId);
+    expect(service.getForActor).toHaveBeenCalledWith(
+      contributor,
+      applicationId,
+    );
   });
 
   it('withdraws a pending Application idempotently', async () => {
@@ -139,7 +148,7 @@ describe('Applications HTTP contract', () => {
     await request(app.getHttpServer())
       .post(`/tasks/${requestId}/applications`)
       .send({
-        contributionApproach: null,
+        contributionApproach: 'I will deliver a tested NestJS implementation.',
         proposedDeliveryDurationDays: 5,
         idempotencyKey,
       })
@@ -161,6 +170,17 @@ function applicationDto(overrides: Record<string, unknown> = {}) {
       id: contributor.id,
       username: 'contributor',
       displayName: 'Example Contributor',
+    },
+    profileContext: {
+      bio: 'Backend contributor',
+      availability: '10 hours/week',
+      experienceLevel: {
+        key: 'advanced',
+        labelEn: 'Advanced',
+        labelAr: 'Advanced',
+      },
+      fields: [{ key: 'backend', labelEn: 'Backend', labelAr: 'Backend' }],
+      declaredSkills: ['NestJS'],
     },
     contributionApproach: 'I will deliver a tested NestJS implementation.',
     proposedDeliveryDurationDays: 5,

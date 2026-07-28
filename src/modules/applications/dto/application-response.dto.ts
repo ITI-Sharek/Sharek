@@ -26,10 +26,19 @@ export interface ApplicationEvidenceSummaryDto {
   limitations: string[];
 }
 
+export interface ApplicationProfileContextDto {
+  bio: string | null;
+  availability: string | null;
+  experienceLevel: { key: string; labelEn: string; labelAr: string } | null;
+  fields: Array<{ key: string; labelEn: string; labelAr: string }>;
+  declaredSkills: string[];
+}
+
 export interface ApplicationDto {
   id: string;
   contributionRequestId: string;
   contributor: ApplicationContributorDto;
+  profileContext: ApplicationProfileContextDto;
   contributionApproach: string | null;
   proposedDeliveryDurationDays: number | null;
   status: ApplicationStatusDto;

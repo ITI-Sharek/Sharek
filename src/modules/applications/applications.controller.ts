@@ -31,7 +31,7 @@ export class ApplicationsController {
     return this.applicationsService.submit({
       actor,
       contributionRequestId,
-      contributionApproach: body.contributionApproach ?? null,
+      contributionApproach: body.contributionApproach,
       proposedDeliveryDurationDays: body.proposedDeliveryDurationDays,
       idempotencyKey: body.idempotencyKey,
     });
