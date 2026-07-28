@@ -16,6 +16,7 @@ import { ReputationService } from '../reputation/reputation.service';
 import { SkillProfileSummaryService } from '../skill-profiles/services/skill-profile-summary.service';
 import {
   ContributorProfileDto,
+  ContributorApplicationProfileContextDto,
   ContributorProfileWithUser,
 } from './dto/contributor-profile.dto';
 import { UpdateContributorProfileRequest } from './dto/update-contributor-profile.request';
@@ -38,6 +39,34 @@ export class ContributorProfilesService {
     private readonly reputationService: ReputationService,
     @Optional() private readonly githubAppService?: GitHubAppService,
   ) {}
+
+  async getApplicationProfileContext(
+    userId: string,
+  ): Promise<ContributorApplicationProfileContextDto> {
+    const profile = await this.findByUserId(userId);
+    return {
+      bio: profile?.bio ?? null,
+      availability: profile?.availability ?? null,
+      experienceLevel: profile?.experience_level
+        ? {
+            key: profile.experience_level.key,
+            labelEn: profile.experience_level.label_en,
+            labelAr: profile.experience_level.label_ar,
+          }
+        : null,
+      fields:
+        profile?.fields.map(({ field }) => ({
+          key: field.key,
+          labelEn: field.label_en,
+          labelAr: field.label_ar,
+        })) ?? [],
+      declaredSkills: Array.isArray(profile?.declared_skills)
+        ? profile.declared_skills.filter(
+            (skill): skill is string => typeof skill === 'string',
+          )
+        : [],
+    };
+  }
 
   async ensure(viewerUserId: string): Promise<ContributorProfileDto> {
     const user = await this.identityUsernameService.getUserById(viewerUserId);
@@ -90,9 +119,7 @@ export class ContributorProfilesService {
     const current =
       (await this.findByUserId(userWithUsername.id)) ??
       (await this.createForUser(userWithUsername.id));
-    const fieldIds = input.fieldIds
-      ? [...new Set(input.fieldIds)]
-      : undefined;
+    const fieldIds = input.fieldIds ? [...new Set(input.fieldIds)] : undefined;
 
     if (fieldIds) {
       const availableFields = await this.database.contributorField.count({
@@ -106,7 +133,10 @@ export class ContributorProfilesService {
       }
     }
 
-    if (input.experienceLevelId !== undefined && input.experienceLevelId !== null) {
+    if (
+      input.experienceLevelId !== undefined &&
+      input.experienceLevelId !== null
+    ) {
       const level = await this.database.contributorExperienceLevel.findFirst({
         where: { id: input.experienceLevelId, active: true },
       });
@@ -240,7 +270,12 @@ export class ContributorProfilesService {
 
   async createField(
     admin: AuthenticatedUser,
-    input: { key: string; labelEn: string; labelAr: string; sortOrder?: number },
+    input: {
+      key: string;
+      labelEn: string;
+      labelAr: string;
+      sortOrder?: number;
+    },
   ) {
     this.assertActiveAdmin(admin);
     try {
@@ -316,7 +351,12 @@ export class ContributorProfilesService {
 
   async createExperienceLevel(
     admin: AuthenticatedUser,
-    input: { key: string; labelEn: string; labelAr: string; sortOrder?: number },
+    input: {
+      key: string;
+      labelEn: string;
+      labelAr: string;
+      sortOrder?: number;
+    },
   ) {
     this.assertActiveAdmin(admin);
     try {
@@ -386,14 +426,15 @@ export class ContributorProfilesService {
     profile: ContributorProfileWithUser,
     viewerRelationship: 'owner' | 'authenticated-viewer',
   ): Promise<ContributorProfileDto> {
-    const [githubStatus, skills, reputationSummary, githubInstallations] = await Promise.all([
-      this.githubAccountService.getStatusForUser(profile.user_id),
-      this.skillProfileSummaryService.listSkillsForProfile(profile.user_id, {
-        includeGenerated: viewerRelationship === 'owner',
-      }),
-      this.reputationService.getSummaryForUser(profile.user_id),
-      this.listGitHubInstallationsSafely(profile.user_id, viewerRelationship),
-    ]);
+    const [githubStatus, skills, reputationSummary, githubInstallations] =
+      await Promise.all([
+        this.githubAccountService.getStatusForUser(profile.user_id),
+        this.skillProfileSummaryService.listSkillsForProfile(profile.user_id, {
+          includeGenerated: viewerRelationship === 'owner',
+        }),
+        this.reputationService.getSummaryForUser(profile.user_id),
+        this.listGitHubInstallationsSafely(profile.user_id, viewerRelationship),
+      ]);
 
     return presentContributorProfile({
       profile,
@@ -498,10 +539,11 @@ export class ContributorProfilesService {
     const normalized = skills
       .map((skill) => skill.trim())
       .filter(Boolean)
-      .filter((skill, index, values) =>
-        values.findIndex(
-          (candidate) => candidate.toLowerCase() === skill.toLowerCase(),
-        ) === index,
+      .filter(
+        (skill, index, values) =>
+          values.findIndex(
+            (candidate) => candidate.toLowerCase() === skill.toLowerCase(),
+          ) === index,
       );
     if (normalized.length > 30) {
       throw new BadRequestApplicationError(
@@ -515,9 +557,9 @@ export class ContributorProfilesService {
   private detectAvatarMimeType(buffer: Buffer): string | null {
     if (
       buffer.length >= 8 &&
-      buffer.subarray(0, 8).equals(
-        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      )
+      buffer
+        .subarray(0, 8)
+        .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
     ) {
       return 'image/png';
     }

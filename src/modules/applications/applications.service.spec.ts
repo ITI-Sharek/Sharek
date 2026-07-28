@@ -14,6 +14,7 @@ describe('ApplicationsService owner-workspace summary', () => {
     undefined as never,
     undefined as never,
     undefined as never,
+    undefined as never,
   );
 
   beforeEach(() => jest.resetAllMocks());
@@ -52,9 +53,7 @@ describe('ApplicationsService owner-workspace summary', () => {
   it('returns stable zero summaries without querying for empty Request scopes', async () => {
     await expect(
       service.summarizePendingByContributionRequests({
-        requestScopes: [
-          { projectId: 'project-1', contributionRequestIds: [] },
-        ],
+        requestScopes: [{ projectId: 'project-1', contributionRequestIds: [] }],
       }),
     ).resolves.toEqual({
       projects: [{ projectId: 'project-1', pendingApplicationCount: 0 }],
@@ -95,18 +94,21 @@ describe('ApplicationsService submission and withdrawal', () => {
   const skillProfiles = { listApprovedSkillsForEligibility: jest.fn() };
   const identity = { getUserById: jest.fn() };
   const notifications = { createApplicationNotification: jest.fn() };
+  const contributorProfiles = { getApplicationProfileContext: jest.fn() };
   const service = new ApplicationsService(
     database as never,
     contributionTasks as never,
     skillProfiles as never,
     identity as never,
     notifications as never,
+    contributorProfiles as never,
   );
 
   beforeEach(() => {
     jest.resetAllMocks();
     database.$transaction.mockImplementation(
-      (callback: (transaction: typeof database) => unknown) => callback(database),
+      (callback: (transaction: typeof database) => unknown) =>
+        callback(database),
     );
     const requestContext = {
       id: requestId,
@@ -141,14 +143,29 @@ describe('ApplicationsService submission and withdrawal', () => {
         evidenceSources: { evidenceIds: ['github:repo'], limitations: [] },
       },
     ]);
+    contributorProfiles.getApplicationProfileContext.mockResolvedValue({
+      bio: 'Backend contributor',
+      availability: '10 hours/week',
+      experienceLevel: {
+        key: 'advanced',
+        labelEn: 'Advanced',
+        labelAr: 'Advanced',
+      },
+      fields: [{ key: 'backend', labelEn: 'Backend', labelAr: 'Backend' }],
+      declaredSkills: ['NestJS'],
+    });
     database.applicationAudit.findFirst.mockResolvedValue(null);
     database.application.findUnique.mockResolvedValue(null);
     database.applicationRequirementSnapshot.create.mockResolvedValue({});
     database.applicationEvidenceSnapshot.create.mockResolvedValue({});
     database.applicationAudit.create.mockResolvedValue({});
     database.application.create.mockResolvedValue(applicationRecord());
-    database.application.findUniqueOrThrow.mockResolvedValue(applicationRecord());
-    notifications.createApplicationNotification.mockResolvedValue({ created: true });
+    database.application.findUniqueOrThrow.mockResolvedValue(
+      applicationRecord(),
+    );
+    notifications.createApplicationNotification.mockResolvedValue({
+      created: true,
+    });
   });
 
   it('submits one immutable snapshotted Application directly to owner review without AI or quota work', async () => {
@@ -165,7 +182,8 @@ describe('ApplicationsService submission and withdrawal', () => {
         data: expect.objectContaining({
           contribution_request_id: requestId,
           contributor_id: contributor.id,
-          contribution_approach: 'I will implement and test the NestJS workflow.',
+          contribution_approach:
+            'I will implement and test the NestJS workflow.',
           proposed_delivery_duration_days: 5,
           status: ApplicationStatus.pending_owner_review,
         }),
@@ -184,6 +202,9 @@ describe('ApplicationsService submission and withdrawal', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           evidence: [expect.objectContaining({ skillProfileId: 'skill-1' })],
+          contributor_context: expect.objectContaining({
+            profile: expect.objectContaining({ bio: 'Backend contributor' }),
+          }),
         }),
       }),
     );
@@ -196,32 +217,38 @@ describe('ApplicationsService submission and withdrawal', () => {
       expect.objectContaining({ action: 'submitted', userId: ownerId }),
     );
     expect(result.status).toBe('PENDING_OWNER_REVIEW');
+    expect(result.profileContext).toEqual(
+      expect.objectContaining({ bio: 'Backend contributor' }),
+    );
   });
 
   it.each([
     [ContributionRequestStatus.cancelled, 'REQUEST_CANCELLED'],
     [ContributionRequestStatus.assigned, 'REQUEST_TERMINAL'],
-  ])('returns a distinct stable error for %s Requests', async (status, code) => {
-    contributionTasks.getApplicationSubmissionContext.mockResolvedValue({
-      id: requestId,
-      ownerId,
-      status,
-      applicationsCloseAt: new Date('2030-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2026-07-28T11:00:00.000Z'),
-      requirements: [],
-    });
+  ])(
+    'returns a distinct stable error for %s Requests',
+    async (status, code) => {
+      contributionTasks.getApplicationSubmissionContext.mockResolvedValue({
+        id: requestId,
+        ownerId,
+        status,
+        applicationsCloseAt: new Date('2030-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-07-28T11:00:00.000Z'),
+        requirements: [],
+      });
 
-    await expect(
-      service.submit({
-        actor: contributor,
-        contributionRequestId: requestId,
-        contributionApproach: null,
-        proposedDeliveryDurationDays: 5,
-        idempotencyKey: '55555555-5555-4555-8555-555555555555',
-      }),
-    ).rejects.toMatchObject({ code });
-    expect(database.$transaction).not.toHaveBeenCalled();
-  });
+      await expect(
+        service.submit({
+          actor: contributor,
+          contributionRequestId: requestId,
+          contributionApproach: 'I will deliver this request safely.',
+          proposedDeliveryDurationDays: 5,
+          idempotencyKey: '55555555-5555-4555-8555-555555555555',
+        }),
+      ).rejects.toMatchObject({ code });
+      expect(database.$transaction).not.toHaveBeenCalled();
+    },
+  );
 
   it('returns stable closed, unauthorized, and duplicate submission errors', async () => {
     contributionTasks.getApplicationSubmissionContext.mockResolvedValueOnce({
@@ -236,7 +263,7 @@ describe('ApplicationsService submission and withdrawal', () => {
       service.submit({
         actor: contributor,
         contributionRequestId: requestId,
-        contributionApproach: null,
+        contributionApproach: 'I will deliver this request safely.',
         proposedDeliveryDurationDays: 5,
         idempotencyKey: '77777777-7777-4777-8777-777777777777',
       }),
@@ -246,7 +273,7 @@ describe('ApplicationsService submission and withdrawal', () => {
       service.submit({
         actor: { ...contributor, role: 'owner' },
         contributionRequestId: requestId,
-        contributionApproach: null,
+        contributionApproach: 'I will deliver this request safely.',
         proposedDeliveryDurationDays: 5,
         idempotencyKey: '77777777-7777-4777-8777-777777777777',
       }),
@@ -257,7 +284,7 @@ describe('ApplicationsService submission and withdrawal', () => {
       service.submit({
         actor: contributor,
         contributionRequestId: requestId,
-        contributionApproach: null,
+        contributionApproach: 'I will deliver this request safely.',
         proposedDeliveryDurationDays: 5,
         idempotencyKey: '77777777-7777-4777-8777-777777777777',
       }),
@@ -280,21 +307,27 @@ describe('ApplicationsService submission and withdrawal', () => {
       command_fingerprint: fingerprint,
       application: applicationRecord(),
     });
-    notifications.createApplicationNotification.mockResolvedValue({ created: false });
+    notifications.createApplicationNotification.mockResolvedValue({
+      created: false,
+    });
 
     await expect(service.submit(input)).resolves.toMatchObject({
       id: applicationId,
       status: 'PENDING_OWNER_REVIEW',
     });
     expect(database.applicationAudit.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: {
-      actor_id: contributor.id,
-      action: 'submitted',
-      idempotency_key: input.idempotencyKey,
-      } }),
+      expect.objectContaining({
+        where: {
+          actor_id: contributor.id,
+          action: 'submitted',
+          idempotency_key: input.idempotencyKey,
+        },
+      }),
     );
     expect(database.$transaction).not.toHaveBeenCalled();
-    expect(database.applicationRequirementSnapshot.create).not.toHaveBeenCalled();
+    expect(
+      database.applicationRequirementSnapshot.create,
+    ).not.toHaveBeenCalled();
     expect(database.applicationAudit.create).not.toHaveBeenCalled();
   });
 
@@ -363,6 +396,19 @@ describe('ApplicationsService submission and withdrawal', () => {
           id: contributor.id,
           username: 'contributor',
           displayName: 'Example Contributor',
+          profile: {
+            bio: 'Backend contributor',
+            availability: '10 hours/week',
+            experienceLevel: {
+              key: 'advanced',
+              labelEn: 'Advanced',
+              labelAr: 'Advanced',
+            },
+            fields: [
+              { key: 'backend', labelEn: 'Backend', labelAr: 'Backend' },
+            ],
+            declaredSkills: ['NestJS'],
+          },
         },
         evidence: [],
       },

@@ -1687,8 +1687,10 @@ This keeps the system strong without making it heavy:
   fields because missing historical values are not invented.
 - Authorization/privacy: only active contributors submit or withdraw; only the
   Request owner lists, while detail is limited to owner or applying contributor.
-  Evidence uses approved skill summaries and bounded evidence-source metadata;
-  public/private provider data is not returned.
+  Evidence uses approved skill summaries and bounded evidence-source metadata from
+  repositories explicitly authorized during skill-profile generation; submission
+  grants no new repository access, and public/private provider data is not
+  returned. Owner-safe reads include profile context fixed at submission.
 - Verification: focused Applications service and HTTP tests plus Notifications
   and Contribution Request tests pass. Prisma validation passes. The PostgreSQL
   migration harness could not run because no server was listening on

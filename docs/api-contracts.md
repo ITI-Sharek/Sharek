@@ -1075,7 +1075,11 @@ Content-Type: application/json
 
 Successful submission returns `201` with status `PENDING_OWNER_REVIEW`, fixed
 Required/Preferred Requirement Snapshot, safe Evidence Summary, contributor
-context, and review timing. Submission performs no AI or attempt-quota work.
+identity and profile context, and review timing. The Contribution Approach is
+required and must contain 10 to 5000 characters. Evidence is limited to approved
+skill summaries whose underlying repository evidence was collected under the
+contributor’s explicit repository-selection consent; submission does not
+authorize new evidence access. Submission performs no AI or attempt-quota work.
 
 ```http
 GET  /tasks/:taskId/applications

@@ -40,7 +40,10 @@ Every valid Application enters `pending_owner_review` immediately. Submission
 does not call AI or mutate contributor attempt quotas.
 
 The service fixes ordered Requirement and approved, audience-bounded Evidence
-Snapshots in the submission transaction. A database uniqueness guard permits
+Snapshots plus contributor profile context in the submission transaction. Evidence is
+limited to approved skill summaries derived from repositories the contributor explicitly
+authorized when generating the skill profile; Application submission cannot select or
+expand repository access. A database uniqueness guard permits
 one Application per contributor and Contribution Request. Append-only
 `ApplicationAudit` rows protect submission and withdrawal retries.
 
