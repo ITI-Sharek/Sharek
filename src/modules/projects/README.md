@@ -1,48 +1,54 @@
 # Projects Module
 
-Owns project records, import workflow, and project publication state.
+Owns GitHub-backed project drafts, owner-controlled presentation, explicit
+publication/archive transitions, publication idempotency receipts, and public
+project visibility.
 
 ## Current API
 
-- `GET /projects/discover`: authenticated contributor/owner/admin discovery feed
-  of **published** projects only. Supports pagination (`page`, `limit`) and
-  filtering by technology stack (`technologies`, comma-separated or repeated),
-  `category`, `difficulty`, and a keyword `search` over title/description. Each
-  item carries `discoveryMetadata` (source attribution plus the keyword set and
-  composed semantic text) mirroring the metadata indexed for semantic discovery.
-  Draft and archived projects are always excluded.
-- `GET /projects/me`: owner/admin dashboard list for the authenticated owner's
-  projects. Returns draft, published, and archived owner projects with
-  contribution request/application counters plus the current monthly request
-  quota view used by the frontend owner workspace.
-- `POST /projects/import/github`: owner/admin import of a public GitHub
-  repository by full name or URL. The endpoint fetches GitHub metadata and
-  saves the project as `draft` by default, or as `published` when the owner
-  explicitly submits `status: "published"`. Publishing requires reviewed
-  `category` and `difficulty` values.
-- Exported admin read used by `GET /admin/published-project-owners`: returns the
-  latest owners with published-project counts and their most recent project.
+- `POST /projects/github/preview`: active owner/contributor preview of an
+  allowed public or GitHub-App-selected repository. The response is allowlisted
+  and the interaction performs no Project write.
+- `POST /projects`: idempotent confirmation of a preview into a private draft.
+  The authenticated account becomes the persisted owner; request bodies cannot
+  supply owner or status.
+- `GET /projects/me`: cursor-paginated owner workspace for active owners and
+  contributors, including revision, request/application counters, and quota.
+- `GET|PATCH /projects/me/:projectId`: persisted-owner detail and editable
+  presentation fields. Unknown and non-owned IDs share `PROJECT_NOT_FOUND`.
+- `POST /projects/me/:projectId/source/refresh`: idempotent source refresh that
+  preserves fields marked as manual overrides.
+- `POST /projects/me/:projectId/publish`: explicit `draft -> published`
+  transition. It validates revision, required metadata, live repository
+  identity, personal GitHub identity or selected GitHub App control, and the
+  one-published-project-per-repository invariant.
+- `POST /projects/me/:projectId/archive`: explicit `published -> archived`
+  transition. Published projects never return directly to draft.
+- `GET /public/projects` and `GET /public/projects/:projectSlug`: public,
+  cursor-paginated, allowlisted reads that query only `published` rows. Private
+  source attribution is withheld.
+- `GET /projects/discover`: authenticated filtered discovery over published
+  projects only (existing Sprint 3 contract).
+- `POST /projects/import/github`: retired compatibility route; returns
+  `410 PROJECT_IMPORT_ROUTE_RETIRED` and performs no write.
 
-## Structure
+Every side-effecting canonical command requires an `Idempotency-Key`; mutable
+commands also require `expectedRevision`. Project creation, successful state
+transitions, transition audit facts, and command receipts use transactions.
 
-```text
-projects.module.ts
-projects.controller.ts
-projects.service.ts
-projects.service.spec.ts
-dto/
-mappers/
-README.md
-```
+## Boundaries and persistence
 
-`ProjectsController` handles HTTP validation and delegates to `ProjectsService`.
-The service checks ownership, requests a normalized repository snapshot from the
-exported GitHub evidence service, applies owner-reviewed metadata overrides, and
-writes project-owned data with Prisma. Draft projects stay hidden from future
-contributor discovery until the owner confirms publication by saving the project
-as `published`. The owner projects list reads only project-owned records and
-their contribution request/application counts; it does not call GitHub.
+`ProjectsController` binds authenticated owner commands and delegates to
+`ProjectPublicationService`. `PublicProjectsController` delegates public reads
+to `PublicProjectsService`. `ProjectsService` retains owner-dashboard,
+discovery, and exported admin-summary behavior.
 
-Future project workflows belong in focused project services when the root
-service becomes difficult to scan. This module must not access GitHub clients or
-GitHub tables directly.
+The module writes `Project`, `ProjectOperation`, and
+`ProjectStateTransition`. It calls exported GitHub services for normalized
+repository evidence/control and the exported Identity service for immutable
+GitHub identity. It never reads provider tokens or GitHub App credentials.
+
+Migration `20260728120000_project_publication_owner_flow` adds platform slugs,
+optimistic revisions, source status fields, archive timestamps, command
+receipts, transition audits, removes global draft URL uniqueness, and adds the
+partial unique published-repository guard.

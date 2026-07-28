@@ -131,7 +131,13 @@ email returns an error; use login for an existing test user.
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| `POST` | `/projects/import/github` | Owner/admin bearer | Import a public GitHub project by `fullName` or `repoUrl`. |
+| `POST` | `/projects/github/preview` | Active owner/contributor bearer | Preview allowed GitHub metadata without persistence. |
+| `POST` | `/projects` | Active owner/contributor bearer + idempotency key | Confirm a preview into a private draft. |
+| `GET/PATCH` | `/projects/me/:projectId` | Persisted owner | Read or edit owner-controlled project fields. |
+| `POST` | `/projects/me/:projectId/source/refresh` | Persisted owner + idempotency key | Refresh source without replacing manual overrides. |
+| `POST` | `/projects/me/:projectId/publish` | Persisted owner + idempotency key | Explicitly publish a complete controlled draft. |
+| `POST` | `/projects/me/:projectId/archive` | Persisted owner + idempotency key | Explicitly archive a published project. |
+| `GET` | `/public/projects[/:projectSlug]` | Public | Published-only allowlisted list/detail. |
 
 ### Contributor Profiles
 
@@ -419,23 +425,27 @@ DELETE {{baseUrl}}/github/account
 Authorization: Bearer {{accessToken}}
 ```
 
-### Project Import
+### Project Draft and Publication
 
-Use an owner or admin token. The import path accepts either `fullName` or a
-public GitHub `repoUrl`:
+Use an active owner or contributor token. Preview first; this performs no
+Project write:
 
 ```http
-POST {{baseUrl}}/projects/import/github
+POST {{baseUrl}}/projects/github/preview
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "repoUrl": "{{githubRepoUrl}}"
+  "repositoryReference": "{{githubRepoUrl}}"
 }
 ```
 
-This workflow uses GitHub's public repository API and does not require the
-owner to connect a GitHub account.
+Then send the returned `previewFingerprint` to `POST /projects` with a unique
+`Idempotency-Key`. That interaction always creates a private draft. Use the
+owner detail/edit/refresh routes and explicitly publish with
+`POST /projects/me/:projectId/publish` and body
+`{ "expectedRevision": 1, "confirm": true }`. Organization/shared and private
+sources require a live GitHub App link with explicit repository selection.
 
 ### Contributor Profile
 

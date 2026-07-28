@@ -3,6 +3,7 @@ export interface OwnerProjectDto {
   title: string;
   slug: string;
   status: 'draft' | 'published' | 'archived';
+  revision: number;
   openRequestsCount: number;
   pendingApplicationsCount: number;
   lastActivityLabel: string;
@@ -16,4 +17,8 @@ export interface OwnerProjectQuotaDto {
 export interface MyProjectsResponseDto {
   projects: OwnerProjectDto[];
   quota: OwnerProjectQuotaDto;
+  pageInfo: {
+    nextCursor: string | null;
+    hasNextPage: boolean;
+  };
 }

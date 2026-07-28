@@ -6,12 +6,16 @@ function createService(overrides?: {
   findUnique?: jest.Mock;
   updateMany?: jest.Mock;
   findUniqueOrThrow?: jest.Mock;
+  findGitHubIdentity?: jest.Mock;
 }) {
   const database = {
     user: {
       findUnique: overrides?.findUnique ?? jest.fn(),
       updateMany: overrides?.updateMany ?? jest.fn(),
       findUniqueOrThrow: overrides?.findUniqueOrThrow ?? jest.fn(),
+    },
+    authProviderAccount: {
+      findUnique: overrides?.findGitHubIdentity ?? jest.fn(),
     },
   };
 
@@ -22,6 +26,25 @@ function createService(overrides?: {
 }
 
 describe('IdentityAccountStatusService', () => {
+  it('returns only the allowlisted immutable GitHub identity fields', async () => {
+    const findGitHubIdentity = jest.fn().mockResolvedValue({
+      provider_account_id: '42',
+      username: 'sharek-owner',
+    });
+    const { service } = createService({ findGitHubIdentity });
+
+    await expect(service.getGitHubIdentityForUser('user-1')).resolves.toEqual({
+      providerAccountId: '42',
+      username: 'sharek-owner',
+    });
+    expect(findGitHubIdentity).toHaveBeenCalledWith({
+      where: {
+        provider_user_id: { provider: 'github', user_id: 'user-1' },
+      },
+      select: { provider_account_id: true, username: true },
+    });
+  });
+
   it('activates a pending contributor after skill approval', async () => {
     const findUnique = jest.fn().mockResolvedValue({
       id: 'user-1',

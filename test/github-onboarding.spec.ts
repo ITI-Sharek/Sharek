@@ -195,25 +195,11 @@ describe('GitHub onboarding flow', () => {
       .send({
         fullName: 'ITI-Sharek/sharek-api',
       })
-      .expect(201)
+      .expect(410)
       .expect(({ body }) => {
         expect(body).toMatchObject({
-          ownerId: verifyResponse.body.user.id,
-          title: 'sharek-api',
-          githubRepoUrl: 'https://github.com/ITI-Sharek/sharek-api',
-          githubRepoId: '123',
-          status: 'draft',
-          readmeContent: '# Share-k API',
-          repoStatistics: {
-            contributionActivity: {
-              totalContributors: 1,
-              totalCommits: 3,
-            },
-            commitSignals: {
-              recentCommitCount: 1,
-              authors: ['sharek-dev'],
-            },
-          },
+          code: 'PROJECT_IMPORT_ROUTE_RETIRED',
+          statusCode: 410,
         });
       });
 
@@ -223,15 +209,7 @@ describe('GitHub onboarding flow', () => {
       .expect(200)
       .expect(({ body }) => {
         expect(body).toMatchObject({
-          projects: [
-            {
-              title: 'sharek-api',
-              slug: 'sharek-api',
-              status: 'draft',
-              openRequestsCount: 0,
-              pendingApplicationsCount: 0,
-            },
-          ],
+          projects: [],
           quota: {
             used: 0,
             monthlyLimit: 20,

@@ -319,7 +319,14 @@ GET /github/repository/commit-signals
 DELETE /github/account
 GET /projects/discover
 GET /projects/me
-POST /projects/import/github
+POST /projects/github/preview
+POST /projects
+GET|PATCH /projects/me/:projectId
+POST /projects/me/:projectId/source/refresh
+POST /projects/me/:projectId/publish
+POST /projects/me/:projectId/archive
+GET /public/projects
+GET /public/projects/:projectSlug
 ```
 
 `GET /github/oauth/start` requires an authenticated Share-k user. It stores a
@@ -445,7 +452,8 @@ store (TASK-2-05) and carries `source`/`sourceId` attribution so semantic
 matches remain retrievable back to the project. Results are ordered by most
 recently published first.
 
-`GET /projects/me` requires an authenticated `owner` or `admin` and returns the
+`GET /projects/me` requires an active authenticated `owner` or `contributor`
+and returns the
 current user's owner-project dashboard data:
 
 ```json
@@ -456,6 +464,7 @@ current user's owner-project dashboard data:
       "title": "sharek-api",
       "slug": "sharek-api",
       "status": "draft",
+      "revision": 1,
       "openRequestsCount": 0,
       "pendingApplicationsCount": 0,
       "lastActivityLabel": "اليوم"
@@ -464,7 +473,8 @@ current user's owner-project dashboard data:
   "quota": {
     "used": 0,
     "monthlyLimit": 20
-  }
+  },
+  "pageInfo": { "nextCursor": null, "hasNextPage": false }
 }
 ```
 
@@ -472,50 +482,51 @@ The response includes all projects owned by the authenticated owner, including
 drafts. It is an owner workspace endpoint, not contributor discovery. Contributor
 discovery must continue to filter on published projects only.
 
-`POST /projects/import/github` requires an authenticated `owner` or `admin`
-and accepts:
+The canonical publication workflow separates source inspection, persistence,
+and public state:
+
+```text
+POST /projects/github/preview
+POST /projects
+GET|PATCH /projects/me/:projectId
+POST /projects/me/:projectId/source/refresh
+POST /projects/me/:projectId/publish
+POST /projects/me/:projectId/archive
+GET /public/projects
+GET /public/projects/:projectSlug
+```
+
+Preview accepts `{ "repositoryReference": "owner/repository" }` and writes no
+Project. Creating the confirmed draft requires `Idempotency-Key` and accepts the
+preview fingerprint plus optional owner presentation fields; it never accepts
+`ownerId` or `status` and always creates `draft`. PATCH/refresh/publish/archive
+also require `Idempotency-Key`, and mutable commands require
+`expectedRevision`.
 
 ```json
 {
-  "fullName": "owner/repository",
-  "status": "draft"
+  "source": {
+    "provider": "github",
+    "repositoryReference": "owner/repository",
+    "previewFingerprint": "64-character-sha256"
+  },
+  "project": {
+    "title": "Reviewed project title",
+    "category": "web",
+    "difficulty": "intermediate"
+  }
 }
 ```
 
-or:
+Publication requires a non-empty title, category, difficulty, current source
+identity, and verified control. A personal repository matches the immutable
+GitHub social identity; organization/shared control requires a live GitHub App
+link and explicit repository selection. Public queries enforce
+`status = published` in Prisma and redact private source attribution.
 
-```json
-{
-  "repoUrl": "https://github.com/owner/repository",
-  "status": "published",
-  "title": "Reviewed project title",
-  "description": "Owner-reviewed project description",
-  "tags": ["nestjs", "api"],
-  "technologies": ["TypeScript", "PostgreSQL"],
-  "category": "web",
-  "difficulty": "intermediate"
-}
-```
-
-`status` is optional and may be `draft` or `published`. New imports default to
-`draft`, so the project remains hidden until the owner explicitly confirms
-publication. `title`, `description`, `tags`, `technologies`, `category`, and
-`difficulty` are optional owner-reviewed overrides. If an override is omitted,
-the backend uses the GitHub-fetched value where available. Published saves
-require `category` and `difficulty`; missing values return
-`PROJECT_PUBLICATION_METADATA_REQUIRED`.
-
-Owner GitHub connection is not required for project import. The endpoint uses
-GitHub's public repository API, so private owner repositories are intentionally
-outside the MVP import path.
-
-The response is a project created or refreshed from GitHub metadata. The backend
-stores the GitHub repo URL, GitHub repo ID, language breakdown, topics,
-technologies, repository statistics, README content snapshot, contribution
-activity, and recent commit signals where GitHub exposes them. Published
-responses include `status: "published"` and `publishedAt`; draft responses use
-`status: "draft"` and `publishedAt: null`. This is the handoff point for later
-repository ingestion/background jobs and FastAPI AI evidence generation.
+`POST /projects/import/github` is retained only as a safe compatibility error:
+it returns `410 PROJECT_IMPORT_ROUTE_RETIRED`, names the preview/create
+replacements, and performs no create, refresh, or publish write.
 
 Normalized GitHub evidence currently contains:
 

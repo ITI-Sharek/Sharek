@@ -42,6 +42,8 @@ const snapshot: GitHubRepositoryImportSnapshot = {
     fullName: 'owner/repo',
     name: 'repo',
     owner: 'owner',
+    ownerId: '42',
+    ownerType: 'user',
     description: 'A NestJS API',
     htmlUrl: 'https://github.com/owner/repo',
     private: false,

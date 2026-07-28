@@ -499,26 +499,74 @@ model Subscription {
 }
 
 model Project {
-  id              String             @id @default(uuid()) @db.Uuid
-  owner_id        String             @db.Uuid
-  title           String             @db.VarChar(255)
-  description     String?
-  github_repo_url String             @unique @db.VarChar(500)
-  github_repo_id  String?            @db.VarChar(50)
-  languages       Json?
-  tags            Json?
-  technologies    Json?
-  repo_statistics Json?
-  category        ProjectCategory?
-  difficulty      ProjectDifficulty?
-  status          ProjectStatus      @default(draft)
-  readme_content  String?
-  published_at    DateTime?
-  created_at      DateTime           @default(now())
-  updated_at      DateTime           @default(now()) @updatedAt
+  id                    String             @id @default(uuid()) @db.Uuid
+  owner_id              String             @db.Uuid
+  title                 String             @db.VarChar(255)
+  slug                  String             @db.VarChar(80)
+  slug_normalized       String             @db.VarChar(80)
+  description           String?
+  github_repo_url       String             @db.VarChar(500)
+  github_repo_id        String?            @db.VarChar(50)
+  languages             Json?
+  tags                  Json?
+  technologies          Json?
+  repo_statistics       Json?
+  category              ProjectCategory?
+  difficulty            ProjectDifficulty?
+  status                ProjectStatus      @default(draft)
+  readme_content        String?
+  revision              Int                @default(1)
+  manual_overrides      Json               @default("[]")
+  source_visibility     String?            @db.VarChar(20)
+  source_owner_id       String?            @db.VarChar(50)
+  source_owner_type     String?            @db.VarChar(20)
+  source_default_branch String?            @db.VarChar(255)
+  source_updated_at     DateTime?
+  source_fetched_at     DateTime?
+  published_at          DateTime?
+  archived_at           DateTime?
+  created_at            DateTime           @default(now())
+  updated_at            DateTime           @default(now()) @updatedAt
 
-  owner                User                  @relation("ProjectOwner", fields: [owner_id], references: [id])
+  owner                User                     @relation("ProjectOwner", fields: [owner_id], references: [id])
   contributionRequests ContributionRequest[]
+  operations           ProjectOperation[]
+  stateTransitions     ProjectStateTransition[]
+
+  @@unique([slug_normalized], map: "projects_slug_normalized_unique")
+  @@index([github_repo_url])
+  @@index([github_repo_id, status])
+}
+
+model ProjectOperation {
+  id           String   @id @default(uuid()) @db.Uuid
+  project_id   String?  @db.Uuid
+  actor_id     String   @db.Uuid
+  operation    String   @db.VarChar(40)
+  key_hash     String   @db.VarChar(64)
+  request_hash String   @db.VarChar(64)
+  response     Json?
+  created_at   DateTime @default(now())
+
+  project Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@unique([actor_id, operation, key_hash])
+  @@index([created_at])
+}
+
+model ProjectStateTransition {
+  id                 String        @id @default(uuid()) @db.Uuid
+  project_id         String        @db.Uuid
+  actor_id           String        @db.Uuid
+  from_status        ProjectStatus
+  to_status          ProjectStatus
+  validation_outcome Json
+  created_at         DateTime      @default(now())
+
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@index([project_id, created_at])
+  @@index([actor_id])
 }
 
 model ContributionRequest {

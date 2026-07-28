@@ -17,6 +17,22 @@ export const envValidationSchema = Joi.object({
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),
   JWT_REFRESH_SECRET: Joi.string().min(16).required(),
   GITHUB_CLIENT_ID: Joi.string().allow('').optional(),
+  GITHUB_API_URL: Joi.string()
+    .uri()
+    .default('https://api.github.com')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string().uri({ scheme: ['https'] }),
+    }),
+  GITHUB_API_OVERALL_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1)
+    .max(8000)
+    .default(8000),
+  GITHUB_API_REQUEST_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1)
+    .default(4000),
   GITHUB_CLIENT_SECRET: Joi.string().allow('').optional(),
   GITHUB_OAUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
   GITHUB_AUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
@@ -50,4 +66,14 @@ export const envValidationSchema = Joi.object({
       otherwise: Joi.allow('').optional(),
     }),
   AI_LOW_CONFIDENCE_THRESHOLD: Joi.number().min(0).max(1).default(0.7),
+}).custom((value, helpers) => {
+  if (
+    value.GITHUB_API_REQUEST_TIMEOUT_MS > value.GITHUB_API_OVERALL_TIMEOUT_MS
+  ) {
+    return helpers.error('any.invalid', {
+      message:
+        'GITHUB_API_REQUEST_TIMEOUT_MS must not exceed GITHUB_API_OVERALL_TIMEOUT_MS',
+    });
+  }
+  return value;
 });

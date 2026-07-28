@@ -38,6 +38,13 @@ The module exports its workflow services only. Provider clients, private-key and
 HMAC handling, token encryption, and GitHub persistence remain private. Only
 this module writes GitHub-owned tables or decrypts provider tokens.
 
+The Projects module consumes the exported `GitHubEvidenceService` for
+publication previews/refreshes. Public reads use anonymous GitHub metadata;
+private reads resolve only an active member link and explicitly selected GitHub
+App repository. Publication control is reverified through the exported service;
+Projects never receives an installation token, installation ID, permission set,
+or credential.
+
 The GitHub App uses authorization during installation and no setup URL. The
 backend hashes expiring single-use state, exchanges callback codes immediately,
 stores only an opaque attempt ID in the frontend redirect, and independently

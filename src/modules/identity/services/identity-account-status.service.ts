@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { UserRole, UserStatus } from '@prisma/client';
+import { AuthProvider, UserRole, UserStatus } from '@prisma/client';
 
 import { DatabaseService } from '../../../shared/database/database.service';
 import {
@@ -16,6 +16,30 @@ export interface ContributorActivationResultDto {
 @Injectable()
 export class IdentityAccountStatusService {
   constructor(private readonly database: DatabaseService) {}
+
+  async getGitHubIdentityForUser(
+    userId: string,
+  ): Promise<{ providerAccountId: string; username: string | null } | null> {
+    const account = await this.database.authProviderAccount.findUnique({
+      where: {
+        provider_user_id: {
+          provider: AuthProvider.github,
+          user_id: userId,
+        },
+      },
+      select: {
+        provider_account_id: true,
+        username: true,
+      },
+    });
+
+    return account
+      ? {
+          providerAccountId: account.provider_account_id,
+          username: account.username,
+        }
+      : null;
+  }
 
   async activateContributorAfterSkillApproval(
     userId: string,

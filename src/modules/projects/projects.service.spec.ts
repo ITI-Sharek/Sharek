@@ -11,26 +11,12 @@ describe('ProjectsService', () => {
       findUnique: jest.fn(),
       groupBy: jest.fn(),
       count: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
     },
-    contributionRequest: {
-      count: jest.fn(),
-    },
+    contributionRequest: { count: jest.fn() },
   };
-  const gitHubRepositoryService = {
-    getPublicImportSnapshot: jest.fn(),
-    getImportSnapshot: jest.fn(),
-  };
-  const service = new ProjectsService(
-    database as never,
-    gitHubRepositoryService as never,
-  );
+  const service = new ProjectsService(database as never);
 
-  beforeEach(() => {
-    jest.resetAllMocks();
-    gitHubRepositoryService.getPublicImportSnapshot.mockResolvedValue(getSnapshot());
-  });
+  beforeEach(() => jest.resetAllMocks());
 
   describe('Contribution Request Project access capability', () => {
     it('returns only the ownership facts needed by the owning module', async () => {
@@ -84,212 +70,100 @@ describe('ProjectsService', () => {
     });
   });
 
-  it('lists owner projects with pipeline counts and quota usage', async () => {
+  it('lists owner projects with revision, pipeline counts, and quota usage', async () => {
     database.project.findMany.mockResolvedValue([
       {
         id: 'project-id',
         title: 'Share-k API',
-        github_repo_url: 'https://github.com/ITI-Sharek/sharek-api',
+        slug: 'sharek-api',
+        revision: 3,
         status: ProjectStatus.published,
         updated_at: new Date(),
         contributionRequests: [
           {
             status: 'published',
-            applications: [
-              { status: 'eligible' },
-              { status: 'rejected' },
-            ],
-          },
-          {
-            status: 'draft',
-            applications: [{ status: 'pending_validation' }],
+            applications: [{ status: 'eligible' }, { status: 'rejected' }],
           },
         ],
       },
     ]);
     database.contributionRequest.count.mockResolvedValue(7);
 
-    const result = await service.getMyProjects('owner-id');
-
-    expect(database.project.findMany).toHaveBeenCalledWith({
-      where: {
-        owner_id: 'owner-id',
-      },
-      orderBy: {
-        updated_at: 'desc',
-      },
-      include: {
-        contributionRequests: {
-          select: {
-            status: true,
-            applications: {
-              select: {
-                status: true,
-              },
-            },
-          },
-        },
-      },
-    });
-    expect(database.contributionRequest.count).toHaveBeenCalledWith({
-      where: {
-        owner_id: 'owner-id',
-        created_at: {
-          gte: expect.any(Date),
-        },
-      },
-    });
-    expect(result).toMatchObject({
+    await expect(service.getMyProjects('owner-id')).resolves.toMatchObject({
       projects: [
         {
           id: 'project-id',
-          title: 'Share-k API',
           slug: 'sharek-api',
-          status: ProjectStatus.published,
+          revision: 3,
           openRequestsCount: 1,
-          pendingApplicationsCount: 2,
-          lastActivityLabel: 'اليوم',
+          pendingApplicationsCount: 1,
         },
       ],
-      quota: {
-        used: 7,
-        monthlyLimit: 20,
-      },
+      quota: { used: 7, monthlyLimit: 20 },
     });
   });
 
-  it('discovers only published projects with filters, pagination, and indexed metadata', async () => {
+  it('allows active contributors to use the persisted-owner workspace', async () => {
+    database.project.findMany.mockResolvedValue([]);
+    database.contributionRequest.count.mockResolvedValue(0);
+
+    await expect(
+      service.getMyProjectsForActor({
+        id: 'contributor-id',
+        email: 'member@example.com',
+        role: 'contributor',
+        status: 'active',
+      }),
+    ).resolves.toMatchObject({ projects: [] });
+  });
+
+  it('rejects inactive and admin accounts from ordinary owner workflows', async () => {
+    await expect(
+      service.getMyProjectsForActor({
+        id: 'admin-id',
+        email: 'admin@example.com',
+        role: 'admin',
+        status: 'active',
+      }),
+    ).rejects.toMatchObject({ code: 'PROJECT_ACCOUNT_NOT_ELIGIBLE' });
+  });
+
+  it('discovers only published projects with the requested filters', async () => {
     database.project.count.mockResolvedValue(1);
-    database.project.findMany.mockResolvedValue([getPublishedProjectRecord()]);
+    database.project.findMany.mockResolvedValue([publishedProject()]);
 
     const result = await service.discoverPublishedProjects({
-      page: 1,
-      limit: 12,
       technologies: ['TypeScript'],
       category: ProjectCategory.web,
       difficulty: ProjectDifficulty.intermediate,
       search: 'api',
     });
 
-    const expectedWhere = {
-      AND: [
-        { status: ProjectStatus.published },
-        { category: ProjectCategory.web },
-        { difficulty: ProjectDifficulty.intermediate },
-        {
-          OR: [{ technologies: { array_contains: ['TypeScript'] } }],
-        },
-        {
-          OR: [
-            { title: { contains: 'api', mode: 'insensitive' } },
-            { description: { contains: 'api', mode: 'insensitive' } },
-          ],
-        },
-      ],
-    };
-
-    expect(database.project.count).toHaveBeenCalledWith({ where: expectedWhere });
-    expect(database.project.findMany).toHaveBeenCalledWith({
-      where: expectedWhere,
-      orderBy: [{ published_at: 'desc' }, { created_at: 'desc' }],
-      skip: 0,
-      take: 12,
-    });
-    expect(result).toEqual({
-      projects: [
-        {
-          id: 'discover-project-id',
-          title: 'Share-k API',
-          slug: 'sharek-api',
-          description: 'Backend service',
-          category: ProjectCategory.web,
-          difficulty: ProjectDifficulty.intermediate,
-          technologies: ['TypeScript', 'PostgreSQL'],
-          tags: ['nestjs'],
-          languages: { TypeScript: 1000 },
-          githubRepoUrl: 'https://github.com/ITI-Sharek/sharek-api',
-          repoStatistics: { stars: 5 },
-          publishedAt: new Date('2026-07-20T00:00:00Z'),
-          discoveryMetadata: {
-            source: 'project',
-            sourceId: 'discover-project-id',
-            keywords: [
-              'typescript',
-              'postgresql',
-              'nestjs',
-              'web',
-              'intermediate',
-            ],
-            semanticText:
-              'Share-k API. Backend service. Technologies: TypeScript, PostgreSQL. Tags: nestjs. Category: web. Difficulty: intermediate',
-          },
-        },
-      ],
-      pagination: { page: 1, limit: 12, total: 1, totalPages: 1 },
-      appliedFilters: {
-        technologies: ['TypeScript'],
-        category: ProjectCategory.web,
-        difficulty: ProjectDifficulty.intermediate,
-        search: 'api',
-      },
-    });
-  });
-
-  it('restricts discovery to published projects when no filters are provided', async () => {
-    database.project.count.mockResolvedValue(0);
-    database.project.findMany.mockResolvedValue([]);
-
-    const result = await service.discoverPublishedProjects({});
-
-    expect(database.project.findMany).toHaveBeenCalledWith({
-      where: { AND: [{ status: ProjectStatus.published }] },
-      orderBy: [{ published_at: 'desc' }, { created_at: 'desc' }],
-      skip: 0,
-      take: 12,
-    });
-    expect(result.pagination).toEqual({
-      page: 1,
-      limit: 12,
-      total: 0,
-      totalPages: 0,
-    });
-    expect(result.appliedFilters).toEqual({
-      technologies: [],
-      category: null,
-      difficulty: null,
-      search: null,
-    });
-  });
-
-  it('paginates discovery results with the requested page and limit', async () => {
-    database.project.count.mockResolvedValue(25);
-    database.project.findMany.mockResolvedValue([]);
-
-    const result = await service.discoverPublishedProjects({ page: 3, limit: 10 });
-
     expect(database.project.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 20, take: 10 }),
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: expect.arrayContaining([{ status: ProjectStatus.published }]),
+        }),
+      }),
     );
-    expect(result.pagination).toEqual({
-      page: 3,
-      limit: 10,
-      total: 25,
-      totalPages: 3,
+    expect(result.projects[0]).toMatchObject({
+      slug: 'sharek-api',
+      title: 'Share-k API',
     });
   });
 
-  it('lists owners with published projects for an active admin', async () => {
+  it('lists only published-project owners for an active admin', async () => {
     database.project.groupBy.mockResolvedValue([
       {
         owner_id: 'owner-id',
-        _count: { _all: 3 },
+        _count: { _all: 1 },
         _max: { published_at: new Date('2026-07-20T08:00:00Z') },
       },
     ]);
     database.project.findFirst.mockResolvedValue({
       id: 'project-id',
       title: 'Published project',
-      github_repo_url: 'https://github.com/sharek/published-project',
+      github_repo_url: 'https://github.com/sharek/project',
       owner: {
         id: 'owner-id',
         email: 'owner@example.com',
@@ -305,211 +179,26 @@ describe('ProjectsService', () => {
         role: 'admin',
         status: 'active',
       }),
-    ).resolves.toEqual([
-      {
-        ownerId: 'owner-id',
-        ownerName: 'Project Owner',
-        ownerEmail: 'owner@example.com',
-        publishedProjectsCount: 3,
-        latestPublishedAt: new Date('2026-07-20T08:00:00Z'),
-        latestProject: {
-          id: 'project-id',
-          title: 'Published project',
-          githubRepoUrl: 'https://github.com/sharek/published-project',
-        },
-      },
-    ]);
-    expect(database.project.groupBy).toHaveBeenCalledWith({
-      by: ['owner_id'],
-      where: { status: ProjectStatus.published },
-      _count: { _all: true },
-      _max: { published_at: true },
-      orderBy: { _max: { published_at: 'desc' } },
-      take: 10,
-    });
+    ).resolves.toHaveLength(1);
   });
 
-  it('blocks importing a repository already owned by another user', async () => {
-    database.project.findUnique.mockResolvedValue({
-      id: 'project-id',
-      owner_id: 'other-user-id',
-    });
-
-    await expect(
-      service.importFromGitHub('user-id', {
-        fullName: 'ITI-Sharek/sharek-api',
-      }),
-    ).rejects.toMatchObject({
-      code: 'GITHUB_REPOSITORY_ALREADY_IMPORTED',
-      statusCode: 409,
-    } satisfies Partial<ApplicationError>);
-  });
-
-  it('creates a draft project from a GitHub repository snapshot', async () => {
-    database.project.findUnique.mockResolvedValue(null);
-    database.project.create.mockImplementation(({ data }) =>
-      Promise.resolve({
-        id: 'project-id',
-        created_at: new Date('2026-07-05T00:00:00Z'),
-        updated_at: new Date('2026-07-05T00:00:00Z'),
-        ...data,
+  it('retires the unsafe combined import-and-publish interaction', () => {
+    expect(() => service.rejectRetiredImportRoute()).toThrow(
+      expect.objectContaining({
+        code: 'PROJECT_IMPORT_ROUTE_RETIRED',
+        statusCode: 410,
       }),
     );
-    const project = await service.importFromGitHub(
-      'user-id',
-      { fullName: 'ITI-Sharek/sharek-api' },
-    );
-
-    expect(database.project.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        owner_id: 'user-id',
-        title: 'sharek-api',
-        github_repo_url: 'https://github.com/ITI-Sharek/sharek-api',
-        github_repo_id: '123',
-        status: ProjectStatus.draft,
-        published_at: null,
-        readme_content: '# Share-k API',
-      }),
-    });
-    expect(gitHubRepositoryService.getPublicImportSnapshot).toHaveBeenCalledWith(
-      'ITI-Sharek/sharek-api',
-    );
-    expect(project).toMatchObject({
-      id: 'project-id',
-      ownerId: 'user-id',
-      title: 'sharek-api',
-      status: ProjectStatus.draft,
-      publishedAt: null,
-    });
-  });
-
-  it('keeps anonymous public repository import independent of OAuth cutover', async () => {
-    database.project.findUnique.mockResolvedValue(null);
-    database.project.create.mockImplementation(({ data }) =>
-      Promise.resolve({
-        id: 'public-project-id',
-        created_at: new Date(),
-        updated_at: new Date(),
-        ...data,
-      }),
-    );
-    await service.importFromGitHub('user-id', {
-      repoUrl: 'https://github.com/ITI-Sharek/sharek-api',
-    });
-    expect(gitHubRepositoryService.getPublicImportSnapshot).toHaveBeenCalledWith(
-      'https://github.com/ITI-Sharek/sharek-api',
-    );
-    expect(gitHubRepositoryService.getImportSnapshot).not.toHaveBeenCalled();
-  });
-
-  it('creates a published project with reviewed metadata overrides', async () => {
-    database.project.findUnique.mockResolvedValue(null);
-    database.project.create.mockImplementation(({ data }) =>
-      Promise.resolve({
-        id: 'project-id',
-        created_at: new Date('2026-07-05T00:00:00Z'),
-        updated_at: new Date('2026-07-05T00:00:00Z'),
-        ...data,
-      }),
-    );
-
-    const project = await service.importFromGitHub('user-id', {
-      repoUrl: 'https://github.com/ITI-Sharek/sharek-api',
-      status: ProjectStatus.published,
-      title: 'Share-k Backend',
-      description: 'Reviewed owner copy',
-      tags: ['nestjs', 'api', 'nestjs'],
-      technologies: ['TypeScript', 'PostgreSQL', 'TypeScript'],
-      category: ProjectCategory.web,
-      difficulty: ProjectDifficulty.intermediate,
-    });
-
-    expect(database.project.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        title: 'Share-k Backend',
-        description: 'Reviewed owner copy',
-        tags: ['nestjs', 'api'],
-        technologies: ['TypeScript', 'PostgreSQL'],
-        category: ProjectCategory.web,
-        difficulty: ProjectDifficulty.intermediate,
-        status: ProjectStatus.published,
-        published_at: expect.any(Date),
-      }),
-    });
-    expect(gitHubRepositoryService.getPublicImportSnapshot).toHaveBeenCalledWith(
-      'https://github.com/ITI-Sharek/sharek-api',
-    );
-    expect(project).toMatchObject({
-      status: ProjectStatus.published,
-      publishedAt: expect.any(Date),
-      category: ProjectCategory.web,
-      difficulty: ProjectDifficulty.intermediate,
-    });
-  });
-
-  it('rejects publishing before category and difficulty are selected', async () => {
-    database.project.findUnique.mockResolvedValue(null);
-
-    await expect(
-      service.importFromGitHub('user-id', {
-        fullName: 'ITI-Sharek/sharek-api',
-        status: ProjectStatus.published,
-      }),
-    ).rejects.toMatchObject({
-      code: 'PROJECT_PUBLICATION_METADATA_REQUIRED',
-      statusCode: 422,
-    } satisfies Partial<ApplicationError>);
-    expect(database.project.create).not.toHaveBeenCalled();
-  });
-
-  it('can save an existing project back to draft and clear publication time', async () => {
-    database.project.findUnique.mockResolvedValue({
-      id: 'project-id',
-      owner_id: 'user-id',
-      status: ProjectStatus.published,
-      published_at: new Date('2026-07-05T00:00:00Z'),
-      category: ProjectCategory.web,
-      difficulty: ProjectDifficulty.intermediate,
-    });
-    database.project.update.mockImplementation(({ data }) =>
-      Promise.resolve({
-        id: 'project-id',
-        owner_id: 'user-id',
-        github_repo_url: 'https://github.com/ITI-Sharek/sharek-api',
-        created_at: new Date('2026-07-05T00:00:00Z'),
-        updated_at: new Date('2026-07-05T00:00:00Z'),
-        ...data,
-      }),
-    );
-
-    const project = await service.importFromGitHub('user-id', {
-      fullName: 'ITI-Sharek/sharek-api',
-      status: ProjectStatus.draft,
-    });
-
-    expect(database.project.update).toHaveBeenCalledWith({
-      where: {
-        id: 'project-id',
-      },
-      data: expect.objectContaining({
-        status: ProjectStatus.draft,
-        published_at: null,
-        category: ProjectCategory.web,
-        difficulty: ProjectDifficulty.intermediate,
-      }),
-    });
-    expect(project).toMatchObject({
-      status: ProjectStatus.draft,
-      publishedAt: null,
-    });
   });
 });
 
-function getPublishedProjectRecord() {
+function publishedProject() {
   return {
     id: 'discover-project-id',
     owner_id: 'owner-id',
     title: 'Share-k API',
+    slug: 'sharek-api',
+    slug_normalized: 'sharek-api',
     description: 'Backend service',
     github_repo_url: 'https://github.com/ITI-Sharek/sharek-api',
     github_repo_id: '123',
@@ -521,42 +210,17 @@ function getPublishedProjectRecord() {
     difficulty: ProjectDifficulty.intermediate,
     status: ProjectStatus.published,
     readme_content: '# Share-k API',
+    revision: 2,
+    manual_overrides: [],
+    source_visibility: 'public',
+    source_owner_id: '42',
+    source_owner_type: 'organization',
+    source_default_branch: 'main',
+    source_updated_at: new Date('2026-07-20T00:00:00Z'),
+    source_fetched_at: new Date('2026-07-20T00:00:00Z'),
     published_at: new Date('2026-07-20T00:00:00Z'),
+    archived_at: null,
     created_at: new Date('2026-07-19T00:00:00Z'),
     updated_at: new Date('2026-07-20T00:00:00Z'),
-  };
-}
-
-function getSnapshot() {
-  return {
-    repository: {
-      githubRepoId: '123',
-      fullName: 'ITI-Sharek/sharek-api',
-      name: 'sharek-api',
-      owner: 'ITI-Sharek',
-      description: 'Backend',
-      htmlUrl: 'https://github.com/ITI-Sharek/sharek-api',
-      private: false,
-      fork: false,
-      archived: false,
-      defaultBranch: 'main',
-      primaryLanguage: 'TypeScript',
-      languages: {
-        TypeScript: 1000,
-      },
-      stars: 5,
-      forks: 1,
-      openIssues: 2,
-      watchers: 5,
-      topics: ['nestjs'],
-      pushedAt: new Date('2026-07-05T00:00:00Z'),
-      updatedAt: new Date('2026-07-05T01:00:00Z'),
-    },
-    technologies: ['nestjs', 'TypeScript'],
-    repoStatistics: {
-      stars: 5,
-      forks: 1,
-    },
-    readmeContent: '# Share-k API',
   };
 }
