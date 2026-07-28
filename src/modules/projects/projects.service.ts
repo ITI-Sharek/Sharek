@@ -27,6 +27,12 @@ import { toDiscoveredProjectDto } from './mappers/project.mapper';
 
 const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT = 20;
 
+interface ContributionRequestProjectRow {
+  id: string;
+  owner_id: string;
+  status: ProjectStatus;
+}
+
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -156,6 +162,30 @@ export class ProjectsService {
       },
     });
 
+    return this.toContributionRequestProjectAccess(project, ownerId);
+  }
+
+  async lockContributionRequestProjectAccess(
+    projectId: string,
+    ownerId: string,
+    transaction: Prisma.TransactionClient,
+  ): Promise<ContributionRequestProjectAccessDto> {
+    const projects = await transaction.$queryRaw<
+      ContributionRequestProjectRow[]
+    >(Prisma.sql`
+      SELECT "id", "owner_id", "status"
+      FROM "Project"
+      WHERE "id" = ${projectId}::uuid
+      FOR SHARE
+    `);
+
+    return this.toContributionRequestProjectAccess(projects[0], ownerId);
+  }
+
+  private toContributionRequestProjectAccess(
+    project: ContributionRequestProjectRow | undefined | null,
+    ownerId: string,
+  ): ContributionRequestProjectAccessDto {
     // Missing projects and projects owned by somebody else intentionally share
     // one audience-safe result so this capability cannot enumerate ownership.
     if (!project || project.owner_id !== ownerId) {

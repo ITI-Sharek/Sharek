@@ -7,7 +7,10 @@ import {
 } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
-import { ApplicationError } from '../../shared/errors/application.error';
+import {
+  ApplicationError,
+  ConflictApplicationError,
+} from '../../shared/errors/application.error';
 import { ContributionTasksService } from './contribution-tasks.service';
 
 const owner: AuthenticatedUser = {
@@ -39,11 +42,15 @@ describe('ContributionTasksService', () => {
   };
   const projectsService = {
     getContributionRequestProjectAccess: jest.fn(),
+    lockContributionRequestProjectAccess: jest.fn(),
   };
   const service = new ContributionTasksService(
     database as never,
     projectsService as never,
   );
+  const capturedFingerprint = (): string =>
+    database.contributionRequestAudit.create.mock.calls[0][0].data
+      .command_fingerprint as string;
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -64,6 +71,11 @@ describe('ContributionTasksService', () => {
       ownerId: owner.id,
       status: 'published',
     });
+    projectsService.lockContributionRequestProjectAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'published',
+    });
   });
 
   it('creates a private draft with ordered structured requirements and an audit', async () => {
@@ -80,6 +92,9 @@ describe('ContributionTasksService', () => {
       projectId,
       owner.id,
     );
+    expect(
+      projectsService.lockContributionRequestProjectAccess,
+    ).toHaveBeenCalledWith(projectId, owner.id, database);
     expect(database.contributionRequest.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -136,8 +151,7 @@ describe('ContributionTasksService', () => {
       idempotencyKey: 'create-request-002',
       body: createBody(),
     });
-    const fingerprint = database.contributionRequestAudit.create.mock.calls[0][0]
-      .data.command_fingerprint as string;
+    const fingerprint = capturedFingerprint();
     jest.clearAllMocks();
     database.contributionRequestAudit.findFirst.mockResolvedValue({
       command_fingerprint: fingerprint,
@@ -153,7 +167,10 @@ describe('ContributionTasksService', () => {
 
     expect(replay.id).toBe(requestId);
     expect(database.$transaction).not.toHaveBeenCalled();
-    expect(projectsService.getContributionRequestProjectAccess).not.toHaveBeenCalled();
+    expect(projectsService.getContributionRequestProjectAccess).toHaveBeenCalledWith(
+      projectId,
+      owner.id,
+    );
   });
 
   it('rejects a Requirement classified as both Required and Preferred', async () => {
@@ -165,6 +182,40 @@ describe('ContributionTasksService', () => {
           ...createBody(),
           preferredRequirements: [
             { text: 'Build a tested NestJS endpoint' },
+          ],
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_REQUIREMENT_DUPLICATE',
+      statusCode: 422,
+    } satisfies Partial<ApplicationError>);
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns the stable missing-Requirement code for an empty Required list', async () => {
+    await expect(
+      service.createDraft({
+        user: owner,
+        projectId,
+        body: { ...createBody(), requiredRequirements: [] },
+      }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_REQUIRED_REQUIREMENT_MISSING',
+      statusCode: 422,
+    } satisfies Partial<ApplicationError>);
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns the stable duplicate code within one Requirement classification', async () => {
+    await expect(
+      service.createDraft({
+        user: owner,
+        projectId,
+        body: {
+          ...createBody(),
+          requiredRequirements: [
+            { text: 'Build a tested NestJS endpoint' },
+            { text: 'build a tested nestjs endpoint' },
           ],
         },
       }),
@@ -206,6 +257,28 @@ describe('ContributionTasksService', () => {
       code: 'CONTRIBUTION_REQUEST_CLOSE_TIME_INVALID',
       statusCode: 422,
     } satisfies Partial<ApplicationError>);
+  });
+
+  it('rechecks published Project access inside the create transaction', async () => {
+    projectsService.lockContributionRequestProjectAccess.mockRejectedValueOnce(
+      new ConflictApplicationError(
+        'Contribution Requests require a published Project',
+        'CONTRIBUTION_REQUEST_PROJECT_NOT_PUBLISHED',
+      ),
+    );
+
+    await expect(
+      service.createDraft({
+        user: owner,
+        projectId,
+        body: createBody(),
+      }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_PROJECT_NOT_PUBLISHED',
+      statusCode: 409,
+    } satisfies Partial<ApplicationError>);
+    expect(database.contributionRequest.create).not.toHaveBeenCalled();
+    expect(database.contributionRequestAudit.create).not.toHaveBeenCalled();
   });
 
   it('updates only a draft with optimistic concurrency and replaces requirements atomically', async () => {
@@ -257,6 +330,9 @@ describe('ContributionTasksService', () => {
       ],
     });
     expect(result.title).toBe('Updated request title');
+    expect(
+      projectsService.lockContributionRequestProjectAccess,
+    ).toHaveBeenCalledWith(projectId, owner.id, database);
   });
 
   it('discards once, appends one terminal audit, and treats later discard as idempotent', async () => {
@@ -278,6 +354,9 @@ describe('ContributionTasksService', () => {
     });
 
     expect(result.status).toBe(ContributionRequestStatus.discarded);
+    expect(
+      projectsService.lockContributionRequestProjectAccess,
+    ).toHaveBeenCalledWith(projectId, owner.id, database);
     expect(database.contributionRequestAudit.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: ContributionRequestAuditAction.discarded,
@@ -296,6 +375,139 @@ describe('ContributionTasksService', () => {
     expect(replay.status).toBe(ContributionRequestStatus.discarded);
     expect(database.$transaction).not.toHaveBeenCalled();
     expect(database.contributionRequestAudit.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a discarded-command key reused with a different reason', async () => {
+    const current = makeRequest();
+    const discarded = makeRequest({
+      status: ContributionRequestStatus.discarded,
+    });
+    database.contributionRequest.findFirst
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(current);
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(discarded);
+
+    await service.discardDraft({
+      user: owner,
+      requestId,
+      reason: 'No longer needed',
+      idempotencyKey: 'discard-request-002',
+    });
+    const fingerprint = capturedFingerprint();
+
+    jest.clearAllMocks();
+    database.contributionRequest.findFirst.mockResolvedValue(discarded);
+    database.contributionRequestAudit.findFirst.mockResolvedValue({
+      command_fingerprint: fingerprint,
+      contributionRequest: discarded,
+    });
+
+    await expect(
+      service.discardDraft({
+        user: owner,
+        requestId,
+        reason: 'A different reason',
+        idempotencyKey: 'discard-request-002',
+      }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT',
+      statusCode: 409,
+    } satisfies Partial<ApplicationError>);
+  });
+
+  it('replays a completed idempotent update after a concurrent write wins', async () => {
+    const current = makeRequest();
+    const updated = makeRequest({ title: 'Updated request title' });
+    database.contributionRequest.findFirst.mockResolvedValue(current);
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(updated);
+
+    await service.updateDraft({
+      user: owner,
+      requestId,
+      idempotencyKey: 'update-request-002',
+      body: { title: 'Updated request title' },
+    });
+    const fingerprint = capturedFingerprint();
+
+    jest.clearAllMocks();
+    database.$transaction.mockImplementation(
+      (callback: (transaction: typeof database) => unknown) =>
+        callback(database),
+    );
+    database.contributionRequest.findFirst.mockResolvedValue(current);
+    database.contributionRequestAudit.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        command_fingerprint: fingerprint,
+        contributionRequest: updated,
+      });
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 0 });
+    projectsService.getContributionRequestProjectAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'published',
+    });
+
+    await expect(
+      service.updateDraft({
+        user: owner,
+        requestId,
+        idempotencyKey: 'update-request-002',
+        body: { title: 'Updated request title' },
+      }),
+    ).resolves.toMatchObject({ title: 'Updated request title' });
+  });
+
+  it('replays a completed idempotent discard after a concurrent write wins', async () => {
+    const current = makeRequest();
+    const discarded = makeRequest({
+      status: ContributionRequestStatus.discarded,
+    });
+    database.contributionRequest.findFirst
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(current);
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(discarded);
+
+    await service.discardDraft({
+      user: owner,
+      requestId,
+      reason: 'No longer needed',
+      idempotencyKey: 'discard-request-003',
+    });
+    const fingerprint = capturedFingerprint();
+
+    jest.clearAllMocks();
+    database.$transaction.mockImplementation(
+      (callback: (transaction: typeof database) => unknown) =>
+        callback(database),
+    );
+    database.contributionRequest.findFirst.mockResolvedValue(current);
+    database.contributionRequestAudit.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        command_fingerprint: fingerprint,
+        contributionRequest: discarded,
+      });
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 0 });
+    projectsService.getContributionRequestProjectAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'published',
+    });
+
+    await expect(
+      service.discardDraft({
+        user: owner,
+        requestId,
+        reason: 'No longer needed',
+        idempotencyKey: 'discard-request-003',
+      }),
+    ).resolves.toMatchObject({ status: ContributionRequestStatus.discarded });
   });
 
   it('rejects an illegal update transition without writing', async () => {

@@ -12,11 +12,14 @@ module rename.
 - Ownership is derived from the session. Client-supplied owner identifiers are
   rejected by DTO whitelisting.
 - Project facts are requested through the exported
-  `ProjectsService.getContributionRequestProjectAccess()` capability. This
-  module never reads or writes Project tables directly.
+  `ProjectsService.getContributionRequestProjectAccess()` and transaction-scoped
+  `lockContributionRequestProjectAccess()` capabilities. This module never
+  reads or writes Project tables directly.
 - Required and Preferred Requirements are ordered relational rows. Technology
   tags remain separate request metadata.
 - Draft update uses an optimistic `updated_at` predicate inside a transaction.
+- Project ownership and publication are revalidated on that same transaction
+  connection before every draft write.
 - Discard is the terminal, idempotent `discarded` transition; it never deletes
   the request and appends one immutable audit row.
 - Optional `Idempotency-Key` values protect create, update, and discard retries.
@@ -34,6 +37,9 @@ POST  /contribution-requests/:requestId/discard
 All routes require a bearer session. Draft lookup deliberately returns the
 same `CONTRIBUTION_REQUEST_NOT_FOUND` result for unknown and other-owner IDs.
 Responses use dedicated DTOs and never expose Prisma row names or audit data.
+Malformed Requirement shapes return the stable
+`CONTRIBUTION_REQUEST_REQUIREMENT_INPUT_INVALID` code; semantic missing and
+duplicate cases retain their more specific domain codes.
 
 ## Not implemented: public lifecycle (#49)
 

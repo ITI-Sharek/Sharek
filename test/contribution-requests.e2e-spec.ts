@@ -13,6 +13,7 @@ import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import {
   ConflictApplicationError,
   NotFoundApplicationError,
+  UnprocessableApplicationError,
 } from '../src/shared/errors/application.error';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
 
@@ -52,7 +53,11 @@ describe('Contribution Request draft HTTP contract', () => {
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
@@ -89,20 +94,114 @@ describe('Contribution Request draft HTTP contract', () => {
     });
   });
 
-  it('rejects malformed input at the transport boundary', async () => {
+  it('returns a stable domain error when Required Requirements are missing', async () => {
+    service.createDraft.mockRejectedValue(
+      new UnprocessableApplicationError(
+        'At least one Required Requirement is required',
+        'CONTRIBUTION_REQUEST_REQUIRED_REQUIREMENT_MISSING',
+      ),
+    );
     await request(app.getHttpServer())
       .post(`/projects/${projectId}/contribution-requests`)
       .send({ ...createBody(), requiredRequirements: [] })
-      .expect(400);
+      .expect(422)
+      .expect(({ body }) =>
+        expect(body.code).toBe(
+          'CONTRIBUTION_REQUEST_REQUIRED_REQUIREMENT_MISSING',
+        ),
+      );
+    expect(service.createDraft).toHaveBeenCalled();
+
+    const withoutRequired = {
+      ...createBody(),
+      requiredRequirements: undefined,
+    };
+    await request(app.getHttpServer())
+      .post(`/projects/${projectId}/contribution-requests`)
+      .send(withoutRequired)
+      .expect(422)
+      .expect(({ body }) =>
+        expect(body.code).toBe(
+          'CONTRIBUTION_REQUEST_REQUIRED_REQUIREMENT_MISSING',
+        ),
+      );
+    expect(service.createDraft).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns a stable domain error for duplicate Requirements', async () => {
+    service.createDraft.mockRejectedValue(
+      new UnprocessableApplicationError(
+        'Requirements must be unique within their classification',
+        'CONTRIBUTION_REQUEST_REQUIREMENT_DUPLICATE',
+      ),
+    );
+    const duplicate = { text: 'Deliver tested endpoints' };
+
+    await request(app.getHttpServer())
+      .post(`/projects/${projectId}/contribution-requests`)
+      .send({
+        ...createBody(),
+        requiredRequirements: [duplicate, duplicate],
+      })
+      .expect(422)
+      .expect(({ body }) =>
+        expect(body.code).toBe('CONTRIBUTION_REQUEST_REQUIREMENT_DUPLICATE'),
+      );
+
+    await request(app.getHttpServer())
+      .post(`/projects/${projectId}/contribution-requests`)
+      .send({
+        ...createBody(),
+        preferredRequirements: [duplicate, duplicate],
+      })
+      .expect(422)
+      .expect(({ body }) =>
+        expect(body.code).toBe('CONTRIBUTION_REQUEST_REQUIREMENT_DUPLICATE'),
+      );
+    expect(service.createDraft).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns a stable audience-safe code for malformed Requirement input', async () => {
+    await request(app.getHttpServer())
+      .post(`/projects/${projectId}/contribution-requests`)
+      .send({
+        ...createBody(),
+        requiredRequirements: [{ text: 'x' }],
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: 'CONTRIBUTION_REQUEST_REQUIREMENT_INPUT_INVALID',
+          message: 'Contribution Request Requirement input is invalid',
+        });
+      });
     expect(service.createDraft).not.toHaveBeenCalled();
   });
 
   it('requires authentication on all draft routes', async () => {
     authenticated = false;
-    await request(app.getHttpServer())
+    const server = app.getHttpServer();
+
+    await request(server)
       .get(`/contribution-requests/${requestId}`)
       .expect(401);
+    await request(server)
+      .post(`/projects/${projectId}/contribution-requests`)
+      .send(createBody())
+      .expect(401);
+    await request(server)
+      .patch(`/contribution-requests/${requestId}`)
+      .send({ title: 'Updated title' })
+      .expect(401);
+    await request(server)
+      .post(`/contribution-requests/${requestId}/discard`)
+      .send({})
+      .expect(401);
+
     expect(service.getOwnedRequest).not.toHaveBeenCalled();
+    expect(service.createDraft).not.toHaveBeenCalled();
+    expect(service.updateDraft).not.toHaveBeenCalled();
+    expect(service.discardDraft).not.toHaveBeenCalled();
   });
 
   it('serializes the same audience-safe not-found result for inaccessible drafts', async () => {
