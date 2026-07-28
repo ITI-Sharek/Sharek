@@ -11,6 +11,7 @@
     "start:prod": "node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
+    "test:migrations": "node scripts/test-application-status-migration.mjs",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "check:architecture": "node scripts/check-architecture.mjs",

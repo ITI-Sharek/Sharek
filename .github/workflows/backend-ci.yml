@@ -14,6 +14,20 @@ jobs:
     name: Verify backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sharek
+          POSTGRES_PASSWORD: sharek
+          POSTGRES_DB: sharek
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sharek -d sharek"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -39,6 +53,11 @@ jobs:
 
       - name: Test
         run: npm test -- --runInBand
+
+      - name: Test database migrations
+        run: npm run test:migrations
+        env:
+          DATABASE_URL: postgresql://sharek:sharek@localhost:5432/sharek?schema=public
 
       - name: Build
         run: npm run build

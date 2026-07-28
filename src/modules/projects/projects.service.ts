@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import {
-  ApplicationStatus,
   ContributionRequestStatus,
   Prisma,
   ProjectCategory,
@@ -17,6 +16,7 @@ import {
   ForbiddenApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
+import { ApplicationsService } from '../applications/applications.service';
 import { AdminPublishedProjectOwnerDto } from './dto/admin-published-project-owner.dto';
 import { ContributionRequestProjectAccessDto } from './dto/contribution-request-project-access.dto';
 import { DiscoverProjectsQuery } from './dto/discover-projects.query';
@@ -29,7 +29,10 @@ const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT = 20;
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly applications: ApplicationsService,
+  ) {}
 
   async getMyProjectsForActor(
     actor: AuthenticatedUser,
@@ -73,11 +76,7 @@ export class ProjectsService {
           contributionRequests: {
             select: {
               status: true,
-              applications: {
-                select: {
-                  status: true,
-                },
-              },
+              id: true,
             },
           },
         },
@@ -94,6 +93,22 @@ export class ProjectsService {
 
     const hasNextPage = projects.length > limit;
     const ownerProjects = projects.slice(0, limit);
+    const applicationSummary = await this.applications.summarizePendingByContributionRequests(
+      {
+        requestScopes: ownerProjects.map((project) => ({
+          projectId: project.id,
+          contributionRequestIds: project.contributionRequests.map(
+            (request) => request.id,
+          ),
+        })),
+      },
+    );
+    const pendingApplicationsByProjectId = new Map(
+      applicationSummary.projects.map((summary) => [
+        summary.projectId,
+        summary.pendingApplicationCount,
+      ]),
+    );
     const last = ownerProjects.at(-1);
     return {
       projects: ownerProjects.map((project) => ({
@@ -105,14 +120,8 @@ export class ProjectsService {
         openRequestsCount: project.contributionRequests.filter(
           (request) => request.status === ContributionRequestStatus.published,
         ).length,
-        pendingApplicationsCount: project.contributionRequests.reduce(
-          (count, request) =>
-            count +
-            request.applications.filter((application) =>
-              this.isPendingOwnerApplication(application.status),
-            ).length,
-          0,
-        ),
+        pendingApplicationsCount:
+          pendingApplicationsByProjectId.get(project.id) ?? 0,
         lastActivityLabel: this.formatLastActivityLabel(project.updated_at),
       })),
       quota: {
@@ -340,15 +349,6 @@ export class ProjectsService {
       );
     }
   }
-
-
-  private isPendingOwnerApplication(status: ApplicationStatus): boolean {
-    return (
-      status === ApplicationStatus.pending_validation ||
-      status === ApplicationStatus.eligible
-    );
-  }
-
   private getCurrentMonthStart(): Date {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
