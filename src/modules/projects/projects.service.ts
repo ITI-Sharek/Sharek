@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import {
   ContributionRequestStatus,
   Prisma,
@@ -37,6 +37,7 @@ interface ContributionRequestProjectRow {
 export class ProjectsService {
   constructor(
     private readonly database: DatabaseService,
+    @Inject(forwardRef(() => ApplicationsService))
     private readonly applications: ApplicationsService,
   ) {}
 

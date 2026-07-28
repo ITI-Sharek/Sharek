@@ -38,6 +38,9 @@ Current supported workflow:
 
 - skill-review outcome notifications for contributors after admin approval or
   rejection.
+- idempotent Application-submitted and Application-withdrawn notifications for
+  Project owners, deduplicated by Application and action before realtime
+  delivery.
 
 Future notification inbox, read-state, delivery channels, task-match alerts, and
 premium-tier notification rules should stay in this module.

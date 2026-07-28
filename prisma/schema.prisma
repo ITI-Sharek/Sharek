@@ -103,6 +103,11 @@ enum ApplicationStatus {
   request_cancelled
 }
 
+enum ApplicationAuditAction {
+  submitted
+  withdrawn
+}
+
 enum DeliveryStatus {
   submitted
   under_review
@@ -290,37 +295,39 @@ model User {
   updated_at         DateTime     @default(now()) @updatedAt
   last_login_at      DateTime?
 
-  subscriptions               Subscription[]
-  projects                    Project[]                    @relation("ProjectOwner")
-  contributionRequests        ContributionRequest[]        @relation("ContributionRequestOwner")
-  applications                Application[]                @relation("ApplicationContributor")
-  notifications               Notification[]
-  deliveryReviews             DeliveryReview[]             @relation("DeliveryReviewReviewer")
-  disputesFiled               Dispute[]                    @relation("UserDisputesFiled")
-  disputesResolved            Dispute[]                    @relation("UserDisputesResolved")
-  githubAccount               GitHubAccount?
-  contributorProfile          ContributorProfile?
-  reputationRecord            ReputationRecord?
-  skillProfiles               SkillProfile[]
-  reviewedSkillProfiles       SkillProfile[]               @relation("SkillProfileReviewedBy")
-  skillProfileReviewDecisions SkillProfileReviewDecision[] @relation("SkillProfileReviewDecisionReviewer")
-  skillProfileGenerations     SkillProfileGeneration[]
-  deliveries                  Delivery[]                   @relation("DeliveryContributor")
-  aiMatchResults              AiMatchResult[]              @relation("AIMatchContributor")
-  usageTrackers               UsageTracker[]
-  reportsFiled                Report[]                     @relation("ReportReporter")
-  reportsResolved             Report[]                     @relation("ReportResolver")
-  reportsReceived             Report[]                     @relation("ReportReportedUser")
-  skillGapContributions       SkillGapGuidance[]           @relation("SkillGapContributor")
-  authSessions                AuthSession[]
-  authProviderAccounts        AuthProviderAccount[]
-  authOAuthStates             AuthOAuthState[]
-  githubOAuthStates           GitHubOAuthState[]
-  githubAppInstallationLinks  GitHubAppInstallationLink[]
-  githubAppLinkStates         GitHubAppLinkState[]
-  emailVerificationOtps       EmailVerificationOtp[]
-  passwordResetOtps           PasswordResetOtp[]
-  contributionRequestAudits   ContributionRequestAudit[]   @relation("ContributionRequestAuditActor")
+  subscriptions                Subscription[]
+  projects                     Project[]                     @relation("ProjectOwner")
+  contributionRequests         ContributionRequest[]         @relation("ContributionRequestOwner")
+  applications                 Application[]                 @relation("ApplicationContributor")
+  notifications                Notification[]
+  deliveryReviews              DeliveryReview[]              @relation("DeliveryReviewReviewer")
+  disputesFiled                Dispute[]                     @relation("UserDisputesFiled")
+  disputesResolved             Dispute[]                     @relation("UserDisputesResolved")
+  githubAccount                GitHubAccount?
+  contributorProfile           ContributorProfile?
+  reputationRecord             ReputationRecord?
+  skillProfiles                SkillProfile[]
+  reviewedSkillProfiles        SkillProfile[]                @relation("SkillProfileReviewedBy")
+  skillProfileReviewDecisions  SkillProfileReviewDecision[]  @relation("SkillProfileReviewDecisionReviewer")
+  skillProfileGenerations      SkillProfileGeneration[]
+  deliveries                   Delivery[]                    @relation("DeliveryContributor")
+  aiMatchResults               AiMatchResult[]               @relation("AIMatchContributor")
+  usageTrackers                UsageTracker[]
+  reportsFiled                 Report[]                      @relation("ReportReporter")
+  reportsResolved              Report[]                      @relation("ReportResolver")
+  reportsReceived              Report[]                      @relation("ReportReportedUser")
+  skillGapContributions        SkillGapGuidance[]            @relation("SkillGapContributor")
+  authSessions                 AuthSession[]
+  authProviderAccounts         AuthProviderAccount[]
+  authOAuthStates              AuthOAuthState[]
+  githubOAuthStates            GitHubOAuthState[]
+  githubAppInstallationLinks   GitHubAppInstallationLink[]
+  githubAppLinkStates          GitHubAppLinkState[]
+  emailVerificationOtps        EmailVerificationOtp[]
+  passwordResetOtps            PasswordResetOtp[]
+  contributionRequestAudits    ContributionRequestAudit[]    @relation("ContributionRequestAuditActor")
+  applicationAudits            ApplicationAudit[]            @relation("ApplicationAuditActor")
+  applicationEvidenceSnapshots ApplicationEvidenceSnapshot[] @relation("ApplicationEvidenceSnapshotContributor")
 }
 
 model AuthProviderAccount {
@@ -637,23 +644,81 @@ model ContributionRequestAudit {
 }
 
 model Application {
-  id                      String            @id @default(uuid()) @db.Uuid
-  contribution_request_id String            @db.Uuid
-  contributor_id          String            @db.Uuid
-  cover_message           String?
-  status                  ApplicationStatus @default(pending_owner_review)
-  is_priority             Boolean           @default(false)
-  submitted_at            DateTime
-  validated_at            DateTime?
-  owner_reviewed_at       DateTime?
-  created_at              DateTime          @default(now())
-  updated_at              DateTime          @default(now()) @updatedAt
+  id                              String            @id @default(uuid()) @db.Uuid
+  contribution_request_id         String            @db.Uuid
+  contributor_id                  String            @db.Uuid
+  cover_message                   String?
+  contribution_approach           String?
+  proposed_delivery_duration_days Int?
+  requirement_snapshot_id         String?           @unique @db.Uuid
+  evidence_snapshot_id            String?           @unique @db.Uuid
+  status                          ApplicationStatus @default(pending_owner_review)
+  is_priority                     Boolean           @default(false)
+  submitted_at                    DateTime
+  validated_at                    DateTime?
+  owner_reviewed_at               DateTime?
+  review_due_at                   DateTime?
+  expires_at                      DateTime?
+  expired_at                      DateTime?
+  created_at                      DateTime          @default(now())
+  updated_at                      DateTime          @default(now()) @updatedAt
 
-  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
-  contributor         User                @relation("ApplicationContributor", fields: [contributor_id], references: [id])
+  contributionRequest ContributionRequest             @relation(fields: [contribution_request_id], references: [id])
+  contributor         User                            @relation("ApplicationContributor", fields: [contributor_id], references: [id])
+  requirementSnapshot ApplicationRequirementSnapshot? @relation(fields: [requirement_snapshot_id], references: [id], onDelete: Restrict)
+  evidenceSnapshot    ApplicationEvidenceSnapshot?    @relation(fields: [evidence_snapshot_id], references: [id], onDelete: Restrict)
+  auditEvents         ApplicationAudit[]
   aiValidationResult  AiValidationResult?
   delivery            Delivery?
   skillGapGuidance    SkillGapGuidance?
+
+  @@unique([contribution_request_id, contributor_id])
+  @@index([contribution_request_id, status, submitted_at])
+  @@index([contributor_id, submitted_at])
+}
+
+model ApplicationRequirementSnapshot {
+  id                        String   @id @default(uuid()) @db.Uuid
+  contribution_request_id   String   @db.Uuid
+  source_request_updated_at DateTime
+  requirements              Json
+  created_at                DateTime @default(now())
+
+  application Application?
+
+  @@index([contribution_request_id])
+}
+
+model ApplicationEvidenceSnapshot {
+  id                  String   @id @default(uuid()) @db.Uuid
+  contributor_id      String   @db.Uuid
+  contributor_context Json
+  evidence            Json
+  created_at          DateTime @default(now())
+
+  contributor User         @relation("ApplicationEvidenceSnapshotContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+  application Application?
+
+  @@index([contributor_id, created_at])
+}
+
+model ApplicationAudit {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  application_id      String                 @db.Uuid
+  actor_id            String                 @db.Uuid
+  action              ApplicationAuditAction
+  from_status         ApplicationStatus?
+  to_status           ApplicationStatus
+  idempotency_key     String?                @db.VarChar(128)
+  command_fingerprint String?                @db.Char(64)
+  metadata            Json?
+  created_at          DateTime               @default(now())
+
+  application Application @relation(fields: [application_id], references: [id], onDelete: Restrict)
+  actor       User        @relation("ApplicationAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
+
+  @@unique([actor_id, action, idempotency_key])
+  @@index([application_id, created_at])
 }
 
 model AiValidationResult {
@@ -909,15 +974,16 @@ model GitHubEvidenceCutover {
 }
 
 model Notification {
-  id         String           @id @default(uuid()) @db.Uuid
-  user_id    String           @db.Uuid
-  type       NotificationType
-  title      String           @db.VarChar(255)
-  message    String
-  metadata   Json?
-  is_read    Boolean          @default(false)
-  read_at    DateTime?
-  created_at DateTime         @default(now())
+  id                String           @id @default(uuid()) @db.Uuid
+  user_id           String           @db.Uuid
+  type              NotificationType
+  title             String           @db.VarChar(255)
+  message           String
+  metadata          Json?
+  deduplication_key String?          @unique @db.VarChar(160)
+  is_read           Boolean          @default(false)
+  read_at           DateTime?
+  created_at        DateTime         @default(now())
 
   user User @relation(fields: [user_id], references: [id])
 }

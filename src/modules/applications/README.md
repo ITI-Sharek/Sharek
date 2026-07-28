@@ -31,3 +31,35 @@ Use a controller/service/DTO structure. Request task and skill information
 through exported services. The applications service owns authorization, duplicate
 checks, status transitions, and final decisions. Advisory Fit Assessments may
 inform an owner but cannot write Application state.
+
+## Implemented: submit and withdraw Applications (#50)
+
+Active contributors submit through `POST /tasks/:requestId/applications` with a
+Contribution Approach, Proposed Delivery Duration, and UUID idempotency key.
+Every valid Application enters `pending_owner_review` immediately. Submission
+does not call AI or mutate contributor attempt quotas.
+
+The service fixes ordered Requirement and approved, audience-bounded Evidence
+Snapshots in the submission transaction. A database uniqueness guard permits
+one Application per contributor and Contribution Request. Append-only
+`ApplicationAudit` rows protect submission and withdrawal retries.
+
+Owners list pending Applications with `GET /tasks/:requestId/applications` and
+inspect an authorized Application with `GET /applications/:applicationId`.
+The owning contributor withdraws a pending Application through
+`POST /applications/:applicationId/withdraw`; withdrawal preserves history and
+notifies the owner through the exported Notifications service.
+
+Stable submission errors are `ALREADY_APPLIED`, `APPLICATIONS_CLOSED`,
+`REQUEST_CANCELLED`, `REQUEST_TERMINAL`, and `APPLICATION_NOT_AUTHORIZED`.
+Terminal withdrawal returns `APPLICATION_TERMINAL`.
+
+Issue #49 still owns publication, discovery, cancellation commands, and their
+Application side effects. This module consumes only the exported read/lock
+submission context from `contribution-tasks`.
+
+Focused verification:
+
+```bash
+npm test -- --runInBand src/modules/applications/applications.service.spec.ts test/applications.e2e-spec.ts src/modules/notifications/notifications.service.spec.ts
+```

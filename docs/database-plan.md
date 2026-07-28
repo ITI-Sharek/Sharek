@@ -48,7 +48,7 @@ skill-profiles        skill_profiles, skill_profile_generations, skill_profile_r
 notifications         notifications
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
-applications          applications, application_eligibility_results, application_status_history
+applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
 delivery-reviews      deliveries, delivery_reviews
 reputation            reputation_profiles, reputation_events
 admin                 admin_review_queue, reports, disputes, moderation_actions
@@ -100,6 +100,10 @@ proficiency, and notes where present. The latest review state remains on
 modules must call the exported notification service instead of writing the
 table directly.
 
+Application submission and withdrawal notifications use a nullable unique
+`deduplication_key` so a retried Application command cannot create or deliver
+the same durable notification twice.
+
 Migration `20260714130000_normalize_skill_profile_keys` aligns historical
 aliases such as `ts`, `js`, and `c sharp` with the same canonical policy.
 
@@ -124,6 +128,14 @@ transactional PostgreSQL fixture validates representative legacy rows through
 `npm run test:migrations`. Unresolved Applications attached to a draft Request
 fail the migration with a recovery hint because no approved owner-review state
 can preserve that invalid, non-actionable history.
+
+Migration `20260728200000_application_submission_withdrawal` adds the immutable
+Requirement and authorized Evidence Snapshot records used by new Applications,
+append-only Application audit rows, Contribution Approach, Proposed Delivery
+Duration, review timing, and the unique contributor/Contribution Request guard.
+Snapshot references and duration remain nullable only for legacy rows whose
+historical submission inputs cannot be reconstructed without inventing data;
+the Applications service always supplies them for new submissions.
 
 ## Vector Rules
 

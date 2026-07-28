@@ -49,6 +49,12 @@ provides the approved owner-review states and terminal `request_cancelled`
 transition; issue #49 should consume those states without recreating their
 migration in this module.
 
+The exported `getApplicationSubmissionContext()` and transaction-scoped
+`lockApplicationSubmissionContext()` capabilities expose only the Request
+lifecycle, close time, owner, revision time, and ordered Requirements needed by
+issue #50. Applications owns submission decisions and writes no Contribution
+Request tables.
+
 ## Persistence
 
 Migration `20260728013000_contribution_request_drafts` preserves legacy request
