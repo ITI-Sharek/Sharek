@@ -14,6 +14,8 @@ project visibility.
   supply owner or status.
 - `GET /projects/me`: cursor-paginated owner workspace for active owners and
   contributors, including revision, request/application counters, and quota.
+  `pendingApplicationsCount` includes only `pending_owner_review` Applications;
+  legacy AI eligibility states are not treated as an owner queue.
 - `GET|PATCH /projects/me/:projectId`: persisted-owner detail and editable
   presentation fields. Unknown and non-owned IDs share `PROJECT_NOT_FOUND`.
 - `POST /projects/me/:projectId/source/refresh`: idempotent source refresh that
@@ -41,7 +43,9 @@ transitions, transition audit facts, and command receipts use transactions.
 `ProjectsController` binds authenticated owner commands and delegates to
 `ProjectPublicationService`. `PublicProjectsController` delegates public reads
 to `PublicProjectsService`. `ProjectsService` retains owner-dashboard,
-discovery, and exported admin-summary behavior.
+discovery, and exported admin-summary behavior. Owner-dashboard pending counts
+come through the exported `ApplicationsService`; Projects does not interpret
+Application lifecycle states.
 
 The module writes `Project`, `ProjectOperation`, and
 `ProjectStateTransition`. It calls exported GitHub services for normalized
