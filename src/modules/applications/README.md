@@ -57,9 +57,11 @@ Stable submission errors are `ALREADY_APPLIED`, `APPLICATIONS_CLOSED`,
 `REQUEST_CANCELLED`, `REQUEST_TERMINAL`, and `APPLICATION_NOT_AUTHORIZED`.
 Terminal withdrawal returns `APPLICATION_TERMINAL`.
 
-Issue #49 still owns publication, discovery, cancellation commands, and their
-Application side effects. This module consumes only the exported read/lock
-submission context from `contribution-tasks`.
+Issue #49 adds the exported transaction-scoped
+`cancelPendingForRequest()` capability. Contribution Request cancellation calls
+it after locking the Request; the Applications module locks and changes only
+its own pending rows to `request_cancelled` and appends one immutable audit per
+transition. Terminal Application history is not rewritten.
 
 Focused verification:
 

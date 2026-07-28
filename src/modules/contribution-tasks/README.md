@@ -22,7 +22,8 @@ module rename.
   connection before every draft write.
 - Discard is the terminal, idempotent `discarded` transition; it never deletes
   the request and appends one immutable audit row.
-- Optional `Idempotency-Key` values protect create, update, and discard retries.
+- Optional `Idempotency-Key` values protect create, update, discard, publish,
+  and cancel retries.
   Reusing a key for a different command payload returns a stable conflict.
 
 ## HTTP routes
@@ -32,22 +33,40 @@ POST  /projects/:projectId/contribution-requests
 GET   /contribution-requests/:requestId
 PATCH /contribution-requests/:requestId
 POST  /contribution-requests/:requestId/discard
+POST  /contribution-requests/:requestId/publish
+POST  /contribution-requests/:requestId/cancel
+GET   /tasks
+GET   /tasks/:requestId
 ```
 
-All routes require a bearer session. Draft lookup deliberately returns the
-same `CONTRIBUTION_REQUEST_NOT_FOUND` result for unknown and other-owner IDs.
+Draft and owner-command routes require a bearer session; `/tasks` reads are
+public. Draft lookup deliberately returns the same
+`CONTRIBUTION_REQUEST_NOT_FOUND` result for unknown and other-owner IDs.
 Responses use dedicated DTOs and never expose Prisma row names or audit data.
 Malformed Requirement shapes return the stable
 `CONTRIBUTION_REQUEST_REQUIREMENT_INPUT_INVALID` code; semantic missing and
 duplicate cases retain their more specific domain codes.
 
-## Not implemented: public lifecycle (#49)
+## Implemented: public lifecycle (#49)
 
-Publication, public discovery, filters, cancellation, request entitlement
-limits, and Application side effects remain issue #49 work. Issue #47 now
-provides the approved owner-review states and terminal `request_cancelled`
-transition; issue #49 should consume those states without recreating their
-migration in this module.
+- Publication is an explicit active-owner command. It rechecks owned published
+  Project access, draft completeness, close-time validity, and the active owner
+  plan in the transaction. Owners without a current assignment receive the
+  default Bronze entitlement. Monthly publication limits are Bronze 10, Silver
+  20, and Gold 30; prior publications continue to count for their UTC calendar
+  month after cancellation.
+- `GET /tasks` and `GET /tasks/:requestId` are public reads. Both query only
+  `published` Requests with a publication time and an Applications Close Time
+  strictly after the server clock. Draft, discarded, cancelled, assigned,
+  completed, and closed Requests share the audience-safe
+  `CONTRIBUTION_REQUEST_NOT_FOUND` detail outcome.
+- Feed filters are `q`, `technologies`, `difficulty`, and `hasReward`.
+  Technology matches use any requested tag. Detail returns ordered
+  Requirements with explicit `required`/`preferred` classification.
+- Cancellation is an idempotent `published -> cancelled` owner command. It
+  preserves the Request and calls the exported Applications service in the same
+  transaction. Every pending Application becomes `request_cancelled` with an
+  immutable audit; already terminal Applications remain unchanged.
 
 The exported `getApplicationSubmissionContext()` and transaction-scoped
 `lockApplicationSubmissionContext()` capabilities expose only the Request
@@ -62,8 +81,14 @@ rows, renames legacy technology/deadline columns, adds Applications Close Time,
 creates ordered `contribution_request_requirements`, and creates append-only
 `contribution_request_audits`. Only this module writes those tables.
 
+Migration `20260728230000_contribution_request_publication` adds publication
+and cancellation audit actions, the Application cancellation audit action, and
+the actionable-discovery index. This module reads current owner Subscription
+records only to enforce publication entitlement and limits; it does not write
+them.
+
 Focused verification:
 
 ```bash
-npm test -- --runInBand src/modules/contribution-tasks/contribution-tasks.service.spec.ts test/contribution-requests.e2e-spec.ts
+npm test -- --runInBand src/modules/contribution-tasks/services/contribution-tasks.service.spec.ts src/modules/contribution-tasks/services/contribution-request-publication.service.spec.ts src/modules/contribution-tasks/services/public-contribution-requests.service.spec.ts src/modules/applications/applications.service.spec.ts test/contribution-requests.e2e-spec.ts test/contribution-request-public-lifecycle.e2e-spec.ts
 ```

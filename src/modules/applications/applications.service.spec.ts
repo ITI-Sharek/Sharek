@@ -84,8 +84,13 @@ describe('ApplicationsService submission and withdrawal', () => {
     },
     applicationRequirementSnapshot: { create: jest.fn() },
     applicationEvidenceSnapshot: { create: jest.fn() },
-    applicationAudit: { findFirst: jest.fn(), create: jest.fn() },
+    applicationAudit: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      createMany: jest.fn(),
+    },
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
   };
   const contributionTasks = {
     getApplicationSubmissionContext: jest.fn(),
@@ -159,6 +164,8 @@ describe('ApplicationsService submission and withdrawal', () => {
     database.applicationRequirementSnapshot.create.mockResolvedValue({});
     database.applicationEvidenceSnapshot.create.mockResolvedValue({});
     database.applicationAudit.create.mockResolvedValue({});
+    database.applicationAudit.createMany.mockResolvedValue({ count: 0 });
+    database.$queryRaw.mockResolvedValue([]);
     database.application.create.mockResolvedValue(applicationRecord());
     database.application.findUniqueOrThrow.mockResolvedValue(
       applicationRecord(),
@@ -371,6 +378,118 @@ describe('ApplicationsService submission and withdrawal', () => {
       service.withdraw({ actor: contributor, applicationId }),
     ).rejects.toMatchObject({ code: 'APPLICATION_TERMINAL' });
     expect(database.application.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('returns every pending Application as REQUEST_CANCELLED with immutable audits', async () => {
+    const secondApplicationId = '55555555-5555-4555-8555-555555555555';
+    database.$queryRaw.mockResolvedValue([
+      { id: applicationId },
+      { id: secondApplicationId },
+    ]);
+    database.application.updateMany.mockResolvedValue({ count: 2 });
+    database.applicationAudit.createMany.mockResolvedValue({ count: 2 });
+
+    await expect(
+      service.cancelPendingForRequest({
+        contributionRequestId: requestId,
+        actorId: ownerId,
+        transaction: database as never,
+      }),
+    ).resolves.toEqual({
+      cancelledApplicationIds: [applicationId, secondApplicationId],
+    });
+
+    expect(database.application.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: [applicationId, secondApplicationId] },
+        status: ApplicationStatus.pending_owner_review,
+      },
+      data: { status: ApplicationStatus.request_cancelled },
+    });
+    expect(database.applicationAudit.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          application_id: applicationId,
+          actor_id: ownerId,
+          action: 'request_cancelled',
+          from_status: ApplicationStatus.pending_owner_review,
+          to_status: ApplicationStatus.request_cancelled,
+        }),
+        expect.objectContaining({ application_id: secondApplicationId }),
+      ],
+    });
+  });
+
+  it('aborts cancellation when the locked pending set changes concurrently', async () => {
+    database.$queryRaw.mockResolvedValue([
+      { id: applicationId },
+      { id: '55555555-5555-4555-8555-555555555555' },
+    ]);
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.cancelPendingForRequest({
+        contributionRequestId: requestId,
+        actorId: ownerId,
+        transaction: database as never,
+      }),
+    ).rejects.toMatchObject({
+      code: 'APPLICATION_CONCURRENT_MODIFICATION',
+      statusCode: 409,
+    });
+    expect(database.applicationAudit.createMany).not.toHaveBeenCalled();
+  });
+
+  it('leaves accepted and withdrawn Applications and their audit history unchanged', async () => {
+    const acceptedId = '55555555-5555-4555-8555-555555555555';
+    const withdrawnId = '66666666-6666-4666-8666-666666666666';
+    const storedApplications = [
+      { id: applicationId, status: ApplicationStatus.pending_owner_review },
+      { id: acceptedId, status: ApplicationStatus.accepted },
+      { id: withdrawnId, status: ApplicationStatus.withdrawn },
+    ];
+    const storedAudits = [
+      { applicationId: acceptedId, action: 'accepted' },
+      { applicationId: withdrawnId, action: 'withdrawn' },
+    ];
+    database.$queryRaw.mockResolvedValue([{ id: applicationId }]);
+    database.application.updateMany.mockImplementation(({ where, data }) => {
+      const matching = storedApplications.filter(
+        (application) =>
+          where.id.in.includes(application.id) &&
+          application.status === where.status,
+      );
+      matching.forEach((application) => {
+        application.status = data.status;
+      });
+      return { count: matching.length };
+    });
+    database.applicationAudit.createMany.mockImplementation(({ data }) => {
+      storedAudits.push(
+        ...data.map((audit: { application_id: string; action: string }) => ({
+          applicationId: audit.application_id,
+          action: audit.action,
+        })),
+      );
+      return { count: data.length };
+    });
+
+    await service.cancelPendingForRequest({
+      contributionRequestId: requestId,
+      actorId: ownerId,
+      transaction: database as never,
+    });
+
+    expect(storedApplications).toEqual([
+      { id: applicationId, status: ApplicationStatus.request_cancelled },
+      { id: acceptedId, status: ApplicationStatus.accepted },
+      { id: withdrawnId, status: ApplicationStatus.withdrawn },
+    ]);
+    expect(storedAudits).toEqual([
+      { applicationId: acceptedId, action: 'accepted' },
+      { applicationId: withdrawnId, action: 'withdrawn' },
+      { applicationId, action: 'request_cancelled' },
+    ]);
   });
 
   function applicationRecord(overrides: Record<string, unknown> = {}) {

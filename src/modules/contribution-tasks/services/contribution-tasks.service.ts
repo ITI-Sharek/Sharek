@@ -8,26 +8,26 @@ import {
   Prisma,
 } from '@prisma/client';
 
-import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
-import { DatabaseService } from '../../shared/database/database.service';
+import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
+import { DatabaseService } from '../../../shared/database/database.service';
 import {
   BadRequestApplicationError,
   ConflictApplicationError,
   ForbiddenApplicationError,
   NotFoundApplicationError,
   UnprocessableApplicationError,
-} from '../../shared/errors/application.error';
-import { ProjectsService } from '../projects/projects.service';
+} from '../../../shared/errors/application.error';
+import { ProjectsService } from '../../projects/projects.service';
 import {
   CreateContributionRequestDto,
   UpdateContributionRequestDto,
-} from './dto/contribution-request-input.dto';
-import { ApplicationRequestContextDto } from './dto/application-request-context.dto';
-import { ContributionRequestDto } from './dto/contribution-request-response.dto';
+} from '../dto/contribution-request-input.dto';
+import { ApplicationRequestContextDto } from '../dto/application-request-context.dto';
+import { ContributionRequestDto } from '../dto/contribution-request-response.dto';
 import {
   ContributionRequestWithRequirements,
   toContributionRequestDto,
-} from './mappers/contribution-request.mapper';
+} from '../mappers/contribution-request.mapper';
 
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 

@@ -6,12 +6,14 @@ import {
   Prisma,
 } from '@prisma/client';
 
-import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
+import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
 import {
   ApplicationError,
   ConflictApplicationError,
-} from '../../shared/errors/application.error';
+} from '../../../shared/errors/application.error';
+import { ContributionRequestPublicationService } from './contribution-request-publication.service';
 import { ContributionTasksService } from './contribution-tasks.service';
+import { PublicContributionRequestsService } from './public-contribution-requests.service';
 
 const owner: AuthenticatedUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -26,9 +28,14 @@ describe('ContributionTasksService', () => {
   const database = {
     contributionRequest: {
       create: jest.fn(),
+      count: jest.fn(),
+      findMany: jest.fn(),
       findFirst: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       updateMany: jest.fn(),
+    },
+    subscription: {
+      findFirst: jest.fn(),
     },
     contributionRequestRequirement: {
       deleteMany: jest.fn(),
@@ -39,12 +46,26 @@ describe('ContributionTasksService', () => {
       create: jest.fn(),
     },
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
   };
   const projectsService = {
     getContributionRequestProjectAccess: jest.fn(),
     lockContributionRequestProjectAccess: jest.fn(),
+    listContributionRequestProjectReferences: jest.fn(),
+  };
+  const applicationsService = {
+    cancelPendingForRequest: jest.fn(),
   };
   const service = new ContributionTasksService(
+    database as never,
+    projectsService as never,
+  );
+  const publicationService = new ContributionRequestPublicationService(
+    database as never,
+    projectsService as never,
+    applicationsService as never,
+  );
+  const publicService = new PublicContributionRequestsService(
     database as never,
     projectsService as never,
   );
@@ -60,6 +81,10 @@ describe('ContributionTasksService', () => {
     );
     database.contributionRequestAudit.findFirst.mockResolvedValue(null);
     database.contributionRequestAudit.create.mockResolvedValue({});
+    database.contributionRequest.count.mockResolvedValue(0);
+    database.contributionRequest.findMany.mockResolvedValue([]);
+    database.subscription.findFirst.mockResolvedValue(null);
+    database.$queryRaw.mockResolvedValue([]);
     database.contributionRequestRequirement.deleteMany.mockResolvedValue({
       count: 2,
     });
@@ -76,6 +101,12 @@ describe('ContributionTasksService', () => {
       ownerId: owner.id,
       status: 'published',
     });
+    applicationsService.cancelPendingForRequest.mockResolvedValue({
+      cancelledApplicationIds: [],
+    });
+    projectsService.listContributionRequestProjectReferences.mockResolvedValue([
+      { id: projectId, title: 'Share-k Backend', slug: 'share-k-backend' },
+    ]);
   });
 
   it('creates a private draft with ordered structured requirements and an audit', async () => {
@@ -139,6 +170,348 @@ describe('ContributionTasksService', () => {
         expect.objectContaining({ text: 'Document the API examples' }),
       ],
     });
+  });
+
+  it('publishes a complete owned draft within the active owner plan limit', async () => {
+    const current = makeRequest();
+    const publishedAt = new Date('2026-07-28T12:00:00.000Z');
+    const published = makeRequest({
+      status: ContributionRequestStatus.published,
+      published_at: publishedAt,
+    });
+    database.contributionRequest.findFirst.mockResolvedValue(current);
+    database.contributionRequest.count.mockResolvedValue(9);
+    database.subscription.findFirst.mockResolvedValue({ plan_type: 'bronze' });
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(published);
+
+    await expect(
+      publicationService.publishRequest({
+        user: owner,
+        requestId,
+        idempotencyKey: 'publish-request-001',
+      }),
+    ).resolves.toMatchObject({
+      status: ContributionRequestStatus.published,
+      publishedAt,
+    });
+
+    expect(database.contributionRequest.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        owner_id: owner.id,
+        published_at: expect.objectContaining({
+          gte: expect.any(Date),
+          lt: expect.any(Date),
+        }),
+      }),
+    });
+    expect(database.contributionRequest.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: requestId,
+        owner_id: owner.id,
+        status: ContributionRequestStatus.draft,
+      }),
+      data: {
+        status: ContributionRequestStatus.published,
+        published_at: expect.any(Date),
+      },
+    });
+    expect(database.contributionRequestAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'published',
+        from_status: ContributionRequestStatus.draft,
+        to_status: ContributionRequestStatus.published,
+      }),
+    });
+  });
+
+  it('uses the default Bronze entitlement and blocks the eleventh monthly publication', async () => {
+    database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
+    database.subscription.findFirst.mockResolvedValue(null);
+    database.contributionRequest.count.mockResolvedValue(10);
+
+    await expect(
+      publicationService.publishRequest({ user: owner, requestId }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_LIMIT_REACHED',
+      statusCode: 409,
+      metadata: {
+        planType: 'bronze',
+        monthlyLimit: 10,
+        monthlyUsage: 10,
+      },
+    } satisfies Partial<ApplicationError>);
+    expect(database.contributionRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects publication when the draft is no longer complete', async () => {
+    database.contributionRequest.findFirst.mockResolvedValue(
+      makeRequest({ requirements: [] }),
+    );
+
+    await expect(
+      publicationService.publishRequest({ user: owner, requestId }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_REQUIRED_REQUIREMENT_MISSING',
+      statusCode: 422,
+    } satisfies Partial<ApplicationError>);
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('discovers only published requests whose Applications Close Time is still open', async () => {
+    const actionable = {
+      ...makeRequest({
+        status: ContributionRequestStatus.published,
+        published_at: new Date('2026-07-28T12:00:00.000Z'),
+      }),
+      project: {
+        id: projectId,
+        title: 'Share-k Backend',
+        slug: 'share-k-backend',
+      },
+    };
+    database.contributionRequest.count.mockResolvedValue(1);
+    database.contributionRequest.findMany
+      .mockResolvedValueOnce([actionable])
+      .mockResolvedValueOnce([
+        { technology_tags: ['NestJS', 'PostgreSQL'] },
+      ]);
+
+    const result = await publicService.list({
+      q: 'webhook',
+      technologies: ['NestJS'],
+      difficulty: ContributionRequestDifficulty.intermediate,
+      hasReward: true,
+    });
+
+    expect(database.contributionRequest.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        AND: expect.arrayContaining([
+          {
+            status: ContributionRequestStatus.published,
+            published_at: { not: null },
+            applications_close_at: { gt: expect.any(Date) },
+          },
+        ]),
+      }),
+    });
+    expect(result).toMatchObject({
+      totalCount: 1,
+      technologyFacets: ['NestJS', 'PostgreSQL'],
+      items: [
+        {
+          id: requestId,
+          projectName: 'Share-k Backend',
+          projectSlug: 'share-k-backend',
+          reward: { amount: 150, currency: 'USD' },
+        },
+      ],
+    });
+  });
+
+  it('returns actionable public detail with Requirement classifications', async () => {
+    database.contributionRequest.findFirst.mockResolvedValue({
+      ...makeRequest({
+        status: ContributionRequestStatus.published,
+        published_at: new Date('2026-07-28T12:00:00.000Z'),
+      }),
+      project: {
+        id: projectId,
+        title: 'Share-k Backend',
+        slug: 'share-k-backend',
+      },
+    });
+
+    const result = await publicService.getById(requestId);
+
+    expect(database.contributionRequest.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: requestId,
+        status: ContributionRequestStatus.published,
+        published_at: { not: null },
+        applications_close_at: { gt: expect.any(Date) },
+      },
+      include: { requirements: true },
+    });
+    expect(result.requirements).toEqual([
+      expect.objectContaining({ classification: 'required' }),
+      expect.objectContaining({ classification: 'preferred' }),
+    ]);
+  });
+
+  it('does not reveal non-actionable Requests through public detail', async () => {
+    database.contributionRequest.findFirst.mockResolvedValue(null);
+
+    await expect(publicService.getById(requestId)).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_NOT_FOUND',
+      statusCode: 404,
+    } satisfies Partial<ApplicationError>);
+  });
+
+  it('cancels a published Request and preserves terminal Application history', async () => {
+    const published = makeRequest({
+      status: ContributionRequestStatus.published,
+      published_at: new Date('2026-07-28T12:00:00.000Z'),
+    });
+    const cancelled = makeRequest({
+      status: ContributionRequestStatus.cancelled,
+      published_at: published.published_at,
+    });
+    database.contributionRequest.findFirst.mockResolvedValue(published);
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(cancelled);
+    applicationsService.cancelPendingForRequest.mockResolvedValue({
+      cancelledApplicationIds: ['application-1'],
+    });
+
+    await expect(
+      publicationService.cancelRequest({
+        user: owner,
+        requestId,
+        reason: 'Project priorities changed',
+        idempotencyKey: 'cancel-request-001',
+      }),
+    ).resolves.toMatchObject({ status: ContributionRequestStatus.cancelled });
+
+    expect(database.contributionRequest.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: requestId,
+        owner_id: owner.id,
+        status: ContributionRequestStatus.published,
+      }),
+      data: { status: ContributionRequestStatus.cancelled },
+    });
+    expect(database.contributionRequestAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'cancelled',
+        from_status: ContributionRequestStatus.published,
+        to_status: ContributionRequestStatus.cancelled,
+        reason: 'Project priorities changed',
+      }),
+    });
+    expect(applicationsService.cancelPendingForRequest).toHaveBeenCalledWith({
+      contributionRequestId: requestId,
+      actorId: owner.id,
+      transaction: database,
+    });
+  });
+
+  it('rejects cancellation before publication without mutating Applications', async () => {
+    database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
+
+    await expect(
+      publicationService.cancelRequest({ user: owner, requestId }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_NOT_CANCELLABLE',
+      statusCode: 409,
+    } satisfies Partial<ApplicationError>);
+    expect(applicationsService.cancelPendingForRequest).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['title', { title: 'x' }],
+    ['description', { description: 'too short' }],
+  ])(
+    'revalidates persisted %s completeness before publication',
+    async (field, overrides) => {
+      database.contributionRequest.findFirst.mockResolvedValue(
+        makeRequest(overrides),
+      );
+
+      await expect(
+        publicationService.publishRequest({ user: owner, requestId }),
+      ).rejects.toMatchObject({
+        code: 'CONTRIBUTION_REQUEST_DRAFT_NOT_PUBLISHABLE',
+        statusCode: 409,
+        metadata: { incompleteFields: [field] },
+      } satisfies Partial<ApplicationError>);
+      expect(database.$transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it('replays a completed publish command without opening another transaction', async () => {
+    const published = makeRequest({
+      status: ContributionRequestStatus.published,
+      published_at: new Date('2026-07-28T12:00:00.000Z'),
+    });
+    database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(published);
+
+    await publicationService.publishRequest({
+      user: owner,
+      requestId,
+      idempotencyKey: 'publish-replay-001',
+    });
+    const fingerprint = capturedFingerprint();
+
+    jest.clearAllMocks();
+    database.contributionRequest.findFirst.mockResolvedValue(published);
+    database.contributionRequestAudit.findFirst.mockResolvedValue({
+      command_fingerprint: fingerprint,
+      contributionRequest: published,
+    });
+    projectsService.getContributionRequestProjectAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'published',
+    });
+
+    await expect(
+      publicationService.publishRequest({
+        user: owner,
+        requestId,
+        idempotencyKey: 'publish-replay-001',
+      }),
+    ).resolves.toMatchObject({ status: ContributionRequestStatus.published });
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects a cancel key replayed with a different reason', async () => {
+    const published = makeRequest({
+      status: ContributionRequestStatus.published,
+      published_at: new Date('2026-07-28T12:00:00.000Z'),
+    });
+    const cancelled = makeRequest({
+      status: ContributionRequestStatus.cancelled,
+      published_at: published.published_at,
+    });
+    database.contributionRequest.findFirst.mockResolvedValue(published);
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(cancelled);
+
+    await publicationService.cancelRequest({
+      user: owner,
+      requestId,
+      reason: 'Original reason',
+      idempotencyKey: 'cancel-replay-001',
+    });
+    const fingerprint = capturedFingerprint();
+
+    jest.clearAllMocks();
+    database.contributionRequest.findFirst.mockResolvedValue(cancelled);
+    database.contributionRequestAudit.findFirst.mockResolvedValue({
+      command_fingerprint: fingerprint,
+      contributionRequest: cancelled,
+    });
+    projectsService.getContributionRequestProjectAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'published',
+    });
+
+    await expect(
+      publicationService.cancelRequest({
+        user: owner,
+        requestId,
+        reason: 'Different reason',
+        idempotencyKey: 'cancel-replay-001',
+      }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT',
+      statusCode: 409,
+    } satisfies Partial<ApplicationError>);
+    expect(database.$transaction).not.toHaveBeenCalled();
   });
 
   it('returns the original request for an idempotent create replay', async () => {
@@ -630,7 +1003,7 @@ function baseRequest() {
     reward_currency: 'USD',
     status: ContributionRequestStatus.draft as ContributionRequestStatus,
     max_applicants: 1,
-    published_at: null,
+    published_at: null as Date | null,
     created_at: new Date('2026-07-28T00:00:00.000Z'),
     updated_at: new Date('2026-07-28T00:00:00.000Z'),
     requirements: [

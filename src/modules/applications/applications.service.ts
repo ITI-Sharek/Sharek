@@ -15,7 +15,7 @@ import {
   ForbiddenApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
-import { ContributionTasksService } from '../contribution-tasks/contribution-tasks.service';
+import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
 import { ContributorProfilesService } from '../contributor-profiles/contributor-profiles.service';
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -379,6 +379,55 @@ export class ApplicationsService {
         ),
       })),
     };
+  }
+
+  async cancelPendingForRequest(input: {
+    contributionRequestId: string;
+    actorId: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<{ cancelledApplicationIds: string[] }> {
+    const pending = await input.transaction.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`
+        SELECT "id"
+        FROM "Application"
+        WHERE "contribution_request_id" = ${input.contributionRequestId}::uuid
+          AND "status" = ${ApplicationStatus.pending_owner_review}::"ApplicationStatus"
+        ORDER BY "id"
+        FOR UPDATE
+      `,
+    );
+    const cancelledApplicationIds = pending.map((application) => application.id);
+    if (cancelledApplicationIds.length === 0) {
+      return { cancelledApplicationIds };
+    }
+
+    const updated = await input.transaction.application.updateMany({
+      where: {
+        id: { in: cancelledApplicationIds },
+        status: ApplicationStatus.pending_owner_review,
+      },
+      data: { status: ApplicationStatus.request_cancelled },
+    });
+    if (updated.count !== cancelledApplicationIds.length) {
+      throw new ConflictApplicationError(
+        'An Application changed during Contribution Request cancellation',
+        'APPLICATION_CONCURRENT_MODIFICATION',
+      );
+    }
+    await input.transaction.applicationAudit.createMany({
+      data: cancelledApplicationIds.map((applicationId) => ({
+        application_id: applicationId,
+        actor_id: input.actorId,
+        action: ApplicationAuditAction.request_cancelled,
+        from_status: ApplicationStatus.pending_owner_review,
+        to_status: ApplicationStatus.request_cancelled,
+        metadata: {
+          payloadVersion: 1,
+          contributionRequestId: input.contributionRequestId,
+        },
+      })),
+    });
+    return { cancelledApplicationIds };
   }
 
   private assertRequestAcceptsApplications(

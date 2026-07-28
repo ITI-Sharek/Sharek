@@ -80,6 +80,10 @@
 # - [DONE] GET /contribution-requests/:requestId
 # - [DONE] PATCH /contribution-requests/:requestId
 # - [DONE] POST /contribution-requests/:requestId/discard
+# - [DONE] POST /contribution-requests/:requestId/publish
+# - [DONE] POST /contribution-requests/:requestId/cancel
+# - [DONE] GET /tasks
+# - [DONE] GET /tasks/:requestId
 # - [RETIRED] POST /projects/import/github
 # - [DONE] POST /projects/github/preview -> POST /projects -> explicit publish/archive
 # - [DONE] POST /contributors/profiles/me/ensure
@@ -817,7 +821,33 @@ Content-Type: application/json
 }
 
 
-### 11A.4 - DONE - Discard my private Contribution Request draft
+### 11A.4 - DONE - Publish my complete Contribution Request draft
+POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/publish
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: publish-contribution-request-001
+
+
+### 11A.5 - DONE - Browse actionable Contribution Requests (public)
+GET {{baseUrl}}/tasks?technologies=NestJS,PostgreSQL&difficulty=intermediate&hasReward=true
+
+
+### 11A.6 - DONE - Inspect one actionable Contribution Request (public)
+GET {{baseUrl}}/tasks/{{contributionRequestId}}
+
+
+### 11A.7 - DONE - Cancel my published Contribution Request
+POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/cancel
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: cancel-contribution-request-001
+Content-Type: application/json
+
+{
+  "reason": "The Project scope changed"
+}
+
+
+### 11A.8 - DONE - Alternative to publish: discard a private draft
+# Run this instead of 11A.4 through 11A.7 for the draft-discard path.
 POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/discard
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: discard-contribution-request-001

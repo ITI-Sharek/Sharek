@@ -163,8 +163,8 @@ needs workflow code.
 | `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, and dynamic admin-managed contributor fields and experience levels | root controller/service, DTOs, presenter, validator, field/experience-level catalogs | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
-| `contribution-tasks` | Implemented private Contribution Request draft create/read/update/discard with structured Requirements, concurrency control, and immutable audit | controller, service, DTOs, mapper, tests, module README | issue #49 publication/discovery/cancellation after issue #47 Application states land | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
-| `applications` | Registered placeholder module | module README and module file | apply-to-task, eligibility recommendation, manual review, owner decision | Update when application status, AI decision handling, or application APIs are added |
+| `contribution-tasks` | Implemented private drafts plus explicit publication, actionable public discovery/detail, owner-plan limits, cancellation, and immutable lifecycle audits | grouped protected/public controllers, focused draft/publication/discovery services, DTOs, mapper, tests, module README | owner decisions/assignment integration and later Proposal-created draft attribution | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
+| `applications` | Implemented direct owner-review submission, owner/contributor reads, withdrawal, and Request-cancellation propagation | controller, service, DTOs, tests, module README | expiry, owner decisions, Assignments, and optional Advisory Fit | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
@@ -1699,3 +1699,45 @@ This keeps the system strong without making it heavy:
 - Dependency/risk: issue #49 remains responsible for public Request publication,
   discovery, cancellation, and cancellation propagation. #50 consumes a
   transaction-scoped read/lock context and does not implement those commands.
+
+### 2026-07-28 - Publish, discover, and cancel Contribution Requests (#49)
+
+- Modules: `contribution-tasks`, with transaction-scoped cancellation effects
+  through the exported `ApplicationsService`.
+- Requirement/task IDs: Sprint 4 B03, GitHub issue #49, TASK-4-02/4-03,
+  FR-046 through FR-050, FR-073 through FR-075, DEC-026/031/036, and parent
+  specification #46.
+- Summary: added explicit idempotent `draft -> published` and `published ->
+  cancelled` owner commands. Publication rechecks Project ownership/state,
+  completeness, close time, and current Bronze/Silver/Gold monthly usage under
+  a serialized owner scope. Public feed/detail queries expose only published
+  Requests with a future Applications Close Time and preserve Required versus
+  Preferred Requirement classification.
+- API changes: added protected `POST /contribution-requests/:id/publish` and
+  `POST /contribution-requests/:id/cancel`, plus public `GET /tasks` and `GET
+  /tasks/:id`. Feed filters are `q`, `technologies`, `difficulty`, and
+  `hasReward`; stable publication-limit, state, and audience-safe not-found
+  codes are documented.
+- Database changes: migration
+  `20260728230000_contribution_request_publication` adds Request
+  `published`/`cancelled` and Application `request_cancelled` audit actions plus
+  the actionable-read index. Request cancellation and every still-pending
+  Application transition/audit are committed atomically; terminal Application
+  history is unchanged.
+- Authorization/privacy: owner commands derive the actor from the bearer
+  session and recheck owned published Project access in the transaction. Public
+  reads return dedicated allowlisted DTOs and never expose owner identity,
+  Applications, audits, subscription records, or draft/cancelled identifiers.
+- Architecture: grouped controllers and focused draft, publication, and public
+  discovery services keep the module seams explicit. Discovery obtains Project
+  title/slug projections only through the exported `ProjectsService`.
+- Documentation: updated Contribution Requests, Applications, API contracts,
+  REST examples, database plan, and this tracker.
+- Verification: focused Request/Application service suites and both mocked and
+  real-service Supertest HTTP contracts pass. Architecture, lint, type-check,
+  Prisma validation, build, migration harness/status, and diff checks pass.
+  The final full suite passes 62 suites and 313 tests.
+- Known risk/follow-up: payment processing remains intentionally absent. The
+  current Subscription table supplies plan context and owners without an active
+  assignment receive Bronze; the broader admin/demo entitlement management API
+  remains the separately scheduled subscription capability.
