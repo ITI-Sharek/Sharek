@@ -113,6 +113,16 @@ state boundary, optional idempotency key and command fingerprint, reason, and
 minimal metadata. Project ownership remains read through the exported Projects
 service; the contribution-tasks module does not write Project tables.
 
+Migration `20260728150000_application_owner_review_states` replaces the legacy
+Application AI-validation enum with the direct owner-review lifecycle. Existing
+`accepted` and `withdrawn` outcomes remain unchanged. Legacy `rejected` becomes
+`declined_by_owner` only when `owner_reviewed_at` proves owner action. Other
+unresolved rows return to `pending_owner_review` while actionable, become
+`not_selected` when their Request is already assigned/completed, or become
+`request_cancelled` when the parent Request is cancelled/discarded. A
+transactional PostgreSQL fixture validates representative legacy rows through
+`npm run test:migrations`.
+
 ## Vector Rules
 
 - Store embeddings for stable text snapshots, not constantly changing raw text.

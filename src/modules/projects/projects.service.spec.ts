@@ -82,7 +82,10 @@ describe('ProjectsService', () => {
         contributionRequests: [
           {
             status: 'published',
-            applications: [{ status: 'eligible' }, { status: 'rejected' }],
+            applications: [
+              { status: 'pending_owner_review' },
+              { status: 'declined_by_owner' },
+            ],
           },
         ],
       },

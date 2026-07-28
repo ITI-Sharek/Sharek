@@ -635,7 +635,8 @@ CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT
 ```
 
 Public publication, discovery, and cancellation are not part of this contract
-yet. They are blocked on the approved Application state model from issue #47.
+yet. Issue #47 now provides their prerequisite Application owner-review state
+model; the public lifecycle remains scoped to issue #49.
 
 ## Skill Profile Contracts
 
