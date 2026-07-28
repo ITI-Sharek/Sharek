@@ -11,21 +11,24 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
-import { CurrentUser } from '../../shared/auth/current-user.decorator';
-import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
+import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
+import { CurrentUser } from '../../../shared/auth/current-user.decorator';
+import { AccessTokenGuard } from '../../../shared/auth/guards/access-token.guard';
 import {
+  CancelContributionRequestDto,
   CreateContributionRequestDto,
   DiscardContributionRequestDto,
   UpdateContributionRequestDto,
-} from './dto/contribution-request-input.dto';
-import { ContributionTasksService } from './contribution-tasks.service';
+} from '../dto/contribution-request-input.dto';
+import { ContributionRequestPublicationService } from '../services/contribution-request-publication.service';
+import { ContributionTasksService } from '../services/contribution-tasks.service';
 
 @UseGuards(AccessTokenGuard)
 @Controller()
 export class ContributionTasksController {
   constructor(
     private readonly contributionTasksService: ContributionTasksService,
+    private readonly publicationService: ContributionRequestPublicationService,
   ) {}
 
   @Post('projects/:projectId/contribution-requests')
@@ -75,6 +78,36 @@ export class ContributionTasksController {
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.contributionTasksService.discardDraft({
+      user,
+      requestId,
+      reason: body.reason,
+      idempotencyKey,
+    });
+  }
+
+  @Post('contribution-requests/:requestId/publish')
+  @HttpCode(200)
+  publishRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId', new ParseUUIDPipe({ version: '4' })) requestId: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.publicationService.publishRequest({
+      user,
+      requestId,
+      idempotencyKey,
+    });
+  }
+
+  @Post('contribution-requests/:requestId/cancel')
+  @HttpCode(200)
+  cancelRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId', new ParseUUIDPipe({ version: '4' })) requestId: string,
+    @Body() body: CancelContributionRequestDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.publicationService.cancelRequest({
       user,
       requestId,
       reason: body.reason,

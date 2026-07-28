@@ -137,6 +137,14 @@ Snapshot references and duration remain nullable only for legacy rows whose
 historical submission inputs cannot be reconstructed without inventing data;
 the Applications service always supplies them for new submissions.
 
+Migration `20260728230000_contribution_request_publication` extends the
+append-only Request audit actions with `published` and `cancelled`, extends
+Application audits with `request_cancelled`, and adds an index over Request
+status, Applications Close Time, and publication time for actionable public
+reads. Cancellation updates current pending Application state and appends the
+corresponding Application audits in the same transaction as the Request audit;
+no Request or Application history is deleted.
+
 ## Vector Rules
 
 - Store embeddings for stable text snapshots, not constantly changing raw text.

@@ -205,3 +205,11 @@ export class DiscardContributionRequestDto {
   @Length(2, 500)
   reason?: string;
 }
+
+export class CancelContributionRequestDto {
+  @IsOptional()
+  @Transform(normalizeString)
+  @IsString()
+  @Length(2, 500)
+  reason?: string;
+}

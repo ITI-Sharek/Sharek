@@ -7,8 +7,11 @@ import {
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 
-import { ContributionTasksController } from '../src/modules/contribution-tasks/contribution-tasks.controller';
-import { ContributionTasksService } from '../src/modules/contribution-tasks/contribution-tasks.service';
+import { ContributionTasksController } from '../src/modules/contribution-tasks/controllers/contribution-tasks.controller';
+import { PublicContributionRequestsController } from '../src/modules/contribution-tasks/controllers/public-contribution-requests.controller';
+import { ContributionRequestPublicationService } from '../src/modules/contribution-tasks/services/contribution-request-publication.service';
+import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
+import { PublicContributionRequestsService } from '../src/modules/contribution-tasks/services/public-contribution-requests.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import {
   ConflictApplicationError,
@@ -34,12 +37,23 @@ describe('Contribution Request draft HTTP contract', () => {
     getOwnedRequest: jest.fn(),
     updateDraft: jest.fn(),
     discardDraft: jest.fn(),
+    publishRequest: jest.fn(),
+    cancelRequest: jest.fn(),
+    list: jest.fn(),
+    getById: jest.fn(),
   };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [ContributionTasksController],
-      providers: [{ provide: ContributionTasksService, useValue: service }],
+      controllers: [
+        ContributionTasksController,
+        PublicContributionRequestsController,
+      ],
+      providers: [
+        { provide: ContributionTasksService, useValue: service },
+        { provide: ContributionRequestPublicationService, useValue: service },
+        { provide: PublicContributionRequestsService, useValue: service },
+      ],
     })
       .overrideGuard(AccessTokenGuard)
       .useValue({
@@ -70,6 +84,37 @@ describe('Contribution Request draft HTTP contract', () => {
     service.getOwnedRequest.mockResolvedValue(responseDto());
     service.updateDraft.mockResolvedValue(responseDto({ title: 'Updated title' }));
     service.discardDraft.mockResolvedValue(responseDto({ status: 'discarded' }));
+    service.publishRequest.mockResolvedValue(
+      responseDto({
+        status: 'published',
+        publishedAt: '2026-07-28T12:00:00.000Z',
+      }),
+    );
+    service.cancelRequest.mockResolvedValue(
+      responseDto({ status: 'cancelled' }),
+    );
+    service.list.mockResolvedValue({
+      items: [publicListItem()],
+      totalCount: 1,
+      technologyFacets: ['NestJS'],
+    });
+    service.getById.mockResolvedValue({
+      ...publicListItem(),
+      description: 'Implement the public lifecycle safely.',
+      status: 'published',
+      requirements: [
+        {
+          id: 'required-0',
+          text: 'Deliver tested endpoints',
+          classification: 'required',
+        },
+        {
+          id: 'preferred-0',
+          text: 'Document the contract',
+          classification: 'preferred',
+        },
+      ],
+    });
   });
 
   afterAll(async () => app.close());
@@ -197,11 +242,21 @@ describe('Contribution Request draft HTTP contract', () => {
       .post(`/contribution-requests/${requestId}/discard`)
       .send({})
       .expect(401);
+    await request(server)
+      .post(`/contribution-requests/${requestId}/publish`)
+      .send({})
+      .expect(401);
+    await request(server)
+      .post(`/contribution-requests/${requestId}/cancel`)
+      .send({})
+      .expect(401);
 
     expect(service.getOwnedRequest).not.toHaveBeenCalled();
     expect(service.createDraft).not.toHaveBeenCalled();
     expect(service.updateDraft).not.toHaveBeenCalled();
     expect(service.discardDraft).not.toHaveBeenCalled();
+    expect(service.publishRequest).not.toHaveBeenCalled();
+    expect(service.cancelRequest).not.toHaveBeenCalled();
   });
 
   it('serializes the same audience-safe not-found result for inaccessible drafts', async () => {
@@ -256,6 +311,141 @@ describe('Contribution Request draft HTTP contract', () => {
       idempotencyKey: 'discard-request-001',
     });
   });
+
+  it('publishes only through the explicit owner command', async () => {
+    await request(app.getHttpServer())
+      .post(`/contribution-requests/${requestId}/publish`)
+      .set('Idempotency-Key', 'publish-request-001')
+      .send({})
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.status).toBe('published');
+        expect(body.publishedAt).toBe('2026-07-28T12:00:00.000Z');
+      });
+
+    expect(service.publishRequest).toHaveBeenCalledWith({
+      user: owner,
+      requestId,
+      idempotencyKey: 'publish-request-001',
+    });
+  });
+
+  it('cancels a published request through an auditable owner command', async () => {
+    await request(app.getHttpServer())
+      .post(`/contribution-requests/${requestId}/cancel`)
+      .set('Idempotency-Key', 'cancel-request-001')
+      .send({ reason: 'Project priorities changed' })
+      .expect(200)
+      .expect(({ body }) => expect(body.status).toBe('cancelled'));
+
+    expect(service.cancelRequest).toHaveBeenCalledWith({
+      user: owner,
+      requestId,
+      reason: 'Project priorities changed',
+      idempotencyKey: 'cancel-request-001',
+    });
+  });
+
+  it('exposes an unauthenticated actionable-only feed with structured filters', async () => {
+    authenticated = false;
+
+    await request(app.getHttpServer())
+      .get('/tasks')
+      .query({
+        q: 'webhook',
+        technologies: 'NestJS,PostgreSQL',
+        difficulty: 'intermediate',
+        hasReward: 'true',
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items).toEqual([publicListItem()]);
+        expect(body.technologyFacets).toEqual(['NestJS']);
+      });
+
+    expect(service.list).toHaveBeenCalledWith({
+      q: 'webhook',
+      technologies: ['NestJS', 'PostgreSQL'],
+      difficulty: 'intermediate',
+      hasReward: true,
+    });
+  });
+
+  it('accepts the bracketed technology arrays emitted by the frontend HTTP client', async () => {
+    authenticated = false;
+
+    await request(app.getHttpServer())
+      .get('/tasks?technologies%5B%5D=NestJS&technologies%5B%5D=PostgreSQL')
+      .expect(200);
+
+    expect(service.list).toHaveBeenCalledWith({
+      technologies: ['NestJS', 'PostgreSQL'],
+    });
+  });
+
+  it('exposes actionable public detail with Required and Preferred Requirements distinct', async () => {
+    authenticated = false;
+
+    await request(app.getHttpServer())
+      .get(`/tasks/${requestId}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.status).toBe('published');
+        expect(body.requirements).toEqual([
+          expect.objectContaining({ classification: 'required' }),
+          expect.objectContaining({ classification: 'preferred' }),
+        ]);
+      });
+
+    expect(service.getById).toHaveBeenCalledWith(requestId);
+  });
+
+  it('keeps draft, cancelled, and closed Requests private behind one stable public error', async () => {
+    authenticated = false;
+    service.getById.mockRejectedValue(
+      new NotFoundApplicationError(
+        'Contribution Request was not found',
+        'CONTRIBUTION_REQUEST_NOT_FOUND',
+      ),
+    );
+
+    await request(app.getHttpServer())
+      .get(`/tasks/${requestId}`)
+      .expect(404)
+      .expect(({ body }) =>
+        expect(body.code).toBe('CONTRIBUTION_REQUEST_NOT_FOUND'),
+      );
+  });
+
+  it('serializes stable publication-limit and cancellation-state errors', async () => {
+    service.publishRequest.mockRejectedValue(
+      new ConflictApplicationError(
+        'The monthly Contribution Request publication limit was reached',
+        'CONTRIBUTION_REQUEST_LIMIT_REACHED',
+      ),
+    );
+    await request(app.getHttpServer())
+      .post(`/contribution-requests/${requestId}/publish`)
+      .send({})
+      .expect(409)
+      .expect(({ body }) =>
+        expect(body.code).toBe('CONTRIBUTION_REQUEST_LIMIT_REACHED'),
+      );
+
+    service.cancelRequest.mockRejectedValue(
+      new ConflictApplicationError(
+        'Only a published Contribution Request can be cancelled',
+        'CONTRIBUTION_REQUEST_NOT_CANCELLABLE',
+      ),
+    );
+    await request(app.getHttpServer())
+      .post(`/contribution-requests/${requestId}/cancel`)
+      .send({})
+      .expect(409)
+      .expect(({ body }) =>
+        expect(body.code).toBe('CONTRIBUTION_REQUEST_NOT_CANCELLABLE'),
+      );
+  });
 });
 
 function createBody() {
@@ -291,5 +481,20 @@ function responseDto(overrides: Record<string, unknown> = {}) {
     createdAt: '2026-07-28T00:00:00.000Z',
     updatedAt: '2026-07-28T00:00:00.000Z',
     ...overrides,
+  };
+}
+
+function publicListItem() {
+  return {
+    id: requestId,
+    projectId,
+    projectName: 'Share-k Backend',
+    projectSlug: 'share-k-backend',
+    title: 'Build a Contribution Request',
+    technologyTags: ['NestJS'],
+    difficulty: 'intermediate',
+    applicationsCloseAt: '2030-03-10T12:00:00.000Z',
+    targetCompletionDate: '2030-03-20',
+    reward: { amount: 150, currency: 'USD' },
   };
 }

@@ -52,6 +52,9 @@ owner/publication facts needed by the Contribution Requests module.
 `lockContributionRequestProjectAccess()` provides the same check with a shared
 Project-row lock on the caller's write transaction so an archive or ownership
 change cannot race a Contribution Request mutation.
+`listContributionRequestProjectReferences()` exposes only Project ID, title,
+and slug projections for public Contribution Request discovery; callers may
+resolve known IDs or search titles without joining Project-owned tables.
 
 The module writes `Project`, `ProjectOperation`, and
 `ProjectStateTransition`. It calls exported GitHub services for normalized

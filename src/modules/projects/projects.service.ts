@@ -19,6 +19,7 @@ import {
 import { ApplicationsService } from '../applications/applications.service';
 import { AdminPublishedProjectOwnerDto } from './dto/admin-published-project-owner.dto';
 import { ContributionRequestProjectAccessDto } from './dto/contribution-request-project-access.dto';
+import { ContributionRequestProjectReferenceDto } from './dto/contribution-request-project-reference.dto';
 import { DiscoverProjectsQuery } from './dto/discover-projects.query';
 import { DiscoverProjectsResponseDto } from './dto/discovered-project.dto';
 import { MyProjectsResponseDto } from './dto/my-projects.dto';
@@ -164,6 +165,27 @@ export class ProjectsService {
     });
 
     return this.toContributionRequestProjectAccess(project, ownerId);
+  }
+
+  async listContributionRequestProjectReferences(input: {
+    projectIds?: string[];
+    titleContains?: string;
+  }): Promise<ContributionRequestProjectReferenceDto[]> {
+    if (input.projectIds?.length === 0) return [];
+    return this.database.project.findMany({
+      where: {
+        ...(input.projectIds ? { id: { in: input.projectIds } } : {}),
+        ...(input.titleContains
+          ? {
+              title: {
+                contains: input.titleContains,
+                mode: 'insensitive' as const,
+              },
+            }
+          : {}),
+      },
+      select: { id: true, title: true, slug: true },
+    });
   }
 
   async lockContributionRequestProjectAccess(

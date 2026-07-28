@@ -635,9 +635,75 @@ CONTRIBUTION_REQUEST_IDEMPOTENCY_KEY_INVALID
 CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT
 ```
 
-Public publication, discovery, and cancellation are not part of this contract
-yet. Issue #47 now provides their prerequisite Application owner-review state
-model; the public lifecycle remains scoped to issue #49.
+## Contribution Request Public Lifecycle
+
+Owner commands require an authenticated active `owner`, an owned published
+Project, and an optional 8-128 character `Idempotency-Key`:
+
+```text
+POST /contribution-requests/:requestId/publish
+POST /contribution-requests/:requestId/cancel
+```
+
+Publication is the only `draft -> published` path. It revalidates the complete
+work contract and Applications Close Time, then enforces the current owner plan
+against publications in the current UTC calendar month. Owners without a
+current plan assignment use Bronze. Limits are Bronze 10, Silver 20, and Gold
+30. Cancelled Requests still count in the month in which they were published.
+
+Cancellation accepts optional `{ "reason": "..." }`, preserves the Request,
+and atomically changes every `PENDING_OWNER_REVIEW` Application to
+`REQUEST_CANCELLED`. Existing terminal Applications and all snapshots/audits
+remain unchanged.
+
+Public, unauthenticated reads keep the compatible `/tasks` transport path:
+
+```text
+GET /tasks?q=webhook&technologies=NestJS,PostgreSQL&difficulty=intermediate&hasReward=true
+GET /tasks/:requestId
+```
+
+Both reads expose only `published` Requests whose Applications Close Time is
+strictly in the future. Draft, discarded, cancelled, assigned, completed, and
+closed Requests never appear and public detail returns the same
+`CONTRIBUTION_REQUEST_NOT_FOUND` response for all of them.
+
+The feed returns:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "projectId": "uuid",
+      "projectName": "Share-k Backend",
+      "projectSlug": "share-k-backend",
+      "title": "Build a webhook viewer",
+      "technologyTags": ["NestJS", "PostgreSQL"],
+      "difficulty": "intermediate",
+      "applicationsCloseAt": "2030-03-10T12:00:00.000Z",
+      "targetCompletionDate": "2030-03-20",
+      "reward": { "amount": 150, "currency": "USD" }
+    }
+  ],
+  "totalCount": 1,
+  "technologyFacets": ["NestJS", "PostgreSQL"]
+}
+```
+
+`q` searches Request title/description and Project title. `technologies` accepts
+repeated or comma-separated values and matches any tag. `difficulty` accepts
+`beginner`, `intermediate`, or `advanced`; `hasReward` is boolean. Detail adds
+`description`, `status: "published"`, and ordered `requirements`, each with
+`classification: "required" | "preferred"`.
+
+Additional stable lifecycle errors are:
+
+```text
+CONTRIBUTION_REQUEST_DRAFT_NOT_PUBLISHABLE
+CONTRIBUTION_REQUEST_LIMIT_REACHED
+CONTRIBUTION_REQUEST_NOT_CANCELLABLE
+```
 
 ## Skill Profile Contracts
 
