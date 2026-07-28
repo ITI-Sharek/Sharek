@@ -94,12 +94,13 @@ enum ContributionRequestAuditAction {
 }
 
 enum ApplicationStatus {
-  pending_validation
-  eligible
-  ineligible
+  pending_owner_review
   accepted
-  rejected
+  declined_by_owner
+  not_selected
+  expired
   withdrawn
+  request_cancelled
 }
 
 enum DeliveryStatus {
@@ -640,7 +641,7 @@ model Application {
   contribution_request_id String            @db.Uuid
   contributor_id          String            @db.Uuid
   cover_message           String?
-  status                  ApplicationStatus @default(pending_validation)
+  status                  ApplicationStatus @default(pending_owner_review)
   is_priority             Boolean           @default(false)
   submitted_at            DateTime
   validated_at            DateTime?

@@ -109,7 +109,7 @@ export class ProjectsService {
           (count, request) =>
             count +
             request.applications.filter((application) =>
-              this.isPendingOwnerApplication(application.status),
+              application.status === ApplicationStatus.pending_owner_review,
             ).length,
           0,
         ),
@@ -340,15 +340,6 @@ export class ProjectsService {
       );
     }
   }
-
-
-  private isPendingOwnerApplication(status: ApplicationStatus): boolean {
-    return (
-      status === ApplicationStatus.pending_validation ||
-      status === ApplicationStatus.eligible
-    );
-  }
-
   private getCurrentMonthStart(): Date {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);

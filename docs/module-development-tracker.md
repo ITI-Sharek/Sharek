@@ -1608,3 +1608,32 @@ This keeps the system strong without making it heavy:
   invalidation, immutable publication snapshot/refresh-attempt tables, receipt
   retention cleanup, or the optional idempotency replay response header. Those
   hardening items remain follow-up work rather than being represented as complete.
+
+### 2026-07-28 - Application owner-review state migration (#47)
+
+- Modules: `applications`, with an owner-workspace summary adjustment in
+  `projects`.
+- Requirement/task IDs: Sprint 4 B01, GitHub issue #47, DEC-030/031/036.
+- Summary: replaced the superseded AI-validation Application states with
+  `pending_owner_review`, `accepted`, `declined_by_owner`, `not_selected`,
+  `expired`, `withdrawn`, and `request_cancelled`. Project summaries now count
+  only Applications awaiting owner review instead of AI eligibility states.
+- Database changes: forward-only migration
+  `20260728150000_application_owner_review_states` preserves accepted and
+  withdrawn outcomes, treats legacy rejection as an owner decline only when
+  `owner_reviewed_at` proves the action, and derives unresolved outcomes from
+  the parent Contribution Request without turning AI `ineligible` into a human
+  decline.
+- API/authorization impact: no routes, DTO shapes, or authorization rules
+  changed. Existing owner project summaries retain their response shape while
+  adopting owner-review semantics.
+- Verification: the real PostgreSQL migration regression harness passed with
+  15 representative legacy rows; all 57 Jest suites and 258 tests passed.
+  `npm run check:architecture`, `npm run lint`, `npx tsc --noEmit`, `npm run
+  build`, `npx prisma validate`, and `git diff --check` passed. Backend CI now
+  runs the migration harness against PostgreSQL 16.
+- Documentation: updated Applications, Projects, Contribution Requests, API
+  contract, database plan, and this tracker.
+- Follow-up: issue #49 can now implement Contribution Request publication and
+  cancellation propagation using `request_cancelled`; Application submission,
+  expiry, Owner Decisions, and Assignments remain later Sprint 4 work.

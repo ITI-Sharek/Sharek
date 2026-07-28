@@ -14,6 +14,8 @@ project visibility.
   supply owner or status.
 - `GET /projects/me`: cursor-paginated owner workspace for active owners and
   contributors, including revision, request/application counters, and quota.
+  `pendingApplicationsCount` includes only `pending_owner_review` Applications;
+  legacy AI eligibility states are not treated as an owner queue.
 - `GET|PATCH /projects/me/:projectId`: persisted-owner detail and editable
   presentation fields. Unknown and non-owned IDs share `PROJECT_NOT_FOUND`.
 - `POST /projects/me/:projectId/source/refresh`: idempotent source refresh that

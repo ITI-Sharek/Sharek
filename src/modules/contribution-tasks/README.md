@@ -38,10 +38,10 @@ Responses use dedicated DTOs and never expose Prisma row names or audit data.
 ## Not implemented: public lifecycle (#49)
 
 Publication, public discovery, filters, cancellation, request entitlement
-limits, and Application side effects remain gated on issue #47. In particular,
-the Application model must first expose the approved owner-review states and
-the terminal `REQUEST_CANCELLED` transition. Do not recreate that migration in
-this module.
+limits, and Application side effects remain issue #49 work. Issue #47 now
+provides the approved owner-review states and terminal `request_cancelled`
+transition; issue #49 should consume those states without recreating their
+migration in this module.
 
 ## Persistence
 
