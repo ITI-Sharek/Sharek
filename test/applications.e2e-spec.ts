@@ -10,7 +10,10 @@ import * as request from 'supertest';
 import { ApplicationsController } from '../src/modules/applications/applications.controller';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
-import { ConflictApplicationError } from '../src/shared/errors/application.error';
+import {
+  ConflictApplicationError,
+  ForbiddenApplicationError,
+} from '../src/shared/errors/application.error';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
 
 const contributor = {
@@ -159,6 +162,44 @@ describe('Applications HTTP contract', () => {
     await request(app.getHttpServer())
       .get(`/applications/${applicationId}`)
       .expect(401);
+  });
+
+  it.each([
+    [
+      'APPLICATIONS_CLOSED',
+      new ConflictApplicationError('Closed', 'APPLICATIONS_CLOSED'),
+      409,
+    ],
+    [
+      'REQUEST_CANCELLED',
+      new ConflictApplicationError('Cancelled', 'REQUEST_CANCELLED'),
+      409,
+    ],
+    [
+      'REQUEST_TERMINAL',
+      new ConflictApplicationError('Terminal', 'REQUEST_TERMINAL'),
+      409,
+    ],
+    [
+      'APPLICATION_NOT_AUTHORIZED',
+      new ForbiddenApplicationError(
+        'Unauthorized',
+        'APPLICATION_NOT_AUTHORIZED',
+      ),
+      403,
+    ],
+  ])('serializes the %s submission error', async (code, error, status) => {
+    service.submit.mockRejectedValue(error);
+
+    await request(app.getHttpServer())
+      .post(`/tasks/${requestId}/applications`)
+      .send({
+        contributionApproach: 'I will deliver a tested NestJS implementation.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey,
+      })
+      .expect(status)
+      .expect(({ body }) => expect(body.code).toBe(code));
   });
 });
 

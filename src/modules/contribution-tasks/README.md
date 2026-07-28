@@ -57,8 +57,9 @@ duplicate cases retain their more specific domain codes.
   month after cancellation.
 - `GET /tasks` and `GET /tasks/:requestId` are public reads. Both query only
   `published` Requests with a publication time and an Applications Close Time
-  strictly after the server clock. Draft, discarded, cancelled, assigned,
-  completed, and closed Requests share the audience-safe
+  strictly after the server clock whose parent Project is still published.
+  Draft, discarded, cancelled, assigned, completed, closed, and Requests on
+  archived Projects share the audience-safe
   `CONTRIBUTION_REQUEST_NOT_FOUND` detail outcome.
 - Feed filters are `q`, `technologies`, `difficulty`, and `hasReward`.
   Technology matches use any requested tag. Detail returns ordered
@@ -66,13 +67,17 @@ duplicate cases retain their more specific domain codes.
 - Cancellation is an idempotent `published -> cancelled` owner command. It
   preserves the Request and calls the exported Applications service in the same
   transaction. Every pending Application becomes `request_cancelled` with an
-  immutable audit; already terminal Applications remain unchanged.
+  immutable audit; already terminal Applications remain unchanged. The owner
+  may still cancel after the parent Project is archived so pending Applications
+  are not stranded. Request and child Application audits share a correlation
+  ID, and each child records the Request cancellation audit as its cause.
 
 The exported `getApplicationSubmissionContext()` and transaction-scoped
 `lockApplicationSubmissionContext()` capabilities expose only the Request
 lifecycle, close time, owner, revision time, and ordered Requirements needed by
-issue #50. Applications owns submission decisions and writes no Contribution
-Request tables.
+issue #50. Both also require the parent Project to remain published, including
+under the transaction lock. Applications owns submission decisions and writes
+no Contribution Request tables.
 
 ## Persistence
 
@@ -83,9 +88,9 @@ creates ordered `contribution_request_requirements`, and creates append-only
 
 Migration `20260728230000_contribution_request_publication` adds publication
 and cancellation audit actions, the Application cancellation audit action, and
-the actionable-discovery index. This module reads current owner Subscription
-records only to enforce publication entitlement and limits; it does not write
-them.
+the actionable-discovery index. Publication asks the Projects module for the
+canonical owner entitlement and monthly limit; this module does not read or
+write Subscription records.
 
 Focused verification:
 

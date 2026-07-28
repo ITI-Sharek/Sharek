@@ -31,6 +31,7 @@ describe('ContributionTasksService', () => {
       count: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       updateMany: jest.fn(),
     },
@@ -38,6 +39,7 @@ describe('ContributionTasksService', () => {
       findFirst: jest.fn(),
     },
     contributionRequestRequirement: {
+      findMany: jest.fn(),
       deleteMany: jest.fn(),
       createMany: jest.fn(),
     },
@@ -50,8 +52,13 @@ describe('ContributionTasksService', () => {
   };
   const projectsService = {
     getContributionRequestProjectAccess: jest.fn(),
+    getContributionRequestProjectOwnerAccess: jest.fn(),
     lockContributionRequestProjectAccess: jest.fn(),
+    lockContributionRequestProjectOwnerAccess: jest.fn(),
     listContributionRequestProjectReferences: jest.fn(),
+    getContributionRequestPublicationEntitlement: jest.fn(),
+    isContributionRequestProjectPublished: jest.fn(),
+    lockContributionRequestProjectPublication: jest.fn(),
   };
   const applicationsService = {
     cancelPendingForRequest: jest.fn(),
@@ -101,12 +108,72 @@ describe('ContributionTasksService', () => {
       ownerId: owner.id,
       status: 'published',
     });
+    projectsService.getContributionRequestProjectOwnerAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'published',
+    });
+    projectsService.lockContributionRequestProjectOwnerAccess.mockResolvedValue(
+      {
+        id: projectId,
+        ownerId: owner.id,
+        status: 'published',
+      },
+    );
+    projectsService.getContributionRequestPublicationEntitlement.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+      },
+    );
+    projectsService.isContributionRequestProjectPublished.mockResolvedValue(
+      true,
+    );
+    projectsService.lockContributionRequestProjectPublication.mockResolvedValue(
+      true,
+    );
     applicationsService.cancelPendingForRequest.mockResolvedValue({
       cancelledApplicationIds: [],
     });
     projectsService.listContributionRequestProjectReferences.mockResolvedValue([
       { id: projectId, title: 'Share-k Backend', slug: 'share-k-backend' },
     ]);
+  });
+
+  it('hides an otherwise-published Request when its Project is archived', async () => {
+    database.contributionRequest.findUnique.mockResolvedValue(
+      makeRequest({ status: ContributionRequestStatus.published }),
+    );
+    projectsService.isContributionRequestProjectPublished.mockResolvedValue(
+      false,
+    );
+
+    await expect(
+      service.getApplicationSubmissionContext(requestId),
+    ).resolves.toBeNull();
+  });
+
+  it('revalidates the parent Project publication inside the submission transaction', async () => {
+    database.$queryRaw.mockResolvedValue([
+      {
+        id: requestId,
+        owner_id: owner.id,
+        project_id: projectId,
+        status: ContributionRequestStatus.published,
+        applications_close_at: new Date('2030-01-01T00:00:00.000Z'),
+        updated_at: new Date('2026-07-28T00:00:00.000Z'),
+      },
+    ]);
+    projectsService.lockContributionRequestProjectPublication.mockResolvedValue(
+      false,
+    );
+
+    await expect(
+      service.lockApplicationSubmissionContext(requestId, database as never),
+    ).resolves.toBeNull();
+    expect(
+      database.contributionRequestRequirement.findMany,
+    ).not.toHaveBeenCalled();
   });
 
   it('creates a private draft with ordered structured requirements and an audit', async () => {
@@ -287,11 +354,11 @@ describe('ContributionTasksService', () => {
     expect(database.contributionRequest.count).toHaveBeenCalledWith({
       where: expect.objectContaining({
         AND: expect.arrayContaining([
-          {
+          expect.objectContaining({
             status: ContributionRequestStatus.published,
             published_at: { not: null },
             applications_close_at: { gt: expect.any(Date) },
-          },
+          }),
         ]),
       }),
     });
@@ -392,6 +459,9 @@ describe('ContributionTasksService', () => {
     expect(applicationsService.cancelPendingForRequest).toHaveBeenCalledWith({
       contributionRequestId: requestId,
       actorId: owner.id,
+      reason: 'Project priorities changed',
+      correlationId: expect.any(String),
+      causationAuditId: expect.any(String),
       transaction: database,
     });
   });

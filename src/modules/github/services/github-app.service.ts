@@ -454,6 +454,43 @@ export class GitHubAppService {
     return true;
   }
 
+  async lockRepositorySelectionAuthorization(input: {
+    userId: string;
+    installationLinkId: string;
+    repositoryIds: string[];
+    transaction: Prisma.TransactionClient;
+  }): Promise<boolean> {
+    const repositoryIds = [...new Set(input.repositoryIds)];
+    if (repositoryIds.length === 0) return false;
+    const links = await input.transaction.$queryRaw<
+      Array<{ installation_id: string }>
+    >(Prisma.sql`
+      SELECT link."installation_id"
+      FROM "GitHubAppInstallationLink" AS link
+      INNER JOIN "GitHubAppInstallation" AS installation
+        ON installation."id" = link."installation_id"
+      WHERE link."id" = ${input.installationLinkId}::uuid
+        AND link."user_id" = ${input.userId}::uuid
+        AND link."status"::text = 'active'
+        AND installation."status"::text = 'active'
+        AND installation."repository_selection"::text = 'selected'
+      FOR SHARE OF link, installation
+    `);
+    const link = links[0];
+    if (!link) return false;
+    const repositories = await input.transaction.$queryRaw<
+      Array<{ github_repository_id: string }>
+    >(Prisma.sql`
+      SELECT "github_repository_id"
+      FROM "GitHubAppRepository"
+      WHERE "installation_id" = ${link.installation_id}::uuid
+        AND "github_repository_id" IN (${Prisma.join(repositoryIds)})
+        AND "removed_at" IS NULL
+      FOR SHARE
+    `);
+    return repositories.length === repositoryIds.length;
+  }
+
   async disconnect(userId: string, installationLinkId: string) {
     const result = await this.database.gitHubAppInstallationLink.updateMany({
       where: { id: installationLinkId, user_id: userId, status: { not: 'disconnected' } },

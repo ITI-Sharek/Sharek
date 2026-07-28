@@ -212,7 +212,7 @@ describe('GitHub onboarding flow', () => {
           projects: [],
           quota: {
             used: 0,
-            monthlyLimit: 20,
+            monthlyLimit: 10,
           },
         });
       });
@@ -792,6 +792,10 @@ class InMemoryDatabase {
 
   contributionRequest = {
     count: jest.fn(() => Promise.resolve(0)),
+  };
+
+  subscription = {
+    findFirst: jest.fn(() => Promise.resolve(null)),
   };
 }
 
