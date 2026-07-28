@@ -32,6 +32,58 @@ describe('ProjectsService', () => {
     gitHubRepositoryService.getPublicImportSnapshot.mockResolvedValue(getSnapshot());
   });
 
+  describe('Contribution Request Project access capability', () => {
+    it('returns only the ownership facts needed by the owning module', async () => {
+      database.project.findUnique.mockResolvedValue({
+        id: 'project-id',
+        owner_id: 'owner-id',
+        status: ProjectStatus.published,
+      });
+
+      await expect(
+        service.getContributionRequestProjectAccess('project-id', 'owner-id'),
+      ).resolves.toEqual({
+        id: 'project-id',
+        ownerId: 'owner-id',
+        status: ProjectStatus.published,
+      });
+      expect(database.project.findUnique).toHaveBeenCalledWith({
+        where: { id: 'project-id' },
+        select: { id: true, owner_id: true, status: true },
+      });
+    });
+
+    it('does not reveal whether a Project belongs to another owner', async () => {
+      database.project.findUnique.mockResolvedValue({
+        id: 'project-id',
+        owner_id: 'other-owner',
+        status: ProjectStatus.published,
+      });
+
+      await expect(
+        service.getContributionRequestProjectAccess('project-id', 'owner-id'),
+      ).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'CONTRIBUTION_REQUEST_PROJECT_NOT_FOUND',
+      } satisfies Partial<ApplicationError>);
+    });
+
+    it('requires the owned Project to be published', async () => {
+      database.project.findUnique.mockResolvedValue({
+        id: 'project-id',
+        owner_id: 'owner-id',
+        status: ProjectStatus.draft,
+      });
+
+      await expect(
+        service.getContributionRequestProjectAccess('project-id', 'owner-id'),
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'CONTRIBUTION_REQUEST_PROJECT_NOT_PUBLISHED',
+      } satisfies Partial<ApplicationError>);
+    });
+  });
+
   it('lists owner projects with pipeline counts and quota usage', async () => {
     database.project.findMany.mockResolvedValue([
       {

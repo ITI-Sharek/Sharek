@@ -13,9 +13,12 @@ import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
 import { DatabaseService } from '../../shared/database/database.service';
 import {
   ApplicationError,
+  ConflictApplicationError,
   ForbiddenApplicationError,
+  NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { AdminPublishedProjectOwnerDto } from './dto/admin-published-project-owner.dto';
+import { ContributionRequestProjectAccessDto } from './dto/contribution-request-project-access.dto';
 import { DiscoverProjectsQuery } from './dto/discover-projects.query';
 import { DiscoverProjectsResponseDto } from './dto/discovered-project.dto';
 import { ImportProjectDto } from './dto/import-project.dto';
@@ -91,6 +94,42 @@ export class ProjectsService {
         used: monthlyRequestCount,
         monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT,
       },
+    };
+  }
+
+  async getContributionRequestProjectAccess(
+    projectId: string,
+    ownerId: string,
+  ): Promise<ContributionRequestProjectAccessDto> {
+    const project = await this.database.project.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        owner_id: true,
+        status: true,
+      },
+    });
+
+    // Missing projects and projects owned by somebody else intentionally share
+    // one audience-safe result so this capability cannot enumerate ownership.
+    if (!project || project.owner_id !== ownerId) {
+      throw new NotFoundApplicationError(
+        'Project was not found',
+        'CONTRIBUTION_REQUEST_PROJECT_NOT_FOUND',
+      );
+    }
+
+    if (project.status !== ProjectStatus.published) {
+      throw new ConflictApplicationError(
+        'Contribution Requests require a published Project',
+        'CONTRIBUTION_REQUEST_PROJECT_NOT_PUBLISHED',
+      );
+    }
+
+    return {
+      id: project.id,
+      ownerId: project.owner_id,
+      status: project.status,
     };
   }
 
