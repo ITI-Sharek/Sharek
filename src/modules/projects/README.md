@@ -43,7 +43,9 @@ transitions, transition audit facts, and command receipts use transactions.
 `ProjectsController` binds authenticated owner commands and delegates to
 `ProjectPublicationService`. `PublicProjectsController` delegates public reads
 to `PublicProjectsService`. `ProjectsService` retains owner-dashboard,
-discovery, and exported admin-summary behavior.
+discovery, and exported admin-summary behavior. Owner-dashboard pending counts
+come through the exported `ApplicationsService`; Projects does not interpret
+Application lifecycle states.
 
 The module writes `Project`, `ProjectOperation`, and
 `ProjectStateTransition`. It calls exported GitHub services for normalized

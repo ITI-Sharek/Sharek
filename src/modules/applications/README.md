@@ -16,7 +16,16 @@ derives decision-neutral outcomes from terminal parent Requests.
 
 The migration has a real PostgreSQL regression harness under
 `test/migrations/`; `npm run test:migrations` executes it transactionally and
-rolls back its isolated fixture schema.
+rolls back its isolated fixture schema. Invalid unresolved Applications attached
+to non-actionable draft Requests fail closed instead of being invented as owner
+queue entries.
+
+## Public module service
+
+`ApplicationsService.summarizePendingByContributionRequests()` is the batched
+owner-workspace read contract. It accepts only server-produced Project/Request
+scopes, reads Application-owned rows, and returns per-Project counts without
+exposing statuses, contributor identities, bodies, or Prisma records.
 
 Use a controller/service/DTO structure. Request task and skill information
 through exported services. The applications service owns authorization, duplicate

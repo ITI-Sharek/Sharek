@@ -7,18 +7,51 @@ const databaseUrl = new URL(
 );
 databaseUrl.searchParams.delete('schema');
 
-const testFile = fileURLToPath(
+const mappingTestFile = fileURLToPath(
   new URL('../test/migrations/application-owner-review-states.sql', import.meta.url),
 );
-const result = spawnSync(
+const mappingResult = spawnSync(
   'psql',
-  [databaseUrl.toString(), '-X', '-v', 'ON_ERROR_STOP=1', '-f', testFile],
+  [databaseUrl.toString(), '-X', '-v', 'ON_ERROR_STOP=1', '-f', mappingTestFile],
   { stdio: 'inherit' },
 );
 
-if (result.error) {
-  console.error(`Unable to run PostgreSQL migration test: ${result.error.message}`);
+if (mappingResult.error) {
+  console.error(
+    `Unable to run PostgreSQL migration test: ${mappingResult.error.message}`,
+  );
+  process.exit(1);
+}
+if (mappingResult.status !== 0) process.exit(mappingResult.status ?? 1);
+
+const guardTestFile = fileURLToPath(
+  new URL(
+    '../test/migrations/application-owner-review-draft-guard.sql',
+    import.meta.url,
+  ),
+);
+const guardResult = spawnSync(
+  'psql',
+  [databaseUrl.toString(), '-X', '-v', 'ON_ERROR_STOP=1', '-f', guardTestFile],
+  { encoding: 'utf8' },
+);
+
+if (guardResult.error) {
+  console.error(
+    `Unable to run PostgreSQL migration guard test: ${guardResult.error.message}`,
+  );
   process.exit(1);
 }
 
-process.exit(result.status ?? 1);
+const expectedGuardMessage =
+  'Cannot migrate unresolved Applications attached to a draft Contribution Request';
+if (
+  guardResult.status === 0 ||
+  !guardResult.stderr.includes(expectedGuardMessage)
+) {
+  process.stderr.write(guardResult.stderr);
+  console.error('Draft-parent migration guard did not fail as expected.');
+  process.exit(1);
+}
+
+console.log('Draft-parent migration guard rejected invalid legacy history.');

@@ -121,7 +121,9 @@ unresolved rows return to `pending_owner_review` while actionable, become
 `not_selected` when their Request is already assigned/completed, or become
 `request_cancelled` when the parent Request is cancelled/discarded. A
 transactional PostgreSQL fixture validates representative legacy rows through
-`npm run test:migrations`.
+`npm run test:migrations`. Unresolved Applications attached to a draft Request
+fail the migration with a recovery hint because no approved owner-review state
+can preserve that invalid, non-actionable history.
 
 ## Vector Rules
 

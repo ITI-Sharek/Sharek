@@ -1617,18 +1617,22 @@ This keeps the system strong without making it heavy:
 - Summary: replaced the superseded AI-validation Application states with
   `pending_owner_review`, `accepted`, `declined_by_owner`, `not_selected`,
   `expired`, `withdrawn`, and `request_cancelled`. Project summaries now count
-  only Applications awaiting owner review instead of AI eligibility states.
+  only Applications awaiting owner review through an exported Applications
+  summary reader instead of reading or interpreting AI eligibility states.
 - Database changes: forward-only migration
   `20260728150000_application_owner_review_states` preserves accepted and
   withdrawn outcomes, treats legacy rejection as an owner decline only when
   `owner_reviewed_at` proves the action, and derives unresolved outcomes from
   the parent Contribution Request without turning AI `ineligible` into a human
-  decline.
+  decline. Invalid unresolved Applications attached to non-actionable draft
+  Requests abort with an explicit recovery hint rather than entering an owner
+  queue.
 - API/authorization impact: no routes, DTO shapes, or authorization rules
   changed. Existing owner project summaries retain their response shape while
   adopting owner-review semantics.
 - Verification: the real PostgreSQL migration regression harness passed with
-  15 representative legacy rows; all 57 Jest suites and 258 tests passed.
+  16 representative legacy rows plus the draft-parent guard; all 58 Jest suites
+  and 260 tests passed.
   `npm run check:architecture`, `npm run lint`, `npx tsc --noEmit`, `npm run
   build`, `npx prisma validate`, and `git diff --check` passed. Backend CI now
   runs the migration harness against PostgreSQL 16.
