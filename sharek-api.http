@@ -76,6 +76,10 @@
 # - [DONE] GET /github/repository/contribution-activity
 # - [DONE] GET /github/repository/commit-signals
 # - [DONE] POST /projects/import/github
+# - [DONE] POST /projects/:projectId/contribution-requests
+# - [DONE] GET /contribution-requests/:requestId
+# - [DONE] PATCH /contribution-requests/:requestId
+# - [DONE] POST /contribution-requests/:requestId/discard
 # - [DONE] POST /contributors/profiles/me/ensure
 # - [DONE] GET /contributors/profiles/:username
 # - [DONE] POST /skill-profiles/me/generations
@@ -114,6 +118,8 @@
 @installationLinkId = replace-with-installation-link-uuid
 @githubRepositoryId = replace-with-numeric-github-repository-id
 @skillProfileGenerationId = replace-with-generation-uuid
+@publishedProjectId = replace-with-published-project-uuid
+@contributionRequestId = replace-with-contribution-request-uuid
 @userIdToPromote = replace-with-real-user-id
 
 
@@ -745,6 +751,59 @@ Content-Type: application/json
 # - Contributor discovery must only expose published projects.
 GET {{baseUrl}}/projects/me
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 11A.1 - DONE - Create a private Contribution Request draft
+# The Project must already be published and owned by this session. Copy the
+# returned id into contributionRequestId for the following examples.
+POST {{baseUrl}}/projects/{{publishedProjectId}}/contribution-requests
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: create-contribution-request-001
+Content-Type: application/json
+
+{
+  "title": "Build a webhook delivery viewer",
+  "description": "Implement the owner-facing viewer and focused tests.",
+  "requiredRequirements": [
+    { "text": "Deliver tested NestJS endpoints" }
+  ],
+  "preferredRequirements": [
+    { "text": "Document the HTTP contract" }
+  ],
+  "technologyTags": ["NestJS", "PostgreSQL"],
+  "applicationsCloseTime": "2030-03-10T12:00:00.000Z",
+  "targetCompletionDate": "2030-03-20",
+  "difficulty": "intermediate",
+  "reward": 150,
+  "rewardCurrency": "USD"
+}
+
+
+### 11A.2 - DONE - Inspect my private Contribution Request
+GET {{baseUrl}}/contribution-requests/{{contributionRequestId}}
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 11A.3 - DONE - Update my private Contribution Request draft
+PATCH {{baseUrl}}/contribution-requests/{{contributionRequestId}}
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: update-contribution-request-001
+Content-Type: application/json
+
+{
+  "title": "Build and document a webhook delivery viewer"
+}
+
+
+### 11A.4 - DONE - Discard my private Contribution Request draft
+POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/discard
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: discard-contribution-request-001
+Content-Type: application/json
+
+{
+  "reason": "The Project scope changed"
+}
 
 
 ### 11B - DONE - Ensure my contributor profile

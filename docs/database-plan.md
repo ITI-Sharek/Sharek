@@ -47,7 +47,7 @@ contributor-profiles  contributor_profiles, contributor_fields, contributor_prof
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications
 projects              projects, project_technologies, project_tags
-contribution-tasks    contribution_tasks, task_required_skills
+contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
 applications          applications, application_eligibility_results, application_status_history
 delivery-reviews      deliveries, delivery_reviews
 reputation            reputation_profiles, reputation_events
@@ -102,6 +102,16 @@ table directly.
 
 Migration `20260714130000_normalize_skill_profile_keys` aligns historical
 aliases such as `ts`, `js`, and `c sharp` with the same canonical policy.
+
+Migration `20260728013000_contribution_request_drafts` evolves legacy
+Contribution Request storage without deleting rows: `required_technologies` is
+renamed to `technology_tags`, `deadline` becomes the optional
+`target_completion_date`, and `applications_close_at` is added. Ordered Required
+and Preferred Requirements live in relational rows with a unique
+request/kind/position constraint. Append-only audit rows store actor, action,
+state boundary, optional idempotency key and command fingerprint, reason, and
+minimal metadata. Project ownership remains read through the exported Projects
+service; the contribution-tasks module does not write Project tables.
 
 ## Vector Rules
 

@@ -1,8 +1,57 @@
-# Contribution Tasks Module
+# Contribution Requests Module
 
-Planned owner for project contribution tasks, requirements, assignment state,
-and task lifecycle.
+This module owns Contribution Request records, their ordered Requirements, and
+their immutable lifecycle audit. New domain code uses **Contribution Request**;
+the directory keeps its historical `contribution-tasks` name to avoid a broad
+module rename.
 
-Use standard controllers, services, and DTOs when implemented. Project access is
-requested through an exported projects service. This module alone writes task
-records and enforces task transition rules.
+## Implemented: private draft lifecycle (#48)
+
+- An authenticated active owner can create a draft for a Project they own only
+  when that Project is already published.
+- Ownership is derived from the session. Client-supplied owner identifiers are
+  rejected by DTO whitelisting.
+- Project facts are requested through the exported
+  `ProjectsService.getContributionRequestProjectAccess()` capability. This
+  module never reads or writes Project tables directly.
+- Required and Preferred Requirements are ordered relational rows. Technology
+  tags remain separate request metadata.
+- Draft update uses an optimistic `updated_at` predicate inside a transaction.
+- Discard is the terminal, idempotent `discarded` transition; it never deletes
+  the request and appends one immutable audit row.
+- Optional `Idempotency-Key` values protect create, update, and discard retries.
+  Reusing a key for a different command payload returns a stable conflict.
+
+## HTTP routes
+
+```text
+POST  /projects/:projectId/contribution-requests
+GET   /contribution-requests/:requestId
+PATCH /contribution-requests/:requestId
+POST  /contribution-requests/:requestId/discard
+```
+
+All routes require a bearer session. Draft lookup deliberately returns the
+same `CONTRIBUTION_REQUEST_NOT_FOUND` result for unknown and other-owner IDs.
+Responses use dedicated DTOs and never expose Prisma row names or audit data.
+
+## Not implemented: public lifecycle (#49)
+
+Publication, public discovery, filters, cancellation, request entitlement
+limits, and Application side effects remain gated on issue #47. In particular,
+the Application model must first expose the approved owner-review states and
+the terminal `REQUEST_CANCELLED` transition. Do not recreate that migration in
+this module.
+
+## Persistence
+
+Migration `20260728013000_contribution_request_drafts` preserves legacy request
+rows, renames legacy technology/deadline columns, adds Applications Close Time,
+creates ordered `contribution_request_requirements`, and creates append-only
+`contribution_request_audits`. Only this module writes those tables.
+
+Focused verification:
+
+```bash
+npm test -- --runInBand src/modules/contribution-tasks/contribution-tasks.service.spec.ts test/contribution-requests.e2e-spec.ts
+```

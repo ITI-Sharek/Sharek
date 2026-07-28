@@ -163,7 +163,7 @@ needs workflow code.
 | `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, and dynamic admin-managed contributor fields and experience levels | root controller/service, DTOs, presenter, validator, field/experience-level catalogs | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
-| `contribution-tasks` | Registered placeholder module | module README and module file | task create/update/open/close and task discovery | Update when task lifecycle, required skills, capacity, deadlines, or owner limits are added |
+| `contribution-tasks` | Implemented private Contribution Request draft create/read/update/discard with structured Requirements, concurrency control, and immutable audit | controller, service, DTOs, mapper, tests, module README | issue #49 publication/discovery/cancellation after issue #47 Application states land | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
 | `applications` | Registered placeholder module | module README and module file | apply-to-task, eligibility recommendation, manual review, owner decision | Update when application status, AI decision handling, or application APIs are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
@@ -1521,3 +1521,48 @@ This keeps the system strong without making it heavy:
 - Risks/follow-up: backend CI verifies the local pointer and implementation
   contract but does not clone or validate the separate private Documentation
   repository.
+
+### 2026-07-28 - Contribution Request private draft lifecycle (#48)
+
+- Module: `contribution-tasks`, with one exported read capability added to
+  `projects`.
+- Requirement/task IDs: Sprint 4 B02, GitHub issue #48; canonical decisions
+  DEC-036 through DEC-039 and the Contribution Request domain contract.
+- Summary: implemented owner-only create, inspect, update, and terminal
+  idempotent discard for private Contribution Request drafts. Required and
+  Preferred Requirements are separate ordered records; technology tags remain
+  request metadata. Updates use optimistic concurrency, state changes and audit
+  appends are transactional, and client owner IDs are not accepted.
+- API changes: added `POST /projects/:projectId/contribution-requests`, `GET` and
+  `PATCH /contribution-requests/:requestId`, and `POST
+  /contribution-requests/:requestId/discard`, with dedicated DTO responses,
+  audience-safe non-enumeration, stable domain errors, and optional command
+  idempotency keys.
+- Authorization: only an authenticated active `owner` may use the lifecycle.
+  The contribution-tasks module obtains Project ownership/publication facts
+  exclusively through exported `ProjectsService`; it does not read or write
+  Project tables.
+- Database changes: forward-only migration
+  `20260728013000_contribution_request_drafts` preserves legacy request rows,
+  adds `discarded`, Applications Close Time, ordered Requirement rows, and
+  append-only audit rows. It was applied to local Docker PostgreSQL; all 17
+  migrations report current. No Application schema or migration was changed.
+- Documentation: updated the module README, API contracts, REST examples,
+  database plan, and this tracker.
+- Verification: `npx prisma format`, `npx prisma validate`, local `prisma
+  migrate deploy/status`, 33 focused service/Project/HTTP tests, `npm run
+  check:architecture`, `npm run lint`, `npx tsc --noEmit`, `npm run build`, and
+  `git diff --check` passed. The full `npm test -- --runInBand` run passed 53
+  suites and 241 tests.
+- Dependency blocker: issue #49 was intentionally not started. Live issue #47
+  remains open and the current `ApplicationStatus` still contains the legacy
+  `pending_validation`, `eligible`, and `ineligible` states with no approved
+  `REQUEST_CANCELLED` representation. Publication/cancellation cannot safely
+  update existing non-terminal Applications until #47 lands; duplicating that
+  other developer's migration would violate task ownership.
+- Known risks/follow-up: legacy Contribution Request rows have no structured
+  Requirement rows or Applications Close Time and therefore return an explicit
+  completeness error if edited. Issue #49 must add its own forward migration
+  for publish/cancel audit actions after rebasing on #47, then cover public
+  filters, close-time boundaries, entitlements/limits, and Application
+  cancellation propagation.
