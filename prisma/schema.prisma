@@ -79,6 +79,18 @@ enum ContributionRequestStatus {
   assigned
   completed
   cancelled
+  discarded
+}
+
+enum ContributionRequestRequirementKind {
+  required
+  preferred
+}
+
+enum ContributionRequestAuditAction {
+  created
+  updated
+  discarded
 }
 
 enum ApplicationStatus {
@@ -307,6 +319,7 @@ model User {
   githubAppLinkStates         GitHubAppLinkState[]
   emailVerificationOtps       EmailVerificationOtp[]
   passwordResetOtps           PasswordResetOtp[]
+  contributionRequestAudits   ContributionRequestAudit[]   @relation("ContributionRequestAuditActor")
 }
 
 model AuthProviderAccount {
@@ -509,28 +522,69 @@ model Project {
 }
 
 model ContributionRequest {
-  id                    String                        @id @default(uuid()) @db.Uuid
-  project_id            String                        @db.Uuid
-  owner_id              String                        @db.Uuid
-  title                 String                        @db.VarChar(255)
-  description           String
-  required_technologies Json
-  difficulty            ContributionRequestDifficulty
-  deadline              DateTime?                     @db.Date
-  reward                Decimal?                      @db.Decimal(10, 2)
-  reward_currency       String?                       @db.VarChar(3)
-  status                ContributionRequestStatus     @default(draft)
-  max_applicants        Int                           @default(1)
-  published_at          DateTime?
-  created_at            DateTime                      @default(now())
-  updated_at            DateTime                      @default(now()) @updatedAt
+  id                     String                         @id @default(uuid()) @db.Uuid
+  project_id             String                         @db.Uuid
+  owner_id               String                         @db.Uuid
+  title                  String                         @db.VarChar(255)
+  description            String
+  technology_tags        Json                           @default("[]")
+  difficulty             ContributionRequestDifficulty?
+  applications_close_at  DateTime?
+  target_completion_date DateTime?                      @db.Date
+  reward                 Decimal?                       @db.Decimal(10, 2)
+  reward_currency        String?                        @db.VarChar(3)
+  status                 ContributionRequestStatus      @default(draft)
+  max_applicants         Int                            @default(1)
+  published_at           DateTime?
+  created_at             DateTime                       @default(now())
+  updated_at             DateTime                       @default(now()) @updatedAt
 
-  project           Project            @relation(fields: [project_id], references: [id])
-  owner             User               @relation("ContributionRequestOwner", fields: [owner_id], references: [id])
+  project           Project                          @relation(fields: [project_id], references: [id])
+  owner             User                             @relation("ContributionRequestOwner", fields: [owner_id], references: [id])
+  requirements      ContributionRequestRequirement[]
+  auditEvents       ContributionRequestAudit[]
   applications      Application[]
   aiMatchResults    AiMatchResult[]
   skillGapGuidances SkillGapGuidance[]
   deliveries        Delivery[]
+
+  @@index([project_id, status])
+  @@index([owner_id, created_at])
+}
+
+model ContributionRequestRequirement {
+  id                      String                             @id @default(uuid()) @db.Uuid
+  contribution_request_id String                             @db.Uuid
+  kind                    ContributionRequestRequirementKind
+  position                Int
+  text                    String                             @db.VarChar(500)
+  created_at              DateTime                           @default(now())
+
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
+
+  @@unique([contribution_request_id, kind, position])
+  @@index([contribution_request_id, kind])
+}
+
+model ContributionRequestAudit {
+  id                      String                         @id @default(uuid()) @db.Uuid
+  contribution_request_id String                         @db.Uuid
+  actor_id                String                         @db.Uuid
+  action                  ContributionRequestAuditAction
+  from_status             ContributionRequestStatus?
+  to_status               ContributionRequestStatus
+  reason                  String?                        @db.VarChar(500)
+  payload_version         Int                            @default(1)
+  idempotency_key         String?                        @db.VarChar(128)
+  command_fingerprint     String?                        @db.Char(64)
+  metadata                Json?
+  created_at              DateTime                       @default(now())
+
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id], onDelete: Restrict)
+  actor               User                @relation("ContributionRequestAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
+
+  @@unique([actor_id, action, idempotency_key])
+  @@index([contribution_request_id, created_at])
 }
 
 model Application {
