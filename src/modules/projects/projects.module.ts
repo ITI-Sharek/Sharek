@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ApplicationsModule } from '../applications/applications.module';
 import { GithubModule } from '../github/github.module';
 import { IdentityModule } from '../identity/identity.module';
 import { PublicProjectsController } from './public-projects.controller';
@@ -9,7 +10,7 @@ import { ProjectPublicationService } from './services/project-publication.servic
 import { PublicProjectsService } from './services/public-projects.service';
 
 @Module({
-  imports: [GithubModule, IdentityModule],
+  imports: [ApplicationsModule, GithubModule, IdentityModule],
   controllers: [ProjectsController, PublicProjectsController],
   providers: [
     ProjectsService,

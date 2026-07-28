@@ -59,7 +59,8 @@ INSERT INTO "Application" (
   ('completed-sibling', 'completed', 'pending_validation', NULL),
   ('accepted-on-assigned', 'assigned', 'accepted', '2026-07-20T10:00:00Z'),
   ('declined-before-cancellation', 'cancelled', 'rejected', '2026-07-20T10:00:00Z'),
-  ('draft-ineligible', 'draft', 'ineligible', NULL);
+  ('accepted-before-cancellation', 'cancelled', 'accepted', '2026-07-20T10:00:00Z'),
+  ('withdrawn-before-discard', 'discarded', 'withdrawn', NULL);
 
 \ir ../../prisma/migrations/20260728150000_application_owner_review_states/migration.sql
 
@@ -111,7 +112,8 @@ BEGIN
         ('completed-sibling', 'not_selected'),
         ('accepted-on-assigned', 'accepted'),
         ('declined-before-cancellation', 'declined_by_owner'),
-        ('draft-ineligible', 'pending_owner_review')
+        ('accepted-before-cancellation', 'accepted'),
+        ('withdrawn-before-discard', 'withdrawn')
     ) AS expected(id, status)
     LEFT JOIN "Application" AS application ON application."id" = expected.id
     WHERE application."status"::TEXT IS DISTINCT FROM expected.status

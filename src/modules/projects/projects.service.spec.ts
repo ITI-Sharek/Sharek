@@ -14,9 +14,17 @@ describe('ProjectsService', () => {
     },
     contributionRequest: { count: jest.fn() },
   };
-  const service = new ProjectsService(database as never);
+  const applications = {
+    summarizePendingByContributionRequests: jest.fn(),
+  };
+  const service = new ProjectsService(database as never, applications as never);
 
-  beforeEach(() => jest.resetAllMocks());
+  beforeEach(() => {
+    jest.resetAllMocks();
+    applications.summarizePendingByContributionRequests.mockResolvedValue({
+      projects: [],
+    });
+  });
 
   describe('Contribution Request Project access capability', () => {
     it('returns only the ownership facts needed by the owning module', async () => {
@@ -81,16 +89,16 @@ describe('ProjectsService', () => {
         updated_at: new Date(),
         contributionRequests: [
           {
+            id: 'request-id',
             status: 'published',
-            applications: [
-              { status: 'pending_owner_review' },
-              { status: 'declined_by_owner' },
-            ],
           },
         ],
       },
     ]);
     database.contributionRequest.count.mockResolvedValue(7);
+    applications.summarizePendingByContributionRequests.mockResolvedValue({
+      projects: [{ projectId: 'project-id', pendingApplicationCount: 1 }],
+    });
 
     await expect(service.getMyProjects('owner-id')).resolves.toMatchObject({
       projects: [
@@ -103,6 +111,13 @@ describe('ProjectsService', () => {
         },
       ],
       quota: { used: 7, monthlyLimit: 20 },
+    });
+    expect(
+      applications.summarizePendingByContributionRequests,
+    ).toHaveBeenCalledWith({
+      requestScopes: [
+        { projectId: 'project-id', contributionRequestIds: ['request-id'] },
+      ],
     });
   });
 
