@@ -65,6 +65,11 @@ export class ContributionTasksService {
       contract,
     });
 
+    await this.projectsService.getContributionRequestProjectAccess(
+      input.projectId,
+      input.user.id,
+    );
+
     const replay = await this.readReplay({
       actorId: input.user.id,
       action: ContributionRequestAuditAction.created,
@@ -73,13 +78,14 @@ export class ContributionTasksService {
     });
     if (replay) return replay;
 
-    await this.projectsService.getContributionRequestProjectAccess(
-      input.projectId,
-      input.user.id,
-    );
-
     try {
       return await this.database.$transaction(async (transaction) => {
+        await this.projectsService.lockContributionRequestProjectAccess(
+          input.projectId,
+          input.user.id,
+          transaction,
+        );
+
         const transactionReplay = await this.readReplayFromTransaction({
           transaction,
           actorId: input.user.id,
@@ -178,6 +184,10 @@ export class ContributionTasksService {
       input.user.id,
       input.requestId,
     );
+    await this.projectsService.getContributionRequestProjectAccess(
+      current.project_id,
+      input.user.id,
+    );
     const replay = await this.readReplay({
       actorId: input.user.id,
       action: ContributionRequestAuditAction.updated,
@@ -187,13 +197,14 @@ export class ContributionTasksService {
     if (replay) return replay;
     this.assertEditableDraft(current.status);
 
-    await this.projectsService.getContributionRequestProjectAccess(
-      current.project_id,
-      input.user.id,
-    );
-
     try {
       return await this.database.$transaction(async (transaction) => {
+        await this.projectsService.lockContributionRequestProjectAccess(
+          current.project_id,
+          input.user.id,
+          transaction,
+        );
+
         const transactionReplay = await this.readReplayFromTransaction({
           transaction,
           actorId: input.user.id,
@@ -299,10 +310,11 @@ export class ContributionTasksService {
       input.user.id,
       input.requestId,
     );
+    await this.projectsService.getContributionRequestProjectAccess(
+      current.project_id,
+      input.user.id,
+    );
 
-    if (current.status === ContributionRequestStatus.discarded) {
-      return toContributionRequestDto(current);
-    }
     const replay = await this.readReplay({
       actorId: input.user.id,
       action: ContributionRequestAuditAction.discarded,
@@ -310,15 +322,19 @@ export class ContributionTasksService {
       fingerprint,
     });
     if (replay) return replay;
+    if (current.status === ContributionRequestStatus.discarded) {
+      return toContributionRequestDto(current);
+    }
     this.assertEditableDraft(current.status);
-
-    await this.projectsService.getContributionRequestProjectAccess(
-      current.project_id,
-      input.user.id,
-    );
 
     try {
       return await this.database.$transaction(async (transaction) => {
+        await this.projectsService.lockContributionRequestProjectAccess(
+          current.project_id,
+          input.user.id,
+          transaction,
+        );
+
         const transactionReplay = await this.readReplayFromTransaction({
           transaction,
           actorId: input.user.id,
@@ -705,11 +721,13 @@ export class ContributionTasksService {
     idempotencyKey: string | null;
     fingerprint: string;
   }): Promise<ContributionRequestDto> {
-    if (
-      input.idempotencyKey &&
-      input.error instanceof Prisma.PrismaClientKnownRequestError &&
-      input.error.code === 'P2002'
-    ) {
+    const mayHaveLostIdempotencyRace =
+      input.error instanceof Prisma.PrismaClientKnownRequestError
+        ? input.error.code === 'P2002'
+        : input.error instanceof ConflictApplicationError &&
+          input.error.code ===
+            'CONTRIBUTION_REQUEST_CONCURRENT_MODIFICATION';
+    if (input.idempotencyKey && mayHaveLostIdempotencyRace) {
       const replay = await this.readReplay(input);
       if (replay) return replay;
     }

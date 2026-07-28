@@ -1,7 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   ArrayUnique,
   IsArray,
   IsDateString,
@@ -19,6 +18,8 @@ import {
 } from 'class-validator';
 import { ContributionRequestDifficulty } from '@prisma/client';
 
+import { BadRequestApplicationError } from '../../../shared/errors/application.error';
+
 const normalizeString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
@@ -26,6 +27,37 @@ const normalizeTags = ({ value }: { value: unknown }): unknown =>
   Array.isArray(value)
     ? value.map((item) => (typeof item === 'string' ? item.trim() : item))
     : value;
+
+const normalizeRequirementInputs = ({ value }: { value: unknown }): unknown => {
+  if (!Array.isArray(value) || value.length > 20) {
+    throw invalidRequirementInput();
+  }
+  return value.map((item) => {
+    if (
+      !item ||
+      typeof item !== 'object' ||
+      Array.isArray(item) ||
+      Object.keys(item).some((key) => key !== 'text')
+    ) {
+      throw invalidRequirementInput();
+    }
+    const text = (item as { text?: unknown }).text;
+    if (typeof text !== 'string') throw invalidRequirementInput();
+    const normalized = text.trim();
+    if (normalized.length < 2 || normalized.length > 500) {
+      throw invalidRequirementInput();
+    }
+    return Object.assign(new ContributionRequestRequirementInputDto(), {
+      text: normalized,
+    });
+  });
+};
+
+const invalidRequirementInput = (): BadRequestApplicationError =>
+  new BadRequestApplicationError(
+    'Contribution Request Requirement input is invalid',
+    'CONTRIBUTION_REQUEST_REQUIREMENT_INPUT_INVALID',
+  );
 
 export class ContributionRequestRequirementInputDto {
   @Transform(normalizeString)
@@ -45,26 +77,17 @@ export class CreateContributionRequestDto {
   @Length(10, 5000)
   description!: string;
 
+  @Transform(normalizeRequirementInputs)
   @IsArray()
-  @ArrayMinSize(1)
   @ArrayMaxSize(20)
-  @ArrayUnique((requirement: ContributionRequestRequirementInputDto) =>
-    typeof requirement?.text === 'string'
-      ? requirement.text.toLocaleLowerCase()
-      : requirement,
-  )
   @ValidateNested({ each: true })
   @Type(() => ContributionRequestRequirementInputDto)
-  requiredRequirements!: ContributionRequestRequirementInputDto[];
+  requiredRequirements: ContributionRequestRequirementInputDto[] = [];
 
   @IsOptional()
+  @Transform(normalizeRequirementInputs)
   @IsArray()
   @ArrayMaxSize(20)
-  @ArrayUnique((requirement: ContributionRequestRequirementInputDto) =>
-    typeof requirement?.text === 'string'
-      ? requirement.text.toLocaleLowerCase()
-      : requirement,
-  )
   @ValidateNested({ each: true })
   @Type(() => ContributionRequestRequirementInputDto)
   preferredRequirements?: ContributionRequestRequirementInputDto[];
@@ -121,26 +144,17 @@ export class UpdateContributionRequestDto {
   description?: string;
 
   @ValidateIf((_object, value) => value !== undefined)
+  @Transform(normalizeRequirementInputs)
   @IsArray()
-  @ArrayMinSize(1)
   @ArrayMaxSize(20)
-  @ArrayUnique((requirement: ContributionRequestRequirementInputDto) =>
-    typeof requirement?.text === 'string'
-      ? requirement.text.toLocaleLowerCase()
-      : requirement,
-  )
   @ValidateNested({ each: true })
   @Type(() => ContributionRequestRequirementInputDto)
   requiredRequirements?: ContributionRequestRequirementInputDto[];
 
   @ValidateIf((_object, value) => value !== undefined)
+  @Transform(normalizeRequirementInputs)
   @IsArray()
   @ArrayMaxSize(20)
-  @ArrayUnique((requirement: ContributionRequestRequirementInputDto) =>
-    typeof requirement?.text === 'string'
-      ? requirement.text.toLocaleLowerCase()
-      : requirement,
-  )
   @ValidateNested({ each: true })
   @Type(() => ContributionRequestRequirementInputDto)
   preferredRequirements?: ContributionRequestRequirementInputDto[];

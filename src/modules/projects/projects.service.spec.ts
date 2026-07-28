@@ -47,6 +47,31 @@ describe('ProjectsService', () => {
       });
     });
 
+    it('locks Project access through the caller transaction', async () => {
+      const transaction = {
+        $queryRaw: jest.fn().mockResolvedValue([
+          {
+            id: 'project-id',
+            owner_id: 'owner-id',
+            status: ProjectStatus.published,
+          },
+        ]),
+      };
+
+      await service.lockContributionRequestProjectAccess(
+        'project-id',
+        'owner-id',
+        transaction as never,
+      );
+
+      expect(transaction.$queryRaw).toHaveBeenCalledTimes(1);
+      const query = transaction.$queryRaw.mock.calls[0][0] as {
+        strings: string[];
+      };
+      expect(query.strings.join('')).toContain('FOR SHARE');
+      expect(database.project.findUnique).not.toHaveBeenCalled();
+    });
+
     it('does not reveal whether a Project belongs to another owner', async () => {
       database.project.findUnique.mockResolvedValue({
         id: 'project-id',

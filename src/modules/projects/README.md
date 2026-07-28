@@ -47,6 +47,12 @@ discovery, and exported admin-summary behavior. Owner-dashboard pending counts
 come through the exported `ApplicationsService`; Projects does not interpret
 Application lifecycle states.
 
+`ProjectsService.getContributionRequestProjectAccess()` exposes the minimal
+owner/publication facts needed by the Contribution Requests module.
+`lockContributionRequestProjectAccess()` provides the same check with a shared
+Project-row lock on the caller's write transaction so an archive or ownership
+change cannot race a Contribution Request mutation.
+
 The module writes `Project`, `ProjectOperation`, and
 `ProjectStateTransition`. It calls exported GitHub services for normalized
 repository evidence/control and the exported Identity service for immutable

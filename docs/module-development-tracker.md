@@ -1641,3 +1641,20 @@ This keeps the system strong without making it heavy:
 - Follow-up: issue #49 can now implement Contribution Request publication and
   cancellation propagation using `request_cancelled`; Application submission,
   expiry, Owner Decisions, and Assignments remain later Sprint 4 work.
+
+### 2026-07-28 - Contribution Request draft review hardening (#48)
+
+- Modules: `contribution-tasks` and the exported Project-access capability in
+  `projects`.
+- Requirement/task IDs: Sprint 4 B02, GitHub issue #48.
+- Summary: reviewed the implemented private draft lifecycle and corrected its
+  remaining contract gaps. Missing, malformed, and duplicate Requirements now
+  return stable audience-safe codes. Project ownership and publication are
+  revalidated on the write transaction connection. Same-key concurrent
+  update/discard retries replay the completed command, while a discarded-command
+  key reused with a different reason returns the documented idempotency conflict.
+- Database/API impact: no schema, migration, route, or successful response shape
+  changed.
+- Verification: focused service, Project access, and HTTP contract tests cover
+  the corrected validation and idempotency behavior; final repository-wide
+  gates are recorded in the implementation handoff.
