@@ -1079,3 +1079,35 @@ Content-Type: application/json
 ### 24 - Disconnect one local installation link (does not uninstall)
 DELETE {{baseUrl}}/github/app/installations/{{installationLinkId}}
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 25 - Submit an Application directly to owner review
+# @name submittedApplication
+POST {{baseUrl}}/tasks/{{contributionRequestId}}/applications
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "contributionApproach": "I will implement the requested workflow with focused tests.",
+  "proposedDeliveryDurationDays": 5,
+  "idempotencyKey": "00000000-0000-4000-8000-000000000001"
+}
+
+
+### 26 - List pending Applications for the Request owner
+GET {{baseUrl}}/tasks/{{contributionRequestId}}/applications
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 27 - Inspect one authorized Application
+GET {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 28 - Withdraw a pending Application
+POST {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/withdraw
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: 00000000-0000-4000-8000-000000000002
+Content-Type: application/json
+
+{}

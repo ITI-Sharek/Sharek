@@ -1059,6 +1059,37 @@ confidence, or cannot cite evidence:
 - Store an audit record.
 - Return a clear user-safe message.
 
+## Sprint 4 Applications (#50)
+
+```http
+POST /tasks/:taskId/applications
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{
+  "contributionApproach": "I will implement and test the NestJS workflow.",
+  "proposedDeliveryDurationDays": 5,
+  "idempotencyKey": "00000000-0000-4000-8000-000000000001"
+}
+```
+
+Successful submission returns `201` with status `PENDING_OWNER_REVIEW`, fixed
+Required/Preferred Requirement Snapshot, safe Evidence Summary, contributor
+context, and review timing. Submission performs no AI or attempt-quota work.
+
+```http
+GET  /tasks/:taskId/applications
+GET  /applications/:applicationId
+POST /applications/:applicationId/withdraw
+Idempotency-Key: 00000000-0000-4000-8000-000000000002
+```
+
+Owner reads are ownership-scoped. Detail also permits the applying contributor.
+Withdrawal is contributor-owned and pending-only. Stable workflow errors include
+`ALREADY_APPLIED`, `APPLICATIONS_CLOSED`, `REQUEST_CANCELLED`,
+`REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, `APPLICATION_TERMINAL`, and
+`APPLICATION_IDEMPOTENCY_CONFLICT`.
+
 ## Contract Change Rules
 
 - Breaking API changes require frontend coordination.

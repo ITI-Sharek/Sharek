@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 
 import { ApplicationsModule } from '../applications/applications.module';
 import { GithubModule } from '../github/github.module';
@@ -10,7 +10,7 @@ import { ProjectPublicationService } from './services/project-publication.servic
 import { PublicProjectsService } from './services/public-projects.service';
 
 @Module({
-  imports: [ApplicationsModule, GithubModule, IdentityModule],
+  imports: [forwardRef(() => ApplicationsModule), GithubModule, IdentityModule],
   controllers: [ProjectsController, PublicProjectsController],
   providers: [
     ProjectsService,

@@ -1658,3 +1658,42 @@ This keeps the system strong without making it heavy:
 - Verification: focused service, Project access, and HTTP contract tests cover
   the corrected validation and idempotency behavior; final repository-wide
   gates are recorded in the implementation handoff.
+
+### 2026-07-28 - Submit and withdraw Applications (#50)
+
+- Modules: `applications`, with narrow exported Request context from
+  `contribution-tasks`, Application-status notifications from `notifications`,
+  approved evidence summaries from `skill-profiles`, and existing owner project
+  summary wiring in `projects`.
+- Requirement/task IDs: Sprint 4 B04, GitHub issue #50, DEC-030/031/035/036,
+  parent specification #46.
+- Summary: active contributors can submit one Application per actionable
+  published Contribution Request with a Contribution Approach and Proposed
+  Delivery Duration. Submission transactionally fixes ordered Requirement and
+  authorized Evidence Snapshots, enters `pending_owner_review` immediately,
+  appends an audit, and notifies the owner without AI or attempt-quota work.
+  Owners can list/inspect the pending Application, and its contributor can
+  withdraw it before any terminal decision.
+- API changes: added `POST /tasks/:taskId/applications`, `GET
+  /tasks/:taskId/applications`, `GET /applications/:applicationId`, and `POST
+  /applications/:applicationId/withdraw`. Stable lifecycle, authorization,
+  duplicate, close-time, terminal, and idempotency codes are documented in
+  `docs/api-contracts.md`.
+- Database changes: migration
+  `20260728200000_application_submission_withdrawal` adds Application input and
+  review-timing fields, immutable Requirement/Evidence Snapshot tables,
+  append-only Application audits, contributor/Request uniqueness, query indexes,
+  and notification deduplication. Legacy rows retain nullable snapshot/duration
+  fields because missing historical values are not invented.
+- Authorization/privacy: only active contributors submit or withdraw; only the
+  Request owner lists, while detail is limited to owner or applying contributor.
+  Evidence uses approved skill summaries and bounded evidence-source metadata;
+  public/private provider data is not returned.
+- Verification: focused Applications service and HTTP tests plus Notifications
+  and Contribution Request tests pass. Prisma validation passes. The PostgreSQL
+  migration harness could not run because no server was listening on
+  `localhost:5432`; final architecture, lint, type-check, full tests, build, and
+  diff results are recorded in the implementation handoff.
+- Dependency/risk: issue #49 remains responsible for public Request publication,
+  discovery, cancellation, and cancellation propagation. #50 consumes a
+  transaction-scoped read/lock context and does not implement those commands.

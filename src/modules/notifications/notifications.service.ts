@@ -20,6 +20,13 @@ export interface NotificationCreateResultDto {
   notification: RealtimeNotificationDto;
 }
 
+export interface ApplicationNotificationInput {
+  userId: string;
+  applicationId: string;
+  contributionRequestId: string;
+  action: 'submitted' | 'withdrawn';
+}
+
 @Injectable()
 export class NotificationsService {
   constructor(
@@ -52,6 +59,63 @@ export class NotificationsService {
     return {
       notificationId: notification.id,
       created: true,
+      deliveredRealtime,
+      notification: realtimeNotification,
+    };
+  }
+
+  async createApplicationNotification(
+    input: ApplicationNotificationInput,
+  ): Promise<NotificationCreateResultDto> {
+    const deduplicationKey = `application:${input.applicationId}:${input.action}`;
+    const existing = await this.database.notification.findUnique({
+      where: { deduplication_key: deduplicationKey },
+    });
+    let notification = existing;
+    let created = false;
+    if (!notification) {
+      try {
+        notification = await this.database.notification.create({
+        data: {
+          user_id: input.userId,
+          type: NotificationType.application_status,
+          title:
+            input.action === 'submitted'
+              ? 'New Application received'
+              : 'Application withdrawn',
+          message:
+            input.action === 'submitted'
+              ? 'A contributor submitted an Application for your Contribution Request.'
+              : 'A contributor withdrew an Application from your Contribution Request.',
+          metadata: {
+            applicationId: input.applicationId,
+            contributionRequestId: input.contributionRequestId,
+            action: input.action,
+          },
+          deduplication_key: deduplicationKey,
+          },
+        });
+        created = true;
+      } catch (error) {
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== 'P2002'
+        ) {
+          throw error;
+        }
+        notification = await this.database.notification.findUniqueOrThrow({
+          where: { deduplication_key: deduplicationKey },
+        });
+      }
+    }
+    const realtimeNotification = this.presentRealtimeNotification(notification);
+    const deliveredRealtime = created
+      ? this.notificationsGateway.emitNotification(realtimeNotification)
+      : false;
+
+    return {
+      notificationId: notification.id,
+      created,
       deliveredRealtime,
       notification: realtimeNotification,
     };

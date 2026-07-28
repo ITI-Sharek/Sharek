@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import {
   ContributionRequestAuditAction,
   ContributionRequestDifficulty,
@@ -22,6 +22,7 @@ import {
   CreateContributionRequestDto,
   UpdateContributionRequestDto,
 } from './dto/contribution-request-input.dto';
+import { ApplicationRequestContextDto } from './dto/application-request-context.dto';
 import { ContributionRequestDto } from './dto/contribution-request-response.dto';
 import {
   ContributionRequestWithRequirements,
@@ -47,8 +48,46 @@ interface NormalizedDraftContract {
 export class ContributionTasksService {
   constructor(
     private readonly database: DatabaseService,
+    @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
   ) {}
+
+  async getApplicationSubmissionContext(
+    requestId: string,
+  ): Promise<ApplicationRequestContextDto | null> {
+    const request = await this.database.contributionRequest.findUnique({
+      where: { id: requestId },
+      include: { requirements: true },
+    });
+    return request ? this.toApplicationRequestContext(request) : null;
+  }
+
+  async lockApplicationSubmissionContext(
+    requestId: string,
+    transaction: Prisma.TransactionClient,
+  ): Promise<ApplicationRequestContextDto | null> {
+    const rows = await transaction.$queryRaw<
+      Array<{
+        id: string;
+        owner_id: string;
+        status: ContributionRequestStatus;
+        applications_close_at: Date | null;
+        updated_at: Date;
+      }>
+    >(Prisma.sql`
+      SELECT "id", "owner_id", "status", "applications_close_at", "updated_at"
+      FROM "ContributionRequest"
+      WHERE "id" = ${requestId}::uuid
+      FOR SHARE
+    `);
+    const request = rows[0];
+    if (!request) return null;
+    const requirements = await transaction.contributionRequestRequirement.findMany({
+      where: { contribution_request_id: requestId },
+      orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+    });
+    return this.toApplicationRequestContext({ ...request, requirements });
+  }
 
   async createDraft(input: {
     user: AuthenticatedUser;
@@ -604,6 +643,34 @@ export class ContributionTasksService {
         'CONTRIBUTION_REQUEST_UPDATE_EMPTY',
       );
     }
+  }
+
+  private toApplicationRequestContext(request: {
+    id: string;
+    owner_id: string;
+    status: ContributionRequestStatus;
+    applications_close_at: Date | null;
+    updated_at: Date;
+    requirements: Array<{
+      id: string;
+      kind: ContributionRequestRequirementKind;
+      position: number;
+      text: string;
+    }>;
+  }): ApplicationRequestContextDto {
+    return {
+      id: request.id,
+      ownerId: request.owner_id,
+      status: request.status,
+      applicationsCloseAt: request.applications_close_at,
+      updatedAt: request.updated_at,
+      requirements: request.requirements.map((requirement) => ({
+        id: requirement.id,
+        kind: requirement.kind,
+        position: requirement.position,
+        text: requirement.text,
+      })),
+    };
   }
 
   private assertEditableDraft(status: ContributionRequestStatus): void {
