@@ -46,7 +46,7 @@ github                github_accounts, github_oauth_states, github_repositories,
 contributor-profiles  contributor_profiles, contributor_fields, contributor_profile_fields
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications
-projects              projects, project_technologies, project_tags
+projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
 applications          applications, application_eligibility_results, application_status_history
 delivery-reviews      deliveries, delivery_reviews
@@ -122,6 +122,16 @@ service; the contribution-tasks module does not write Project tables.
 - Use deterministic rules and approved skills before LLM explanation.
 
 ## Migration Rules
+
+Migration `20260728120000_project_publication_owner_flow` expands legacy
+Projects for explicit publication without provider/network access. It backfills
+unique platform slugs, adds optimistic revisions, manual-override/source status
+and archive fields, removes global repository-URL uniqueness so intentional
+private drafts can coexist, and adds a partial unique index allowing at most one
+published Project for each numeric GitHub repository ID. `ProjectOperation`
+stores hashed idempotency scopes and safe response snapshots;
+`ProjectStateTransition` preserves actor, before/after state, validation outcome,
+and time. Existing rows are preserved and published timestamps are not reset.
 
 ## GitHub repository-evidence cutover
 

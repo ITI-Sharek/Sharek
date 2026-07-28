@@ -9,6 +9,7 @@ import { AuthService } from '../src/modules/identity/services/auth.service';
 import { PasswordResetService } from '../src/modules/identity/services/password-reset.service';
 import { ProjectsController } from '../src/modules/projects/projects.controller';
 import { ProjectsService } from '../src/modules/projects/projects.service';
+import { ProjectPublicationService } from '../src/modules/projects/services/project-publication.service';
 import { SkillProfileSummaryService } from '../src/modules/skill-profiles/services/skill-profile-summary.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { RolesGuard } from '../src/shared/auth/guards/roles.guard';
@@ -68,6 +69,7 @@ describe('Optional GitHub contributor journey', () => {
         { provide: PasswordResetService, useValue: {} },
         { provide: ContributorProfilesService, useValue: profilesService },
         { provide: ProjectsService, useValue: projectsService },
+        { provide: ProjectPublicationService, useValue: {} },
       ],
     })
       .overrideGuard(AccessTokenGuard)

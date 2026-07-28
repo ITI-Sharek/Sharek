@@ -145,4 +145,43 @@ describe('GitHubApiClient', () => {
       statusCode: 502,
     });
   });
+
+  it('maps missing or inaccessible repositories to the safe source error', async () => {
+    jest.mocked(global.fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      headers: new Headers(),
+    } as Response);
+
+    await expect(client.getPublicRepository('private/repo')).rejects.toMatchObject({
+      code: 'GITHUB_SOURCE_NOT_AVAILABLE',
+      statusCode: 404,
+    });
+  });
+
+  it('maps provider rate limits without exposing a raw provider response', async () => {
+    jest.mocked(global.fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: new Headers({ 'retry-after': '30' }),
+    } as Response);
+
+    await expect(client.getPublicRepository('sharek/repo')).rejects.toMatchObject({
+      code: 'GITHUB_RATE_LIMITED',
+      statusCode: 429,
+      metadata: { retryAfter: 30, retryable: true },
+    });
+  });
+
+  it('maps an aborted provider call to the bounded timeout error', async () => {
+    const timeout = new Error('timed out');
+    timeout.name = 'TimeoutError';
+    jest.mocked(global.fetch).mockRejectedValueOnce(timeout);
+
+    await expect(client.getPublicRepository('sharek/repo')).rejects.toMatchObject({
+      code: 'GITHUB_PROVIDER_TIMEOUT',
+      statusCode: 504,
+      metadata: { retryable: true },
+    });
+  });
 });

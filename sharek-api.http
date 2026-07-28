@@ -80,6 +80,8 @@
 # - [DONE] GET /contribution-requests/:requestId
 # - [DONE] PATCH /contribution-requests/:requestId
 # - [DONE] POST /contribution-requests/:requestId/discard
+# - [RETIRED] POST /projects/import/github
+# - [DONE] POST /projects/github/preview -> POST /projects -> explicit publish/archive
 # - [DONE] POST /contributors/profiles/me/ensure
 # - [DONE] GET /contributors/profiles/:username
 # - [DONE] POST /skill-profiles/me/generations
@@ -708,19 +710,39 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 #   signals for the normalized snapshot.
 # - GitHub stats endpoints can return pending/unavailable. In that case import
 #   still succeeds and repoStatistics contains an unavailableReason.
-# - Projects remain hidden from contributor discovery while status is "draft".
-# - Published saves require category and difficulty.
-POST {{baseUrl}}/projects/import/github
+# - Preview performs no Project write.
+POST {{baseUrl}}/projects/github/preview
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json
 
 {
-  "repoUrl": "{{githubRepoUrl}}",
-  "status": "draft"
+  "repositoryReference": "{{githubRepoUrl}}"
 }
 
 
-### 11A - DONE - List my owner projects
+### 11A - Create confirmed private draft
+# Copy previewFingerprint from the preview response. This command always creates
+# status=draft and never accepts ownerId/status from the client.
+POST {{baseUrl}}/projects
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+Idempotency-Key: create-project-example-001
+
+{
+  "source": {
+    "provider": "github",
+    "repositoryReference": "{{githubRepoUrl}}",
+    "previewFingerprint": "replace-with-preview-fingerprint"
+  },
+  "project": {
+    "title": "Reviewed project",
+    "category": "web",
+    "difficulty": "intermediate"
+  }
+}
+
+
+### 11B - DONE - List my owner projects
 # What it does:
 # Returns the authenticated owner's projects for the owner workspace.
 #

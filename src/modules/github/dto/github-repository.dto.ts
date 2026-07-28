@@ -3,6 +3,8 @@ export interface GitHubRepositoryDto {
   fullName: string;
   name: string;
   owner: string;
+  ownerId: string | null;
+  ownerType: 'user' | 'organization' | 'unknown';
   description: string | null;
   htmlUrl: string;
   private: boolean;

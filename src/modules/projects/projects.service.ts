@@ -6,9 +6,9 @@ import {
   ProjectCategory,
   ProjectDifficulty,
   ProjectStatus,
+  UserStatus,
 } from '@prisma/client';
 
-import { GitHubEvidenceService } from '../github/services/github-evidence.service';
 import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
 import { DatabaseService } from '../../shared/database/database.service';
 import {
@@ -21,33 +21,54 @@ import { AdminPublishedProjectOwnerDto } from './dto/admin-published-project-own
 import { ContributionRequestProjectAccessDto } from './dto/contribution-request-project-access.dto';
 import { DiscoverProjectsQuery } from './dto/discover-projects.query';
 import { DiscoverProjectsResponseDto } from './dto/discovered-project.dto';
-import { ImportProjectDto } from './dto/import-project.dto';
 import { MyProjectsResponseDto } from './dto/my-projects.dto';
-import { ProjectResponseDto } from './dto/project-response.dto';
-import {
-  toDiscoveredProjectDto,
-  toProjectResponseDto,
-} from './mappers/project.mapper';
+import { ProjectPageQueryDto } from './dto/project-publication.dto';
+import { toDiscoveredProjectDto } from './mappers/project.mapper';
 
 const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT = 20;
 
 @Injectable()
 export class ProjectsService {
-  constructor(
-    private readonly database: DatabaseService,
-    private readonly gitHubEvidenceService: GitHubEvidenceService,
-  ) {}
+  constructor(private readonly database: DatabaseService) {}
 
-  async getMyProjects(ownerId: string): Promise<MyProjectsResponseDto> {
+  async getMyProjectsForActor(
+    actor: AuthenticatedUser,
+    query: ProjectPageQueryDto = {},
+  ): Promise<MyProjectsResponseDto> {
+    if (
+      actor.status !== UserStatus.active ||
+      (actor.role !== 'owner' && actor.role !== 'contributor')
+    ) {
+      throw new ForbiddenApplicationError(
+        'An active owner or contributor account is required',
+        'PROJECT_ACCOUNT_NOT_ELIGIBLE',
+      );
+    }
+    return this.getMyProjects(actor.id, query);
+  }
+
+  async getMyProjects(
+    ownerId: string,
+    query: ProjectPageQueryDto = {},
+  ): Promise<MyProjectsResponseDto> {
     const monthStart = this.getCurrentMonthStart();
+    const limit = query.limit ?? 20;
+    const cursor = query.cursor ? this.decodeOwnerCursor(query.cursor) : null;
     const [projects, monthlyRequestCount] = await Promise.all([
       this.database.project.findMany({
         where: {
           owner_id: ownerId,
+          ...(cursor
+            ? {
+                OR: [
+                  { updated_at: { lt: cursor.updatedAt } },
+                  { updated_at: cursor.updatedAt, id: { lt: cursor.id } },
+                ],
+              }
+            : {}),
         },
-        orderBy: {
-          updated_at: 'desc',
-        },
+        orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
         include: {
           contributionRequests: {
             select: {
@@ -71,12 +92,16 @@ export class ProjectsService {
       }),
     ]);
 
+    const hasNextPage = projects.length > limit;
+    const ownerProjects = projects.slice(0, limit);
+    const last = ownerProjects.at(-1);
     return {
-      projects: projects.map((project) => ({
+      projects: ownerProjects.map((project) => ({
         id: project.id,
         title: project.title,
-        slug: this.resolveProjectSlug(project.github_repo_url, project.title),
+        slug: project.slug,
         status: project.status,
+        revision: project.revision,
         openRequestsCount: project.contributionRequests.filter(
           (request) => request.status === ContributionRequestStatus.published,
         ).length,
@@ -93,6 +118,18 @@ export class ProjectsService {
       quota: {
         used: monthlyRequestCount,
         monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT,
+      },
+      pageInfo: {
+        hasNextPage,
+        nextCursor:
+          hasNextPage && last
+            ? Buffer.from(
+                JSON.stringify({
+                  updatedAt: last.updated_at.toISOString(),
+                  id: last.id,
+                }),
+              ).toString('base64url')
+            : null,
       },
     };
   }
@@ -164,7 +201,7 @@ export class ProjectsService {
       projects: projects.map((project) =>
         toDiscoveredProjectDto(
           project,
-          this.resolveProjectSlug(project.github_repo_url, project.title),
+          project.slug,
         ),
       ),
       pagination: {
@@ -283,90 +320,16 @@ export class ProjectsService {
     );
   }
 
-  async importFromGitHub(
-    ownerId: string,
-    input: ImportProjectDto,
-  ): Promise<ProjectResponseDto> {
-    const repositoryReference = input.repoUrl ?? input.fullName ?? '';
-    const snapshot =
-      await this.gitHubEvidenceService.getPublicImportSnapshot(
-        repositoryReference,
-      );
-    const { repository } = snapshot;
-
-    const existingProject = await this.database.project.findUnique({
-      where: {
-        github_repo_url: repository.htmlUrl,
+  rejectRetiredImportRoute(): never {
+    throw new ApplicationError(
+      'The combined GitHub import route has been retired',
+      'PROJECT_IMPORT_ROUTE_RETIRED',
+      410,
+      {
+        preview: 'POST /projects/github/preview',
+        createDraft: 'POST /projects',
       },
-    });
-
-    if (existingProject && existingProject.owner_id !== ownerId) {
-      throw new ApplicationError(
-        'GitHub repository is already imported by another owner',
-        'GITHUB_REPOSITORY_ALREADY_IMPORTED',
-        409,
-      );
-    }
-
-    const status = input.status ?? existingProject?.status ?? ProjectStatus.draft;
-    const projectMetadata = {
-      title: this.resolveTitle(repository.name, input.title),
-      description: this.resolveDescription(
-        repository.description,
-        input.description,
-      ),
-      github_repo_id: repository.githubRepoId,
-      languages: repository.languages,
-      tags: this.resolveStringArray(repository.topics, input.tags),
-      technologies: this.resolveStringArray(
-        snapshot.technologies,
-        input.technologies,
-      ),
-      category: input.category ?? existingProject?.category ?? null,
-      difficulty: input.difficulty ?? existingProject?.difficulty ?? null,
-      repo_statistics: snapshot.repoStatistics as Prisma.InputJsonObject,
-      readme_content: snapshot.readmeContent,
-      status,
-      published_at: this.resolvePublishedAt(
-        status,
-        existingProject?.published_at ?? null,
-      ),
-    };
-    this.assertCanSaveProjectStatus(projectMetadata);
-
-    const project = existingProject
-      ? await this.database.project.update({
-          where: {
-            id: existingProject.id,
-          },
-          data: projectMetadata,
-        })
-      : await this.database.project.create({
-          data: {
-            owner_id: ownerId,
-            github_repo_url: repository.htmlUrl,
-            ...projectMetadata,
-          },
-        });
-
-    return toProjectResponseDto(project);
-  }
-
-  private assertCanSaveProjectStatus(project: {
-    status: ProjectStatus;
-    category: unknown;
-    difficulty: unknown;
-  }): void {
-    if (
-      project.status === ProjectStatus.published &&
-      (project.category === null || project.difficulty === null)
-    ) {
-      throw new ApplicationError(
-        'Project category and difficulty are required before publication',
-        'PROJECT_PUBLICATION_METADATA_REQUIRED',
-        422,
-      );
-    }
+    );
   }
 
   private assertActiveAdmin(admin: AuthenticatedUser): void {
@@ -378,54 +341,6 @@ export class ProjectsService {
     }
   }
 
-  private resolveTitle(repositoryName: string, reviewedTitle?: string): string {
-    const title = reviewedTitle?.trim();
-
-    return title || repositoryName;
-  }
-
-  private resolveDescription(
-    repositoryDescription: string | null,
-    reviewedDescription?: string | null,
-  ): string | null {
-    if (reviewedDescription === undefined) {
-      return repositoryDescription;
-    }
-
-    const description = reviewedDescription?.trim();
-
-    return description || null;
-  }
-
-  private resolveStringArray(
-    repositoryValues: string[],
-    reviewedValues?: string[],
-  ): string[] {
-    const values = reviewedValues ?? repositoryValues;
-
-    return Array.from(
-      new Set(
-        values
-          .map((value) => value.trim())
-          .filter((value) => value.length > 0),
-      ),
-    );
-  }
-
-  private resolvePublishedAt(
-    status: ProjectStatus,
-    existingPublishedAt: Date | null,
-  ): Date | null {
-    if (status === ProjectStatus.published) {
-      return existingPublishedAt ?? new Date();
-    }
-
-    if (status === ProjectStatus.draft) {
-      return null;
-    }
-
-    return existingPublishedAt;
-  }
 
   private isPendingOwnerApplication(status: ApplicationStatus): boolean {
     return (
@@ -439,28 +354,27 @@ export class ProjectsService {
     return new Date(now.getFullYear(), now.getMonth(), 1);
   }
 
-  private resolveProjectSlug(repoUrl: string, title: string): string {
+  private decodeOwnerCursor(cursor: string): { updatedAt: Date; id: string } {
     try {
-      const url = new URL(repoUrl);
-      const repoName = url.pathname.split('/').filter(Boolean)[1];
-      if (repoName) {
-        return this.slugify(repoName.replace(/\.git$/i, ''));
+      const parsed = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      ) as { updatedAt?: unknown; id?: unknown };
+      const updatedAt = new Date(String(parsed.updatedAt));
+      if (
+        typeof parsed.id !== 'string' ||
+        parsed.id.length === 0 ||
+        Number.isNaN(updatedAt.getTime())
+      ) {
+        throw new Error('invalid cursor');
       }
+      return { updatedAt, id: parsed.id };
     } catch {
-      // Fall back to the reviewed title when the stored URL is not parseable.
+      throw new ApplicationError(
+        'Project cursor is invalid',
+        'PROJECT_REQUEST_INVALID',
+        400,
+      );
     }
-
-    return this.slugify(title);
-  }
-
-  private slugify(value: string): string {
-    const slug = value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-
-    return slug || 'project';
   }
 
   private formatLastActivityLabel(updatedAt: Date): string {

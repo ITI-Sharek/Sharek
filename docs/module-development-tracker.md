@@ -1566,3 +1566,45 @@ This keeps the system strong without making it heavy:
   for publish/cancel audit actions after rebasing on #47, then cover public
   filters, close-time boundaries, entitlements/limits, and Application
   cancellation propagation.
+
+### 2026-07-28 - Owner project publication and public discovery
+
+- Modules: `projects`, with allowlisted source-control support from `github` and
+  authenticated-account lookup from `identity`.
+- Requirement/task IDs: SK-112 / TASK-2-03; the core preview, draft,
+  owner-edit, refresh, publication/archive, authorization, idempotency, and
+  minimal public-read paths across FR-001 through FR-023. The hardening items
+  called out below remain open.
+- Summary: replaced the retired combined GitHub import behavior with explicit
+  preview, confirmed draft creation, owner detail/edit/refresh/publish/archive,
+  and minimal public list/detail flows. Owner mutations use actor-derived
+  ownership, optimistic revisions, scoped idempotency receipts, live source
+  checks, manual-override preservation, and audited state transitions. Missing
+  and non-owned resources share the same not-found response.
+- API changes: added `POST /projects/github/preview`, `POST /projects`, owner
+  routes under `/projects/me`, and public reads under `/public/projects`; the
+  legacy `POST /projects/import/github` route now returns `410 Gone`.
+- Authorization/privacy impact: only active owners and contributors can create
+  and mutate owned projects; an ordinary admin role is not an owner bypass.
+  Personal repositories are matched to the immutable linked GitHub identity,
+  organization/private repositories require a selected GitHub App installation,
+  and private source metadata is withheld after current access is lost. Public
+  responses expose only the publication-safe projection.
+- Database changes: added project slug/revision/source-state/manual-override and
+  archival fields plus `ProjectOperation` and `ProjectStateTransition`. Migration
+  `20260728120000_project_publication_owner_flow` backfills legacy slugs, removes
+  the global repository-URL uniqueness rule, and adds the published-repository
+  partial uniqueness guard. The migration was generated and validated but was
+  not applied to any database.
+- Documentation: updated the projects, GitHub, and identity module READMEs, API
+  contracts, database plan, Postman guide, REST examples, and this tracker.
+- Verification: focused projects, GitHub client, identity, configuration, and
+  HTTP contract tests cover zero-write preview, ownership concealment, revision
+  conflicts, idempotent mutations, publish/archive rules, private-access loss,
+  provider failures, and public projections. Final repository-wide architecture,
+  lint, type-check, Prisma validation, tests, build, and diff checks are recorded
+  in the implementation handoff.
+- Known risks/follow-up: this increment does not yet add webhook-driven source
+  invalidation, immutable publication snapshot/refresh-attempt tables, receipt
+  retention cleanup, or the optional idempotency replay response header. Those
+  hardening items remain follow-up work rather than being represented as complete.

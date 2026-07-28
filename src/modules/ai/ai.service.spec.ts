@@ -21,6 +21,8 @@ describe('AiService private evidence boundary', () => {
           archived: false,
           defaultBranch: 'main',
           owner: 'private-owner',
+          ownerId: '42',
+          ownerType: 'user',
           description: null,
           topics: [],
           primaryLanguage: 'TypeScript',

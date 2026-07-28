@@ -103,6 +103,11 @@ export class GitHubRepositoryService {
       fullName: repository.full_name,
       name: repository.name,
       owner: repository.owner?.login ?? repository.full_name.split('/')[0],
+      ownerId:
+        typeof repository.owner?.id === 'number'
+          ? String(repository.owner.id)
+          : null,
+      ownerType: this.normalizeOwnerType(repository.owner?.type),
       description: repository.description ?? null,
       htmlUrl: repository.html_url,
       private: repository.private,
@@ -119,6 +124,14 @@ export class GitHubRepositoryService {
       pushedAt: this.parseOptionalDate(repository.pushed_at),
       updatedAt: this.parseOptionalDate(repository.updated_at),
     };
+  }
+
+  private normalizeOwnerType(
+    ownerType: string | undefined,
+  ): 'user' | 'organization' | 'unknown' {
+    if (ownerType?.toLowerCase() === 'user') return 'user';
+    if (ownerType?.toLowerCase() === 'organization') return 'organization';
+    return 'unknown';
   }
 
   private parseOptionalDate(value: string | null | undefined): Date | null {

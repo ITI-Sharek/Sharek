@@ -60,6 +60,47 @@ export class GitHubEvidenceService {
     return this.buildRepositorySnapshot(null, repository);
   }
 
+  async getProjectImportSnapshot(
+    userId: string,
+    repositoryReference: string,
+  ): Promise<GitHubRepositoryImportSnapshot> {
+    try {
+      return await this.getPublicImportSnapshot(repositoryReference);
+    } catch (publicError) {
+      if (!this.gitHubAppService || !this.gitHubAppApiClient) {
+        throw publicError;
+      }
+      const selected = await this.gitHubAppService.findSelectedRepositoryAccess(
+        userId,
+        repositoryReference,
+      );
+      if (!selected) throw publicError;
+
+      const evidence = await this.getGitHubAppSkillProfilingEvidence(
+        userId,
+        selected.installationLinkId,
+        [selected.repositoryId],
+      );
+      if (evidence.snapshots.length === 1) return evidence.snapshots[0];
+      throw new ApplicationError(
+        'GitHub repository source is not available',
+        evidence.failures[0]?.code ?? 'GITHUB_SOURCE_NOT_AVAILABLE',
+        404,
+      );
+    }
+  }
+
+  async verifySelectedRepositoryControl(
+    userId: string,
+    repositoryId: string,
+  ): Promise<boolean> {
+    if (!this.gitHubAppService) return false;
+    return this.gitHubAppService.verifySelectedRepositoryControl(
+      userId,
+      repositoryId,
+    );
+  }
+
   async getSkillProfilingEvidence(
     userId: string,
     repositoryLimit = DEFAULT_SKILL_PROFILING_REPOSITORY_LIMIT,
@@ -545,6 +586,11 @@ export class GitHubEvidenceService {
       fullName: repository.full_name,
       name: repository.name,
       owner: repository.owner?.login ?? repository.full_name.split('/')[0],
+      ownerId:
+        typeof repository.owner?.id === 'number'
+          ? String(repository.owner.id)
+          : null,
+      ownerType: this.normalizeOwnerType(repository.owner?.type),
       description: repository.description ?? null,
       htmlUrl: repository.html_url,
       private: repository.private,
@@ -561,6 +607,14 @@ export class GitHubEvidenceService {
       pushedAt: this.parseOptionalDate(repository.pushed_at),
       updatedAt: this.parseOptionalDate(repository.updated_at),
     };
+  }
+
+  private normalizeOwnerType(
+    ownerType: string | undefined,
+  ): 'user' | 'organization' | 'unknown' {
+    if (ownerType?.toLowerCase() === 'user') return 'user';
+    if (ownerType?.toLowerCase() === 'organization') return 'organization';
+    return 'unknown';
   }
 
   private getTechnologies(repository: GitHubRepositoryDto): string[] {

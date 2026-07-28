@@ -1,15 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { ApplicationError } from '../../../shared/errors/application.error';
 
-const GITHUB_API_URL = 'https://api.github.com';
+const DEFAULT_GITHUB_API_URL = 'https://api.github.com';
+const DEFAULT_GITHUB_REQUEST_TIMEOUT_MS = 4000;
 
 export interface GitHubRepositoryPayload {
   id: number;
   name: string;
   full_name: string;
   owner?: {
+    id?: number;
     login?: string;
+    type?: string;
   };
   description?: string | null;
   html_url: string;
@@ -83,6 +87,17 @@ export interface GitHubRepositoryPagePayload {
 
 @Injectable()
 export class GitHubApiClient {
+  private readonly apiUrl: string;
+  private readonly requestTimeoutMs: number;
+
+  constructor(@Optional() config?: ConfigService) {
+    this.apiUrl = (
+      config?.get<string>('GITHUB_API_URL') ?? DEFAULT_GITHUB_API_URL
+    ).replace(/\/$/, '');
+    this.requestTimeoutMs =
+      config?.get<number>('GITHUB_API_REQUEST_TIMEOUT_MS') ??
+      DEFAULT_GITHUB_REQUEST_TIMEOUT_MS;
+  }
   async listRepositories(accessToken: string): Promise<GitHubRepositoryPayload[]> {
     const repositories: GitHubRepositoryPayload[] = [];
     let pageNumber = 1;
@@ -197,8 +212,8 @@ export class GitHubApiClient {
     accessToken: string | null,
     fullName: string,
   ): Promise<string | null> {
-    const response = await fetch(
-      `${GITHUB_API_URL}/repos/${this.encodeFullName(fullName)}/readme`,
+    const response = await this.fetchWithTimeout(
+      `${this.apiUrl}/repos/${this.encodeFullName(fullName)}/readme`,
       {
         headers: this.getGitHubHeaders(
           accessToken,
@@ -266,15 +281,55 @@ export class GitHubApiClient {
     path: string,
     accessToken: string | null,
   ): Promise<Response> {
-    const response = await fetch(`${GITHUB_API_URL}${path}`, {
+    const response = await this.fetchWithTimeout(`${this.apiUrl}${path}`, {
       headers: this.getGitHubHeaders(accessToken),
     });
 
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new ApplicationError(
+          'GitHub repository source is not available',
+          'GITHUB_SOURCE_NOT_AVAILABLE',
+          404,
+        );
+      }
+      if (
+        response.status === 429 ||
+        (response.status === 403 &&
+          response.headers?.get?.('x-ratelimit-remaining') === '0')
+      ) {
+        const retryAfter = response.headers?.get?.('retry-after');
+        throw new ApplicationError(
+          'GitHub provider rate limit was reached',
+          'GITHUB_RATE_LIMITED',
+          429,
+          {
+            retryable: true,
+            ...(retryAfter && /^\d+$/.test(retryAfter)
+              ? { retryAfter: Number(retryAfter) }
+              : {}),
+          },
+        );
+      }
+      if (response.status === 403) {
+        throw new ApplicationError(
+          'GitHub repository source is not available',
+          'GITHUB_SOURCE_NOT_AVAILABLE',
+          404,
+        );
+      }
+      if (response.status >= 500) {
+        throw new ApplicationError(
+          'GitHub provider is unavailable',
+          'GITHUB_PROVIDER_UNAVAILABLE',
+          503,
+          { retryable: true },
+        );
+      }
       throw new ApplicationError(
         'GitHub API request failed',
         'GITHUB_API_REQUEST_FAILED',
-        response.status === 404 ? 404 : 502,
+        502,
       );
     }
 
@@ -285,7 +340,7 @@ export class GitHubApiClient {
     path: string,
     accessToken: string | null,
   ): Promise<GitHubOptionalResult<T>> {
-    const response = await fetch(`${GITHUB_API_URL}${path}`, {
+    const response = await this.fetchWithTimeout(`${this.apiUrl}${path}`, {
       headers: this.getGitHubHeaders(accessToken),
     });
 
@@ -344,6 +399,36 @@ export class GitHubApiClient {
     }
 
     return headers;
+  }
+
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || error.name === 'TimeoutError')
+      ) {
+        throw new ApplicationError(
+          'GitHub provider request timed out',
+          'GITHUB_PROVIDER_TIMEOUT',
+          504,
+          { retryable: true },
+        );
+      }
+      throw new ApplicationError(
+        'GitHub provider is unavailable',
+        'GITHUB_PROVIDER_UNAVAILABLE',
+        503,
+        { retryable: true },
+      );
+    }
   }
 
   private encodeFullName(fullName: string): string {

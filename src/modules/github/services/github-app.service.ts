@@ -378,6 +378,82 @@ export class GitHubAppService {
     };
   }
 
+  async findSelectedRepositoryAccess(
+    userId: string,
+    repositoryReference: string,
+  ): Promise<{ installationLinkId: string; repositoryId: string } | null> {
+    const normalizedReference = repositoryReference
+      .trim()
+      .replace(/^https?:\/\/(?:www\.)?github\.com\//i, '')
+      .replace(/\.git\/?$/i, '')
+      .replace(/\/$/, '')
+      .toLowerCase();
+    const link = await this.database.gitHubAppInstallationLink.findFirst({
+      where: {
+        user_id: userId,
+        status: 'active',
+        installation: {
+          status: 'active',
+          repositories: {
+            some: {
+              full_name: { equals: normalizedReference, mode: 'insensitive' },
+              removed_at: null,
+            },
+          },
+        },
+      },
+      include: {
+        installation: {
+          include: {
+            repositories: {
+              where: {
+                full_name: { equals: normalizedReference, mode: 'insensitive' },
+                removed_at: null,
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+    const repository = link?.installation.repositories[0];
+    if (!link || !repository) return null;
+
+    await this.verifyRepositorySelection(userId, link.id, [
+      repository.github_repository_id,
+    ]);
+    return {
+      installationLinkId: link.id,
+      repositoryId: repository.github_repository_id,
+    };
+  }
+
+  async verifySelectedRepositoryControl(
+    userId: string,
+    repositoryId: string,
+  ): Promise<boolean> {
+    const link = await this.database.gitHubAppInstallationLink.findFirst({
+      where: {
+        user_id: userId,
+        status: 'active',
+        installation: {
+          status: 'active',
+          repositories: {
+            some: {
+              github_repository_id: repositoryId,
+              removed_at: null,
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (!link) return false;
+
+    await this.verifyRepositorySelection(userId, link.id, [repositoryId]);
+    return true;
+  }
+
   async disconnect(userId: string, installationLinkId: string) {
     const result = await this.database.gitHubAppInstallationLink.updateMany({
       where: { id: installationLinkId, user_id: userId, status: { not: 'disconnected' } },

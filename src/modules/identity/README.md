@@ -64,5 +64,8 @@ and GitHub provider link, but refuses to disconnect GitHub when doing so would
 leave a passwordless user with no login method.
 
 The module exports `IdentityUsernameService` for profile workflows and
-`IdentityAccountStatusService` for contributor activation after skill review.
+`IdentityAccountStatusService` for contributor activation after skill review
+and an allowlisted immutable GitHub identity lookup used by project publication
+control checks. The lookup exposes only provider account ID and username; it
+does not expose provider tokens or raw profile data.
 Password hashing, token generation, and provider clients remain private.
