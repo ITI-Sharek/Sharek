@@ -472,7 +472,7 @@ current user's owner-project dashboard data:
   ],
   "quota": {
     "used": 0,
-    "monthlyLimit": 20
+    "monthlyLimit": 10
   },
   "pageInfo": { "nextCursor": null, "hasNextPage": false }
 }
@@ -480,7 +480,11 @@ current user's owner-project dashboard data:
 
 The response includes all projects owned by the authenticated owner, including
 drafts. It is an owner workspace endpoint, not contributor discovery. Contributor
-discovery must continue to filter on published projects only.
+discovery must continue to filter on published projects only. `quota.used`
+counts Contribution Requests whose `published_at` falls in the current UTC
+calendar month, including Requests later cancelled. `monthlyLimit` is the
+caller's current owner entitlement: Bronze 10, Silver 20, Gold 30; no active
+assignment defaults to Bronze.
 
 The canonical publication workflow separates source inspection, persistence,
 and public state:
@@ -654,7 +658,11 @@ current plan assignment use Bronze. Limits are Bronze 10, Silver 20, and Gold
 Cancellation accepts optional `{ "reason": "..." }`, preserves the Request,
 and atomically changes every `PENDING_OWNER_REVIEW` Application to
 `REQUEST_CANCELLED`. Existing terminal Applications and all snapshots/audits
-remain unchanged.
+remain unchanged. Cancellation remains available to the owning owner after the
+parent Project is archived, preventing pending Applications from being
+stranded. The Request audit and all resulting Application audits share a
+correlation ID; each child audit points to the Request audit as its cause and
+retains the supplied reason.
 
 Public, unauthenticated reads keep the compatible `/tasks` transport path:
 
@@ -664,8 +672,9 @@ GET /tasks/:requestId
 ```
 
 Both reads expose only `published` Requests whose Applications Close Time is
-strictly in the future. Draft, discarded, cancelled, assigned, completed, and
-closed Requests never appear and public detail returns the same
+strictly in the future and whose parent Project remains published. Draft,
+discarded, cancelled, assigned, completed, closed, and Requests on archived
+Projects never appear and public detail returns the same
 `CONTRIBUTION_REQUEST_NOT_FOUND` response for all of them.
 
 The feed returns:
@@ -1145,7 +1154,11 @@ identity and profile context, and review timing. The Contribution Approach is
 required and must contain 10 to 5000 characters. Evidence is limited to approved
 skill summaries whose underlying repository evidence was collected under the
 contributor’s explicit repository-selection consent; submission does not
-authorize new evidence access. Submission performs no AI or attempt-quota work.
+authorize new evidence access. The submission transaction revalidates and locks
+the active GitHub App link, installation, selected repositories, consent, and
+matching generation before fixing the snapshot. Revoked or unverifiable legacy
+evidence is omitted. The parent Project must also still be published.
+Submission performs no AI or attempt-quota work.
 
 ```http
 GET  /tasks/:taskId/applications

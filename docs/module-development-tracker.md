@@ -1741,3 +1741,48 @@ This keeps the system strong without making it heavy:
   current Subscription table supplies plan context and owners without an active
   assignment receive Bronze; the broader admin/demo entitlement management API
   remains the separately scheduled subscription capability.
+
+## 2026-07-28 — Contribution Request and Application Postman workflow
+
+- Scope: Issues #48, #49, and #50 endpoint handoff.
+- Documentation: added all eight Contribution Request draft/public lifecycle
+  endpoints and retained the four Application endpoints. Audited every NestJS
+  controller and filled the collection out to all 86 current HTTP routes,
+  including canonical Projects, GitHub App, Skill Profiles, Contributor
+  Profiles, Admin, and supplemental Identity routes. Added runnable auth,
+  Project, Request, provider, catalog, date, and idempotency variables to the
+  collection and local environment.
+- Workflow: draft creation captures `contributionRequestId`; future close and
+  completion dates are generated automatically; discard uses a separate draft
+  ID so publication, discovery, Application, withdrawal, and cancellation can
+  be tested without destroying the shared workflow state early.
+- Verification: both Postman JSON files parse successfully. An exact
+  method/path inventory reports 86 controller routes and zero missing Postman
+  routes (90 requests total, including login/workflow duplicates).
+
+## 2026-07-28 — Issues #49/#50 integration hardening
+
+- Modules: `projects`, `contribution-tasks`, `applications`, `skill-profiles`,
+  and `github`.
+- Summary: closed the dependency-order gaps between Request publication and
+  Application submission. Public Request reads and submission now require the
+  parent Project to remain published, while the owning owner can still cancel
+  a published Request after Project archival so pending Applications are not
+  stranded.
+- Consistency: the Project dashboard and Request publication use one canonical
+  Bronze/Silver/Gold entitlement lookup. Dashboard usage now counts
+  `published_at` in the current UTC month, matching publication enforcement.
+- Evidence/privacy: Application Evidence Snapshot creation transactionally
+  revalidates and locks the contributor's active GitHub App link, installation,
+  selected repositories, consent, and matching generation. Revoked or legacy
+  unverifiable evidence is excluded.
+- Auditability: Request cancellation allocates its audit ID before propagating
+  child state changes. Every resulting Application audit records the supplied
+  reason, shared correlation ID, and parent Request audit ID as causation.
+- Tests: added archived-Project discovery/submission cases, plan-aware quota
+  assertions, transactional evidence-authorization cases, stable lifecycle HTTP
+  errors, and a real HTTP/service cancellation seam covering child transitions,
+  audit linkage, and subsequent `REQUEST_CANCELLED` rejection.
+- Verification: architecture, lint, type-check, Prisma validation, build,
+  migration regression, Postman JSON/route inventory, and diff checks pass. The
+  full Jest run passes 62 suites and 325 tests.

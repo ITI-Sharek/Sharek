@@ -96,7 +96,9 @@ describe('ApplicationsService submission and withdrawal', () => {
     getApplicationSubmissionContext: jest.fn(),
     lockApplicationSubmissionContext: jest.fn(),
   };
-  const skillProfiles = { listApprovedSkillsForEligibility: jest.fn() };
+  const skillProfiles = {
+    listAuthorizedSkillsForApplicationSnapshot: jest.fn(),
+  };
   const identity = { getUserById: jest.fn() };
   const notifications = { createApplicationNotification: jest.fn() };
   const contributorProfiles = { getApplicationProfileContext: jest.fn() };
@@ -137,7 +139,7 @@ describe('ApplicationsService submission and withdrawal', () => {
       first_name: 'Example',
       last_name: 'Contributor',
     });
-    skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
+    skillProfiles.listAuthorizedSkillsForApplicationSnapshot.mockResolvedValue([
       {
         skillProfileId: 'skill-1',
         name: 'NestJS',
@@ -215,6 +217,9 @@ describe('ApplicationsService submission and withdrawal', () => {
         }),
       }),
     );
+    expect(
+      skillProfiles.listAuthorizedSkillsForApplicationSnapshot,
+    ).toHaveBeenCalledWith(contributor.id, database);
     expect(database.applicationAudit.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: 'submitted' }),
@@ -275,6 +280,19 @@ describe('ApplicationsService submission and withdrawal', () => {
         idempotencyKey: '77777777-7777-4777-8777-777777777777',
       }),
     ).rejects.toMatchObject({ code: 'APPLICATIONS_CLOSED' });
+
+    contributionTasks.getApplicationSubmissionContext.mockResolvedValueOnce(
+      null,
+    );
+    await expect(
+      service.submit({
+        actor: contributor,
+        contributionRequestId: requestId,
+        contributionApproach: 'I will deliver this request safely.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+    ).rejects.toMatchObject({ code: 'APPLICATION_NOT_AUTHORIZED' });
 
     await expect(
       service.submit({
@@ -376,7 +394,9 @@ describe('ApplicationsService submission and withdrawal', () => {
     );
     await expect(
       service.withdraw({ actor: contributor, applicationId }),
-    ).rejects.toMatchObject({ code: 'APPLICATION_TERMINAL' });
+    ).rejects.toMatchObject({
+      code: 'APPLICATION_TERMINAL',
+    });
     expect(database.application.updateMany).not.toHaveBeenCalled();
   });
 
@@ -393,6 +413,9 @@ describe('ApplicationsService submission and withdrawal', () => {
       service.cancelPendingForRequest({
         contributionRequestId: requestId,
         actorId: ownerId,
+        reason: 'Project priorities changed',
+        correlationId: '77777777-7777-4777-8777-777777777777',
+        causationAuditId: '88888888-8888-4888-8888-888888888888',
         transaction: database as never,
       }),
     ).resolves.toEqual({
@@ -414,6 +437,16 @@ describe('ApplicationsService submission and withdrawal', () => {
           action: 'request_cancelled',
           from_status: ApplicationStatus.pending_owner_review,
           to_status: ApplicationStatus.request_cancelled,
+          metadata: {
+            payloadVersion: 1,
+            contributionRequestId: requestId,
+            reason: 'Project priorities changed',
+            correlationId: '77777777-7777-4777-8777-777777777777',
+            causation: {
+              type: 'contribution_request_audit',
+              id: '88888888-8888-4888-8888-888888888888',
+            },
+          },
         }),
         expect.objectContaining({ application_id: secondApplicationId }),
       ],
@@ -431,6 +464,9 @@ describe('ApplicationsService submission and withdrawal', () => {
       service.cancelPendingForRequest({
         contributionRequestId: requestId,
         actorId: ownerId,
+        reason: null,
+        correlationId: '77777777-7777-4777-8777-777777777777',
+        causationAuditId: '88888888-8888-4888-8888-888888888888',
         transaction: database as never,
       }),
     ).rejects.toMatchObject({
@@ -477,6 +513,9 @@ describe('ApplicationsService submission and withdrawal', () => {
     await service.cancelPendingForRequest({
       contributionRequestId: requestId,
       actorId: ownerId,
+      reason: null,
+      correlationId: '77777777-7777-4777-8777-777777777777',
+      causationAuditId: '88888888-8888-4888-8888-888888888888',
       transaction: database as never,
     });
 

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import {
   ContributionRequestAuditAction,
@@ -25,12 +25,6 @@ import {
 } from '../mappers/contribution-request.mapper';
 
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
-const OWNER_MONTHLY_REQUEST_LIMITS = {
-  bronze: 10,
-  silver: 20,
-  gold: 30,
-} as const;
-
 @Injectable()
 export class ContributionRequestPublicationService {
   constructor(
@@ -105,19 +99,12 @@ export class ContributionRequestPublicationService {
         this.assertPublishableDraft(locked);
 
         const now = new Date();
-        const plan = await transaction.subscription.findFirst({
-          where: {
-            user_id: input.user.id,
-            user_role_context: 'owner',
-            status: 'active',
-            starts_at: { lte: now },
-            OR: [{ expires_at: null }, { expires_at: { gt: now } }],
-          },
-          orderBy: { starts_at: 'desc' },
-          select: { plan_type: true },
-        });
-        const planType = plan?.plan_type ?? 'bronze';
-        const monthlyLimit = OWNER_MONTHLY_REQUEST_LIMITS[planType];
+        const { planType, monthlyLimit } =
+          await this.projectsService.getContributionRequestPublicationEntitlement(
+            input.user.id,
+            transaction,
+            now,
+          );
         const periodStart = new Date(
           Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
         );
@@ -204,7 +191,7 @@ export class ContributionRequestPublicationService {
       input.user.id,
       input.requestId,
     );
-    await this.projectsService.getContributionRequestProjectAccess(
+    await this.projectsService.getContributionRequestProjectOwnerAccess(
       current.project_id,
       input.user.id,
     );
@@ -222,7 +209,7 @@ export class ContributionRequestPublicationService {
 
     try {
       return await this.database.$transaction(async (transaction) => {
-        await this.projectsService.lockContributionRequestProjectAccess(
+        await this.projectsService.lockContributionRequestProjectOwnerAccess(
           current.project_id,
           input.user.id,
           transaction,
@@ -250,6 +237,8 @@ export class ContributionRequestPublicationService {
           return toContributionRequestDto(locked);
         }
         this.assertCancellableRequest(locked.status);
+        const cancellationAuditId = randomUUID();
+        const correlationId = randomUUID();
 
         const updated = await transaction.contributionRequest.updateMany({
           where: {
@@ -265,10 +254,14 @@ export class ContributionRequestPublicationService {
           await this.applicationsService.cancelPendingForRequest({
             contributionRequestId: locked.id,
             actorId: input.user.id,
+            reason,
+            correlationId,
+            causationAuditId: cancellationAuditId,
             transaction,
           });
         await transaction.contributionRequestAudit.create({
           data: {
+            id: cancellationAuditId,
             contribution_request_id: locked.id,
             actor_id: input.user.id,
             action: ContributionRequestAuditAction.cancelled,
@@ -281,6 +274,11 @@ export class ContributionRequestPublicationService {
               terminal: true,
               cancelledApplicationCount:
                 cancellation.cancelledApplicationIds.length,
+              correlationId,
+              causation: {
+                type: 'owner_command',
+                idempotencyKey,
+              },
             },
           },
         });
@@ -332,8 +330,7 @@ export class ContributionRequestPublicationService {
     if (
       !request.requirements.some(
         (requirement) =>
-          requirement.kind ===
-          ContributionRequestRequirementKind.required,
+          requirement.kind === ContributionRequestRequirementKind.required,
       )
     ) {
       throw new UnprocessableApplicationError(
@@ -473,12 +470,11 @@ export class ContributionRequestPublicationService {
   }
 
   private presentReplay(
-    audit:
-      | (Prisma.ContributionRequestAuditGetPayload<{
-          include: {
-            contributionRequest: { include: { requirements: true } };
-          };
-        }> | null),
+    audit: Prisma.ContributionRequestAuditGetPayload<{
+      include: {
+        contributionRequest: { include: { requirements: true } };
+      };
+    }> | null,
     fingerprint: string,
   ): ContributionRequestDto | null {
     if (!audit) return null;
@@ -502,8 +498,7 @@ export class ContributionRequestPublicationService {
       input.error instanceof Prisma.PrismaClientKnownRequestError
         ? input.error.code === 'P2002'
         : input.error instanceof ConflictApplicationError &&
-          input.error.code ===
-            'CONTRIBUTION_REQUEST_CONCURRENT_MODIFICATION';
+          input.error.code === 'CONTRIBUTION_REQUEST_CONCURRENT_MODIFICATION';
     if (input.idempotencyKey && mayHaveLostIdempotencyRace) {
       const replay = await this.readReplay(input);
       if (replay) return replay;

@@ -27,6 +27,13 @@ describe('PublicContributionRequestsService', () => {
   });
 
   it('combines actionable visibility with every structured feed filter', async () => {
+    projectsService.listContributionRequestProjectReferences.mockResolvedValue([
+      {
+        id: 'project-1',
+        title: 'Published Project',
+        slug: 'published-project',
+      },
+    ]);
     await service.list({
       q: 'backend',
       technologies: ['NestJS'],
@@ -37,11 +44,12 @@ describe('PublicContributionRequestsService', () => {
     expect(database.contributionRequest.count).toHaveBeenCalledWith({
       where: {
         AND: expect.arrayContaining([
-          {
+          expect.objectContaining({
             status: 'published',
             published_at: { not: null },
             applications_close_at: { gt: expect.any(Date) },
-          },
+            project_id: { in: ['project-1'] },
+          }),
           { difficulty: 'intermediate' },
           { reward: { not: null } },
           {
@@ -50,5 +58,15 @@ describe('PublicContributionRequestsService', () => {
         ]),
       },
     });
+  });
+
+  it('returns an empty feed without querying Requests when no Project is published', async () => {
+    await expect(service.list({})).resolves.toEqual({
+      items: [],
+      totalCount: 0,
+      technologyFacets: [],
+    });
+    expect(database.contributionRequest.count).not.toHaveBeenCalled();
+    expect(database.contributionRequest.findMany).not.toHaveBeenCalled();
   });
 });

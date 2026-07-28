@@ -5,6 +5,7 @@ import {
   ProjectCategory,
   ProjectDifficulty,
   ProjectStatus,
+  SubscriptionPlanType,
   UserStatus,
 } from '@prisma/client';
 
@@ -26,7 +27,14 @@ import { MyProjectsResponseDto } from './dto/my-projects.dto';
 import { ProjectPageQueryDto } from './dto/project-publication.dto';
 import { toDiscoveredProjectDto } from './mappers/project.mapper';
 
-const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT = 20;
+const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS: Record<
+  SubscriptionPlanType,
+  number
+> = {
+  bronze: 10,
+  silver: 20,
+  gold: 30,
+};
 
 interface ContributionRequestProjectRow {
   id: string;
@@ -62,10 +70,14 @@ export class ProjectsService {
     ownerId: string,
     query: ProjectPageQueryDto = {},
   ): Promise<MyProjectsResponseDto> {
-    const monthStart = this.getCurrentMonthStart();
+    const now = new Date();
+    const monthStart = this.getCurrentMonthStart(now);
+    const monthEnd = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+    );
     const limit = query.limit ?? 20;
     const cursor = query.cursor ? this.decodeOwnerCursor(query.cursor) : null;
-    const [projects, monthlyRequestCount] = await Promise.all([
+    const [projects, monthlyRequestCount, entitlement] = await Promise.all([
       this.database.project.findMany({
         where: {
           owner_id: ownerId,
@@ -92,25 +104,30 @@ export class ProjectsService {
       this.database.contributionRequest.count({
         where: {
           owner_id: ownerId,
-          created_at: {
+          published_at: {
             gte: monthStart,
+            lt: monthEnd,
           },
         },
       }),
+      this.getContributionRequestPublicationEntitlement(
+        ownerId,
+        this.database,
+        now,
+      ),
     ]);
 
     const hasNextPage = projects.length > limit;
     const ownerProjects = projects.slice(0, limit);
-    const applicationSummary = await this.applications.summarizePendingByContributionRequests(
-      {
+    const applicationSummary =
+      await this.applications.summarizePendingByContributionRequests({
         requestScopes: ownerProjects.map((project) => ({
           projectId: project.id,
           contributionRequestIds: project.contributionRequests.map(
             (request) => request.id,
           ),
         })),
-      },
-    );
+      });
     const pendingApplicationsByProjectId = new Map(
       applicationSummary.projects.map((summary) => [
         summary.projectId,
@@ -134,7 +151,7 @@ export class ProjectsService {
       })),
       quota: {
         used: monthlyRequestCount,
-        monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMIT,
+        monthlyLimit: entitlement.monthlyLimit,
       },
       pageInfo: {
         hasNextPage,
@@ -174,6 +191,7 @@ export class ProjectsService {
     if (input.projectIds?.length === 0) return [];
     return this.database.project.findMany({
       where: {
+        status: ProjectStatus.published,
         ...(input.projectIds ? { id: { in: input.projectIds } } : {}),
         ...(input.titleContains
           ? {
@@ -188,7 +206,43 @@ export class ProjectsService {
     });
   }
 
-  async lockContributionRequestProjectAccess(
+  async isContributionRequestProjectPublished(
+    projectId: string,
+  ): Promise<boolean> {
+    const project = await this.database.project.findUnique({
+      where: { id: projectId },
+      select: { status: true },
+    });
+    return project?.status === ProjectStatus.published;
+  }
+
+  async lockContributionRequestProjectPublication(
+    projectId: string,
+    transaction: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const projects = await transaction.$queryRaw<
+      Array<{ status: ProjectStatus }>
+    >(Prisma.sql`
+      SELECT "status"
+      FROM "Project"
+      WHERE "id" = ${projectId}::uuid
+      FOR SHARE
+    `);
+    return projects[0]?.status === ProjectStatus.published;
+  }
+
+  async getContributionRequestProjectOwnerAccess(
+    projectId: string,
+    ownerId: string,
+  ): Promise<ContributionRequestProjectAccessDto> {
+    const project = await this.database.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, owner_id: true, status: true },
+    });
+    return this.toContributionRequestProjectOwnerAccess(project, ownerId);
+  }
+
+  async lockContributionRequestProjectOwnerAccess(
     projectId: string,
     ownerId: string,
     transaction: Prisma.TransactionClient,
@@ -201,27 +255,63 @@ export class ProjectsService {
       WHERE "id" = ${projectId}::uuid
       FOR SHARE
     `);
+    return this.toContributionRequestProjectOwnerAccess(projects[0], ownerId);
+  }
 
-    return this.toContributionRequestProjectAccess(projects[0], ownerId);
+  async getContributionRequestPublicationEntitlement(
+    ownerId: string,
+    database: Pick<Prisma.TransactionClient, 'subscription'> = this.database,
+    now = new Date(),
+  ): Promise<{ planType: SubscriptionPlanType; monthlyLimit: number }> {
+    const plan = await database.subscription.findFirst({
+      where: {
+        user_id: ownerId,
+        user_role_context: 'owner',
+        status: 'active',
+        starts_at: { lte: now },
+        OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+      },
+      orderBy: { starts_at: 'desc' },
+      select: { plan_type: true },
+    });
+    const planType = plan?.plan_type ?? SubscriptionPlanType.bronze;
+    return {
+      planType,
+      monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS[planType],
+    };
+  }
+
+  async lockContributionRequestProjectAccess(
+    projectId: string,
+    ownerId: string,
+    transaction: Prisma.TransactionClient,
+  ): Promise<ContributionRequestProjectAccessDto> {
+    return this.requirePublishedContributionRequestProject(
+      await this.lockContributionRequestProjectOwnerAccess(
+        projectId,
+        ownerId,
+        transaction,
+      ),
+    );
   }
 
   private toContributionRequestProjectAccess(
     project: ContributionRequestProjectRow | undefined | null,
     ownerId: string,
   ): ContributionRequestProjectAccessDto {
-    // Missing projects and projects owned by somebody else intentionally share
-    // one audience-safe result so this capability cannot enumerate ownership.
+    return this.requirePublishedContributionRequestProject(
+      this.toContributionRequestProjectOwnerAccess(project, ownerId),
+    );
+  }
+
+  private toContributionRequestProjectOwnerAccess(
+    project: ContributionRequestProjectRow | undefined | null,
+    ownerId: string,
+  ): ContributionRequestProjectAccessDto {
     if (!project || project.owner_id !== ownerId) {
       throw new NotFoundApplicationError(
         'Project was not found',
         'CONTRIBUTION_REQUEST_PROJECT_NOT_FOUND',
-      );
-    }
-
-    if (project.status !== ProjectStatus.published) {
-      throw new ConflictApplicationError(
-        'Contribution Requests require a published Project',
-        'CONTRIBUTION_REQUEST_PROJECT_NOT_PUBLISHED',
       );
     }
 
@@ -230,6 +320,19 @@ export class ProjectsService {
       ownerId: project.owner_id,
       status: project.status,
     };
+  }
+
+  private requirePublishedContributionRequestProject(
+    project: ContributionRequestProjectAccessDto,
+  ): ContributionRequestProjectAccessDto {
+    if (project.status !== ProjectStatus.published) {
+      throw new ConflictApplicationError(
+        'Contribution Requests require a published Project',
+        'CONTRIBUTION_REQUEST_PROJECT_NOT_PUBLISHED',
+      );
+    }
+
+    return project;
   }
 
   async discoverPublishedProjects(
@@ -261,10 +364,7 @@ export class ProjectsService {
 
     return {
       projects: projects.map((project) =>
-        toDiscoveredProjectDto(
-          project,
-          project.slug,
-        ),
+        toDiscoveredProjectDto(project, project.slug),
       ),
       pagination: {
         page,
@@ -402,16 +502,18 @@ export class ProjectsService {
       );
     }
   }
-  private getCurrentMonthStart(): Date {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+  private getCurrentMonthStart(now = new Date()): Date {
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   }
 
   private decodeOwnerCursor(cursor: string): { updatedAt: Date; id: string } {
     try {
       const parsed = JSON.parse(
         Buffer.from(cursor, 'base64url').toString('utf8'),
-      ) as { updatedAt?: unknown; id?: unknown };
+      ) as {
+        updatedAt?: unknown;
+        id?: unknown;
+      };
       const updatedAt = new Date(String(parsed.updatedAt));
       if (
         typeof parsed.id !== 'string' ||

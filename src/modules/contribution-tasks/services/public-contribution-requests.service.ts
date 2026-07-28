@@ -28,12 +28,21 @@ export class PublicContributionRequestsService {
     query: ContributionRequestFeedQueryDto,
   ): Promise<ContributionRequestFeedResponseDto> {
     const now = new Date();
-    const projectTitleMatches = query.q
-      ? await this.projectsService.listContributionRequestProjectReferences({
-          titleContains: query.q,
-        })
-      : [];
-    const actionableWhere = this.actionableWhere(now);
+    const [publishedProjects, projectTitleMatches] = await Promise.all([
+      this.projectsService.listContributionRequestProjectReferences({}),
+      query.q
+        ? this.projectsService.listContributionRequestProjectReferences({
+            titleContains: query.q,
+          })
+        : [],
+    ]);
+    if (publishedProjects.length === 0) {
+      return { items: [], totalCount: 0, technologyFacets: [] };
+    }
+    const actionableWhere = this.actionableWhere(
+      now,
+      publishedProjects.map((project) => project.id),
+    );
     const where = this.buildDiscoveryWhere(
       actionableWhere,
       query,
@@ -54,12 +63,8 @@ export class PublicContributionRequestsService {
         select: { technology_tags: true },
       }),
     ]);
-    const projectReferences =
-      await this.projectsService.listContributionRequestProjectReferences({
-        projectIds: [...new Set(requests.map((request) => request.project_id))],
-      });
     const projectsById = new Map(
-      projectReferences.map((project) => [project.id, project]),
+      publishedProjects.map((project) => [project.id, project]),
     );
 
     return {
@@ -79,7 +84,9 @@ export class PublicContributionRequestsService {
     };
   }
 
-  async getById(requestId: string): Promise<PublicContributionRequestDetailDto> {
+  async getById(
+    requestId: string,
+  ): Promise<PublicContributionRequestDetailDto> {
     const request = await this.database.contributionRequest.findFirst({
       where: { id: requestId, ...this.actionableWhere(new Date()) },
       include: { requirements: true },
@@ -95,15 +102,13 @@ export class PublicContributionRequestsService {
       ...request.requirements
         .filter(
           (requirement) =>
-            requirement.kind ===
-            ContributionRequestRequirementKind.required,
+            requirement.kind === ContributionRequestRequirementKind.required,
         )
         .sort((left, right) => left.position - right.position),
       ...request.requirements
         .filter(
           (requirement) =>
-            requirement.kind ===
-            ContributionRequestRequirementKind.preferred,
+            requirement.kind === ContributionRequestRequirementKind.preferred,
         )
         .sort((left, right) => left.position - right.position),
     ];
@@ -121,11 +126,15 @@ export class PublicContributionRequestsService {
 
   private actionableWhere(
     now: Date,
+    publishedProjectIds?: string[],
   ): Prisma.ContributionRequestWhereInput {
     return {
       status: ContributionRequestStatus.published,
       published_at: { not: null },
       applications_close_at: { gt: now },
+      ...(publishedProjectIds
+        ? { project_id: { in: publishedProjectIds } }
+        : {}),
     };
   }
 

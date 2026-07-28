@@ -12,7 +12,12 @@ import { ContributionRequestPublicationService } from '../src/modules/contributi
 import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
 import { PublicContributionRequestsService } from '../src/modules/contribution-tasks/services/public-contribution-requests.service';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
+import { ApplicationsController } from '../src/modules/applications/applications.controller';
+import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
+import { IdentityUsernameService } from '../src/modules/identity/services/identity-username.service';
+import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { ProjectsService } from '../src/modules/projects/projects.service';
+import { SkillProfileSummaryService } from '../src/modules/skill-profiles/services/skill-profile-summary.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { DatabaseService } from '../src/shared/database/database.service';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
@@ -137,8 +142,24 @@ describe('Contribution Request public lifecycle HTTP integration', () => {
     ['draft', { status: 'draft' }],
     ['cancelled', { status: 'cancelled' }],
     ['closed', { applications_close_at: new Date('2020-01-01T00:00:00.000Z') }],
-  ])('keeps a %s Request private at the real HTTP/service seam', async (_case, overrides) => {
-    storedRequest = contributionRequest(overrides);
+  ])(
+    'keeps a %s Request private at the real HTTP/service seam',
+    async (_case, overrides) => {
+      storedRequest = contributionRequest(overrides);
+
+      await request(app.getHttpServer())
+        .get(`/tasks/${requestId}`)
+        .expect(404)
+        .expect(({ body }) =>
+          expect(body.code).toBe('CONTRIBUTION_REQUEST_NOT_FOUND'),
+        );
+    },
+  );
+
+  it('keeps Requests on archived Projects out of public detail', async () => {
+    projectsService.listContributionRequestProjectReferences.mockResolvedValue(
+      [],
+    );
 
     await request(app.getHttpServer())
       .get(`/tasks/${requestId}`)
@@ -151,10 +172,17 @@ describe('Contribution Request public lifecycle HTTP integration', () => {
 
 describe('Contribution Request owner publication HTTP integration', () => {
   let app: INestApplication;
+  let currentUser: typeof owner | typeof contributor;
   const owner = {
     id: '11111111-1111-4111-8111-111111111111',
     email: 'owner@example.com',
     role: 'owner',
+    status: 'active',
+  };
+  const contributor = {
+    id: '55555555-5555-4555-8555-555555555555',
+    email: 'contributor@example.com',
+    role: 'contributor',
     status: 'active',
   };
   const database = {
@@ -168,31 +196,48 @@ describe('Contribution Request owner publication HTTP integration', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
     },
+    application: { updateMany: jest.fn() },
+    applicationAudit: {
+      findFirst: jest.fn(),
+      createMany: jest.fn(),
+    },
     subscription: { findFirst: jest.fn() },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
   };
   const projectsService = {
     getContributionRequestProjectAccess: jest.fn(),
+    getContributionRequestProjectOwnerAccess: jest.fn(),
     lockContributionRequestProjectAccess: jest.fn(),
+    lockContributionRequestProjectOwnerAccess: jest.fn(),
+    getContributionRequestPublicationEntitlement: jest.fn(),
   };
-  const applicationsService = { cancelPendingForRequest: jest.fn() };
+  const contributionTasksService = {
+    getApplicationSubmissionContext: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [ContributionTasksController],
+      controllers: [ContributionTasksController, ApplicationsController],
       providers: [
         ContributionRequestPublicationService,
-        { provide: ContributionTasksService, useValue: {} },
+        ApplicationsService,
+        {
+          provide: ContributionTasksService,
+          useValue: contributionTasksService,
+        },
         { provide: DatabaseService, useValue: database },
         { provide: ProjectsService, useValue: projectsService },
-        { provide: ApplicationsService, useValue: applicationsService },
+        { provide: SkillProfileSummaryService, useValue: {} },
+        { provide: IdentityUsernameService, useValue: {} },
+        { provide: NotificationsService, useValue: {} },
+        { provide: ContributorProfilesService, useValue: {} },
       ],
     })
       .overrideGuard(AccessTokenGuard)
       .useValue({
         canActivate: (context: ExecutionContext) => {
-          context.switchToHttp().getRequest().user = owner;
+          context.switchToHttp().getRequest().user = currentUser;
           return true;
         },
       })
@@ -208,6 +253,7 @@ describe('Contribution Request owner publication HTTP integration', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    currentUser = owner;
     database.$transaction.mockImplementation(
       (callback: (transaction: typeof database) => unknown) =>
         callback(database),
@@ -215,6 +261,9 @@ describe('Contribution Request owner publication HTTP integration', () => {
     database.$queryRaw.mockResolvedValue([]);
     database.contributionRequestAudit.findFirst.mockResolvedValue(null);
     database.contributionRequestAudit.create.mockResolvedValue({});
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+    database.applicationAudit.findFirst.mockResolvedValue(null);
+    database.applicationAudit.createMany.mockResolvedValue({ count: 1 });
     database.subscription.findFirst.mockResolvedValue(null);
     database.contributionRequest.count.mockResolvedValue(0);
     database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
@@ -228,9 +277,24 @@ describe('Contribution Request owner publication HTTP integration', () => {
       ownerId: owner.id,
       status: 'published',
     });
-    applicationsService.cancelPendingForRequest.mockResolvedValue({
-      cancelledApplicationIds: ['application-1'],
+    projectsService.getContributionRequestProjectOwnerAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'archived',
     });
+    projectsService.lockContributionRequestProjectOwnerAccess.mockResolvedValue(
+      {
+        id: projectId,
+        ownerId: owner.id,
+        status: 'archived',
+      },
+    );
+    projectsService.getContributionRequestPublicationEntitlement.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+      },
+    );
   });
 
   afterAll(async () => app.close());
@@ -263,6 +327,9 @@ describe('Contribution Request owner publication HTTP integration', () => {
     const cancelled = contributionRequest({ status: 'cancelled' });
     database.contributionRequest.findFirst.mockResolvedValue(published);
     database.contributionRequest.findUniqueOrThrow.mockResolvedValue(cancelled);
+    database.$queryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'application-1' }]);
 
     await request(app.getHttpServer())
       .post(`/contribution-requests/${requestId}/cancel`)
@@ -271,17 +338,61 @@ describe('Contribution Request owner publication HTTP integration', () => {
       .expect(200)
       .expect(({ body }) => expect(body.status).toBe('cancelled'));
 
-    expect(applicationsService.cancelPendingForRequest).toHaveBeenCalledWith({
-      contributionRequestId: requestId,
-      actorId: owner.id,
-      transaction: database,
+    expect(database.application.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['application-1'] },
+        status: 'pending_owner_review',
+      },
+      data: { status: 'request_cancelled' },
     });
     expect(database.contributionRequestAudit.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
+        id: expect.any(String),
         action: 'cancelled',
         reason: 'Priorities changed',
+        metadata: expect.objectContaining({
+          correlationId: expect.any(String),
+          causation: {
+            type: 'owner_command',
+            idempotencyKey: 'cancel-http-001',
+          },
+        }),
       }),
     });
+
+    const requestAudit =
+      database.contributionRequestAudit.create.mock.calls[0][0].data;
+    const applicationAudit =
+      database.applicationAudit.createMany.mock.calls[0][0].data[0];
+    expect(applicationAudit.metadata).toMatchObject({
+      reason: 'Priorities changed',
+      correlationId: requestAudit.metadata.correlationId,
+      causation: {
+        type: 'contribution_request_audit',
+        id: requestAudit.id,
+      },
+    });
+
+    currentUser = contributor;
+    contributionTasksService.getApplicationSubmissionContext.mockResolvedValue({
+      id: requestId,
+      projectId,
+      ownerId: owner.id,
+      status: 'cancelled',
+      applicationsCloseAt: new Date('2030-03-10T12:00:00.000Z'),
+      updatedAt: new Date('2026-07-28T00:00:00.000Z'),
+      requirements: [],
+    });
+
+    await request(app.getHttpServer())
+      .post(`/tasks/${requestId}/applications`)
+      .send({
+        contributionApproach: 'I will deliver the requested change safely.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey: '66666666-6666-4666-8666-666666666666',
+      })
+      .expect(409)
+      .expect(({ body }) => expect(body.code).toBe('REQUEST_CANCELLED'));
   });
 });
 

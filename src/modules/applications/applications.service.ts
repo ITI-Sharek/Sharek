@@ -90,9 +90,8 @@ export class ApplicationsService {
         input.contributionRequestId,
       );
     this.assertRequestAcceptsApplications(context, new Date());
-    const [user, approvedSkills, profileContext] = await Promise.all([
+    const [user, profileContext] = await Promise.all([
       this.identity.getUserById(input.actor.id),
-      this.skillProfiles.listApprovedSkillsForEligibility(input.actor.id),
       this.contributorProfiles.getApplicationProfileContext(input.actor.id),
     ]);
     const contributorContext = {
@@ -120,6 +119,12 @@ export class ApplicationsService {
           fingerprint,
         });
         if (transactionReplay) return transactionReplay;
+
+        const approvedSkills =
+          await this.skillProfiles.listAuthorizedSkillsForApplicationSnapshot(
+            input.actor.id,
+            transaction,
+          );
 
         const existing = await transaction.application.findUnique({
           where: {
@@ -384,6 +389,9 @@ export class ApplicationsService {
   async cancelPendingForRequest(input: {
     contributionRequestId: string;
     actorId: string;
+    reason: string | null;
+    correlationId: string;
+    causationAuditId: string;
     transaction: Prisma.TransactionClient;
   }): Promise<{ cancelledApplicationIds: string[] }> {
     const pending = await input.transaction.$queryRaw<Array<{ id: string }>>(
@@ -396,7 +404,9 @@ export class ApplicationsService {
         FOR UPDATE
       `,
     );
-    const cancelledApplicationIds = pending.map((application) => application.id);
+    const cancelledApplicationIds = pending.map(
+      (application) => application.id,
+    );
     if (cancelledApplicationIds.length === 0) {
       return { cancelledApplicationIds };
     }
@@ -424,6 +434,12 @@ export class ApplicationsService {
         metadata: {
           payloadVersion: 1,
           contributionRequestId: input.contributionRequestId,
+          reason: input.reason,
+          correlationId: input.correlationId,
+          causation: {
+            type: 'contribution_request_audit',
+            id: input.causationAuditId,
+          },
         },
       })),
     });

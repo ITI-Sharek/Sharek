@@ -59,7 +59,15 @@ export class ContributionTasksService {
       where: { id: requestId },
       include: { requirements: true },
     });
-    return request ? this.toApplicationRequestContext(request) : null;
+    if (
+      !request ||
+      !(await this.projectsService.isContributionRequestProjectPublished(
+        request.project_id,
+      ))
+    ) {
+      return null;
+    }
+    return this.toApplicationRequestContext(request);
   }
 
   async lockApplicationSubmissionContext(
@@ -70,18 +78,25 @@ export class ContributionTasksService {
       Array<{
         id: string;
         owner_id: string;
+        project_id: string;
         status: ContributionRequestStatus;
         applications_close_at: Date | null;
         updated_at: Date;
       }>
     >(Prisma.sql`
-      SELECT "id", "owner_id", "status", "applications_close_at", "updated_at"
+      SELECT "id", "owner_id", "project_id", "status", "applications_close_at", "updated_at"
       FROM "ContributionRequest"
       WHERE "id" = ${requestId}::uuid
       FOR SHARE
     `);
     const request = rows[0];
     if (!request) return null;
+    const projectIsPublished =
+      await this.projectsService.lockContributionRequestProjectPublication(
+        request.project_id,
+        transaction,
+      );
+    if (!projectIsPublished) return null;
     const requirements = await transaction.contributionRequestRequirement.findMany({
       where: { contribution_request_id: requestId },
       orderBy: [{ kind: 'asc' }, { position: 'asc' }],

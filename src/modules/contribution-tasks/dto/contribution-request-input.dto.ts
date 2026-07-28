@@ -198,7 +198,7 @@ export class UpdateContributionRequestDto {
   rewardCurrency?: string | null;
 }
 
-export class DiscardContributionRequestDto {
+class ContributionRequestReasonCommandDto {
   @IsOptional()
   @Transform(normalizeString)
   @IsString()
@@ -206,10 +206,6 @@ export class DiscardContributionRequestDto {
   reason?: string;
 }
 
-export class CancelContributionRequestDto {
-  @IsOptional()
-  @Transform(normalizeString)
-  @IsString()
-  @Length(2, 500)
-  reason?: string;
-}
+export class DiscardContributionRequestDto extends ContributionRequestReasonCommandDto {}
+
+export class CancelContributionRequestDto extends ContributionRequestReasonCommandDto {}
