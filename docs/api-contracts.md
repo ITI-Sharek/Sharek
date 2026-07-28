@@ -551,6 +551,81 @@ GitHub returns pending, empty, missing, or unavailable stats, the backend keeps
 the import usable and records an `unavailableReason` instead of failing the
 project import.
 
+## Contribution Request Draft Contracts
+
+Implemented private-draft endpoints:
+
+```text
+POST  /projects/:projectId/contribution-requests
+GET   /contribution-requests/:requestId
+PATCH /contribution-requests/:requestId
+POST  /contribution-requests/:requestId/discard
+```
+
+All endpoints require an authenticated active account. The backend derives the
+owner from the bearer session. Only the owner of the referenced published
+Project can create a draft, and only that owner can inspect, update, or discard
+it. Unknown and other-owner resources use the same non-enumerating 404.
+
+Create accepts:
+
+```json
+{
+  "title": "Build a webhook delivery viewer",
+  "description": "Implement the owner-facing viewer and focused tests.",
+  "requiredRequirements": [
+    { "text": "Deliver tested NestJS endpoints" }
+  ],
+  "preferredRequirements": [
+    { "text": "Document REST Client examples" }
+  ],
+  "technologyTags": ["NestJS", "PostgreSQL"],
+  "applicationsCloseTime": "2030-03-10T12:00:00.000Z",
+  "targetCompletionDate": "2030-03-20",
+  "difficulty": "intermediate",
+  "reward": 150,
+  "rewardCurrency": "USD"
+}
+```
+
+Required and Preferred Requirements are distinct ordered collections; their
+response `position` values are zero-based. Technology tags do not qualify as
+Requirements. `targetCompletionDate`, `difficulty`, and the reward pair are
+optional. If either reward field is supplied, both are required. Applications
+Close Time must be future-dated, and Target Completion Date must be later.
+
+Create, update, and discard accept an optional `Idempotency-Key` header (8-128
+safe ASCII characters). Same-key/same-command retries return the current
+request; same-key/different-command retries return
+`CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT`.
+
+`POST /contribution-requests/:requestId/discard` optionally accepts
+`{ "reason": "..." }`. It returns 200. Repeated discard is successful and does
+not create duplicate audit history. Discarded requests cannot be updated.
+
+Stable domain errors include:
+
+```text
+CONTRIBUTION_REQUEST_OWNER_ACCESS_REQUIRED
+CONTRIBUTION_REQUEST_PROJECT_NOT_FOUND
+CONTRIBUTION_REQUEST_PROJECT_NOT_PUBLISHED
+CONTRIBUTION_REQUEST_NOT_FOUND
+CONTRIBUTION_REQUEST_UPDATE_EMPTY
+CONTRIBUTION_REQUEST_DRAFT_NOT_EDITABLE
+CONTRIBUTION_REQUEST_REQUIRED_REQUIREMENT_MISSING
+CONTRIBUTION_REQUEST_REQUIREMENT_DUPLICATE
+CONTRIBUTION_REQUEST_CLOSE_TIME_REQUIRED
+CONTRIBUTION_REQUEST_CLOSE_TIME_INVALID
+CONTRIBUTION_REQUEST_DATE_ORDER_INVALID
+CONTRIBUTION_REQUEST_REWARD_INVALID
+CONTRIBUTION_REQUEST_CONCURRENT_MODIFICATION
+CONTRIBUTION_REQUEST_IDEMPOTENCY_KEY_INVALID
+CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT
+```
+
+Public publication, discovery, and cancellation are not part of this contract
+yet. They are blocked on the approved Application state model from issue #47.
+
 ## Skill Profile Contracts
 
 Implemented contributor skill profile generation endpoints:
