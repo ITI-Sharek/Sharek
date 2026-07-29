@@ -1,22 +1,16 @@
-import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module';
 import { createCorsOptions } from './shared/config/cors.config';
 import { HttpExceptionFilter } from './shared/errors/http-exception.filter';
+import { createApplicationValidationPipe } from './shared/validation/application-validation.pipe';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
+  app.useGlobalPipes(createApplicationValidationPipe());
   app.useGlobalFilters(new HttpExceptionFilter());
 
   app.enableCors(

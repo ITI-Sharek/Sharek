@@ -1700,6 +1700,38 @@ This keeps the system strong without making it heavy:
   discovery, cancellation, and cancellation propagation. #50 consumes a
   transaction-scoped read/lock context and does not implement those commands.
 
+### 2026-07-29 - Owner Decisions, Assignments, and feedback reports (#51)
+
+- Modules: `applications`, with a transaction-scoped Request transition from
+  `contribution-tasks`, outcome delivery from `notifications`, and decision
+  feedback moderation in `admin`.
+- Requirement/task IDs: Sprint 4 B05, GitHub issue #51, TASK-4-06/07,
+  DEC-005/030/031/036, ADR-0002.
+- Summary: Project owners now accept or decline pending Applications through
+  idempotent commands. Acceptance atomically creates an immutable Owner Decision
+  and one Assignment, derives the due date from the accepted Application's
+  Proposed Delivery Duration, assigns the Request, and closes pending siblings
+  as `not_selected` without manufacturing decline feedback. Decline requires
+  trimmed non-empty feedback and affects only the chosen Application. AI
+  assessment is excluded from visibility and decision predicates.
+- Authorization and delivery hardening: both decisions revalidate current
+  Project ownership through the Projects module on the caller transaction before
+  resolving an idempotent replay. Durable affected-party notifications are
+  written on that transaction and emitted realtime only after commit.
+- Database changes: migration `20260729120000_owner_decisions_assignments` adds
+  Owner Decisions, Assignments, decision/request audit actions, Assignment
+  uniqueness, owner command idempotency, and the combined PostgreSQL decline
+  feedback check (`feedback IS NOT NULL AND btrim(feedback) <> ''`). The existing
+  Report model gains a minimal Owner Decision foreign key.
+- API/authorization impact: added owner-only `POST
+  /applications/:applicationId/accept` and `/decline`, with ownership and state
+  rechecked inside the transaction, plus contributor-only `POST
+  /owner-decisions/:ownerDecisionId/reports`. Reporting is moderation, not an
+  appeal, and does not mutate Application state.
+- Verification: contract, service, authorization, concurrency, idempotency,
+  notification, and PostgreSQL constraint fixtures cover the #51 flows. The
+  PostgreSQL migration harness, architecture check, lint, exact type-check,
+  Prisma validation, build, and all 61 Jest suites / 319 tests pass.
 ### 2026-07-28 - Publish, discover, and cancel Contribution Requests (#49)
 
 - Modules: `contribution-tasks`, with transaction-scoped cancellation effects
@@ -1861,3 +1893,25 @@ This keeps the system strong without making it heavy:
 - Verification: architecture, lint, type-check, Prisma schema validation,
   focused tests, and the full Jest run pass; the full run covers 64 suites and
   361 tests.
+
+## 2026-07-29 - PR #63 Owner Decision review hardening
+
+- Requirement/task IDs: GitHub issue #51, Sprint 4 B05, TASK-4-06/07, and PR
+  #63.
+- Merge integration: resolved the PR against current `main` while preserving
+  Contribution Request publication/cancellation and Contribution Proposal
+  contracts. Removed unrelated agent-skill configuration from the feature diff.
+- Authorization/lifecycle: pending queues, detail, accept, and decline now use
+  current Project ownership rather than the denormalized Request owner. Review
+  and decisions remain available after Project archival so pending Applications
+  cannot become stranded; Request state still gates Assignment creation.
+- Contributor contract: authorized Application detail exposes nullable immutable
+  Owner Decision and Assignment projections, including the declined decision ID
+  and feedback required by the moderation-report route.
+- Error handling: duplicate feedback reports are mapped only for the exact
+  reporter/Owner Decision uniqueness constraint; unrelated Prisma uniqueness
+  failures remain visible to their owning error path.
+- Verification: the isolated PostgreSQL 14 migration harness passes, including
+  feedback and uniqueness constraints. Architecture, lint, exact type-check,
+  Prisma validation, build, diff checks, focused tests, and all 66 Jest suites /
+  404 tests pass.

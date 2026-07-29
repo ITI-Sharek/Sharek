@@ -1158,7 +1158,39 @@ Content-Type: application/json
 {}
 
 
-### 29 - Submit a private Contribution Proposal
+### 29 - Accept a pending Application and create its Assignment
+# @name acceptedApplication
+# Use a pending Application owned by the logged-in Project owner.
+POST {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/accept
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: 00000000-0000-4000-8000-000000000003
+
+
+### 30 - Decline a different pending Application with required feedback
+# @name declinedApplication
+# Replace the id below; an accepted or withdrawn Application is terminal.
+POST {{baseUrl}}/applications/replace-with-another-pending-application-id/decline
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: 00000000-0000-4000-8000-000000000004
+Content-Type: application/json
+
+{
+  "feedback": "The approach needs a concrete test strategy."
+}
+
+
+### 31 - Report explicit owner-decline feedback (moderation, not an appeal)
+POST {{baseUrl}}/owner-decisions/{{declinedApplication.response.body.$.ownerDecision.id}}/reports
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "reason": "harassment",
+  "description": "The decline feedback contains abusive language."
+}
+
+
+### 32 - Submit a private Contribution Proposal
 # @name submittedContributionProposal
 POST {{baseUrl}}/contribution-proposals
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
@@ -1175,17 +1207,17 @@ Content-Type: application/json
 }
 
 
-### 30 - List my Contribution Proposals
+### 33 - List my Contribution Proposals
 GET {{baseUrl}}/contribution-proposals/mine?limit=20
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 31 - List Project Contribution Proposals as owner
+### 34 - List Project Contribution Proposals as owner
 GET {{baseUrl}}/contribution-proposals/for-project/{{publishedProjectId}}?limit=20
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 
-### 32 - Disable Project Proposal intake
+### 35 - Disable Project Proposal intake
 PUT {{baseUrl}}/contribution-proposals/for-project/{{publishedProjectId}}/intake
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json
@@ -1195,12 +1227,12 @@ Content-Type: application/json
 }
 
 
-### 33 - Inspect one authorized Contribution Proposal
+### 36 - Inspect one authorized Contribution Proposal
 GET {{baseUrl}}/contribution-proposals/{{submittedContributionProposal.response.body.$.id}}
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 34 - Request a contributor-authored revision as owner
+### 37 - Request a contributor-authored revision as owner
 POST {{baseUrl}}/contribution-proposals/{{submittedContributionProposal.response.body.$.id}}/revision-requests
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json
@@ -1211,7 +1243,7 @@ Content-Type: application/json
 }
 
 
-### 35 - Submit a new immutable Proposal Version
+### 38 - Submit a new immutable Proposal Version
 POST {{baseUrl}}/contribution-proposals/{{submittedContributionProposal.response.body.$.id}}/versions
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json
@@ -1225,7 +1257,7 @@ Content-Type: application/json
 }
 
 
-### 36 - Withdraw a pending Contribution Proposal
+### 39 - Withdraw a pending Contribution Proposal
 POST {{baseUrl}}/contribution-proposals/{{submittedContributionProposal.response.body.$.id}}/withdraw
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: 00000000-0000-4000-8000-000000000006

@@ -108,6 +108,109 @@ export class ContributionTasksService {
     return this.toApplicationRequestContext({ ...request, requirements });
   }
 
+  async assignFromOwnerDecision(input: {
+    requestId: string;
+    ownerId: string;
+    ownerDecisionId: string;
+    idempotencyKey: string;
+    commandFingerprint: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<void> {
+    const rows = await input.transaction.$queryRaw<
+      Array<{
+        id: string;
+        project_id: string;
+        status: ContributionRequestStatus;
+      }>
+    >(Prisma.sql`
+      SELECT "id", "project_id", "status"
+      FROM "ContributionRequest"
+      WHERE "id" = ${input.requestId}::uuid
+      FOR UPDATE
+    `);
+    const request = rows[0];
+    if (!request) throw this.requestNotFound();
+    await this.projectsService.lockContributionRequestProjectOwnerAccess(
+      request.project_id,
+      input.ownerId,
+      input.transaction,
+    );
+    if (request.status === ContributionRequestStatus.cancelled) {
+      throw new ConflictApplicationError(
+        'The Contribution Request was cancelled',
+        'REQUEST_CANCELLED',
+      );
+    }
+    if (request.status !== ContributionRequestStatus.published) {
+      throw new ConflictApplicationError(
+        'The Contribution Request can no longer be assigned',
+        'REQUEST_TERMINAL',
+        { status: request.status },
+      );
+    }
+
+    const updated = await input.transaction.contributionRequest.updateMany({
+      where: {
+        id: input.requestId,
+        status: ContributionRequestStatus.published,
+      },
+      data: { status: ContributionRequestStatus.assigned },
+    });
+    if (updated.count !== 1) throw this.concurrentModification();
+
+    await input.transaction.contributionRequestAudit.create({
+      data: {
+        contribution_request_id: input.requestId,
+        actor_id: input.ownerId,
+        action: ContributionRequestAuditAction.assigned,
+        from_status: ContributionRequestStatus.published,
+        to_status: ContributionRequestStatus.assigned,
+        idempotency_key: input.idempotencyKey,
+        command_fingerprint: input.commandFingerprint,
+        metadata: {
+          payloadVersion: 1,
+          ownerDecisionId: input.ownerDecisionId,
+        },
+      },
+    });
+  }
+
+  async reconfirmOwnerDecisionActor(input: {
+    requestId: string;
+    ownerId: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<void> {
+    const rows = await input.transaction.$queryRaw<
+      Array<{ id: string; project_id: string }>
+    >(Prisma.sql`
+      SELECT "id", "project_id"
+      FROM "ContributionRequest"
+      WHERE "id" = ${input.requestId}::uuid
+    `);
+    const request = rows[0];
+    if (!request) throw this.requestNotFound();
+    await this.projectsService.lockContributionRequestProjectOwnerAccess(
+      request.project_id,
+      input.ownerId,
+      input.transaction,
+    );
+  }
+
+  async confirmOwnerDecisionActor(input: {
+    requestId: string;
+    ownerId: string;
+  }): Promise<void> {
+    const request = await this.database.contributionRequest.findUnique({
+      where: { id: input.requestId },
+      select: { project_id: true },
+    });
+    if (!request) throw this.requestNotFound();
+    await this.projectsService.getContributionRequestProjectOwnerAccess(
+      request.project_id,
+      input.ownerId,
+    );
+  }
+
   async createDraft(input: {
     user: AuthenticatedUser;
     projectId: string;

@@ -47,8 +47,8 @@ describe('ContributionTasksService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
     },
-    $transaction: jest.fn(),
     $queryRaw: jest.fn(),
+    $transaction: jest.fn(),
   };
   const projectsService = {
     getContributionRequestProjectAccess: jest.fn(),
@@ -778,6 +778,28 @@ describe('ContributionTasksService', () => {
     ).toHaveBeenCalledWith(projectId, owner.id, database);
   });
 
+  it('authorizes an owner decision queue through ownership without requiring a published Project', async () => {
+    database.contributionRequest.findUnique.mockResolvedValue({
+      project_id: projectId,
+    });
+    projectsService.getContributionRequestProjectOwnerAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'archived',
+    });
+
+    await expect(
+      service.confirmOwnerDecisionActor({ requestId, ownerId: owner.id }),
+    ).resolves.toBeUndefined();
+
+    expect(
+      projectsService.getContributionRequestProjectOwnerAccess,
+    ).toHaveBeenCalledWith(projectId, owner.id);
+    expect(
+      projectsService.isContributionRequestProjectPublished,
+    ).not.toHaveBeenCalled();
+  });
+
   it('discards once, appends one terminal audit, and treats later discard as idempotent', async () => {
     const current = makeRequest();
     const discarded = makeRequest({
@@ -1077,6 +1099,70 @@ describe('ContributionTasksService', () => {
       statusCode: 403,
     } satisfies Partial<ApplicationError>);
     expect(projectsService.getContributionRequestProjectAccess).not.toHaveBeenCalled();
+  });
+
+  it('assigns a published Request through the caller transaction after rechecking owner and state', async () => {
+    database.$queryRaw.mockResolvedValue([
+      {
+        id: requestId,
+        project_id: projectId,
+        status: ContributionRequestStatus.published,
+      },
+    ]);
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.assignFromOwnerDecision({
+        requestId,
+        ownerId: owner.id,
+        ownerDecisionId: '44444444-4444-4444-8444-444444444444',
+        idempotencyKey: '55555555-5555-4555-8555-555555555555',
+        commandFingerprint: 'a'.repeat(64),
+        transaction: database as never,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(database.contributionRequest.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: requestId,
+        status: ContributionRequestStatus.published,
+      },
+      data: { status: ContributionRequestStatus.assigned },
+    });
+    expect(database.contributionRequestAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contribution_request_id: requestId,
+        actor_id: owner.id,
+        action: ContributionRequestAuditAction.assigned,
+        from_status: ContributionRequestStatus.published,
+        to_status: ContributionRequestStatus.assigned,
+        metadata: {
+          payloadVersion: 1,
+          ownerDecisionId: '44444444-4444-4444-8444-444444444444',
+        },
+      }),
+    });
+    expect(
+      projectsService.lockContributionRequestProjectOwnerAccess,
+    ).toHaveBeenCalledWith(projectId, owner.id, database);
+  });
+
+  it('reconfirms current Project ownership for a decline on the caller transaction', async () => {
+    database.$queryRaw.mockResolvedValue([
+      { id: requestId, project_id: projectId },
+    ]);
+
+    await expect(
+      service.reconfirmOwnerDecisionActor({
+        requestId,
+        ownerId: owner.id,
+        transaction: database as never,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(
+      projectsService.lockContributionRequestProjectOwnerAccess,
+    ).toHaveBeenCalledWith(projectId, owner.id, database);
   });
 });
 
