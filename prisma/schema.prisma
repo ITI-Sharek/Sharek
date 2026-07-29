@@ -359,6 +359,8 @@ model User {
   contributionRequestAudits         ContributionRequestAudit[]         @relation("ContributionRequestAuditActor")
   applicationAudits                 ApplicationAudit[]                 @relation("ApplicationAuditActor")
   applicationEvidenceSnapshots      ApplicationEvidenceSnapshot[]      @relation("ApplicationEvidenceSnapshotContributor")
+  ownerDecisions                    OwnerDecision[]                    @relation("OwnerDecisionOwner")
+  assignments                       Assignment[]                       @relation("AssignmentContributor")
   contributionProposals             ContributionProposal[]             @relation("ContributionProposalProposer")
   contributionProposalVersions      ContributionProposalVersion[]      @relation("ContributionProposalVersionAuthor")
   contributionProposalAudits        ContributionProposalAudit[]        @relation("ContributionProposalAuditActor")
@@ -645,6 +647,8 @@ model ContributionRequest {
   aiMatchResults        AiMatchResult[]
   skillGapGuidances     SkillGapGuidance[]
   deliveries            Delivery[]
+  ownerDecisions        OwnerDecision[]
+  assignments           Assignment[]
 
   @@index([project_id, status])
   @@index([owner_id, created_at])
