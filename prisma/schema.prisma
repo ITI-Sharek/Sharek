@@ -111,6 +111,18 @@ enum ApplicationAuditAction {
   request_cancelled
 }
 
+enum ContributionProposalStatus {
+  pending
+  withdrawn
+}
+
+enum ContributionProposalAuditAction {
+  submitted
+  version_submitted
+  revision_requested
+  withdrawn
+}
+
 enum DeliveryStatus {
   submitted
   under_review
@@ -331,6 +343,9 @@ model User {
   contributionRequestAudits    ContributionRequestAudit[]    @relation("ContributionRequestAuditActor")
   applicationAudits            ApplicationAudit[]            @relation("ApplicationAuditActor")
   applicationEvidenceSnapshots ApplicationEvidenceSnapshot[] @relation("ApplicationEvidenceSnapshotContributor")
+  contributionProposals        ContributionProposal[]        @relation("ContributionProposalProposer")
+  contributionProposalVersions ContributionProposalVersion[] @relation("ContributionProposalVersionAuthor")
+  contributionProposalAudits   ContributionProposalAudit[]   @relation("ContributionProposalAuditActor")
 }
 
 model AuthProviderAccount {
@@ -539,10 +554,12 @@ model Project {
   created_at            DateTime           @default(now())
   updated_at            DateTime           @default(now()) @updatedAt
 
-  owner                User                     @relation("ProjectOwner", fields: [owner_id], references: [id])
-  contributionRequests ContributionRequest[]
-  operations           ProjectOperation[]
-  stateTransitions     ProjectStateTransition[]
+  owner                 User                     @relation("ProjectOwner", fields: [owner_id], references: [id])
+  contributionRequests  ContributionRequest[]
+  operations            ProjectOperation[]
+  stateTransitions      ProjectStateTransition[]
+  contributionProposals ContributionProposal[]   @relation("ProjectContributionProposals")
+  proposalIntake        ProjectProposalIntake?   @relation("ProjectProposalIntake")
 
   @@unique([slug_normalized], map: "projects_slug_normalized_unique")
   @@index([github_repo_url])
@@ -723,6 +740,74 @@ model ApplicationAudit {
 
   @@unique([actor_id, action, idempotency_key])
   @@index([application_id, created_at])
+}
+
+model ProjectProposalIntake {
+  project_id String   @id @db.Uuid
+  enabled    Boolean  @default(true)
+  updated_by String?  @db.Uuid
+  updated_at DateTime @default(now()) @updatedAt
+
+  project Project @relation("ProjectProposalIntake", fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model ContributionProposal {
+  id                         String                     @id @default(uuid()) @db.Uuid
+  project_id                 String                     @db.Uuid
+  proposer_id                String                     @db.Uuid
+  status                     ContributionProposalStatus @default(pending)
+  current_version            Int                        @default(1)
+  disclosure_version         String                     @db.VarChar(50)
+  disclosure_acknowledged_at DateTime
+  revision_requested_at      DateTime?
+  withdrawn_at               DateTime?
+  created_at                 DateTime                   @default(now())
+  updated_at                 DateTime                   @default(now()) @updatedAt
+
+  project     Project                       @relation("ProjectContributionProposals", fields: [project_id], references: [id], onDelete: Restrict)
+  proposer    User                          @relation("ContributionProposalProposer", fields: [proposer_id], references: [id], onDelete: Restrict)
+  versions    ContributionProposalVersion[]
+  auditEvents ContributionProposalAudit[]
+
+  @@index([project_id, status])
+  @@index([proposer_id, created_at])
+}
+
+model ContributionProposalVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  proposal_id String   @db.Uuid
+  version     Int
+  title       String   @db.VarChar(255)
+  body        String
+  authored_by String   @db.Uuid
+  created_at  DateTime @default(now())
+
+  proposal ContributionProposal @relation(fields: [proposal_id], references: [id], onDelete: Cascade)
+  author   User                 @relation("ContributionProposalVersionAuthor", fields: [authored_by], references: [id], onDelete: Restrict)
+
+  @@unique([proposal_id, version])
+  @@index([proposal_id, created_at])
+}
+
+model ContributionProposalAudit {
+  id                  String                          @id @default(uuid()) @db.Uuid
+  proposal_id         String                          @db.Uuid
+  actor_id            String                          @db.Uuid
+  action              ContributionProposalAuditAction
+  from_status         ContributionProposalStatus?
+  to_status           ContributionProposalStatus
+  proposal_version    Int?
+  reason              String?                         @db.VarChar(500)
+  idempotency_key     String?                         @db.VarChar(128)
+  command_fingerprint String?                         @db.Char(64)
+  metadata            Json?
+  created_at          DateTime                        @default(now())
+
+  proposal ContributionProposal @relation(fields: [proposal_id], references: [id], onDelete: Restrict)
+  actor    User                 @relation("ContributionProposalAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
+
+  @@unique([actor_id, action, idempotency_key])
+  @@index([proposal_id, created_at])
 }
 
 model AiValidationResult {
