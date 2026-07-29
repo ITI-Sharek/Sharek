@@ -92,6 +92,9 @@
 # - [DONE] POST /contribution-proposals/:proposalId/versions
 # - [DONE] POST /contribution-proposals/:proposalId/revision-requests
 # - [DONE] POST /contribution-proposals/:proposalId/withdraw
+# - [DONE] POST /contribution-proposals/:proposalId/accept
+# - [DONE] POST /contribution-proposals/:proposalId/decline
+# - [DONE] POST /contribution-proposals/:proposalId/misuse-reports
 # - [RETIRED] POST /projects/import/github
 # - [DONE] POST /projects/github/preview -> POST /projects -> explicit publish/archive
 # - [DONE] POST /contributors/profiles/me/ensure
@@ -1264,3 +1267,35 @@ Idempotency-Key: 00000000-0000-4000-8000-000000000006
 Content-Type: application/json
 
 {}
+
+
+### 37 - Accept a Contribution Proposal into an attributed draft Request
+POST {{baseUrl}}/contribution-proposals/{{submittedContributionProposal.response.body.$.id}}/accept
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "idempotencyKey": "00000000-0000-4000-8000-000000000007"
+}
+
+
+### 38 - Decline a Contribution Proposal with a contributor-visible reason
+POST {{baseUrl}}/contribution-proposals/{{submittedContributionProposal.response.body.$.id}}/decline
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "reason": "This is out of scope for the Project right now, but thank you.",
+  "idempotencyKey": "00000000-0000-4000-8000-000000000008"
+}
+
+
+### 39 - Report suspected Contribution Proposal misuse
+POST {{baseUrl}}/contribution-proposals/{{submittedContributionProposal.response.body.$.id}}/misuse-reports
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "reason": "This proposal appears to reuse another contributor's private work.",
+  "idempotencyKey": "00000000-0000-4000-8000-000000000009"
+}

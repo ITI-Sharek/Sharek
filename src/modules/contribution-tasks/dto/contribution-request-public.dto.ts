@@ -95,9 +95,15 @@ export interface PublicContributionRequestRequirementDto {
   classification: 'required' | 'preferred';
 }
 
+export interface PublicContributionRequestAttributionDto {
+  contributorId: string;
+  contributorName: string;
+}
+
 export interface PublicContributionRequestDetailDto
   extends PublicContributionRequestListItemDto {
   description: string;
   status: 'published';
   requirements: PublicContributionRequestRequirementDto[];
+  attribution: PublicContributionRequestAttributionDto | null;
 }

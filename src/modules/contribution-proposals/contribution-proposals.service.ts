@@ -16,11 +16,13 @@ import {
   ForbiddenApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
+import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
 import { ProjectsService } from '../projects/projects.service';
 import { ContributionProposalPageQueryDto } from './dto/contribution-proposal-input.dto';
 import {
   ContributionProposalDto,
   ContributionProposalListDto,
+  ContributionProposalMisuseReportDto,
   ProposalIntakeDto,
 } from './dto/contribution-proposal-response.dto';
 import {
@@ -48,6 +50,7 @@ export class ContributionProposalsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly projects: ProjectsService,
+    private readonly contributionTasks: ContributionTasksService,
   ) {}
 
   async submit(input: {
@@ -455,6 +458,309 @@ export class ContributionProposalsService {
     return toContributionProposalDto(proposal);
   }
 
+  async accept(input: {
+    actor: AuthenticatedUser;
+    proposalId: string;
+    idempotencyKey: string;
+  }): Promise<ContributionProposalDto> {
+    this.assertActiveOwner(input.actor);
+    const idempotencyKey = this.normalizeIdempotencyKey(input.idempotencyKey);
+    const fingerprint = this.fingerprint({
+      action: ContributionProposalAuditAction.accepted,
+      proposalId: input.proposalId,
+    });
+    const replay = await this.readReplay({
+      actorId: input.actor.id,
+      action: ContributionProposalAuditAction.accepted,
+      idempotencyKey,
+      fingerprint,
+    });
+    if (replay) return toContributionProposalDto(replay);
+
+    let proposal: ContributionProposalWithDetail;
+    try {
+      proposal = await this.database.$transaction(async (transaction) => {
+        const transactionReplay = await this.readReplayFromTransaction({
+          transaction,
+          actorId: input.actor.id,
+          action: ContributionProposalAuditAction.accepted,
+          idempotencyKey,
+          fingerprint,
+        });
+        if (transactionReplay) return transactionReplay;
+
+        const current = await transaction.contributionProposal.findUnique({
+          where: { id: input.proposalId },
+          include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+        });
+        if (!current) throw this.proposalNotFound();
+        this.assertPending(current.status, 'accepted');
+        const project = await this.projects.lockProposalProjectContext(
+          current.project_id,
+          transaction,
+        );
+        if (project.ownerId !== input.actor.id) throw this.proposalNotFound();
+
+        const updated = await transaction.contributionProposal.updateMany({
+          where: {
+            id: input.proposalId,
+            status: ContributionProposalStatus.pending,
+            current_version: current.current_version,
+            revision_request_sequence: current.revision_request_sequence,
+          },
+          data: {
+            status: ContributionProposalStatus.accepted,
+            accepted_at: new Date(),
+            revision_requested_at: null,
+          },
+        });
+        if (updated.count !== 1) throw this.concurrentModification();
+
+        const latest = current.versions[0];
+        if (!latest) throw this.proposalNotFound();
+        // Attribution stays immutable: the resulting draft records the proposer
+        // and origin proposal but grants no Assignment or selection priority.
+        const draft =
+          await this.contributionTasks.createDraftFromAcceptedProposal({
+            transaction,
+            ownerId: input.actor.id,
+            projectId: current.project_id,
+            proposalId: input.proposalId,
+            attributedContributorId: current.proposer_id,
+            title: latest.title,
+            description: this.composeRequestDescription(latest),
+          });
+
+        await transaction.contributionProposalAudit.create({
+          data: {
+            proposal_id: input.proposalId,
+            actor_id: input.actor.id,
+            action: ContributionProposalAuditAction.accepted,
+            from_status: ContributionProposalStatus.pending,
+            to_status: ContributionProposalStatus.accepted,
+            proposal_version: current.current_version,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: fingerprint,
+            metadata: {
+              payloadVersion: 1,
+              resultingContributionRequestId: draft.id,
+            },
+          },
+        });
+        return transaction.contributionProposal.findUniqueOrThrow({
+          where: { id: input.proposalId },
+          include: PROPOSAL_DETAIL_INCLUDE,
+        });
+      });
+    } catch (error) {
+      const lostRace = await this.recoverFromIdempotencyRace({
+        error,
+        actorId: input.actor.id,
+        action: ContributionProposalAuditAction.accepted,
+        idempotencyKey,
+        fingerprint,
+      });
+      if (lostRace) proposal = lostRace;
+      else throw error;
+    }
+    return toContributionProposalDto(proposal);
+  }
+
+  async decline(input: {
+    actor: AuthenticatedUser;
+    proposalId: string;
+    reason: string;
+    idempotencyKey: string;
+  }): Promise<ContributionProposalDto> {
+    this.assertActiveOwner(input.actor);
+    const idempotencyKey = this.normalizeIdempotencyKey(input.idempotencyKey);
+    const fingerprint = this.fingerprint({
+      action: ContributionProposalAuditAction.declined,
+      proposalId: input.proposalId,
+      reason: input.reason,
+    });
+    const replay = await this.readReplay({
+      actorId: input.actor.id,
+      action: ContributionProposalAuditAction.declined,
+      idempotencyKey,
+      fingerprint,
+    });
+    if (replay) return toContributionProposalDto(replay);
+
+    let proposal: ContributionProposalWithDetail;
+    try {
+      proposal = await this.database.$transaction(async (transaction) => {
+        const transactionReplay = await this.readReplayFromTransaction({
+          transaction,
+          actorId: input.actor.id,
+          action: ContributionProposalAuditAction.declined,
+          idempotencyKey,
+          fingerprint,
+        });
+        if (transactionReplay) return transactionReplay;
+
+        const current = await transaction.contributionProposal.findUnique({
+          where: { id: input.proposalId },
+        });
+        if (!current) throw this.proposalNotFound();
+        this.assertPending(current.status, 'declined');
+        const project = await this.projects.lockProposalProjectContext(
+          current.project_id,
+          transaction,
+        );
+        if (project.ownerId !== input.actor.id) throw this.proposalNotFound();
+
+        const updated = await transaction.contributionProposal.updateMany({
+          where: {
+            id: input.proposalId,
+            status: ContributionProposalStatus.pending,
+            current_version: current.current_version,
+            revision_request_sequence: current.revision_request_sequence,
+          },
+          data: {
+            status: ContributionProposalStatus.declined,
+            declined_at: new Date(),
+            decline_reason: input.reason,
+            revision_requested_at: null,
+          },
+        });
+        if (updated.count !== 1) throw this.concurrentModification();
+        await transaction.contributionProposalAudit.create({
+          data: {
+            proposal_id: input.proposalId,
+            actor_id: input.actor.id,
+            action: ContributionProposalAuditAction.declined,
+            from_status: ContributionProposalStatus.pending,
+            to_status: ContributionProposalStatus.declined,
+            proposal_version: current.current_version,
+            reason: input.reason,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: fingerprint,
+            metadata: { payloadVersion: 1 },
+          },
+        });
+        return transaction.contributionProposal.findUniqueOrThrow({
+          where: { id: input.proposalId },
+          include: PROPOSAL_DETAIL_INCLUDE,
+        });
+      });
+    } catch (error) {
+      const lostRace = await this.recoverFromIdempotencyRace({
+        error,
+        actorId: input.actor.id,
+        action: ContributionProposalAuditAction.declined,
+        idempotencyKey,
+        fingerprint,
+      });
+      if (lostRace) proposal = lostRace;
+      else throw error;
+    }
+    return toContributionProposalDto(proposal);
+  }
+
+  async reportMisuse(input: {
+    actor: AuthenticatedUser;
+    proposalId: string;
+    reason: string;
+    idempotencyKey: string;
+  }): Promise<ContributionProposalMisuseReportDto> {
+    this.assertActiveProposalActor(input.actor);
+    const idempotencyKey = this.normalizeIdempotencyKey(input.idempotencyKey);
+    const existing =
+      await this.database.contributionProposalMisuseReport.findFirst({
+        where: { reporter_id: input.actor.id, idempotency_key: idempotencyKey },
+      });
+    if (existing) return this.presentMisuseReport(existing);
+
+    // Only participants (the proposer or the Project owner) can file a report.
+    const proposal = await this.database.contributionProposal.findUnique({
+      where: { id: input.proposalId },
+      include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+    });
+    if (!proposal) throw this.proposalNotFound();
+    if (proposal.proposer_id !== input.actor.id) {
+      const project = await this.projects.getProposalProjectContext(
+        proposal.project_id,
+      );
+      if (project.ownerId !== input.actor.id) throw this.proposalNotFound();
+    }
+
+    const latest = proposal.versions[0];
+    // Preserve authorship evidence and timestamps for moderation. The platform
+    // records the claim only; it makes no automatic copying, ownership, or legal
+    // finding.
+    const evidenceSnapshot = {
+      proposalId: proposal.id,
+      projectId: proposal.project_id,
+      proposerId: proposal.proposer_id,
+      reportedVersion: proposal.current_version,
+      proposalCreatedAt: proposal.created_at.toISOString(),
+      version: latest
+        ? {
+            version: latest.version,
+            title: latest.title,
+            problemOrOpportunity: latest.problem_or_opportunity,
+            proposedOutcome: latest.proposed_outcome,
+            projectBenefit: latest.project_benefit,
+            authoredBy: latest.authored_by,
+            createdAt: latest.created_at.toISOString(),
+          }
+        : null,
+      capturedAt: new Date().toISOString(),
+    };
+
+    try {
+      const report = await this.database.$transaction(async (transaction) => {
+        const created =
+          await transaction.contributionProposalMisuseReport.create({
+            data: {
+              proposal_id: proposal.id,
+              reporter_id: input.actor.id,
+              reported_version: proposal.current_version,
+              reason: input.reason,
+              evidence_snapshot: evidenceSnapshot as Prisma.InputJsonValue,
+              idempotency_key: idempotencyKey,
+            },
+          });
+        await transaction.contributionProposalAudit.create({
+          data: {
+            proposal_id: proposal.id,
+            actor_id: input.actor.id,
+            action: ContributionProposalAuditAction.misuse_reported,
+            from_status: proposal.status,
+            to_status: proposal.status,
+            proposal_version: proposal.current_version,
+            reason: input.reason,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: this.fingerprint({
+              action: ContributionProposalAuditAction.misuse_reported,
+              proposalId: proposal.id,
+              reason: input.reason,
+            }),
+            metadata: { payloadVersion: 1, misuseReportId: created.id },
+          },
+        });
+        return created;
+      });
+      return this.presentMisuseReport(report);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const raced =
+          await this.database.contributionProposalMisuseReport.findFirst({
+            where: {
+              reporter_id: input.actor.id,
+              idempotency_key: idempotencyKey,
+            },
+          });
+        if (raced) return this.presentMisuseReport(raced);
+      }
+      throw error;
+    }
+  }
+
   async getForActor(
     actor: AuthenticatedUser,
     proposalId: string,
@@ -759,7 +1065,7 @@ export class ContributionProposalsService {
 
   private assertPending(
     status: ContributionProposalStatus,
-    operation: 'revised' | 'withdrawn' = 'revised',
+    operation: 'revised' | 'withdrawn' | 'accepted' | 'declined' = 'revised',
   ): void {
     if (status !== ContributionProposalStatus.pending) {
       throw new ConflictApplicationError(
@@ -830,6 +1136,36 @@ export class ContributionProposalsService {
       'Contribution Proposal was not found',
       'PROPOSAL_NOT_FOUND',
     );
+  }
+
+  private composeRequestDescription(version: {
+    problem_or_opportunity: string;
+    proposed_outcome: string;
+    project_benefit: string;
+  }): string {
+    return [
+      `Problem or opportunity:\n${version.problem_or_opportunity}`,
+      `Proposed outcome:\n${version.proposed_outcome}`,
+      `Project benefit:\n${version.project_benefit}`,
+    ].join('\n\n');
+  }
+
+  private presentMisuseReport(report: {
+    id: string;
+    proposal_id: string;
+    reporter_id: string;
+    reported_version: number;
+    reason: string;
+    created_at: Date;
+  }): ContributionProposalMisuseReportDto {
+    return {
+      id: report.id,
+      proposalId: report.proposal_id,
+      reporterId: report.reporter_id,
+      reportedVersion: report.reported_version,
+      reason: report.reason,
+      createdAt: report.created_at,
+    };
   }
 
   private fingerprint(value: unknown): string {

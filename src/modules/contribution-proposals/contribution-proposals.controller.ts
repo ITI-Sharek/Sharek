@@ -17,7 +17,10 @@ import { CurrentUser } from '../../shared/auth/current-user.decorator';
 import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
 import { ContributionProposalsService } from './contribution-proposals.service';
 import {
+  AcceptContributionProposalDto,
   ContributionProposalPageQueryDto,
+  DeclineContributionProposalDto,
+  ReportProposalMisuseDto,
   RequestProposalRevisionDto,
   SetProposalIntakeDto,
   SubmitContributionProposalDto,
@@ -106,6 +109,52 @@ export class ContributionProposalsController {
     @Body() body: RequestProposalRevisionDto,
   ) {
     return this.proposals.requestRevision({
+      actor,
+      proposalId,
+      reason: body.reason,
+      idempotencyKey: body.idempotencyKey,
+    });
+  }
+
+  @Post(':proposalId/accept')
+  @HttpCode(200)
+  accept(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('proposalId', new ParseUUIDPipe({ version: '4' }))
+    proposalId: string,
+    @Body() body: AcceptContributionProposalDto,
+  ) {
+    return this.proposals.accept({
+      actor,
+      proposalId,
+      idempotencyKey: body.idempotencyKey,
+    });
+  }
+
+  @Post(':proposalId/decline')
+  @HttpCode(200)
+  decline(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('proposalId', new ParseUUIDPipe({ version: '4' }))
+    proposalId: string,
+    @Body() body: DeclineContributionProposalDto,
+  ) {
+    return this.proposals.decline({
+      actor,
+      proposalId,
+      reason: body.reason,
+      idempotencyKey: body.idempotencyKey,
+    });
+  }
+
+  @Post(':proposalId/misuse-reports')
+  reportMisuse(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('proposalId', new ParseUUIDPipe({ version: '4' }))
+    proposalId: string,
+    @Body() body: ReportProposalMisuseDto,
+  ) {
+    return this.proposals.reportMisuse({
       actor,
       proposalId,
       reason: body.reason,

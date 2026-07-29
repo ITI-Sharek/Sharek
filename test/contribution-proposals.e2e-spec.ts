@@ -9,6 +9,7 @@ import * as request from 'supertest';
 
 import { ContributionProposalsController } from '../src/modules/contribution-proposals/contribution-proposals.controller';
 import { ContributionProposalsService } from '../src/modules/contribution-proposals/contribution-proposals.service';
+import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
 import { ProjectsService } from '../src/modules/projects/projects.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { DatabaseService } from '../src/shared/database/database.service';
@@ -53,6 +54,9 @@ describe('Contribution Proposals HTTP contract', () => {
     submit: jest.fn(),
     submitVersion: jest.fn(),
     requestRevision: jest.fn(),
+    accept: jest.fn(),
+    decline: jest.fn(),
+    reportMisuse: jest.fn(),
     withdraw: jest.fn(),
     getForActor: jest.fn(),
     listMine: jest.fn(),
@@ -98,6 +102,29 @@ describe('Contribution Proposals HTTP contract', () => {
     service.requestRevision.mockResolvedValue(
       proposalDto({ revisionRequestedAt: '2026-07-28T12:00:00.000Z' }),
     );
+    service.accept.mockResolvedValue(
+      proposalDto({
+        status: 'ACCEPTED',
+        acceptedAt: '2026-07-29T09:00:00.000Z',
+        resultingContributionRequestId:
+          'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      }),
+    );
+    service.decline.mockResolvedValue(
+      proposalDto({
+        status: 'DECLINED',
+        declinedAt: '2026-07-29T09:00:00.000Z',
+        declineReason: 'Out of scope for this Project right now.',
+      }),
+    );
+    service.reportMisuse.mockResolvedValue({
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      proposalId,
+      reporterId: contributor.id,
+      reportedVersion: 1,
+      reason: 'This proposal appears to copy another contributor’s work.',
+      createdAt: '2026-07-29T09:00:00.000Z',
+    });
     service.withdraw.mockResolvedValue(proposalDto({ status: 'WITHDRAWN' }));
     service.getForActor.mockResolvedValue(proposalDto());
     service.listMine.mockResolvedValue({
@@ -345,6 +372,92 @@ describe('Contribution Proposals HTTP contract', () => {
       .get('/contribution-proposals/mine')
       .expect(401);
   });
+
+  it('accepts a proposal and returns the resulting draft Request id', async () => {
+    await request(app.getHttpServer())
+      .post(`/contribution-proposals/${proposalId}/accept`)
+      .send({ idempotencyKey })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.status).toBe('ACCEPTED');
+        expect(body.resultingContributionRequestId).toBe(
+          'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        );
+      });
+
+    expect(service.accept).toHaveBeenCalledWith({
+      actor: contributor,
+      proposalId,
+      idempotencyKey,
+    });
+  });
+
+  it('declines a proposal with a contributor-visible reason', async () => {
+    await request(app.getHttpServer())
+      .post(`/contribution-proposals/${proposalId}/decline`)
+      .send({
+        reason: 'Out of scope for this Project right now.',
+        idempotencyKey,
+      })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.status).toBe('DECLINED');
+        expect(body.declineReason).toBe(
+          'Out of scope for this Project right now.',
+        );
+      });
+
+    expect(service.decline).toHaveBeenCalledWith({
+      actor: contributor,
+      proposalId,
+      reason: 'Out of scope for this Project right now.',
+      idempotencyKey,
+    });
+  });
+
+  it('rejects a decline without a reason', async () => {
+    await request(app.getHttpServer())
+      .post(`/contribution-proposals/${proposalId}/decline`)
+      .send({ idempotencyKey })
+      .expect(400);
+
+    expect(service.decline).not.toHaveBeenCalled();
+  });
+
+  it('files a misuse report and echoes the preserved evidence pointer', async () => {
+    await request(app.getHttpServer())
+      .post(`/contribution-proposals/${proposalId}/misuse-reports`)
+      .send({
+        reason: 'This proposal appears to copy another contributor’s work.',
+        idempotencyKey,
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.proposalId).toBe(proposalId);
+        expect(body.reportedVersion).toBe(1);
+      });
+
+    expect(service.reportMisuse).toHaveBeenCalledWith({
+      actor: contributor,
+      proposalId,
+      reason: 'This proposal appears to copy another contributor’s work.',
+      idempotencyKey,
+    });
+  });
+
+  it('serializes the accept conflict when a proposal is already terminal', async () => {
+    service.accept.mockRejectedValue(
+      new ConflictApplicationError(
+        'Only a pending Contribution Proposal can be accepted',
+        'PROPOSAL_TERMINAL',
+      ),
+    );
+    await request(app.getHttpServer())
+      .post(`/contribution-proposals/${proposalId}/accept`)
+      .send({ idempotencyKey })
+      .expect(409)
+      .expect(({ body }) => expect(body.code).toBe('PROPOSAL_TERMINAL'));
+  });
 });
 
 describe('Contribution Proposals HTTP-to-service transaction seam', () => {
@@ -365,6 +478,9 @@ describe('Contribution Proposals HTTP-to-service transaction seam', () => {
   const projects = {
     lockProposalProjectContext: jest.fn(),
   };
+  const contributionTasks = {
+    createDraftFromAcceptedProposal: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -373,6 +489,7 @@ describe('Contribution Proposals HTTP-to-service transaction seam', () => {
         ContributionProposalsService,
         { provide: DatabaseService, useValue: database },
         { provide: ProjectsService, useValue: projects },
+        { provide: ContributionTasksService, useValue: contributionTasks },
       ],
     })
       .overrideGuard(AccessTokenGuard)
@@ -459,6 +576,10 @@ function proposalDto(overrides: Record<string, unknown> = {}) {
       acknowledgedAt: '2026-07-28T09:00:00.000Z',
     },
     revisionRequestedAt: null,
+    acceptedAt: null,
+    declinedAt: null,
+    declineReason: null,
+    resultingContributionRequestId: null,
     latestVersion: {
       version: 1,
       title: 'Add a caching layer',

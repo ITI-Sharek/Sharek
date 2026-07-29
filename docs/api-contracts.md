@@ -1293,6 +1293,14 @@ POST /contribution-proposals/:proposalId/withdraw
 Idempotency-Key: 00000000-0000-4000-8000-000000000004
 ```
 
+The owner response actions (S4-B10) close the loop:
+
+```text
+POST /contribution-proposals/:proposalId/accept
+POST /contribution-proposals/:proposalId/decline
+POST /contribution-proposals/:proposalId/misuse-reports
+```
+
 `mine` is proposer-scoped; `for-project` and `intake` are Project-owner-scoped;
 both lists return `proposals` plus `pageInfo.hasNextPage` and an opaque
 `pageInfo.nextCursor`. Detail permits only the proposer and the Project owner. A new version can be
@@ -1305,6 +1313,24 @@ Stable workflow errors include `PROPOSAL_PROJECT_NOT_PUBLISHED`,
 `PROPOSAL_NO_REVISION_REQUESTED`, `PROPOSAL_TERMINAL`, `PROPOSAL_NOT_AUTHORIZED`,
 `PROPOSAL_NOT_FOUND`, `PROPOSAL_CURSOR_INVALID`,
 `PROPOSAL_CONCURRENT_MODIFICATION`, and `PROPOSAL_IDEMPOTENCY_CONFLICT`.
+
+`accept`, `decline`, and `misuse-reports` all require a UUID `idempotencyKey` in
+the body; `decline` and `misuse-reports` also require a `reason`. Accept and
+decline are owner-only and act on a pending proposal only; both are terminal and
+idempotent. Acceptance transactionally creates one owner-controlled draft
+Contribution Request from the latest Proposal Version and returns the proposal
+with `status: "ACCEPTED"` and `resultingContributionRequestId`; it creates no
+Assignment, Application, reserved place, quota use, ownership claim, or selection
+priority, and discarding the resulting draft never reopens the proposal.
+`decline` returns `status: "DECLINED"` with the contributor-visible
+`declineReason`. `misuse-reports` may be filed by the proposer or the Project
+owner, returns the stored report, and preserves an immutable authorship-evidence
+snapshot for moderation without any automatic copying, ownership, or legal
+finding. The resulting draft records immutable proposer attribution: the owner
+`GET /contribution-requests/:id` view exposes `attribution: { proposalId,
+contributorId }`, and once the Request is published `GET
+/contribution-requests/:id` public detail exposes `attribution: { contributorId,
+contributorName }`.
 
 ## Contract Change Rules
 

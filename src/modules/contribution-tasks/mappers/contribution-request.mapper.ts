@@ -34,6 +34,13 @@ export function toContributionRequestDto(
     reward: request.reward?.toFixed(2) ?? null,
     rewardCurrency: request.reward_currency,
     status: request.status,
+    attribution:
+      request.origin_proposal_id && request.attributed_contributor_id
+        ? {
+            proposalId: request.origin_proposal_id,
+            contributorId: request.attributed_contributor_id,
+          }
+        : null,
     publishedAt: request.published_at,
     createdAt: request.created_at,
     updatedAt: request.updated_at,
