@@ -1861,3 +1861,38 @@ This keeps the system strong without making it heavy:
 - Verification: architecture, lint, type-check, Prisma schema validation,
   focused tests, and the full Jest run pass; the full run covers 64 suites and
   361 tests.
+
+### 2026-07-29 - Contribution Proposals: respond and adopt (S4-B10)
+
+- Modules: `contribution-proposals`, `contribution-tasks` (exported draft
+  creation + attribution exposure).
+- Requirement/task IDs: GitHub issue #56 (S4-B10); parent spec issue #46;
+  `specs/005-sprint-4-contribution-workflows/spec.md`; ADR 0002, ADR 0003.
+- Change type: new owner-response endpoints, cross-module attributed-draft
+  creation, new Prisma states/columns/table + migration, and tests.
+- Summary: Added owner `accept` and `decline` responses plus contributor/owner
+  `misuse-reports` to the proposals module. Accept flips a pending proposal to
+  `accepted` under a transaction-scoped Project lock, owner check, and optimistic
+  guard, then creates exactly one owner-controlled draft Contribution Request from
+  the latest Proposal Version through the exported
+  `ContributionTasksService.createDraftFromAcceptedProposal`, with immutable
+  proposer attribution and no Assignment/Application/quota/selection priority.
+  Decline is terminal with a contributor-visible reason. Misuse reports store an
+  immutable authorship-evidence snapshot with no automatic findings. Published
+  resulting Requests expose approved attribution through the public detail view;
+  draft fields stay owner-only and a discarded draft never reopens the proposal.
+  All commands are idempotent and append immutable audit rows.
+- API/database changes: new `POST /contribution-proposals/:id/{accept,decline}`
+  and `POST /contribution-proposals/:id/misuse-reports`; migration
+  `20260729140000_proposal_response_and_adoption` adds `accepted`/`declined`
+  proposal states and audit actions, `accepted_at`/`declined_at`/`decline_reason`,
+  `ContributionRequest.origin_proposal_id` (unique) + `attributed_contributor_id`,
+  and the `ContributionProposalMisuseReport` table.
+- Checks: `check:architecture`, `eslint`, `tsc --noEmit`, `jest` (376 tests), and
+  `nest build` all pass. Migration generated with `migrate diff` and applied to a
+  throwaway Postgres with `migrate deploy`.
+- Docs updated: module README, API contracts, database plan, `sharek-api.http`,
+  the Postman collection, and this tracker.
+- Risks/follow-up: moderation review of misuse reports (admin workflow) and
+  reputation effects remain out of scope; owner submission notifications are still
+  deferred.
