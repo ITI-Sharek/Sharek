@@ -34,6 +34,7 @@ describe('Contribution Request draft HTTP contract', () => {
   let authenticated = true;
   const service = {
     createDraft: jest.fn(),
+    listForOwnedProject: jest.fn(),
     getOwnedRequest: jest.fn(),
     updateDraft: jest.fn(),
     discardDraft: jest.fn(),
@@ -81,6 +82,18 @@ describe('Contribution Request draft HTTP contract', () => {
     authenticated = true;
     jest.resetAllMocks();
     service.createDraft.mockResolvedValue(responseDto());
+    service.listForOwnedProject.mockResolvedValue({
+      projectId,
+      totalCount: 1,
+      byStatus: {
+        draft: [responseDto()],
+        published: [],
+        assigned: [],
+        completed: [],
+        cancelled: [],
+        discarded: [],
+      },
+    });
     service.getOwnedRequest.mockResolvedValue(responseDto());
     service.updateDraft.mockResolvedValue(responseDto({ title: 'Updated title' }));
     service.discardDraft.mockResolvedValue(responseDto({ status: 'discarded' }));
@@ -137,6 +150,20 @@ describe('Contribution Request draft HTTP contract', () => {
       body: expect.not.objectContaining({ ownerId: expect.anything() }),
       idempotencyKey: 'create-request-001',
     });
+  });
+
+  it('lists an owned Project Contribution Requests grouped by lifecycle state', async () => {
+    await request(app.getHttpServer())
+      .get(`/projects/${projectId}/contribution-requests`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.projectId).toBe(projectId);
+        expect(body.totalCount).toBe(1);
+        expect(body.byStatus.draft[0].id).toBe(requestId);
+        expect(body.byStatus.completed).toEqual([]);
+      });
+
+    expect(service.listForOwnedProject).toHaveBeenCalledWith(owner, projectId);
   });
 
   it('returns a stable domain error when Required Requirements are missing', async () => {
@@ -231,6 +258,9 @@ describe('Contribution Request draft HTTP contract', () => {
       .get(`/contribution-requests/${requestId}`)
       .expect(401);
     await request(server)
+      .get(`/projects/${projectId}/contribution-requests`)
+      .expect(401);
+    await request(server)
       .post(`/projects/${projectId}/contribution-requests`)
       .send(createBody())
       .expect(401);
@@ -252,6 +282,7 @@ describe('Contribution Request draft HTTP contract', () => {
       .expect(401);
 
     expect(service.getOwnedRequest).not.toHaveBeenCalled();
+    expect(service.listForOwnedProject).not.toHaveBeenCalled();
     expect(service.createDraft).not.toHaveBeenCalled();
     expect(service.updateDraft).not.toHaveBeenCalled();
     expect(service.discardDraft).not.toHaveBeenCalled();

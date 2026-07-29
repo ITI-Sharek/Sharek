@@ -571,6 +571,7 @@ project import.
 Implemented private-draft endpoints:
 
 ```text
+GET   /projects/:projectId/contribution-requests
 POST  /projects/:projectId/contribution-requests
 GET   /contribution-requests/:requestId
 PATCH /contribution-requests/:requestId
@@ -581,6 +582,28 @@ All endpoints require an authenticated active account. The backend derives the
 owner from the bearer session. Only the owner of the referenced published
 Project can create a draft, and only that owner can inspect, update, or discard
 it. Unknown and other-owner resources use the same non-enumerating 404.
+
+The Project-scoped GET is the canonical owner workspace read. It remains
+available for an owned archived Project and returns every lifecycle bucket,
+including empty buckets:
+
+```json
+{
+  "projectId": "project-uuid",
+  "totalCount": 2,
+  "byStatus": {
+    "draft": [{ "id": "request-uuid", "status": "draft" }],
+    "published": [{ "id": "request-uuid", "status": "published" }],
+    "assigned": [],
+    "completed": [],
+    "cancelled": [],
+    "discarded": []
+  }
+}
+```
+
+Items use the full owner-safe `ContributionRequestDto` shape and are ordered by
+most recently updated first within each group.
 
 Create accepts:
 

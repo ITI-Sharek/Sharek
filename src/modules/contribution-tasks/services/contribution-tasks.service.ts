@@ -23,7 +23,11 @@ import {
   UpdateContributionRequestDto,
 } from '../dto/contribution-request-input.dto';
 import { ApplicationRequestContextDto } from '../dto/application-request-context.dto';
-import { ContributionRequestDto } from '../dto/contribution-request-response.dto';
+import {
+  ContributionRequestDto,
+  ContributionRequestsByStatusDto,
+  OwnerProjectContributionRequestsDto,
+} from '../dto/contribution-request-response.dto';
 import {
   ContributionRequestWithRequirements,
   toContributionRequestDto,
@@ -217,6 +221,34 @@ export class ContributionTasksService {
       user.id,
     );
     return toContributionRequestDto(request);
+  }
+
+  async listForOwnedProject(
+    user: AuthenticatedUser,
+    projectId: string,
+  ): Promise<OwnerProjectContributionRequestsDto> {
+    this.assertActiveOwner(user);
+    await this.projectsService.getContributionRequestProjectOwnerAccess(
+      projectId,
+      user.id,
+    );
+    const requests = await this.database.contributionRequest.findMany({
+      where: { project_id: projectId, owner_id: user.id },
+      include: { requirements: true },
+      orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+    });
+    const byStatus: ContributionRequestsByStatusDto = {
+      [ContributionRequestStatus.draft]: [],
+      [ContributionRequestStatus.published]: [],
+      [ContributionRequestStatus.assigned]: [],
+      [ContributionRequestStatus.completed]: [],
+      [ContributionRequestStatus.cancelled]: [],
+      [ContributionRequestStatus.discarded]: [],
+    };
+    for (const request of requests) {
+      byStatus[request.status].push(toContributionRequestDto(request));
+    }
+    return { projectId, totalCount: requests.length, byStatus };
   }
 
   async updateDraft(input: {

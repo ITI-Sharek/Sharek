@@ -998,6 +998,49 @@ describe('ContributionTasksService', () => {
     } satisfies Partial<ApplicationError>);
   });
 
+  it('lists an owned Project Requests grouped across every lifecycle state', async () => {
+    projectsService.getContributionRequestProjectOwnerAccess.mockResolvedValue({
+      id: projectId,
+      ownerId: owner.id,
+      status: 'archived',
+    });
+    database.contributionRequest.findMany.mockResolvedValue([
+      makeRequest({
+        id: '44444444-4444-4444-8444-444444444444',
+        status: ContributionRequestStatus.cancelled,
+      }),
+      makeRequest({ status: ContributionRequestStatus.draft }),
+    ]);
+
+    const result = await service.listForOwnedProject(owner, projectId);
+
+    expect(
+      projectsService.getContributionRequestProjectOwnerAccess,
+    ).toHaveBeenCalledWith(projectId, owner.id);
+    expect(database.contributionRequest.findMany).toHaveBeenCalledWith({
+      where: { project_id: projectId, owner_id: owner.id },
+      include: { requirements: true },
+      orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+    });
+    expect(result).toMatchObject({
+      projectId,
+      totalCount: 2,
+      byStatus: {
+        draft: [{ id: requestId, status: 'draft' }],
+        published: [],
+        assigned: [],
+        completed: [],
+        cancelled: [
+          {
+            id: '44444444-4444-4444-8444-444444444444',
+            status: 'cancelled',
+          },
+        ],
+        discarded: [],
+      },
+    });
+  });
+
   it('rechecks published Project access before exposing an owned request', async () => {
     database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
 

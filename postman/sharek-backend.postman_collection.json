@@ -753,6 +753,20 @@
 			],
 			"item": [
 				{
+					"name": "00 - List Owned Project Requests by Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/projects/{{projectId}}/contribution-requests",
+						"description": "Returns every owned Contribution Request grouped under draft, published, assigned, completed, cancelled, and discarded. All groups are always present. Works for owned archived Projects."
+					}
+				},
+				{
 					"name": "01 - Create Draft",
 					"event": [
 						{

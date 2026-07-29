@@ -31,6 +31,14 @@ export class ContributionTasksController {
     private readonly publicationService: ContributionRequestPublicationService,
   ) {}
 
+  @Get('projects/:projectId/contribution-requests')
+  listForOwnedProject(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
+  ) {
+    return this.contributionTasksService.listForOwnedProject(user, projectId);
+  }
+
   @Post('projects/:projectId/contribution-requests')
   createDraft(
     @CurrentUser() user: AuthenticatedUser,

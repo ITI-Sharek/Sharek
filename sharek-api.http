@@ -805,12 +805,17 @@ Content-Type: application/json
 }
 
 
-### 11A.2 - DONE - Inspect my private Contribution Request
+### 11A.2 - DONE - List my Project's Contribution Requests by lifecycle state
+GET {{baseUrl}}/projects/{{projectId}}/contribution-requests
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 11A.3 - DONE - Inspect my private Contribution Request
 GET {{baseUrl}}/contribution-requests/{{contributionRequestId}}
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 
-### 11A.3 - DONE - Update my private Contribution Request draft
+### 11A.4 - DONE - Update my private Contribution Request draft
 PATCH {{baseUrl}}/contribution-requests/{{contributionRequestId}}
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: update-contribution-request-001
@@ -821,21 +826,21 @@ Content-Type: application/json
 }
 
 
-### 11A.4 - DONE - Publish my complete Contribution Request draft
+### 11A.5 - DONE - Publish my complete Contribution Request draft
 POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/publish
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: publish-contribution-request-001
 
 
-### 11A.5 - DONE - Browse actionable Contribution Requests (public)
+### 11A.6 - DONE - Browse actionable Contribution Requests (public)
 GET {{baseUrl}}/tasks?technologies=NestJS,PostgreSQL&difficulty=intermediate&hasReward=true
 
 
-### 11A.6 - DONE - Inspect one actionable Contribution Request (public)
+### 11A.7 - DONE - Inspect one actionable Contribution Request (public)
 GET {{baseUrl}}/tasks/{{contributionRequestId}}
 
 
-### 11A.7 - DONE - Cancel my published Contribution Request
+### 11A.8 - DONE - Cancel my published Contribution Request
 POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/cancel
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: cancel-contribution-request-001
@@ -846,8 +851,8 @@ Content-Type: application/json
 }
 
 
-### 11A.8 - DONE - Alternative to publish: discard a private draft
-# Run this instead of 11A.4 through 11A.7 for the draft-discard path.
+### 11A.9 - DONE - Alternative to publish: discard a private draft
+# Run this instead of 11A.5 through 11A.8 for the draft-discard path.
 POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/discard
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: discard-contribution-request-001

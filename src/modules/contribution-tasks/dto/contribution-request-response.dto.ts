@@ -29,3 +29,13 @@ export interface ContributionRequestDto {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type ContributionRequestsByStatusDto = {
+  [status in ContributionRequestStatus]: ContributionRequestDto[];
+};
+
+export interface OwnerProjectContributionRequestsDto {
+  projectId: string;
+  totalCount: number;
+  byStatus: ContributionRequestsByStatusDto;
+}

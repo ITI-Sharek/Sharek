@@ -29,6 +29,7 @@ module rename.
 ## HTTP routes
 
 ```text
+GET   /projects/:projectId/contribution-requests
 POST  /projects/:projectId/contribution-requests
 GET   /contribution-requests/:requestId
 PATCH /contribution-requests/:requestId
@@ -46,6 +47,13 @@ Responses use dedicated DTOs and never expose Prisma row names or audit data.
 Malformed Requirement shapes return the stable
 `CONTRIBUTION_REQUEST_REQUIREMENT_INPUT_INVALID` code; semantic missing and
 duplicate cases retain their more specific domain codes.
+
+The owner Project list returns every Request grouped under an exhaustive
+`byStatus` object (`draft`, `published`, `assigned`, `completed`, `cancelled`,
+and `discarded`) plus `totalCount`. It uses ownership-only Project access, so
+historical Requests remain visible after the Project is archived. Every group
+is present even when empty, allowing the frontend to render stable lifecycle
+sections without reconstructing them from local state.
 
 ## Implemented: public lifecycle (#49)
 
