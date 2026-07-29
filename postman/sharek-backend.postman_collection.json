@@ -1334,6 +1334,15 @@
 							"listen": "test",
 							"script": {
 								"exec": [
+									"pm.test('Application enters owner review with review-window fields', function () {",
+									"  pm.response.to.have.status(201);",
+									"  const body = pm.response.json();",
+									"  pm.expect(body.status).to.eql('PENDING_OWNER_REVIEW');",
+									"  pm.expect(body.reviewDueAt).to.be.a('string');",
+									"  pm.expect(body.expiresAt).to.be.a('string');",
+									"  pm.expect(body).to.have.property('expiredAt', null);",
+									"  pm.expect(body).to.have.property('overdue', false);",
+									"});",
 									"if (pm.response.code === 201) {",
 									"  const body = pm.response.json();",
 									"  pm.environment.set('applicationId', body.id);",
@@ -1375,11 +1384,32 @@
 								"applications"
 							]
 						},
-						"description": "Submit one Application as an active contributor. Reuse applicationIdempotencyKey to test replay behavior."
+						"description": "Submit one Application as an active contributor. The response must include reviewDueAt, expiresAt, expiredAt=null, and overdue=false. Reuse applicationIdempotencyKey to test replay behavior."
 					}
 				},
 				{
 					"name": "04 - List Request Applications as Owner",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Pending owner list exposes review-window presentation', function () {",
+									"  pm.response.to.have.status(200);",
+									"  const body = pm.response.json();",
+									"  pm.expect(body.applications).to.be.an('array');",
+									"  body.applications.forEach(function (application) {",
+									"    pm.expect(application).to.have.property('reviewDueAt');",
+									"    pm.expect(application).to.have.property('expiresAt');",
+									"    pm.expect(application).to.have.property('expiredAt');",
+									"    pm.expect(application.overdue).to.be.a('boolean');",
+									"  });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "GET",
 						"header": [
@@ -1399,11 +1429,33 @@
 								"applications"
 							]
 						},
-						"description": "List pending Applications as the owning Project owner. The request uses ownerAccessToken."
+						"description": "List pending Applications as the current Project owner. Items expose reviewDueAt, expiresAt, expiredAt, and day-5 overdue presentation. Day-7 expired Applications are terminal and no longer appear in this pending-only list."
 					}
 				},
 				{
 					"name": "05 - Get Application as Owner",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Application detail exposes review-window state', function () {",
+									"  pm.response.to.have.status(200);",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('reviewDueAt');",
+									"  pm.expect(body).to.have.property('expiresAt');",
+									"  pm.expect(body).to.have.property('expiredAt');",
+									"  pm.expect(body.overdue).to.be.a('boolean');",
+									"  if (body.status === 'EXPIRED') {",
+									"    pm.expect(body.expiredAt).to.be.a('string');",
+									"    pm.expect(body.overdue).to.eql(false);",
+									"  }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
 					"request": {
 						"method": "GET",
 						"header": [
@@ -1422,7 +1474,7 @@
 								"{{applicationId}}"
 							]
 						},
-						"description": "Inspect an Application as its contributor or the owning Project owner."
+						"description": "Inspect an Application as its contributor or current Project owner. There is no public scheduler endpoint: rerun this request after a controlled day-5/day-7 boundary to inspect overdue or EXPIRED/expiredAt presentation."
 					}
 				},
 				{

@@ -6,18 +6,19 @@
   "scripts": {
     "build": "nest build",
     "start": "nest start",
-    "start:dev": "sh -c 'if [ -f /.dockerenv ]; then : ${DATABASE_URL:=postgresql://sharek:sharek@postgres:5432/sharek?schema=public}; else : ${DATABASE_URL:=postgresql://sharek:sharek@localhost:${POSTGRES_PORT:-5433}/sharek?schema=public}; fi; export DATABASE_URL; nest start --watch'",
+    "start:dev": "node scripts/run-with-service-urls.mjs nest start --watch",
     "start:dev:docker": "nest start --watch --path tsconfig.docker.json",
     "start:prod": "node dist/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:migrations": "node scripts/test-application-status-migration.mjs",
+    "test:api-clients": "node scripts/validate-api-clients.mjs",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "check:architecture": "node scripts/check-architecture.mjs",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "sh -c 'if [ -f /.dockerenv ]; then : ${DATABASE_URL:=postgresql://sharek:sharek@postgres:5432/sharek?schema=public}; else : ${DATABASE_URL:=postgresql://sharek:sharek@localhost:${POSTGRES_PORT:-5433}/sharek?schema=public}; fi; export DATABASE_URL; prisma migrate dev'",
-    "prisma:studio": "sh -c 'if [ -f /.dockerenv ]; then : ${DATABASE_URL:=postgresql://sharek:sharek@postgres:5432/sharek?schema=public}; else : ${DATABASE_URL:=postgresql://sharek:sharek@localhost:${POSTGRES_PORT:-5433}/sharek?schema=public}; fi; export DATABASE_URL; prisma studio'"
+    "prisma:migrate": "node scripts/run-with-service-urls.mjs prisma migrate dev",
+    "prisma:studio": "node scripts/run-with-service-urls.mjs prisma studio"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.27",

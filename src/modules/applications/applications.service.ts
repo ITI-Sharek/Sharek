@@ -1022,6 +1022,10 @@ export class ApplicationsService {
       submittedAt: application.submitted_at,
       reviewDueAt: application.review_due_at,
       expiresAt: application.expires_at,
+      expiredAt: application.expired_at,
+      overdue:
+        application.status === ApplicationStatus.pending_owner_review &&
+        Date.now() >= this.addDays(application.submitted_at, 5).getTime(),
       ownerDecision: application.ownerDecision
         ? this.presentOwnerDecision(application.ownerDecision)
         : null,

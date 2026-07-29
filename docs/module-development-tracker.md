@@ -1915,3 +1915,88 @@ This keeps the system strong without making it heavy:
   feedback and uniqueness constraints. Architecture, lint, exact type-check,
   Prisma validation, build, diff checks, focused tests, and all 66 Jest suites /
   404 tests pass.
+
+## 2026-07-29 - Application owner review window (S4-B06)
+
+- Modules: `applications` (owner), `notifications`, `contribution-tasks`, and
+  `projects`; technical Redis connection parsing moved to `shared/queue` for
+  reuse by concrete BullMQ queues.
+- Requirement/task IDs: GitHub issue #52, Sprint 4 B06, parent issue #46,
+  dependency #51, `specs/005-sprint-4-contribution-workflows/spec.md`, DEC-004,
+  ADR 0002, and ADR 0003.
+- Workflow: added a repeatable, retrying review-window sweep plus startup
+  catch-up. From persisted timestamps it sends one day-3 reminder to the
+  current Project owner, presents pending Applications as overdue at day 5,
+  and at day 7 changes only an undecided Application to `expired`, appends a
+  system-attributed audit, and notifies the contributor.
+- Safety: expiry runs before reminders and every write conditionally rechecks
+  `pending_owner_review`. Reminder markers and notifications commit atomically;
+  expiry state, audit, and notification commit atomically. Terminal states,
+  sibling Applications, Requests, Assignments, reputation, eligibility, and
+  contributor profiles are not changed. Deterministic tests cover exact
+  pre/on/post boundaries, current-owner routing, retries, transaction failure,
+  owner-decision races, and duplicate delivery.
+- API/database: no route was added. Authorized Application DTOs now include
+  `expiredAt` and `overdue`. Migration
+  `20260729200000_application_review_window` adds the reminder marker, scan
+  indexes, `ApplicationAuditAction.expired`, and a nullable audit actor for
+  honest system attribution.
+- Documentation: added the issue-specific implementation plan and updated the
+  Applications/Notifications READMEs, API contract, database plan, developer
+  architecture guide, local environment controls, and this tracker.
+- Verification: architecture check, lint, exact type-check, Prisma validation,
+  production build, diff checks, and the isolated PostgreSQL migration harness
+  pass. Focused tests pass 129/129; the full Jest run passes 69 suites and 422
+  tests.
+
+## 2026-07-29 - Application review-window API client verification
+
+- Requirement/task IDs: GitHub issue #52, Sprint 4 B06.
+- REST/Postman: documented all review-window response fields and the absence of
+  a public scheduler route in `sharek-api.http` and the Postman guide. Added
+  Postman assertions for submission, pending-owner list, and authorized detail,
+  including terminal `EXPIRED` presentation. Replaced the hardcoded decline
+  placeholder with a reusable REST Client variable.
+- Automated client contract: added `npm run test:api-clients`, which parses both
+  Postman JSON files, compiles embedded Postman scripts, compares all controller
+  method/path pairs with the collection, rejects stale REST routes, and requires
+  all seven Application/Owner Decision workflow routes in the REST Client.
+- HTTP coverage: the Application Supertest contract now asserts
+  `reviewDueAt`, `expiresAt`, `expiredAt`, and `overdue` on submission/list/detail
+  and verifies terminal expiry is never presented as overdue.
+- Verification: Docker Compose configuration, architecture check, lint, exact
+  type-check, Prisma validation, production build, migration harness, API-client
+  inventory, and diff checks pass. Focused tests pass 129/129; all 69 Jest suites
+  and 422 tests pass. The collection contains all 98 controller routes, and the
+  REST Client contains 69 runnable requests with all seven required Application
+  workflow routes.
+
+## 2026-07-29 - Docker and host runtime recovery
+
+- Requirement/task IDs: GitHub issue #52 operational verification and local
+  backend recovery.
+- Root cause: Docker service names (`postgres` and `redis`) are valid only on
+  the Compose network. Host-run NestJS inherited those names while PostgreSQL
+  was published on the configured host port, producing Redis `EAI_AGAIN` and
+  Prisma `P1001` failures.
+- Runtime: `start:dev`, Prisma migration, and Prisma Studio commands now share a
+  service-URL resolver that preserves Compose URLs in containers and maps them
+  to the configured localhost ports on the host. Compose forwards all
+  Application review scheduler controls and health-checks the API `/health`
+  route.
+- Live verification: PostgreSQL is healthy and accepts connections, Redis
+  returns `PONG`, all 24 migrations are applied, and the API is healthy on port
+  4000. BullMQ has the repeatable 60-second review sweep registered with no
+  failed jobs. A separate host-run startup compiled with zero errors, connected
+  through localhost, started NestJS, and served `/health`; the Docker API was
+  then restored and left healthy.
+- Quality gates: Compose validation, architecture check, lint, exact type-check,
+  Prisma validation, build, migration harness, API-client validation, diff
+  checks, and all 69 Jest suites / 422 tests pass. No additional API or database
+  contract change was introduced by the runtime recovery.
+- Supply chain: refreshed the lockfile to patched `brace-expansion` and
+  `fast-uri` releases. The production dependency audit reports zero known
+  vulnerabilities; npm's full development-tree audit still propagates the new
+  `brace-expansion` advisory through legacy test/lint tooling despite the
+  installed patched 1.x release. Docker builds now use deterministic `npm ci`
+  installation from the reviewed lockfile.

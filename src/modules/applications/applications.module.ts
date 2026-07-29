@@ -7,6 +7,9 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { SkillProfilesModule } from '../skill-profiles/skill-profiles.module';
 import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
+import { ApplicationReviewWindowQueue } from './jobs/application-review-window.queue';
+import { ApplicationReviewWindowWorker } from './jobs/application-review-window.worker';
+import { ApplicationReviewWindowService } from './services/application-review-window.service';
 
 @Module({
   imports: [
@@ -17,7 +20,12 @@ import { ApplicationsService } from './applications.service';
     SkillProfilesModule,
   ],
   controllers: [ApplicationsController],
-  providers: [ApplicationsService],
+  providers: [
+    ApplicationsService,
+    ApplicationReviewWindowService,
+    ApplicationReviewWindowQueue,
+    ApplicationReviewWindowWorker,
+  ],
   exports: [ApplicationsService],
 })
 export class ApplicationsModule {}

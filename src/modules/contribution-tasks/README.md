@@ -96,6 +96,11 @@ Request-owned audit on the caller's Prisma transaction. The companion
 decline. This keeps the accepted Application, Assignment, sibling closure, and
 Request state atomic while preserving table ownership.
 
+For the Application review window (#52),
+`lockApplicationReviewOwner()` locks the Request and asks the exported Projects
+capability for its current owner on the scheduler's transaction. It returns
+only that owner ID and does not change Request state.
+
 ## Persistence
 
 Migration `20260728013000_contribution_request_drafts` preserves legacy request

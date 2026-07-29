@@ -74,3 +74,22 @@ if (ownerDecisionResult.error) {
 if (ownerDecisionResult.status !== 0) {
   process.exit(ownerDecisionResult.status ?? 1);
 }
+
+const reviewWindowTestFile = fileURLToPath(
+  new URL('../test/migrations/application-review-window.sql', import.meta.url),
+);
+const reviewWindowResult = spawnSync(
+  'psql',
+  [databaseUrl.toString(), '-X', '-v', 'ON_ERROR_STOP=1', '-f', reviewWindowTestFile],
+  { stdio: 'inherit' },
+);
+
+if (reviewWindowResult.error) {
+  console.error(
+    `Unable to run Application review-window migration test: ${reviewWindowResult.error.message}`,
+  );
+  process.exit(1);
+}
+if (reviewWindowResult.status !== 0) {
+  process.exit(reviewWindowResult.status ?? 1);
+}
