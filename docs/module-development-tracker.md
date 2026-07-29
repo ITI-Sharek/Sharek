@@ -1807,3 +1807,57 @@ This keeps the system strong without making it heavy:
 - Verification: architecture, lint, type-check, Prisma validation, production
   build, Postman JSON/route inventory, and diff checks pass. The full Jest run
   passes 62 suites and 327 tests.
+
+## 2026-07-29 - Contribution Proposals: submit, version, withdraw (S4-B09)
+
+- Modules: `contribution-proposals` (new), `projects` (added exported read and
+  transaction-lock capabilities).
+- Requirement/task IDs: GitHub issue #55 (S4-B09); parent spec issue #46;
+  `specs/005-sprint-4-contribution-workflows/spec.md`; ADR 0002, ADR 0003.
+- Change type: new module, new Prisma models + migration, one exported
+  ProjectsService method, HTTP-contract and service tests.
+- Summary: Added the `contribution-proposals` module owning contributor-authored
+  Contribution Proposals with immutable versions, owner revision requests
+  (append-only), withdrawal, private proposer/owner visibility, per-Project
+  intake control, and anti-spam rate limits. Submission enforces an active
+  published Project, intake enabled, the attribution-and-assignment disclosure,
+  a daily submission cap, and one pending proposal per Project. Only the proposer
+  can answer a revision request with a new version; owners never edit
+  contributor-authored content. All state changes append immutable audit records
+  with idempotency keys and command fingerprints. The module reads Project facts
+  only through exported `ProjectsService` capabilities.
+- API/database changes: new routes under `/contribution-proposals`; new
+  migration `20260729122140_contribution_proposals` adding `ContributionProposal`,
+  `ContributionProposalVersion`, `ContributionProposalAudit`,
+  `ProjectProposalIntake`, and the `ContributionProposalStatus` /
+  `ContributionProposalAuditAction` enums. No existing table was modified beyond
+  additive back-relations.
+- Checks: `check:architecture`, `eslint`, `tsc --noEmit`, `jest` (full suite),
+  and `nest build` all pass. Migration generated and applied against a throwaway
+  Postgres via `prisma migrate dev`.
+- Docs updated: module README, developer architecture guide, API contracts,
+  database plan, and this tracker.
+- Risks/follow-up: proposal acceptance into an attributed draft Contribution
+  Request (S4-B10) and decline/misuse-report handling remain out of scope; owner
+  submission notifications were intentionally deferred to keep this slice focused.
+
+## 2026-07-29 - PR #62 Contribution Proposal review hardening
+
+- Requirement/task IDs: GitHub issue #55 and PR #62.
+- Contract: replaced the generic proposal body with the canonical problem or
+  opportunity, proposed outcome, and Project benefit fields; added bounded
+  cursor pagination to both list routes and runnable REST/Postman examples for
+  all eight endpoints.
+- Consistency: submission now locks and revalidates Project publication, intake,
+  daily rate, idempotency replay, and pending-proposal state inside the write
+  transaction. A PostgreSQL partial unique index protects the one-pending rule,
+  while revision request sequencing prevents a concurrent version from clearing
+  a newer owner request. Prisma failures are mapped only when their exact
+  constraint is known.
+- Tests: added transaction, constraint-error, cursor, revision race,
+  HTTP-to-service, and Project-lock coverage. Applied the migration to an
+  isolated PostgreSQL 14 database and verified that a duplicate pending row is
+  rejected while a new pending row is allowed after withdrawal.
+- Verification: architecture, lint, type-check, Prisma schema validation,
+  focused tests, and the full Jest run pass; the full run covers 64 suites and
+  361 tests.

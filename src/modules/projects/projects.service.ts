@@ -25,6 +25,7 @@ import { DiscoverProjectsQuery } from './dto/discover-projects.query';
 import { DiscoverProjectsResponseDto } from './dto/discovered-project.dto';
 import { MyProjectsResponseDto } from './dto/my-projects.dto';
 import { ProjectPageQueryDto } from './dto/project-publication.dto';
+import { ProposalProjectContextDto } from './dto/proposal-project-context.dto';
 import { toDiscoveredProjectDto } from './mappers/project.mapper';
 
 const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS: Record<
@@ -293,6 +294,52 @@ export class ProjectsService {
         transaction,
       ),
     );
+  }
+
+  async getProposalProjectContext(
+    projectId: string,
+  ): Promise<ProposalProjectContextDto> {
+    const project = await this.database.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, owner_id: true, status: true },
+    });
+    if (!project) {
+      throw new NotFoundApplicationError(
+        'Project was not found',
+        'PROPOSAL_PROJECT_NOT_FOUND',
+      );
+    }
+    return {
+      id: project.id,
+      ownerId: project.owner_id,
+      status: project.status,
+    };
+  }
+
+  async lockProposalProjectContext(
+    projectId: string,
+    transaction: Prisma.TransactionClient,
+  ): Promise<ProposalProjectContextDto> {
+    const projects = await transaction.$queryRaw<
+      ContributionRequestProjectRow[]
+    >(Prisma.sql`
+      SELECT "id", "owner_id", "status"
+      FROM "Project"
+      WHERE "id" = ${projectId}::uuid
+      FOR SHARE
+    `);
+    const project = projects[0];
+    if (!project) {
+      throw new NotFoundApplicationError(
+        'Project was not found',
+        'PROPOSAL_PROJECT_NOT_FOUND',
+      );
+    }
+    return {
+      id: project.id,
+      ownerId: project.owner_id,
+      status: project.status,
+    };
   }
 
   private toContributionRequestProjectAccess(

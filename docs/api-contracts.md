@@ -30,6 +30,7 @@ Expected API groups:
 /projects
 /contribution-tasks
 /applications
+/contribution-proposals
 /skill-profiles
 /admin
 /deliveries
@@ -1195,6 +1196,63 @@ Withdrawal is contributor-owned and pending-only. Stable workflow errors include
 `ALREADY_APPLIED`, `APPLICATIONS_CLOSED`, `REQUEST_CANCELLED`,
 `REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, `APPLICATION_TERMINAL`, and
 `APPLICATION_IDEMPOTENCY_CONFLICT`.
+
+## Sprint 4 Contribution Proposals (#55)
+
+A Contribution Proposal is a private, contributor-authored suggestion of new
+Project work. It is not an Application and grants no Assignment or selection
+priority. All routes require an authenticated account; role, status, and
+ownership are enforced by the service.
+
+```http
+POST /contribution-proposals
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{
+  "projectId": "22222222-2222-4222-8222-222222222222",
+  "title": "Add a caching layer",
+  "problemOrOpportunity": "The discovery feed repeats expensive repository-derived lookups.",
+  "proposedOutcome": "Introduce a Redis cache with explicit invalidation on publication.",
+  "projectBenefit": "Owners and contributors receive faster, more reliable discovery results.",
+  "acknowledgesAttributionAndAssignmentDisclosure": true,
+  "idempotencyKey": "00000000-0000-4000-8000-000000000003"
+}
+```
+
+Submission returns `201` with a `PENDING` proposal, its immutable version 1, the
+acknowledged disclosure, and an empty revision-request history. The Project must
+be published with proposal intake enabled, the disclosure acknowledgement must be
+`true`, and all four canonical proposal fields are required. `title` is 5–255
+characters, `problemOrOpportunity` and `proposedOutcome` are 20–5000 characters,
+and `projectBenefit` is 20–3000 characters. A contributor may hold only one
+pending proposal per Project and is bounded by a daily submission limit. These
+invariants are rechecked transactionally; a database partial unique index also
+protects the pending-proposal rule under concurrency.
+
+```http
+GET  /contribution-proposals/mine?limit=20&cursor=<opaque>
+GET  /contribution-proposals/for-project/:projectId?limit=20&cursor=<opaque>
+GET  /contribution-proposals/:proposalId
+PUT  /contribution-proposals/for-project/:projectId/intake
+POST /contribution-proposals/:proposalId/versions
+POST /contribution-proposals/:proposalId/revision-requests
+POST /contribution-proposals/:proposalId/withdraw
+Idempotency-Key: 00000000-0000-4000-8000-000000000004
+```
+
+`mine` is proposer-scoped; `for-project` and `intake` are Project-owner-scoped;
+both lists return `proposals` plus `pageInfo.hasNextPage` and an opaque
+`pageInfo.nextCursor`. Detail permits only the proposer and the Project owner. A new version can be
+submitted only by the proposer and only to answer an outstanding owner revision
+request. A revision request is an owner-only append-only action that never edits
+contributor-authored content. Withdrawal is proposer-owned and pending-only.
+Pending proposals never expire and consume no Application or subscription quota.
+Stable workflow errors include `PROPOSAL_PROJECT_NOT_PUBLISHED`,
+`PROPOSAL_INTAKE_DISABLED`, `PROPOSAL_RATE_LIMITED`, `PROPOSAL_ALREADY_PENDING`,
+`PROPOSAL_NO_REVISION_REQUESTED`, `PROPOSAL_TERMINAL`, `PROPOSAL_NOT_AUTHORIZED`,
+`PROPOSAL_NOT_FOUND`, `PROPOSAL_CURSOR_INVALID`,
+`PROPOSAL_CONCURRENT_MODIFICATION`, and `PROPOSAL_IDEMPOTENCY_CONFLICT`.
 
 ## Contract Change Rules
 
