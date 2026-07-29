@@ -1747,7 +1747,7 @@ This keeps the system strong without making it heavy:
 - Scope: Issues #48, #49, and #50 endpoint handoff.
 - Documentation: added all eight Contribution Request draft/public lifecycle
   endpoints and retained the four Application endpoints. Audited every NestJS
-  controller and filled the collection out to all 86 current HTTP routes,
+  controller and filled the collection out to all 87 current HTTP routes,
   including canonical Projects, GitHub App, Skill Profiles, Contributor
   Profiles, Admin, and supplemental Identity routes. Added runnable auth,
   Project, Request, provider, catalog, date, and idempotency variables to the
@@ -1757,8 +1757,8 @@ This keeps the system strong without making it heavy:
   ID so publication, discovery, Application, withdrawal, and cancellation can
   be tested without destroying the shared workflow state early.
 - Verification: both Postman JSON files parse successfully. An exact
-  method/path inventory reports 86 controller routes and zero missing Postman
-  routes (90 requests total, including login/workflow duplicates).
+  method/path inventory reports 87 controller routes and zero missing Postman
+  routes (91 requests total, including login/workflow duplicates).
 
 ## 2026-07-28 — Issues #49/#50 integration hardening
 
@@ -1786,3 +1786,24 @@ This keeps the system strong without making it heavy:
 - Verification: architecture, lint, type-check, Prisma validation, build,
   migration regression, Postman JSON/route inventory, and diff checks pass. The
   full Jest run passes 62 suites and 325 tests.
+
+## 2026-07-28 — Owner Project Contribution Request lifecycle list
+
+- Module: `contribution-tasks`; frontend dependency: owner Project workspace
+  Issue #4 acceptance criterion.
+- API: added protected `GET /projects/:projectId/contribution-requests` for an
+  active owner. The response contains `projectId`, `totalCount`, and an
+  exhaustive `byStatus` object for all six persisted Request lifecycle states.
+- Authorization: Project ownership is checked through the exported Projects
+  capability and the Request query is also owner-scoped. Owned archived Projects
+  remain readable so lifecycle history does not disappear from the workspace;
+  unknown and other-owner Projects retain the safe Project-not-found response.
+- Frontend contract: every status key is always present and items use the full
+  owner-safe Contribution Request DTO, ordered by latest update within each
+  group. The frontend can render sections directly without maintaining a local
+  draft list or inferring missing states.
+- Documentation/testing: added service and HTTP contract coverage, REST and API
+  examples, module documentation, and a runnable Postman request.
+- Verification: architecture, lint, type-check, Prisma validation, production
+  build, Postman JSON/route inventory, and diff checks pass. The full Jest run
+  passes 62 suites and 327 tests.
