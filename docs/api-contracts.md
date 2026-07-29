@@ -1200,6 +1200,9 @@ Withdrawal is contributor-owned and pending-only. Stable workflow errors include
 Application detail includes nullable `ownerDecision` and `assignment` fields.
 For a declined Application, the applying contributor receives the immutable
 decision identifier and feedback needed to use the moderation-report route.
+Authorized Application projections also include `reviewDueAt`, `expiresAt`,
+nullable `expiredAt`, and `overdue`. `overdue` becomes true at the inclusive
+day-5 boundary only while the Application remains `PENDING_OWNER_REVIEW`.
 
 ## Sprint 4 Owner Decisions and Assignments (#51)
 
@@ -1248,6 +1251,23 @@ Only the contributor affected by an explicit declined decision can create the
 linked moderation Report. Reporting returns `201`, does not change the
 Application state, and is not an appeal. A duplicate returns
 `OWNER_DECISION_REPORT_ALREADY_EXISTS`.
+
+## Sprint 4 Application Review Window (#52)
+
+There is no public scheduler route. A repeatable backend sweep uses the
+persisted submission clock to produce these effects:
+
+- day 3 inclusive: one durable reminder to the current Project owner;
+- day 5 inclusive: `overdue: true` on authorized pending projections;
+- day 7 inclusive: `EXPIRED`, a system-attributed audit, and one durable
+  contributor notification.
+
+Every scheduled write rechecks `PENDING_OWNER_REVIEW`; accepted, declined,
+not-selected, withdrawn, request-cancelled, and already-expired Applications
+are unchanged. Expiry is not an owner decline and changes no reputation,
+eligibility, contributor profile, sibling Application, or Assignment data.
+Queue retries, duplicate delivery, backend restarts, and a decision racing the
+expiry boundary are handled idempotently from PostgreSQL state.
 
 ## Sprint 4 Contribution Proposals (#55)
 

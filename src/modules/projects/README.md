@@ -55,6 +55,10 @@ owner/publication facts needed by the Contribution Requests module.
 `lockContributionRequestProjectAccess()` provides the same check with a shared
 Project-row lock on the caller's write transaction so an archive or ownership
 change cannot race a Contribution Request mutation.
+`lockContributionRequestProjectOwnerContext()` returns the same minimal locked
+projection without requiring a pre-known owner ID. The scheduled Application
+review workflow uses it to address day-3 reminders to the current Project owner;
+it does not treat the denormalized Request owner as authoritative.
 `getProposalProjectContext()` and `lockProposalProjectContext()` expose the same
 minimal ID/owner/status projection to Contribution Proposals; the lock variant
 keeps proposal submission and intake commands consistent with Project state.

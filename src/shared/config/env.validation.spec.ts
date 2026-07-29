@@ -17,7 +17,25 @@ describe('environment validation', () => {
       GITHUB_API_URL: 'https://api.github.com',
       GITHUB_API_OVERALL_TIMEOUT_MS: 8000,
       GITHUB_API_REQUEST_TIMEOUT_MS: 4000,
+      APPLICATION_REVIEW_QUEUE_ENABLED: true,
+      APPLICATION_REVIEW_SWEEP_INTERVAL_MS: 60_000,
+      APPLICATION_REVIEW_SWEEP_BATCH_SIZE: 100,
     });
+  });
+
+  it('rejects unsafe Application review sweep controls', () => {
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        APPLICATION_REVIEW_SWEEP_INTERVAL_MS: 9_999,
+      }).error,
+    ).toBeDefined();
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        APPLICATION_REVIEW_SWEEP_BATCH_SIZE: 1_001,
+      }).error,
+    ).toBeDefined();
   });
 
   it('rejects request timeouts above the overall provider budget', () => {

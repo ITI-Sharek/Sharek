@@ -113,6 +113,7 @@ enum ApplicationAuditAction {
   accepted
   declined_by_owner
   not_selected
+  expired
 }
 
 enum OwnerDecisionType {
@@ -693,6 +694,7 @@ model Application {
   validated_at                    DateTime?
   owner_reviewed_at               DateTime?
   review_due_at                   DateTime?
+  review_reminder_sent_at         DateTime?
   expires_at                      DateTime?
   expired_at                      DateTime?
   created_at                      DateTime          @default(now())
@@ -712,6 +714,8 @@ model Application {
   @@unique([contribution_request_id, contributor_id])
   @@index([contribution_request_id, status, submitted_at])
   @@index([contributor_id, submitted_at])
+  @@index([status, review_reminder_sent_at, review_due_at])
+  @@index([status, expires_at])
 }
 
 model ApplicationRequirementSnapshot {
@@ -742,7 +746,7 @@ model ApplicationEvidenceSnapshot {
 model ApplicationAudit {
   id                  String                 @id @default(uuid()) @db.Uuid
   application_id      String                 @db.Uuid
-  actor_id            String                 @db.Uuid
+  actor_id            String?                @db.Uuid
   action              ApplicationAuditAction
   from_status         ApplicationStatus?
   to_status           ApplicationStatus
@@ -752,7 +756,7 @@ model ApplicationAudit {
   created_at          DateTime               @default(now())
 
   application Application @relation(fields: [application_id], references: [id], onDelete: Restrict)
-  actor       User        @relation("ApplicationAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
+  actor       User?       @relation("ApplicationAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
 
   @@unique([actor_id, action, idempotency_key])
   @@index([application_id, created_at])

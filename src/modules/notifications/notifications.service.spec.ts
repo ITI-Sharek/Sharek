@@ -206,6 +206,16 @@ describe('NotificationsService', () => {
       'Another contributor was selected',
       'Another contributor was selected for this Contribution Request. This does not affect your eligibility or reputation.',
     ],
+    [
+      'owner_review_reminder',
+      'Application awaiting review',
+      'An Application for your Contribution Request has been waiting for review for 3 days.',
+    ],
+    [
+      'expired',
+      'Application review window expired',
+      'Your Application expired because it was not reviewed within 7 days. This is not an owner rejection and does not affect your eligibility or reputation.',
+    ],
   ] as const)(
     'creates a distinct, deduplicated %s Application notification',
     async (action, title, message) => {

@@ -50,11 +50,14 @@ DATABASE_URL=postgresql://sharek:sharek@postgres:5432/sharek?schema=public
 POSTGRES_USER=sharek
 POSTGRES_PASSWORD=sharek
 POSTGRES_DB=sharek
-POSTGRES_PORT=5432
+POSTGRES_PORT=5433
 REDIS_URL=redis://redis:6379
 REDIS_PORT=6379
 SKILL_PROFILE_QUEUE_ENABLED=true
 SKILL_PROFILE_QUEUE_CONCURRENCY=2
+APPLICATION_REVIEW_QUEUE_ENABLED=true
+APPLICATION_REVIEW_SWEEP_INTERVAL_MS=60000
+APPLICATION_REVIEW_SWEEP_BATCH_SIZE=100
 JWT_ACCESS_SECRET=change-me
 JWT_REFRESH_SECRET=change-me
 GITHUB_CLIENT_ID=
@@ -133,6 +136,21 @@ Skill profiling requires Redis. BullMQ stores jobs durably, retries transient
 GitHub/AI failures three times, and recovers incomplete generation records when
 the backend restarts. Disable `SKILL_PROFILE_QUEUE_ENABLED` only in isolated
 tests that provide a fake queue.
+
+The Application review-window worker also requires Redis. It registers a
+repeatable sweep, retries failures three times, and enqueues a startup catch-up.
+PostgreSQL stores all deadlines and delivery markers, so temporary Redis or API
+downtime does not lose a reminder or expiry. Disable
+`APPLICATION_REVIEW_QUEUE_ENABLED` for isolated tests. The interval is bounded
+to 10 seconds through 24 hours and the per-phase batch size to 1 through 1000.
+Docker Compose forwards all three scheduler controls to the API container.
+
+For the supported host-run workflow, keep PostgreSQL and Redis running through
+Compose and run `npm run start:dev`. The local command reads `POSTGRES_PORT` and
+`REDIS_PORT` from `.env` and translates the Compose-only `postgres` and `redis`
+hostnames to `localhost`. The same URL resolver is used by `npm run
+prisma:migrate` and `npm run prisma:studio`; do not manually replace Docker
+service names in the shared `.env` file.
 
 The FastAPI service must use the same `AI_SERVICE_AUTH_TOKEN`. Its `/health`
 route remains unauthenticated, while skill generation routes reject missing or

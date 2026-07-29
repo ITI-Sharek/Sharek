@@ -47,6 +47,8 @@ export interface ApplicationDto {
   submittedAt: Date;
   reviewDueAt: Date | null;
   expiresAt: Date | null;
+  expiredAt: Date | null;
+  overdue: boolean;
   ownerDecision: OwnerDecisionDto | null;
   assignment: AssignmentDto | null;
 }

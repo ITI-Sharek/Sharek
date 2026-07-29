@@ -108,8 +108,36 @@ transition. Each child audit carries the cancellation reason, a shared
 correlation ID, and the parent Request audit ID as causation. Terminal
 Application history is not rewritten.
 
+## Implemented: owner review window (#52)
+
+Every new Application persists its day-3 reminder and day-7 expiry boundaries.
+Authorized Application projections expose `overdue: true` from the inclusive
+day-5 boundary while the status remains `pending_owner_review`, plus nullable
+`expiredAt` for the terminal expiry timestamp.
+
+`ApplicationReviewWindowWorker` registers one repeatable BullMQ sweep and one
+startup catch-up job. PostgreSQL remains the source of truth: the worker passes
+an explicit clock to `ApplicationReviewWindowService`, which scans bounded
+batches, processes expiry before reminders, and conditionally rechecks pending
+state at each write. Redis downtime therefore delays work without losing it.
+
+At day 3, the service resolves the current Project owner through exported,
+transaction-scoped Contribution Tasks and Projects capabilities. It atomically
+stores `review_reminder_sent_at` and one durable, deduplicated owner
+notification. At day 7, it atomically changes only the due pending Application
+to `expired`, stores `expired_at`, appends an `ApplicationAudit` with a null
+system actor, and notifies the contributor. Expiry is decision-neutral: it
+does not write reputation, eligibility, profile, sibling Application, Request,
+or Assignment state.
+
+Retries, duplicate jobs, and owner-decision races are safe because the marker,
+status transition, audit, and notification use transaction guards and durable
+deduplication. Exact pre-boundary, boundary, post-boundary, retry, duplicate,
+and race behavior is covered with a controlled clock.
+
 Focused verification:
 
 ```bash
 npm test -- --runInBand src/modules/applications/applications.service.spec.ts test/applications.e2e-spec.ts src/modules/notifications/notifications.service.spec.ts
+npm test -- --runInBand src/modules/applications/services/application-review-window.service.spec.ts src/modules/applications/jobs/application-review-window.queue.spec.ts src/modules/applications/jobs/application-review-window.worker.spec.ts
 ```
