@@ -1,5 +1,14 @@
-import { ApplicationStatus, ContributionRequestStatus } from '@prisma/client';
+import {
+  ApplicationAuditAction,
+  ApplicationStatus,
+  ContributionRequestStatus,
+  Prisma,
+} from '@prisma/client';
 
+import {
+  ConflictApplicationError,
+  NotFoundApplicationError,
+} from '../../shared/errors/application.error';
 import { ApplicationsService } from './applications.service';
 
 describe('ApplicationsService owner-workspace summary', () => {
@@ -70,6 +79,12 @@ describe('ApplicationsService submission and withdrawal', () => {
     status: 'active' as const,
   };
   const ownerId = '22222222-2222-4222-8222-222222222222';
+  const owner = {
+    id: ownerId,
+    email: 'owner@example.com',
+    role: 'owner' as const,
+    status: 'active' as const,
+  };
   const requestId = '33333333-3333-4333-8333-333333333333';
   const applicationId = '44444444-4444-4444-8444-444444444444';
   const database = {
@@ -84,16 +99,33 @@ describe('ApplicationsService submission and withdrawal', () => {
     },
     applicationRequirementSnapshot: { create: jest.fn() },
     applicationEvidenceSnapshot: { create: jest.fn() },
-    applicationAudit: { findFirst: jest.fn(), create: jest.fn() },
+    applicationAudit: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      createMany: jest.fn(),
+    },
+    ownerDecision: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      create: jest.fn(),
+    },
+    assignment: { findUnique: jest.fn(), create: jest.fn() },
+    $queryRaw: jest.fn(),
     $transaction: jest.fn(),
   };
   const contributionTasks = {
     getApplicationSubmissionContext: jest.fn(),
     lockApplicationSubmissionContext: jest.fn(),
+    reconfirmOwnerDecisionActor: jest.fn(),
+    assignFromOwnerDecision: jest.fn(),
   };
   const skillProfiles = { listApprovedSkillsForEligibility: jest.fn() };
   const identity = { getUserById: jest.fn() };
-  const notifications = { createApplicationNotification: jest.fn() };
+  const notifications = {
+    createApplicationNotification: jest.fn(),
+    emitApplicationNotifications: jest.fn(),
+  };
   const contributorProfiles = { getApplicationProfileContext: jest.fn() };
   const service = new ApplicationsService(
     database as never,
@@ -126,6 +158,7 @@ describe('ApplicationsService submission and withdrawal', () => {
     contributionTasks.lockApplicationSubmissionContext.mockResolvedValue(
       requestContext,
     );
+    contributionTasks.reconfirmOwnerDecisionActor.mockResolvedValue(undefined);
     identity.getUserById.mockResolvedValue({
       id: contributor.id,
       username: 'contributor',
@@ -155,16 +188,20 @@ describe('ApplicationsService submission and withdrawal', () => {
       declaredSkills: ['NestJS'],
     });
     database.applicationAudit.findFirst.mockResolvedValue(null);
+    database.ownerDecision.findUnique.mockResolvedValue(null);
+    database.assignment.findUnique.mockResolvedValue(null);
     database.application.findUnique.mockResolvedValue(null);
     database.applicationRequirementSnapshot.create.mockResolvedValue({});
     database.applicationEvidenceSnapshot.create.mockResolvedValue({});
     database.applicationAudit.create.mockResolvedValue({});
+    database.applicationAudit.createMany.mockResolvedValue({ count: 0 });
     database.application.create.mockResolvedValue(applicationRecord());
     database.application.findUniqueOrThrow.mockResolvedValue(
       applicationRecord(),
     );
     notifications.createApplicationNotification.mockResolvedValue({
       created: true,
+      notification: { notificationId: 'notification-1' },
     });
   });
 
@@ -371,6 +408,624 @@ describe('ApplicationsService submission and withdrawal', () => {
       service.withdraw({ actor: contributor, applicationId }),
     ).rejects.toMatchObject({ code: 'APPLICATION_TERMINAL' });
     expect(database.application.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 'pending', 'failed'])(
+    'keeps pending Applications visible and decidable regardless of AI assessment state %j',
+    async (assessmentStatus) => {
+      contributionTasks.getApplicationSubmissionContext.mockResolvedValue({
+        id: requestId,
+        ownerId,
+        status: ContributionRequestStatus.published,
+        applicationsCloseAt: new Date('2030-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-07-28T11:00:00.000Z'),
+        requirements: [],
+      });
+      database.application.findMany.mockResolvedValue([
+        applicationRecord({ assessmentStatus }),
+      ]);
+
+      await expect(service.listForOwner(owner, requestId)).resolves.toMatchObject(
+        { applications: [{ id: applicationId, status: 'PENDING_OWNER_REVIEW' }] },
+      );
+      expect(database.application.findMany).toHaveBeenCalledWith({
+        where: {
+          contribution_request_id: requestId,
+          status: ApplicationStatus.pending_owner_review,
+        },
+        orderBy: [{ submitted_at: 'asc' }, { id: 'asc' }],
+        include: expect.any(Object),
+      });
+    },
+  );
+
+  it.each(['', '   '])(
+    'rejects blank owner-decline feedback before opening a transaction: %j',
+    async (feedback) => {
+      await expect(
+        service.decline({
+          actor: owner,
+          applicationId,
+          feedback,
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+      ).rejects.toMatchObject({
+        code: 'APPLICATION_DECISION_FEEDBACK_REQUIRED',
+      });
+      expect(database.$transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([undefined, null, 42])(
+    'rejects missing or non-string owner-decline feedback at the service seam before opening a transaction: %j',
+    async (feedback) => {
+      await expect(
+        service.decline({
+          actor: owner,
+          applicationId,
+          feedback: feedback as never,
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+      ).rejects.toMatchObject({
+        code: 'APPLICATION_DECISION_FEEDBACK_REQUIRED',
+      });
+      expect(database.$transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it('declines one pending Application with trimmed feedback and no cross-Application effect', async () => {
+    database.application.findFirst.mockResolvedValue(applicationRecord());
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+    database.ownerDecision.create.mockResolvedValue({
+      id: '88888888-8888-4888-8888-888888888888',
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'declined',
+      feedback: 'The proposed approach does not address testing.',
+      decided_at: new Date('2026-07-29T12:00:00.000Z'),
+    });
+    database.ownerDecision.findUniqueOrThrow.mockResolvedValue({
+      id: '88888888-8888-4888-8888-888888888888',
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'declined',
+      feedback: 'The proposed approach does not address testing.',
+      idempotency_key: '77777777-7777-4777-8777-777777777777',
+      command_fingerprint: 'fingerprint',
+      decided_at: new Date('2026-07-29T12:00:00.000Z'),
+      application: applicationRecord({
+        status: ApplicationStatus.declined_by_owner,
+      }),
+      assignment: null,
+    });
+    database.application.findUniqueOrThrow.mockResolvedValue(
+      applicationRecord({ status: ApplicationStatus.declined_by_owner }),
+    );
+
+    await expect(
+      service.decline({
+        actor: owner,
+        applicationId,
+        feedback: '  The proposed approach does not address testing.  ',
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+    ).resolves.toMatchObject({
+      application: { status: 'DECLINED_BY_OWNER' },
+      ownerDecision: {
+        decisionType: 'DECLINED',
+        feedback: 'The proposed approach does not address testing.',
+      },
+      assignment: null,
+    });
+
+    expect(database.ownerDecision.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        application_id: applicationId,
+        decision_type: 'declined',
+        feedback: 'The proposed approach does not address testing.',
+      }),
+    });
+    expect(database.application.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: applicationId,
+        status: ApplicationStatus.pending_owner_review,
+      },
+      data: {
+        status: ApplicationStatus.declined_by_owner,
+        owner_reviewed_at: expect.any(Date),
+      },
+    });
+    expect(contributionTasks.assignFromOwnerDecision).not.toHaveBeenCalled();
+    expect(contributionTasks.reconfirmOwnerDecisionActor).toHaveBeenCalledWith({
+      requestId,
+      ownerId,
+      transaction: database,
+    });
+    expect(database.assignment.create).not.toHaveBeenCalled();
+    expect(notifications.createApplicationNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: contributor.id,
+        applicationId,
+        action: 'declined_by_owner',
+      }),
+      { transaction: database, emitRealtime: false },
+    );
+    expect(notifications.emitApplicationNotifications).toHaveBeenCalledWith([
+      { notificationId: 'notification-1' },
+    ]);
+  });
+
+  it('exposes only the contributor own declined decision as report context without changing Application state', async () => {
+    const decisionId = '88888888-8888-4888-8888-888888888888';
+    database.ownerDecision.findFirst.mockResolvedValue({
+      id: decisionId,
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      feedback: 'The proposed approach does not address testing.',
+      application: { contributor_id: contributor.id },
+    });
+
+    await expect(
+      service.getOwnerDecisionReportContext(contributor, decisionId),
+    ).resolves.toEqual({
+      ownerDecisionId: decisionId,
+      applicationId,
+      contributionRequestId: requestId,
+      contributorId: contributor.id,
+      ownerId,
+      feedback: 'The proposed approach does not address testing.',
+    });
+
+    expect(database.ownerDecision.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: decisionId,
+        decision_type: 'declined',
+        application: { contributor_id: contributor.id },
+      },
+      select: {
+        id: true,
+        application_id: true,
+        contribution_request_id: true,
+        owner_id: true,
+        feedback: true,
+        application: { select: { contributor_id: true } },
+      },
+    });
+    expect(database.application.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('limits decision feedback reporting to an active affected contributor', async () => {
+    await expect(
+      service.getOwnerDecisionReportContext(owner, applicationId),
+    ).rejects.toMatchObject({ code: 'APPLICATION_NOT_AUTHORIZED' });
+    expect(database.ownerDecision.findFirst).not.toHaveBeenCalled();
+
+    database.ownerDecision.findFirst.mockResolvedValue(null);
+    await expect(
+      service.getOwnerDecisionReportContext(contributor, applicationId),
+    ).rejects.toMatchObject({ code: 'OWNER_DECISION_NOT_FOUND' });
+  });
+
+  it.each([undefined, 'pending', 'failed'])(
+    'accepts exactly one pending Application with AI assessment state %j, assigns its Request, and closes pending siblings without feedback',
+    async (assessmentStatus) => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-29T12:00:00.000Z'));
+    const siblingId = '99999999-9999-4999-8999-999999999999';
+    const siblingContributorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const decisionId = '88888888-8888-4888-8888-888888888888';
+    const assignmentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const acceptedApplication = applicationRecord({
+      status: ApplicationStatus.accepted,
+      owner_reviewed_at: new Date('2026-07-29T12:00:00.000Z'),
+    });
+    const assignment = {
+      id: assignmentId,
+      contribution_request_id: requestId,
+      application_id: applicationId,
+      owner_decision_id: decisionId,
+      contributor_id: contributor.id,
+      agreed_delivery_duration_days: 5,
+      agreed_delivery_due_at: new Date('2026-08-03T12:00:00.000Z'),
+      assigned_at: new Date('2026-07-29T12:00:00.000Z'),
+    };
+    database.application.findFirst.mockResolvedValue(
+      applicationRecord({ assessmentStatus }),
+    );
+    database.$queryRaw.mockResolvedValue([
+      { id: applicationId, contributor_id: contributor.id },
+      { id: siblingId, contributor_id: siblingContributorId },
+    ]);
+    database.application.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 1 });
+    database.application.findMany.mockResolvedValue([
+      { id: siblingId, contributor_id: siblingContributorId },
+    ]);
+    database.assignment.create.mockResolvedValue(assignment);
+    database.ownerDecision.findUniqueOrThrow.mockResolvedValue({
+      id: decisionId,
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'accepted',
+      feedback: null,
+      idempotency_key: '77777777-7777-4777-8777-777777777777',
+      command_fingerprint: 'fingerprint',
+      decided_at: new Date('2026-07-29T12:00:00.000Z'),
+      application: acceptedApplication,
+      assignment,
+    });
+    contributionTasks.assignFromOwnerDecision.mockResolvedValue(undefined);
+
+    try {
+      await expect(
+        service.accept({
+          actor: owner,
+          applicationId,
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+      ).resolves.toMatchObject({
+        application: { status: 'ACCEPTED' },
+        ownerDecision: { decisionType: 'ACCEPTED', feedback: null },
+        assignment: {
+          applicationId,
+          agreedDeliveryDurationDays: 5,
+          agreedDeliveryDueDate: new Date('2026-08-03T12:00:00.000Z'),
+        },
+      });
+
+      expect(contributionTasks.assignFromOwnerDecision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId,
+          ownerId,
+          ownerDecisionId: expect.any(String),
+          transaction: database,
+        }),
+      );
+      expect(contributionTasks.reconfirmOwnerDecisionActor).toHaveBeenCalledWith({
+        requestId,
+        ownerId,
+        transaction: database,
+      });
+      expect(database.ownerDecision.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          id: expect.any(String),
+          decision_type: 'accepted',
+          feedback: null,
+        }),
+      });
+      expect(database.assignment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          contribution_request_id: requestId,
+          application_id: applicationId,
+          owner_decision_id: expect.any(String),
+          contributor_id: contributor.id,
+          agreed_delivery_duration_days: 5,
+          agreed_delivery_due_at: new Date('2026-08-03T12:00:00.000Z'),
+        }),
+      });
+      expect(database.application.updateMany).toHaveBeenNthCalledWith(2, {
+        where: {
+          contribution_request_id: requestId,
+          id: { not: applicationId },
+          status: ApplicationStatus.pending_owner_review,
+        },
+        data: { status: ApplicationStatus.not_selected },
+      });
+      expect(database.applicationAudit.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            application_id: siblingId,
+            action: ApplicationAuditAction.not_selected,
+            to_status: ApplicationStatus.not_selected,
+          }),
+        ],
+      });
+      expect(notifications.createApplicationNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: siblingContributorId,
+          action: 'not_selected',
+        }),
+        { transaction: database, emitRealtime: false },
+      );
+      expect(notifications.emitApplicationNotifications).toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+    },
+  );
+
+  it('rejects an accept command for a non-pending Application with a stable error', async () => {
+    database.application.findFirst.mockResolvedValue(
+      applicationRecord({ status: ApplicationStatus.declined_by_owner }),
+    );
+
+    await expect(
+      service.accept({
+        actor: owner,
+        applicationId,
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+    ).rejects.toMatchObject({ code: 'APPLICATION_TERMINAL' });
+    expect(contributionTasks.assignFromOwnerDecision).not.toHaveBeenCalled();
+    expect(database.assignment.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { ...contributor, label: 'active contributor' },
+    { ...owner, status: 'pending' as const, label: 'inactive owner' },
+  ])('rejects $label before opening an Owner Decision transaction', async ({ label: _label, ...actor }) => {
+    await expect(
+      service.accept({
+        actor,
+        applicationId,
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+    ).rejects.toMatchObject({ code: 'APPLICATION_NOT_AUTHORIZED' });
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('reconfirms current Project ownership inside the transaction and conceals a former owner', async () => {
+    database.application.findFirst.mockResolvedValue(applicationRecord());
+    contributionTasks.reconfirmOwnerDecisionActor.mockRejectedValue(
+      new NotFoundApplicationError(
+        'Application was not found',
+        'APPLICATION_NOT_FOUND',
+      ),
+    );
+
+    await expect(
+      service.decline({
+        actor: owner,
+        applicationId,
+        feedback: 'The test strategy is incomplete.',
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+    ).rejects.toMatchObject({ code: 'APPLICATION_NOT_FOUND' });
+    expect(contributionTasks.reconfirmOwnerDecisionActor).toHaveBeenCalledWith({
+      requestId,
+      ownerId,
+      transaction: database,
+    });
+    expect(database.ownerDecision.create).not.toHaveBeenCalled();
+  });
+
+  it('maps a different-command Owner Decision uniqueness race to a stable conflict', async () => {
+    database.application.findFirst.mockResolvedValue(applicationRecord());
+    database.ownerDecision.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+      }),
+    );
+    database.ownerDecision.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.decline({
+        actor: owner,
+        applicationId,
+        feedback: 'The test strategy is incomplete.',
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+    ).rejects.toMatchObject({
+      code: 'APPLICATION_CONCURRENT_MODIFICATION',
+      statusCode: 409,
+    });
+  });
+
+  it('returns the original accept result when the same idempotency key is retried', async () => {
+    const decisionId = '88888888-8888-4888-8888-888888888888';
+    const replay = {
+      id: decisionId,
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'accepted',
+      feedback: null,
+      idempotency_key: '77777777-7777-4777-8777-777777777777',
+      command_fingerprint:
+        '1c791cc6af222de04a0d4121cc415e33d97daf0bbe541637c3cc6e4d3ac6ad08',
+      decided_at: new Date('2026-07-29T12:00:00.000Z'),
+      application: applicationRecord({ status: ApplicationStatus.accepted }),
+      assignment: {
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        contribution_request_id: requestId,
+        application_id: applicationId,
+        owner_decision_id: decisionId,
+        contributor_id: contributor.id,
+        agreed_delivery_duration_days: 5,
+        agreed_delivery_due_at: new Date('2026-08-03T12:00:00.000Z'),
+        assigned_at: new Date('2026-07-29T12:00:00.000Z'),
+      },
+    };
+    database.ownerDecision.findUnique.mockResolvedValue(replay);
+    database.application.findFirst.mockResolvedValue(replay.application);
+    database.application.findMany.mockResolvedValue([]);
+
+    const result = await service.accept({
+      actor: owner,
+      applicationId,
+      idempotencyKey: '77777777-7777-4777-8777-777777777777',
+    });
+
+    expect(result).toMatchObject({
+      ownerDecision: { id: decisionId, decisionType: 'ACCEPTED' },
+      assignment: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+    });
+    expect(database.$transaction).toHaveBeenCalledTimes(1);
+    expect(contributionTasks.reconfirmOwnerDecisionActor).toHaveBeenCalled();
+    expect(database.ownerDecision.create).not.toHaveBeenCalled();
+    expect(database.assignment.create).not.toHaveBeenCalled();
+  });
+
+  it('returns the original accept result when a same-key concurrent retry observes the Request after assignment', async () => {
+    const decisionId = '88888888-8888-4888-8888-888888888888';
+    const replay = {
+      id: decisionId,
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'accepted',
+      feedback: null,
+      idempotency_key: '77777777-7777-4777-8777-777777777777',
+      command_fingerprint:
+        '1c791cc6af222de04a0d4121cc415e33d97daf0bbe541637c3cc6e4d3ac6ad08',
+      decided_at: new Date('2026-07-29T12:00:00.000Z'),
+      application: applicationRecord({ status: ApplicationStatus.accepted }),
+      assignment: {
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        contribution_request_id: requestId,
+        application_id: applicationId,
+        owner_decision_id: decisionId,
+        contributor_id: contributor.id,
+        agreed_delivery_duration_days: 5,
+        agreed_delivery_due_at: new Date('2026-08-03T12:00:00.000Z'),
+        assigned_at: new Date('2026-07-29T12:00:00.000Z'),
+      },
+    };
+    database.ownerDecision.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(replay);
+    database.application.findFirst.mockResolvedValue(applicationRecord());
+    database.application.findMany.mockResolvedValue([]);
+    contributionTasks.assignFromOwnerDecision.mockRejectedValue(
+      new ConflictApplicationError(
+        'The Contribution Request can no longer be assigned',
+        'REQUEST_TERMINAL',
+      ),
+    );
+
+    await expect(
+      service.accept({
+        actor: owner,
+        applicationId,
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+    ).resolves.toMatchObject({
+      ownerDecision: { id: decisionId, decisionType: 'ACCEPTED' },
+      assignment: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+    });
+    expect(database.ownerDecision.findUnique).toHaveBeenCalledTimes(2);
+    expect(database.ownerDecision.create).not.toHaveBeenCalled();
+    expect(database.assignment.create).not.toHaveBeenCalled();
+  });
+
+  it('returns the original decline result when the same idempotency key is retried', async () => {
+    const decisionId = '88888888-8888-4888-8888-888888888888';
+    database.ownerDecision.findUnique.mockResolvedValue({
+      id: decisionId,
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'declined',
+      feedback: 'Not enough testing detail.',
+      idempotency_key: '77777777-7777-4777-8777-777777777777',
+      command_fingerprint:
+        'bda7148e4d11ad6005684ddab40b1ad4c3586fe716ef603f55bdfa651d9077eb',
+      decided_at: new Date('2026-07-29T12:00:00.000Z'),
+      application: applicationRecord({
+        status: ApplicationStatus.declined_by_owner,
+      }),
+      assignment: null,
+    });
+    database.application.findFirst.mockResolvedValue(
+      applicationRecord({ status: ApplicationStatus.declined_by_owner }),
+    );
+
+    const result = await service.decline({
+      actor: owner,
+      applicationId,
+      feedback: 'Not enough testing detail.',
+      idempotencyKey: '77777777-7777-4777-8777-777777777777',
+    });
+
+    expect(result).toMatchObject({
+      ownerDecision: { id: decisionId, decisionType: 'DECLINED' },
+      assignment: null,
+    });
+    expect(database.$transaction).toHaveBeenCalledTimes(1);
+    expect(contributionTasks.reconfirmOwnerDecisionActor).toHaveBeenCalled();
+    expect(database.ownerDecision.create).not.toHaveBeenCalled();
+  });
+
+  it('serializes concurrent accepts for sibling Applications so only one Assignment succeeds', async () => {
+    const siblingId = '99999999-9999-4999-8999-999999999999';
+    const siblingContributorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const decisionId = '88888888-8888-4888-8888-888888888888';
+    let requestAssigned = false;
+    database.application.findFirst.mockImplementation(({ where }) =>
+      Promise.resolve(
+        applicationRecord(
+          where.id === siblingId
+            ? { id: siblingId, contributor_id: siblingContributorId }
+            : {},
+        ),
+      ),
+    );
+    database.$queryRaw.mockResolvedValue([
+      { id: applicationId, contributor_id: contributor.id },
+      { id: siblingId, contributor_id: siblingContributorId },
+    ]);
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+    database.application.findMany.mockResolvedValue([
+      { id: siblingId, contributor_id: siblingContributorId },
+    ]);
+    database.assignment.create.mockResolvedValue({});
+    database.ownerDecision.findUniqueOrThrow.mockResolvedValue({
+      id: decisionId,
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'accepted',
+      feedback: null,
+      idempotency_key: '77777777-7777-4777-8777-777777777777',
+      command_fingerprint: 'fingerprint',
+      decided_at: new Date('2026-07-29T12:00:00.000Z'),
+      application: applicationRecord({ status: ApplicationStatus.accepted }),
+      assignment: {
+        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        contribution_request_id: requestId,
+        application_id: applicationId,
+        owner_decision_id: decisionId,
+        contributor_id: contributor.id,
+        agreed_delivery_duration_days: 5,
+        agreed_delivery_due_at: new Date('2026-08-03T12:00:00.000Z'),
+        assigned_at: new Date('2026-07-29T12:00:00.000Z'),
+      },
+    });
+    contributionTasks.assignFromOwnerDecision.mockImplementation(async () => {
+      if (requestAssigned) {
+        throw new ConflictApplicationError(
+          'The Contribution Request no longer accepts an Assignment',
+          'REQUEST_TERMINAL',
+        );
+      }
+      requestAssigned = true;
+    });
+
+    const outcomes = await Promise.allSettled([
+      service.accept({
+        actor: owner,
+        applicationId,
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+      service.accept({
+        actor: owner,
+        applicationId: siblingId,
+        idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      }),
+    ]);
+
+    expect(outcomes.filter(({ status }) => status === 'fulfilled')).toHaveLength(
+      1,
+    );
+    expect(outcomes.filter(({ status }) => status === 'rejected')).toHaveLength(
+      1,
+    );
+    expect(database.assignment.create).toHaveBeenCalledTimes(1);
   });
 
   function applicationRecord(overrides: Record<string, unknown> = {}) {

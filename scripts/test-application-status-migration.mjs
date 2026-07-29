@@ -55,3 +55,22 @@ if (
 }
 
 console.log('Draft-parent migration guard rejected invalid legacy history.');
+
+const ownerDecisionTestFile = fileURLToPath(
+  new URL('../test/migrations/owner-decisions-assignments.sql', import.meta.url),
+);
+const ownerDecisionResult = spawnSync(
+  'psql',
+  [databaseUrl.toString(), '-X', '-v', 'ON_ERROR_STOP=1', '-f', ownerDecisionTestFile],
+  { stdio: 'inherit' },
+);
+
+if (ownerDecisionResult.error) {
+  console.error(
+    `Unable to run Owner Decision migration test: ${ownerDecisionResult.error.message}`,
+  );
+  process.exit(1);
+}
+if (ownerDecisionResult.status !== 0) {
+  process.exit(ownerDecisionResult.status ?? 1);
+}

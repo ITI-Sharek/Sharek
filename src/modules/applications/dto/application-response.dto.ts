@@ -52,3 +52,40 @@ export interface ApplicationDto {
 export interface OwnerApplicationsDto {
   applications: ApplicationDto[];
 }
+
+export type OwnerDecisionTypeDto = 'ACCEPTED' | 'DECLINED';
+
+export interface OwnerDecisionDto {
+  id: string;
+  applicationId: string;
+  contributionRequestId: string;
+  decisionType: OwnerDecisionTypeDto;
+  feedback: string | null;
+  decidedAt: Date;
+}
+
+export interface AssignmentDto {
+  id: string;
+  contributionRequestId: string;
+  applicationId: string;
+  ownerDecisionId: string;
+  contributorId: string;
+  agreedDeliveryDurationDays: number;
+  agreedDeliveryDueDate: Date;
+  assignedAt: Date;
+}
+
+export interface OwnerDecisionResultDto {
+  application: ApplicationDto;
+  ownerDecision: OwnerDecisionDto;
+  assignment: AssignmentDto | null;
+}
+
+export interface OwnerDecisionReportContextDto {
+  ownerDecisionId: string;
+  applicationId: string;
+  contributionRequestId: string;
+  contributorId: string;
+  ownerId: string;
+  feedback: string;
+}

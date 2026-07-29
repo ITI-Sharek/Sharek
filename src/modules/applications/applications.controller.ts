@@ -14,7 +14,10 @@ import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
 import { CurrentUser } from '../../shared/auth/current-user.decorator';
 import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
 import { ApplicationsService } from './applications.service';
-import { SubmitApplicationDto } from './dto/application-input.dto';
+import {
+  DeclineApplicationDto,
+  SubmitApplicationDto,
+} from './dto/application-input.dto';
 
 @UseGuards(AccessTokenGuard)
 @Controller()
@@ -65,6 +68,38 @@ export class ApplicationsController {
     return this.applicationsService.withdraw({
       actor,
       applicationId,
+      idempotencyKey,
+    });
+  }
+
+  @Post('applications/:applicationId/accept')
+  @HttpCode(200)
+  accept(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('applicationId', new ParseUUIDPipe({ version: '4' }))
+    applicationId: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.applicationsService.accept({
+      actor,
+      applicationId,
+      idempotencyKey,
+    });
+  }
+
+  @Post('applications/:applicationId/decline')
+  @HttpCode(200)
+  decline(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('applicationId', new ParseUUIDPipe({ version: '4' }))
+    applicationId: string,
+    @Body() body: DeclineApplicationDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.applicationsService.decline({
+      actor,
+      applicationId,
+      feedback: body.feedback,
       idempotencyKey,
     });
   }

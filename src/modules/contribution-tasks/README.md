@@ -55,6 +55,15 @@ lifecycle, close time, owner, revision time, and ordered Requirements needed by
 issue #50. Applications owns submission decisions and writes no Contribution
 Request tables.
 
+For Owner Decision acceptance (#51), the exported transaction-scoped
+`assignFromOwnerDecision()` capability locks the Contribution Request, rechecks
+the current Project owner through `ProjectsService`, checks actionable
+`published` Request state, transitions it to `assigned`, and appends the
+Request-owned audit on the caller's Prisma transaction. The companion
+`reconfirmOwnerDecisionActor()` performs the same current-Project check for a
+decline. This keeps the accepted Application, Assignment, sibling closure, and
+Request state atomic while preserving table ownership.
+
 ## Persistence
 
 Migration `20260728013000_contribution_request_drafts` preserves legacy request

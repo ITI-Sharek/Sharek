@@ -1111,3 +1111,35 @@ Idempotency-Key: 00000000-0000-4000-8000-000000000002
 Content-Type: application/json
 
 {}
+
+
+### 29 - Accept a pending Application and create its Assignment
+# @name acceptedApplication
+# Use a pending Application owned by the logged-in Project owner.
+POST {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/accept
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: 00000000-0000-4000-8000-000000000003
+
+
+### 30 - Decline a different pending Application with required feedback
+# @name declinedApplication
+# Replace the id below; an accepted or withdrawn Application is terminal.
+POST {{baseUrl}}/applications/replace-with-another-pending-application-id/decline
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: 00000000-0000-4000-8000-000000000004
+Content-Type: application/json
+
+{
+  "feedback": "The approach needs a concrete test strategy."
+}
+
+
+### 31 - Report explicit owner-decline feedback (moderation, not an appeal)
+POST {{baseUrl}}/owner-decisions/{{declinedApplication.response.body.$.ownerDecision.id}}/reports
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "reason": "harassment",
+  "description": "The decline feedback contains abusive language."
+}
