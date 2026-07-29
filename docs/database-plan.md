@@ -49,7 +49,7 @@ notifications         notifications
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
-contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes
+contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes, contribution_proposal_misuse_reports
 delivery-reviews      deliveries, delivery_reviews
 reputation            reputation_profiles, reputation_events
 admin                 admin_review_queue, reports, disputes, moderation_actions
@@ -61,6 +61,17 @@ Only the owning module writes its tables.
 Contribution Proposals additionally use a PostgreSQL partial unique index over
 `(project_id, proposer_id)` while `status = 'pending'`. The raw migration owns
 that invariant because Prisma schema syntax cannot express partial indexes.
+
+Owner responses (S4-B10) add `accepted`/`declined` proposal states, an
+`accepted_at`/`declined_at`/`decline_reason` audit trail, and a
+`ContributionProposalMisuseReport` table that stores an immutable evidence
+snapshot for moderation. Acceptance writes attribution onto the resulting draft
+Contribution Request: `origin_proposal_id` (unique, so a proposal can originate
+at most one Request) and `attributed_contributor_id` both reference the accepted
+proposal and its proposer with `ON DELETE SET NULL`. The `contribution-tasks`
+module owns those Contribution Request columns; the `contribution-proposals`
+module only supplies their values through the exported
+`createDraftFromAcceptedProposal` call inside the acceptance transaction.
 
 Prompt definitions and provider-specific model execution belong in the separate
 FastAPI AI repository. The backend stores the metadata and snapshots needed for

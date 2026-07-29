@@ -1,14 +1,19 @@
 # Contribution Proposals Module
 
 Owns Contribution Proposals: contributor-authored suggestions of new Project
-work, their immutable version history, owner revision requests, withdrawal, and
-per-Project proposal intake. Implements S4-B09 under the Sprint 4 backend
-specification (see `specs/005-sprint-4-contribution-workflows/spec.md`) and
-ADR 0003 (`accepted proposals create attributed owner drafts`).
+work, their immutable version history, owner responses (revision request,
+decline, accept), withdrawal, per-Project proposal intake, and misuse reports.
+Implements S4-B09 and S4-B10 under the Sprint 4 backend specification (see
+`specs/005-sprint-4-contribution-workflows/spec.md`) and ADR 0003 (`accepted
+proposals create attributed owner drafts`).
 
 A Contribution Proposal is not an Application and grants no Assignment or
-selection priority. Acceptance into an attributed draft Contribution Request is
-out of scope for this module today and belongs to S4-B10.
+selection priority. Owner acceptance creates an owner-controlled draft
+Contribution Request from the latest Proposal Version with immutable proposer
+attribution, and nothing else — no Assignment, Application, reserved place, quota
+use, ownership claim, or selection priority. The draft is created through the
+exported `ContributionTasksService.createDraftFromAcceptedProposal` inside the
+acceptance transaction; this module never writes Contribution Request tables.
 
 ## Current API
 
@@ -32,6 +37,15 @@ are enforced in the service.
   outstanding owner revision request by submitting a new immutable version.
 - `POST /contribution-proposals/:proposalId/revision-requests`: Project owner
   appends a revision request without editing contributor-authored content.
+- `POST /contribution-proposals/:proposalId/accept`: Project owner accepts a
+  pending proposal. Transactionally creates an attributed owner-controlled draft
+  Contribution Request. Terminal and idempotent.
+- `POST /contribution-proposals/:proposalId/decline`: Project owner declines a
+  pending proposal with a contributor-visible reason. Terminal and idempotent.
+- `POST /contribution-proposals/:proposalId/misuse-reports`: a participant (the
+  proposer or the Project owner) preserves authorship evidence and timestamps for
+  moderation. The platform records the claim only and makes no automatic copying,
+  ownership, or legal finding.
 - `POST /contribution-proposals/:proposalId/withdraw`: proposer withdraws a
   pending proposal. Idempotent through the optional `Idempotency-Key` header.
 
@@ -53,14 +67,25 @@ are enforced in the service.
   Project.
 - **Revision concurrency**: an incrementing revision-request sequence prevents a
   contributor version from clearing an owner Revision Request that arrived
-  concurrently.
+  concurrently. Accept, decline, and version commands flip state under an
+  optimistic `updateMany` guarded by both `current_version` and
+  `revision_request_sequence`, so exactly one command wins a race.
+- **Terminal owner responses**: accept and decline move a pending proposal to a
+  terminal state under a transaction-scoped Project lock and owner check.
+  Acceptance creates exactly one attributed draft Request; the unique
+  `origin_proposal_id` on Contribution Request backstops duplicate creation.
+  Discarding the resulting draft never reopens the proposal.
+- **Misuse reports**: a participant's report captures an immutable evidence
+  snapshot of the reported version, authorship, and timestamps in
+  `ContributionProposalMisuseReport`; no automatic similarity, copying, or legal
+  judgement is made.
 - **No quota, decision-neutral**: pending proposals do not expire and consume no
   Application or subscription quota. A per-contributor daily submission limit and
   a one-pending-proposal-per-Project rule provide anti-spam rate limiting.
 - **Append-only audit + idempotency**: submission, versioning, revision requests,
-  and withdrawal append immutable `ContributionProposalAudit` records carrying an
-  idempotency key and command fingerprint, so retries never duplicate records
-  (ADR 0002).
+  accept, decline, withdrawal, and misuse reports append immutable
+  `ContributionProposalAudit` records carrying an idempotency key and command
+  fingerprint, so retries never duplicate records (ADR 0002).
 
 ## Structure
 
@@ -73,6 +98,14 @@ dto/
 mappers/
 README.md
 ```
+
+The service owns its tables (`ContributionProposal`,
+`ContributionProposalVersion`, `ContributionProposalAudit`,
+`ProjectProposalIntake`, `ContributionProposalMisuseReport`). It reads Project
+facts through the exported `ProjectsService`
+(`getProposalProjectContext` / `lockProposalProjectContext`) and creates accepted
+drafts through `ContributionTasksService.createDraftFromAcceptedProposal`; it
+never writes another module's tables.
 
 `ContributionProposalsController` validates HTTP input and delegates to
 `ContributionProposalsService`. The service owns authorization, state
