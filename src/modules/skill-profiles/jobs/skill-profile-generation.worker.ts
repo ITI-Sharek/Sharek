@@ -7,10 +7,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Job, Worker } from 'bullmq';
 
+import { getRedisConnection } from '../../../shared/queue/redis-connection';
 import { SkillProfileGenerationRepository } from '../repositories/skill-profile-generation.repository';
 import { SkillProfileGenerationService } from '../services/skill-profile-generation.service';
 import {
-  getRedisConnection,
   SKILL_PROFILE_GENERATION_QUEUE,
   SkillProfileGenerationJobData,
   SkillProfileGenerationQueue,

@@ -94,6 +94,30 @@ describe('ProjectsService', () => {
       expect(database.project.findUnique).not.toHaveBeenCalled();
     });
 
+    it('returns the current owner from the locked Project for scheduled review work', async () => {
+      const transaction = {
+        $queryRaw: jest.fn().mockResolvedValue([
+          {
+            id: 'project-id',
+            owner_id: 'current-owner-id',
+            status: ProjectStatus.archived,
+          },
+        ]),
+      };
+
+      await expect(
+        service.lockContributionRequestProjectOwnerContext(
+          'project-id',
+          transaction as never,
+        ),
+      ).resolves.toEqual({
+        id: 'project-id',
+        ownerId: 'current-owner-id',
+        status: ProjectStatus.archived,
+      });
+      expect(transaction.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
     it('does not reveal whether a Project belongs to another owner', async () => {
       database.project.findUnique.mockResolvedValue({
         id: 'project-id',

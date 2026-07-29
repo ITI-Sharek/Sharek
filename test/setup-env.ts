@@ -6,6 +6,8 @@ process.env.DATABASE_URL =
 process.env.REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 process.env.SKILL_PROFILE_QUEUE_ENABLED =
   process.env.SKILL_PROFILE_QUEUE_ENABLED ?? 'false';
+process.env.APPLICATION_REVIEW_QUEUE_ENABLED =
+  process.env.APPLICATION_REVIEW_QUEUE_ENABLED ?? 'false';
 process.env.JWT_ACCESS_SECRET =
   process.env.JWT_ACCESS_SECRET ?? 'test-access-secret-change-me';
 process.env.JWT_REFRESH_SECRET =

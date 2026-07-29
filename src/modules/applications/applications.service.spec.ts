@@ -211,6 +211,8 @@ describe('ApplicationsService submission and withdrawal', () => {
     });
   });
 
+  afterEach(() => jest.restoreAllMocks());
+
   it('submits one immutable snapshotted Application directly to owner review without AI or quota work', async () => {
     const result = await service.submit({
       actor: contributor,
@@ -520,6 +522,44 @@ describe('ApplicationsService submission and withdrawal', () => {
       requestId,
       ownerId,
     });
+  });
+
+  it('presents the inclusive day-5 overdue boundary only while review is pending', async () => {
+    const dayFive = new Date('2026-08-02T12:00:00.000Z');
+    const dateNow = jest.spyOn(Date, 'now');
+    database.application.findUnique.mockResolvedValue(applicationRecord());
+
+    dateNow.mockReturnValue(dayFive.getTime() - 1);
+    await expect(service.getForActor(contributor, applicationId)).resolves.toMatchObject({
+      overdue: false,
+      expiredAt: null,
+    });
+
+    dateNow.mockReturnValue(dayFive.getTime());
+    await expect(service.getForActor(contributor, applicationId)).resolves.toMatchObject({
+      overdue: true,
+      expiredAt: null,
+    });
+
+    dateNow.mockReturnValue(dayFive.getTime() + 1);
+    await expect(service.getForActor(contributor, applicationId)).resolves.toMatchObject({
+      overdue: true,
+      expiredAt: null,
+    });
+
+    database.application.findUnique.mockResolvedValue(
+      applicationRecord({
+        status: ApplicationStatus.expired,
+        expired_at: new Date('2026-08-04T12:00:00.000Z'),
+      }),
+    );
+    dateNow.mockReturnValue(new Date('2026-08-05T12:00:00.000Z').getTime());
+    await expect(service.getForActor(contributor, applicationId)).resolves.toMatchObject({
+      status: 'EXPIRED',
+      overdue: false,
+      expiredAt: new Date('2026-08-04T12:00:00.000Z'),
+    });
+    dateNow.mockRestore();
   });
 
   it.each(['', '   '])(
@@ -1253,6 +1293,7 @@ describe('ApplicationsService submission and withdrawal', () => {
       status: ApplicationStatus.pending_owner_review,
       submitted_at: submittedAt,
       review_due_at: new Date('2026-07-31T12:00:00.000Z'),
+      review_reminder_sent_at: null,
       expires_at: new Date('2026-08-04T12:00:00.000Z'),
       expired_at: null,
       requirementSnapshot: {

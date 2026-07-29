@@ -172,6 +172,16 @@ reads. Cancellation updates current pending Application state and appends the
 corresponding Application audits in the same transaction as the Request audit;
 no Request or Application history is deleted.
 
+Migration `20260729200000_application_review_window` adds the durable
+`Application.review_reminder_sent_at` marker and indexes for bounded pending
+reminder/expiry scans. It extends `ApplicationAuditAction` with `expired` and
+makes `ApplicationAudit.actor_id` nullable so a scheduler-triggered expiry is
+audited as a system action instead of being falsely attributed to a user. The
+Application status, expiry timestamp, audit, and contributor notification are
+stored atomically; the reminder marker and owner notification are likewise
+atomic. The PostgreSQL migration harness validates the enum, null actor,
+marker, indexes, and representative system expiry audit.
+
 ## Vector Rules
 
 - Store embeddings for stable text snapshots, not constantly changing raw text.

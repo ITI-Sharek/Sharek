@@ -25,7 +25,9 @@ export type ApplicationNotificationAction =
   | 'withdrawn'
   | 'accepted'
   | 'declined_by_owner'
-  | 'not_selected';
+  | 'not_selected'
+  | 'owner_review_reminder'
+  | 'expired';
 
 export interface ApplicationNotificationInput {
   userId: string;
@@ -61,6 +63,16 @@ const APPLICATION_NOTIFICATION_COPY: Record<
     title: 'Another contributor was selected',
     message:
       'Another contributor was selected for this Contribution Request. This does not affect your eligibility or reputation.',
+  },
+  owner_review_reminder: {
+    title: 'Application awaiting review',
+    message:
+      'An Application for your Contribution Request has been waiting for review for 3 days.',
+  },
+  expired: {
+    title: 'Application review window expired',
+    message:
+      'Your Application expired because it was not reviewed within 7 days. This is not an owner rejection and does not affect your eligibility or reputation.',
   },
 };
 
