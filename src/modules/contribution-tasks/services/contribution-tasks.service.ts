@@ -205,6 +205,53 @@ export class ContributionTasksService {
     }
   }
 
+  /**
+   * Creates an owner-controlled draft Contribution Request from an accepted
+   * Contribution Proposal, with immutable proposer attribution. Runs inside the
+   * caller's transaction so acceptance and draft creation commit atomically. It
+   * creates no Assignment, Application, reserved place, quota use, or selection
+   * priority — only a draft the owner can later edit and publish.
+   */
+  async createDraftFromAcceptedProposal(input: {
+    transaction: Prisma.TransactionClient;
+    ownerId: string;
+    projectId: string;
+    proposalId: string;
+    attributedContributorId: string;
+    title: string;
+    description: string;
+  }): Promise<ContributionRequestDto> {
+    const request = await input.transaction.contributionRequest.create({
+      data: {
+        project_id: input.projectId,
+        owner_id: input.ownerId,
+        title: input.title,
+        description: input.description,
+        status: ContributionRequestStatus.draft,
+        origin_proposal_id: input.proposalId,
+        attributed_contributor_id: input.attributedContributorId,
+      },
+      include: { requirements: true },
+    });
+
+    await input.transaction.contributionRequestAudit.create({
+      data: {
+        contribution_request_id: request.id,
+        actor_id: input.ownerId,
+        action: ContributionRequestAuditAction.created,
+        from_status: null,
+        to_status: ContributionRequestStatus.draft,
+        metadata: {
+          source: 'contribution_proposal',
+          originProposalId: input.proposalId,
+          attributedContributorId: input.attributedContributorId,
+        },
+      },
+    });
+
+    return toContributionRequestDto(request);
+  }
+
   async getOwnedRequest(
     user: AuthenticatedUser,
     requestId: string,

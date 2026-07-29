@@ -11,6 +11,11 @@ export interface ContributionRequestRequirementDto {
   text: string;
 }
 
+export interface ContributionRequestAttributionDto {
+  proposalId: string;
+  contributorId: string;
+}
+
 export interface ContributionRequestDto {
   id: string;
   projectId: string;
@@ -25,6 +30,7 @@ export interface ContributionRequestDto {
   reward: string | null;
   rewardCurrency: string | null;
   status: ContributionRequestStatus;
+  attribution: ContributionRequestAttributionDto | null;
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
