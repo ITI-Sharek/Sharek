@@ -1094,6 +1094,54 @@ Withdrawal is contributor-owned and pending-only. Stable workflow errors include
 `REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, `APPLICATION_TERMINAL`, and
 `APPLICATION_IDEMPOTENCY_CONFLICT`.
 
+## Sprint 4 Owner Decisions and Assignments (#51)
+
+```http
+POST /applications/:applicationId/accept
+Authorization: Bearer <owner-access-token>
+Idempotency-Key: 00000000-0000-4000-8000-000000000003
+```
+
+Acceptance returns `200` with the accepted Application, immutable accepted
+Owner Decision (`feedback: null`), and the single Assignment. Assignment due
+date is acceptance time plus the Application's Proposed Delivery Duration. The
+Request becomes `ASSIGNED`; other pending Applications become `NOT_SELECTED`
+without feedback or decline decisions.
+
+```http
+POST /applications/:applicationId/decline
+Authorization: Bearer <owner-access-token>
+Idempotency-Key: 00000000-0000-4000-8000-000000000004
+Content-Type: application/json
+
+{ "feedback": "  The approach needs a concrete test strategy.  " }
+```
+
+Decline feedback is trimmed before storage and must contain 1–2000 characters.
+Missing, empty, or whitespace-only feedback fails with the stable top-level code
+`APPLICATION_DECISION_FEEDBACK_REQUIRED`, including at the direct service seam.
+Decline affects only
+that Application and returns no Assignment. Stable decision errors include
+`APPLICATION_TERMINAL`, `REQUEST_CANCELLED`, `REQUEST_TERMINAL`,
+`APPLICATION_IDEMPOTENCY_KEY_REQUIRED`, and
+`APPLICATION_IDEMPOTENCY_CONFLICT`.
+
+```http
+POST /owner-decisions/:ownerDecisionId/reports
+Authorization: Bearer <contributor-access-token>
+Content-Type: application/json
+
+{
+  "reason": "harassment",
+  "description": "The decline feedback contains abusive language."
+}
+```
+
+Only the contributor affected by an explicit declined decision can create the
+linked moderation Report. Reporting returns `201`, does not change the
+Application state, and is not an appeal. A duplicate returns
+`OWNER_DECISION_REPORT_ALREADY_EXISTS`.
+
 ## Contract Change Rules
 
 - Breaking API changes require frontend coordination.

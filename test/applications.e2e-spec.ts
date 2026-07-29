@@ -2,7 +2,6 @@ import {
   ExecutionContext,
   INestApplication,
   UnauthorizedException,
-  ValidationPipe,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
@@ -12,11 +11,18 @@ import { ApplicationsService } from '../src/modules/applications/applications.se
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { ConflictApplicationError } from '../src/shared/errors/application.error';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
+import { createApplicationValidationPipe } from '../src/shared/validation/application-validation.pipe';
 
 const contributor = {
   id: '11111111-1111-4111-8111-111111111111',
   email: 'contributor@example.com',
   role: 'contributor',
+  status: 'active',
+};
+const owner = {
+  id: '77777777-7777-4777-8777-777777777777',
+  email: 'owner@example.com',
+  role: 'owner',
   status: 'active',
 };
 const requestId = '22222222-2222-4222-8222-222222222222';
@@ -26,11 +32,14 @@ const idempotencyKey = '44444444-4444-4444-8444-444444444444';
 describe('Applications HTTP contract', () => {
   let app: INestApplication;
   let authenticated = true;
+  let authenticatedActor = contributor;
   const service = {
     submit: jest.fn(),
     listForOwner: jest.fn(),
     getForActor: jest.fn(),
     withdraw: jest.fn(),
+    accept: jest.fn(),
+    decline: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -43,26 +52,21 @@ describe('Applications HTTP contract', () => {
         canActivate: (context: ExecutionContext) => {
           if (!authenticated)
             throw new UnauthorizedException('Missing bearer token');
-          context.switchToHttp().getRequest().user = contributor;
+          context.switchToHttp().getRequest().user = authenticatedActor;
           return true;
         },
       })
       .compile();
 
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
+    app.useGlobalPipes(createApplicationValidationPipe());
     app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
   });
 
   beforeEach(() => {
     authenticated = true;
+    authenticatedActor = contributor;
     jest.resetAllMocks();
     service.submit.mockResolvedValue(applicationDto());
     service.listForOwner.mockResolvedValue({
@@ -70,6 +74,34 @@ describe('Applications HTTP contract', () => {
     });
     service.getForActor.mockResolvedValue(applicationDto());
     service.withdraw.mockResolvedValue(applicationDto({ status: 'WITHDRAWN' }));
+    service.accept.mockResolvedValue(
+      ownerDecisionDto({
+        application: applicationDto({ status: 'ACCEPTED' }),
+        assignment: {
+          id: '55555555-5555-4555-8555-555555555555',
+          contributionRequestId: requestId,
+          applicationId,
+          ownerDecisionId: '66666666-6666-4666-8666-666666666666',
+          contributorId: contributor.id,
+          agreedDeliveryDurationDays: 5,
+          agreedDeliveryDueDate: '2026-08-03T12:00:00.000Z',
+          assignedAt: '2026-07-29T12:00:00.000Z',
+        },
+      }),
+    );
+    service.decline.mockResolvedValue(
+      ownerDecisionDto({
+        application: applicationDto({ status: 'DECLINED_BY_OWNER' }),
+        ownerDecision: {
+          id: '66666666-6666-4666-8666-666666666666',
+          applicationId,
+          contributionRequestId: requestId,
+          decisionType: 'DECLINED',
+          feedback: 'The proposed approach does not address testing.',
+          decidedAt: '2026-07-29T12:00:00.000Z',
+        },
+      }),
+    );
   });
 
   afterAll(async () => app.close());
@@ -138,6 +170,63 @@ describe('Applications HTTP contract', () => {
     });
   });
 
+  it('accepts a pending Application without a feedback field', async () => {
+    authenticatedActor = owner;
+    await request(app.getHttpServer())
+      .post(`/applications/${applicationId}/accept`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send({})
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.application.status).toBe('ACCEPTED');
+        expect(body.ownerDecision.feedback).toBeNull();
+        expect(body.assignment.applicationId).toBe(applicationId);
+      });
+
+    expect(service.accept).toHaveBeenCalledWith({
+      actor: owner,
+      applicationId,
+      idempotencyKey,
+    });
+  });
+
+  it.each(['', '   '])(
+    'rejects blank decline feedback before calling the service: %j',
+    async (feedback) => {
+      authenticatedActor = owner;
+      await request(app.getHttpServer())
+        .post(`/applications/${applicationId}/decline`)
+        .set('Idempotency-Key', idempotencyKey)
+        .send({ feedback })
+        .expect(400)
+        .expect(({ body }) =>
+          expect(body.code).toBe('APPLICATION_DECISION_FEEDBACK_REQUIRED'),
+        );
+
+      expect(service.decline).not.toHaveBeenCalled();
+    },
+  );
+
+  it('trims valid decline feedback before delegating', async () => {
+    authenticatedActor = owner;
+    await request(app.getHttpServer())
+      .post(`/applications/${applicationId}/decline`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send({ feedback: '  The proposed approach does not address testing.  ' })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.application.status).toBe('DECLINED_BY_OWNER');
+        expect(body.assignment).toBeNull();
+      });
+
+    expect(service.decline).toHaveBeenCalledWith({
+      actor: owner,
+      applicationId,
+      feedback: 'The proposed approach does not address testing.',
+      idempotencyKey,
+    });
+  });
+
   it('serializes stable workflow errors and requires authentication', async () => {
     service.submit.mockRejectedValue(
       new ConflictApplicationError(
@@ -193,6 +282,22 @@ function applicationDto(overrides: Record<string, unknown> = {}) {
     submittedAt: '2026-07-28T12:00:00.000Z',
     reviewDueAt: '2026-07-31T12:00:00.000Z',
     expiresAt: '2026-08-04T12:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function ownerDecisionDto(overrides: Record<string, unknown> = {}) {
+  return {
+    application: applicationDto(),
+    ownerDecision: {
+      id: '66666666-6666-4666-8666-666666666666',
+      applicationId,
+      contributionRequestId: requestId,
+      decisionType: 'ACCEPTED',
+      feedback: null,
+      decidedAt: '2026-07-29T12:00:00.000Z',
+    },
+    assignment: null,
     ...overrides,
   };
 }

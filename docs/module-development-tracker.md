@@ -1699,3 +1699,36 @@ This keeps the system strong without making it heavy:
 - Dependency/risk: issue #49 remains responsible for public Request publication,
   discovery, cancellation, and cancellation propagation. #50 consumes a
   transaction-scoped read/lock context and does not implement those commands.
+
+### 2026-07-29 - Owner Decisions, Assignments, and feedback reports (#51)
+
+- Modules: `applications`, with a transaction-scoped Request transition from
+  `contribution-tasks`, outcome delivery from `notifications`, and decision
+  feedback moderation in `admin`.
+- Requirement/task IDs: Sprint 4 B05, GitHub issue #51, TASK-4-06/07,
+  DEC-005/030/031/036, ADR-0002.
+- Summary: Project owners now accept or decline pending Applications through
+  idempotent commands. Acceptance atomically creates an immutable Owner Decision
+  and one Assignment, derives the due date from the accepted Application's
+  Proposed Delivery Duration, assigns the Request, and closes pending siblings
+  as `not_selected` without manufacturing decline feedback. Decline requires
+  trimmed non-empty feedback and affects only the chosen Application. AI
+  assessment is excluded from visibility and decision predicates.
+- Authorization and delivery hardening: both decisions revalidate current
+  Project ownership through the Projects module on the caller transaction before
+  resolving an idempotent replay. Durable affected-party notifications are
+  written on that transaction and emitted realtime only after commit.
+- Database changes: migration `20260729120000_owner_decisions_assignments` adds
+  Owner Decisions, Assignments, decision/request audit actions, Assignment
+  uniqueness, owner command idempotency, and the combined PostgreSQL decline
+  feedback check (`feedback IS NOT NULL AND btrim(feedback) <> ''`). The existing
+  Report model gains a minimal Owner Decision foreign key.
+- API/authorization impact: added owner-only `POST
+  /applications/:applicationId/accept` and `/decline`, with ownership and state
+  rechecked inside the transaction, plus contributor-only `POST
+  /owner-decisions/:ownerDecisionId/reports`. Reporting is moderation, not an
+  appeal, and does not mutate Application state.
+- Verification: contract, service, authorization, concurrency, idempotency,
+  notification, and PostgreSQL constraint fixtures cover the #51 flows. The
+  PostgreSQL migration harness, architecture check, lint, exact type-check,
+  Prisma validation, build, and all 61 Jest suites / 319 tests pass.
