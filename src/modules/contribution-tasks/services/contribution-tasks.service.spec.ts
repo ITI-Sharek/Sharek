@@ -55,6 +55,7 @@ describe('ContributionTasksService', () => {
     getContributionRequestProjectOwnerAccess: jest.fn(),
     lockContributionRequestProjectAccess: jest.fn(),
     lockContributionRequestProjectOwnerAccess: jest.fn(),
+    lockContributionRequestProjectOwnerContext: jest.fn(),
     listContributionRequestProjectReferences: jest.fn(),
     getContributionRequestPublicationEntitlement: jest.fn(),
     isContributionRequestProjectPublished: jest.fn(),
@@ -114,6 +115,13 @@ describe('ContributionTasksService', () => {
       status: 'published',
     });
     projectsService.lockContributionRequestProjectOwnerAccess.mockResolvedValue(
+      {
+        id: projectId,
+        ownerId: owner.id,
+        status: 'published',
+      },
+    );
+    projectsService.lockContributionRequestProjectOwnerContext.mockResolvedValue(
       {
         id: projectId,
         ownerId: owner.id,
@@ -1218,6 +1226,25 @@ describe('ContributionTasksService', () => {
     expect(
       projectsService.lockContributionRequestProjectOwnerAccess,
     ).toHaveBeenCalledWith(projectId, owner.id, database);
+  });
+
+  it('locks the Request and resolves the current Project owner for a scheduled reminder', async () => {
+    database.$queryRaw.mockResolvedValue([
+      { id: requestId, project_id: projectId },
+    ]);
+
+    await expect(
+      service.lockApplicationReviewOwner({
+        requestId,
+        transaction: database as never,
+      }),
+    ).resolves.toEqual({ ownerId: owner.id });
+
+    const query = database.$queryRaw.mock.calls[0][0] as { strings: string[] };
+    expect(query.strings.join('')).toContain('FOR SHARE');
+    expect(
+      projectsService.lockContributionRequestProjectOwnerContext,
+    ).toHaveBeenCalledWith(projectId, database);
   });
 });
 

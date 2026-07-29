@@ -248,6 +248,24 @@ export class ProjectsService {
     ownerId: string,
     transaction: Prisma.TransactionClient,
   ): Promise<ContributionRequestProjectAccessDto> {
+    const project = await this.lockContributionRequestProjectOwnerContext(
+      projectId,
+      transaction,
+    );
+    return this.toContributionRequestProjectOwnerAccess(
+      {
+        id: project.id,
+        owner_id: project.ownerId,
+        status: project.status,
+      },
+      ownerId,
+    );
+  }
+
+  async lockContributionRequestProjectOwnerContext(
+    projectId: string,
+    transaction: Prisma.TransactionClient,
+  ): Promise<ContributionRequestProjectAccessDto> {
     const projects = await transaction.$queryRaw<
       ContributionRequestProjectRow[]
     >(Prisma.sql`
@@ -256,7 +274,18 @@ export class ProjectsService {
       WHERE "id" = ${projectId}::uuid
       FOR SHARE
     `);
-    return this.toContributionRequestProjectOwnerAccess(projects[0], ownerId);
+    const project = projects[0];
+    if (!project) {
+      throw new NotFoundApplicationError(
+        'Project was not found',
+        'CONTRIBUTION_REQUEST_PROJECT_NOT_FOUND',
+      );
+    }
+    return {
+      id: project.id,
+      ownerId: project.owner_id,
+      status: project.status,
+    };
   }
 
   async getContributionRequestPublicationEntitlement(

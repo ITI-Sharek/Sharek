@@ -211,6 +211,28 @@ export class ContributionTasksService {
     );
   }
 
+  async lockApplicationReviewOwner(input: {
+    requestId: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<{ ownerId: string }> {
+    const rows = await input.transaction.$queryRaw<
+      Array<{ id: string; project_id: string }>
+    >(Prisma.sql`
+      SELECT "id", "project_id"
+      FROM "ContributionRequest"
+      WHERE "id" = ${input.requestId}::uuid
+      FOR SHARE
+    `);
+    const request = rows[0];
+    if (!request) throw this.requestNotFound();
+    const project =
+      await this.projectsService.lockContributionRequestProjectOwnerContext(
+        request.project_id,
+        input.transaction,
+      );
+    return { ownerId: project.ownerId };
+  }
+
   async createDraft(input: {
     user: AuthenticatedUser;
     projectId: string;

@@ -12,6 +12,20 @@ export const envValidationSchema = Joi.object({
     .falsy('false')
     .default(true),
   SKILL_PROFILE_QUEUE_CONCURRENCY: Joi.number().integer().min(1).max(10).default(2),
+  APPLICATION_REVIEW_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  APPLICATION_REVIEW_SWEEP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .max(86_400_000)
+    .default(60_000),
+  APPLICATION_REVIEW_SWEEP_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1_000)
+    .default(100),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://localhost:3001'),
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),

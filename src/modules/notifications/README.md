@@ -44,10 +44,15 @@ Current supported workflow:
 - idempotent accepted, declined-by-owner, and not-selected Application outcomes
   for contributors. The not-selected message is decision-neutral and does not
   imply a decline, eligibility failure, or reputation effect.
+- idempotent day-3 Application review reminders for the current Project owner
+  and day-7 expiry notifications for contributors. Expiry copy explicitly
+  states that owner silence is not rejection and has no eligibility or
+  reputation effect.
 
-Owner Decision workflows pass their Prisma transaction into the notification
-service so durable rows commit atomically with the state transition. Realtime
-delivery happens only after the transaction commits.
+Owner Decision and Application review-window workflows pass their Prisma
+transaction into the notification service so durable rows commit atomically
+with the state transition or reminder marker. Realtime delivery happens only
+after the transaction commits.
 
 Future notification inbox, read-state, delivery channels, task-match alerts, and
 premium-tier notification rules should stay in this module.

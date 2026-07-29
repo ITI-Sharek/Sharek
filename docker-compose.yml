@@ -16,6 +16,9 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       SKILL_PROFILE_QUEUE_ENABLED: ${SKILL_PROFILE_QUEUE_ENABLED:-true}
       SKILL_PROFILE_QUEUE_CONCURRENCY: ${SKILL_PROFILE_QUEUE_CONCURRENCY:-2}
+      APPLICATION_REVIEW_QUEUE_ENABLED: ${APPLICATION_REVIEW_QUEUE_ENABLED:-true}
+      APPLICATION_REVIEW_SWEEP_INTERVAL_MS: ${APPLICATION_REVIEW_SWEEP_INTERVAL_MS:-60000}
+      APPLICATION_REVIEW_SWEEP_BATCH_SIZE: ${APPLICATION_REVIEW_SWEEP_BATCH_SIZE:-100}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-this-access-secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-secret}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
@@ -49,6 +52,18 @@ services:
       AI_LOW_CONFIDENCE_THRESHOLD: ${AI_LOW_CONFIDENCE_THRESHOLD:-0.70}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:4000/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules

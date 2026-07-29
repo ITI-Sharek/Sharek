@@ -118,7 +118,13 @@ describe('Applications HTTP contract', () => {
         idempotencyKey,
       })
       .expect(201)
-      .expect(({ body }) => expect(body.status).toBe('PENDING_OWNER_REVIEW'));
+      .expect(({ body }) => {
+        expect(body.status).toBe('PENDING_OWNER_REVIEW');
+        expect(body.reviewDueAt).toBe('2026-07-31T12:00:00.000Z');
+        expect(body.expiresAt).toBe('2026-08-04T12:00:00.000Z');
+        expect(body.expiredAt).toBeNull();
+        expect(body.overdue).toBe(false);
+      });
 
     expect(service.submit).toHaveBeenCalledWith({
       actor: contributor,
@@ -145,11 +151,21 @@ describe('Applications HTTP contract', () => {
     await request(app.getHttpServer())
       .get(`/tasks/${requestId}/applications`)
       .expect(200)
-      .expect(({ body }) => expect(body.applications).toHaveLength(1));
+      .expect(({ body }) => {
+        expect(body.applications).toHaveLength(1);
+        expect(body.applications[0]).toMatchObject({
+          expiredAt: null,
+          overdue: false,
+        });
+      });
     await request(app.getHttpServer())
       .get(`/applications/${applicationId}`)
       .expect(200)
-      .expect(({ body }) => expect(body.id).toBe(applicationId));
+      .expect(({ body }) => {
+        expect(body.id).toBe(applicationId);
+        expect(body).toHaveProperty('expiredAt', null);
+        expect(body).toHaveProperty('overdue', false);
+      });
 
     expect(service.listForOwner).toHaveBeenCalledWith(contributor, requestId);
     expect(service.getForActor).toHaveBeenCalledWith(
@@ -183,6 +199,25 @@ describe('Applications HTTP contract', () => {
         expect(body.ownerDecision.feedback).toBe(
           'The proposed approach does not address testing.',
         );
+      });
+  });
+
+  it('serializes terminal expiry without presenting it as overdue', async () => {
+    service.getForActor.mockResolvedValue(
+      applicationDto({
+        status: 'EXPIRED',
+        expiredAt: '2026-08-04T12:00:00.000Z',
+        overdue: false,
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get(`/applications/${applicationId}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.status).toBe('EXPIRED');
+        expect(body.expiredAt).toBe('2026-08-04T12:00:00.000Z');
+        expect(body.overdue).toBe(false);
       });
   });
 
@@ -351,6 +386,8 @@ function applicationDto(overrides: Record<string, unknown> = {}) {
     submittedAt: '2026-07-28T12:00:00.000Z',
     reviewDueAt: '2026-07-31T12:00:00.000Z',
     expiresAt: '2026-08-04T12:00:00.000Z',
+    expiredAt: null,
+    overdue: false,
     ownerDecision: null,
     assignment: null,
     ...overrides,

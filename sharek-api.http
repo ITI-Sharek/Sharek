@@ -84,6 +84,12 @@
 # - [DONE] POST /contribution-requests/:requestId/cancel
 # - [DONE] GET /tasks
 # - [DONE] GET /tasks/:requestId
+# - [DONE] POST /tasks/:requestId/applications
+# - [DONE] GET /tasks/:requestId/applications
+# - [DONE] GET /applications/:applicationId
+# - [DONE] POST /applications/:applicationId/withdraw
+# - [DONE] POST /applications/:applicationId/accept
+# - [DONE] POST /applications/:applicationId/decline
 # - [DONE] POST /contribution-proposals
 # - [DONE] GET /contribution-proposals/mine
 # - [DONE] GET /contribution-proposals/for-project/:projectId
@@ -137,6 +143,7 @@
 @skillProfileGenerationId = replace-with-generation-uuid
 @publishedProjectId = replace-with-published-project-uuid
 @contributionRequestId = replace-with-contribution-request-uuid
+@declineApplicationId = replace-with-another-pending-application-uuid
 @contributionProposalId = replace-with-contribution-proposal-uuid
 @proposalCursor = replace-with-next-cursor-or-remove-query
 @userIdToPromote = replace-with-real-user-id
@@ -1131,6 +1138,11 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 ### 25 - Submit an Application directly to owner review
 # @name submittedApplication
+# Expected timing fields on a new Application:
+# - reviewDueAt: persisted day-3 reminder boundary.
+# - expiresAt: persisted day-7 expiry boundary.
+# - expiredAt: null.
+# - overdue: false until the inclusive day-5 boundary.
 POST {{baseUrl}}/tasks/{{contributionRequestId}}/applications
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json
@@ -1143,11 +1155,17 @@ Content-Type: application/json
 
 
 ### 26 - List pending Applications for the Request owner
+# Every item includes reviewDueAt, expiresAt, expiredAt, and overdue. The list
+# remains pending-only, so a day-7 expired Application disappears from it.
 GET {{baseUrl}}/tasks/{{contributionRequestId}}/applications
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 
 ### 27 - Inspect one authorized Application
+# There is intentionally no public scheduler endpoint. The BullMQ worker uses
+# PostgreSQL deadlines. Re-run this GET after a controlled test clock reaches
+# day 5 to observe overdue=true, or day 7 to observe status=EXPIRED,
+# expiredAt=<timestamp>, and overdue=false.
 GET {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
@@ -1172,7 +1190,7 @@ Idempotency-Key: 00000000-0000-4000-8000-000000000003
 ### 30 - Decline a different pending Application with required feedback
 # @name declinedApplication
 # Replace the id below; an accepted or withdrawn Application is terminal.
-POST {{baseUrl}}/applications/replace-with-another-pending-application-id/decline
+POST {{baseUrl}}/applications/{{declineApplicationId}}/decline
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: 00000000-0000-4000-8000-000000000004
 Content-Type: application/json

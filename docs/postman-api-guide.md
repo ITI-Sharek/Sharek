@@ -55,6 +55,11 @@ Create a Postman environment named `Share-k Local` with these variables:
 | `userId` | empty | User id for admin role assignment |
 | `githubRepoFullName` | `openai/openai-node` | GitHub `owner/repository` |
 | `githubRepoUrl` | `https://github.com/openai/openai-node` | Public project URL |
+| `contributionRequestId` | empty | Published Request used by the Application workflow |
+| `applicationId` | empty | Captured submitted Application |
+| `declineApplicationId` | empty | A different pending Application for decline testing |
+| `ownerAccessToken` | empty | Active current-Project-owner bearer token |
+| `contributorAccessToken` | empty | Active applying-contributor bearer token |
 
 Use the `Authorization` tab with type `Bearer Token` and value
 `{{accessToken}}` for protected requests. Do not put real secrets, OAuth codes,
@@ -138,6 +143,18 @@ email returns an error; use login for an existing test user.
 | `POST` | `/projects/me/:projectId/publish` | Persisted owner + idempotency key | Explicitly publish a complete controlled draft. |
 | `POST` | `/projects/me/:projectId/archive` | Persisted owner + idempotency key | Explicitly archive a published project. |
 | `GET` | `/public/projects[/:projectSlug]` | Public | Published-only allowlisted list/detail. |
+
+### Contribution Requests And Applications
+
+| Method | Path | Auth | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/tasks/:requestId/applications` | Active contributor bearer | Submit directly to owner review. |
+| `GET` | `/tasks/:requestId/applications` | Current Project owner bearer | List pending Applications with review-window presentation. |
+| `GET` | `/applications/:applicationId` | Applying contributor or current Project owner | Read authorized Application detail. |
+| `POST` | `/applications/:applicationId/withdraw` | Applying contributor + idempotency key | Withdraw a pending Application. |
+| `POST` | `/applications/:applicationId/accept` | Current Project owner + idempotency key | Accept and create an Assignment. |
+| `POST` | `/applications/:applicationId/decline` | Current Project owner + idempotency key | Decline with required feedback. |
+| `POST` | `/owner-decisions/:ownerDecisionId/reports` | Affected contributor bearer | Report explicit decline feedback. |
 
 ### Contributor Profiles
 
@@ -495,6 +512,33 @@ The normal lifecycle is `queued`, `collecting_evidence`, `analyzing`, and then
 `pending_review`, `needs_more_evidence`, or `failed`. Generated skills remain
 pending until the backend admin review workflow approves them.
 
+### Application Review Window
+
+Submit with a contributor token, then save the returned `id`:
+
+```http
+POST {{baseUrl}}/tasks/{{contributionRequestId}}/applications
+Authorization: Bearer {{contributorAccessToken}}
+Content-Type: application/json
+
+{
+  "contributionApproach": "I will implement and test the requested workflow.",
+  "proposedDeliveryDurationDays": 5,
+  "idempotencyKey": "00000000-0000-4000-8000-000000000001"
+}
+```
+
+Submission and authorized reads include `reviewDueAt`, `expiresAt`, nullable
+`expiredAt`, and boolean `overdue`. A new Application has `expiredAt: null` and
+`overdue: false`. At day 5 inclusive, a still-pending Application is presented
+with `overdue: true`. At day 7 inclusive it becomes `EXPIRED`, receives
+`expiredAt`, and is no longer overdue.
+
+There is no public scheduler route to invoke from Postman. The backend worker
+uses PostgreSQL deadlines, so boundary testing requires the deterministic Jest
+suite or a controlled local database clock/fixture. The collection tests verify
+the response shape whenever submit, list, or detail succeeds.
+
 ## 6. Useful Negative Tests
 
 These tests verify the shared HTTP behavior without changing database state:
@@ -518,6 +562,9 @@ These tests verify the shared HTTP behavior without changing database state:
   logging fallback.
 - Skill generation requires the separate FastAPI AI service at `AI_SERVICE_URL`
   and a running Redis worker.
+- Application review reminders and expiry require Redis while the worker is
+  running. PostgreSQL remains the deadline source, and startup catch-up handles
+  temporary worker downtime.
 - GitHub repository and evidence requests require a real connected account and
   valid GitHub API access.
 - Prisma migrations run as part of the Docker API command. Do not edit the
