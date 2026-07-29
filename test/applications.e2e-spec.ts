@@ -9,7 +9,10 @@ import * as request from 'supertest';
 import { ApplicationsController } from '../src/modules/applications/applications.controller';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
-import { ConflictApplicationError } from '../src/shared/errors/application.error';
+import {
+  ConflictApplicationError,
+  ForbiddenApplicationError,
+} from '../src/shared/errors/application.error';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
 import { createApplicationValidationPipe } from '../src/shared/validation/application-validation.pipe';
 
@@ -155,6 +158,34 @@ describe('Applications HTTP contract', () => {
     );
   });
 
+  it('exposes the declined decision identifier and feedback on contributor detail', async () => {
+    service.getForActor.mockResolvedValue(
+      applicationDto({
+        status: 'DECLINED_BY_OWNER',
+        ownerDecision: {
+          id: '66666666-6666-4666-8666-666666666666',
+          applicationId,
+          contributionRequestId: requestId,
+          decisionType: 'DECLINED',
+          feedback: 'The proposed approach does not address testing.',
+          decidedAt: '2026-07-29T12:00:00.000Z',
+        },
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get(`/applications/${applicationId}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.ownerDecision.id).toBe(
+          '66666666-6666-4666-8666-666666666666',
+        );
+        expect(body.ownerDecision.feedback).toBe(
+          'The proposed approach does not address testing.',
+        );
+      });
+  });
+
   it('withdraws a pending Application idempotently', async () => {
     await request(app.getHttpServer())
       .post(`/applications/${applicationId}/withdraw`)
@@ -249,6 +280,44 @@ describe('Applications HTTP contract', () => {
       .get(`/applications/${applicationId}`)
       .expect(401);
   });
+
+  it.each([
+    [
+      'APPLICATIONS_CLOSED',
+      new ConflictApplicationError('Closed', 'APPLICATIONS_CLOSED'),
+      409,
+    ],
+    [
+      'REQUEST_CANCELLED',
+      new ConflictApplicationError('Cancelled', 'REQUEST_CANCELLED'),
+      409,
+    ],
+    [
+      'REQUEST_TERMINAL',
+      new ConflictApplicationError('Terminal', 'REQUEST_TERMINAL'),
+      409,
+    ],
+    [
+      'APPLICATION_NOT_AUTHORIZED',
+      new ForbiddenApplicationError(
+        'Unauthorized',
+        'APPLICATION_NOT_AUTHORIZED',
+      ),
+      403,
+    ],
+  ])('serializes the %s submission error', async (code, error, status) => {
+    service.submit.mockRejectedValue(error);
+
+    await request(app.getHttpServer())
+      .post(`/tasks/${requestId}/applications`)
+      .send({
+        contributionApproach: 'I will deliver a tested NestJS implementation.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey,
+      })
+      .expect(status)
+      .expect(({ body }) => expect(body.code).toBe(code));
+  });
 });
 
 function applicationDto(overrides: Record<string, unknown> = {}) {
@@ -282,6 +351,8 @@ function applicationDto(overrides: Record<string, unknown> = {}) {
     submittedAt: '2026-07-28T12:00:00.000Z',
     reviewDueAt: '2026-07-31T12:00:00.000Z',
     expiresAt: '2026-08-04T12:00:00.000Z',
+    ownerDecision: null,
+    assignment: null,
     ...overrides,
   };
 }

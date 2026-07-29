@@ -8,26 +8,30 @@ import {
   Prisma,
 } from '@prisma/client';
 
-import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
-import { DatabaseService } from '../../shared/database/database.service';
+import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
+import { DatabaseService } from '../../../shared/database/database.service';
 import {
   BadRequestApplicationError,
   ConflictApplicationError,
   ForbiddenApplicationError,
   NotFoundApplicationError,
   UnprocessableApplicationError,
-} from '../../shared/errors/application.error';
-import { ProjectsService } from '../projects/projects.service';
+} from '../../../shared/errors/application.error';
+import { ProjectsService } from '../../projects/projects.service';
 import {
   CreateContributionRequestDto,
   UpdateContributionRequestDto,
-} from './dto/contribution-request-input.dto';
-import { ApplicationRequestContextDto } from './dto/application-request-context.dto';
-import { ContributionRequestDto } from './dto/contribution-request-response.dto';
+} from '../dto/contribution-request-input.dto';
+import { ApplicationRequestContextDto } from '../dto/application-request-context.dto';
+import {
+  ContributionRequestDto,
+  ContributionRequestsByStatusDto,
+  OwnerProjectContributionRequestsDto,
+} from '../dto/contribution-request-response.dto';
 import {
   ContributionRequestWithRequirements,
   toContributionRequestDto,
-} from './mappers/contribution-request.mapper';
+} from '../mappers/contribution-request.mapper';
 
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 
@@ -59,7 +63,15 @@ export class ContributionTasksService {
       where: { id: requestId },
       include: { requirements: true },
     });
-    return request ? this.toApplicationRequestContext(request) : null;
+    if (
+      !request ||
+      !(await this.projectsService.isContributionRequestProjectPublished(
+        request.project_id,
+      ))
+    ) {
+      return null;
+    }
+    return this.toApplicationRequestContext(request);
   }
 
   async lockApplicationSubmissionContext(
@@ -70,18 +82,25 @@ export class ContributionTasksService {
       Array<{
         id: string;
         owner_id: string;
+        project_id: string;
         status: ContributionRequestStatus;
         applications_close_at: Date | null;
         updated_at: Date;
       }>
     >(Prisma.sql`
-      SELECT "id", "owner_id", "status", "applications_close_at", "updated_at"
+      SELECT "id", "owner_id", "project_id", "status", "applications_close_at", "updated_at"
       FROM "ContributionRequest"
       WHERE "id" = ${requestId}::uuid
       FOR SHARE
     `);
     const request = rows[0];
     if (!request) return null;
+    const projectIsPublished =
+      await this.projectsService.lockContributionRequestProjectPublication(
+        request.project_id,
+        transaction,
+      );
+    if (!projectIsPublished) return null;
     const requirements = await transaction.contributionRequestRequirement.findMany({
       where: { contribution_request_id: requestId },
       orderBy: [{ kind: 'asc' }, { position: 'asc' }],
@@ -111,7 +130,7 @@ export class ContributionTasksService {
     `);
     const request = rows[0];
     if (!request) throw this.requestNotFound();
-    await this.projectsService.lockContributionRequestProjectAccess(
+    await this.projectsService.lockContributionRequestProjectOwnerAccess(
       request.project_id,
       input.ownerId,
       input.transaction,
@@ -170,10 +189,25 @@ export class ContributionTasksService {
     `);
     const request = rows[0];
     if (!request) throw this.requestNotFound();
-    await this.projectsService.lockContributionRequestProjectAccess(
+    await this.projectsService.lockContributionRequestProjectOwnerAccess(
       request.project_id,
       input.ownerId,
       input.transaction,
+    );
+  }
+
+  async confirmOwnerDecisionActor(input: {
+    requestId: string;
+    ownerId: string;
+  }): Promise<void> {
+    const request = await this.database.contributionRequest.findUnique({
+      where: { id: input.requestId },
+      select: { project_id: true },
+    });
+    if (!request) throw this.requestNotFound();
+    await this.projectsService.getContributionRequestProjectOwnerAccess(
+      request.project_id,
+      input.ownerId,
     );
   }
 
@@ -290,6 +324,34 @@ export class ContributionTasksService {
       user.id,
     );
     return toContributionRequestDto(request);
+  }
+
+  async listForOwnedProject(
+    user: AuthenticatedUser,
+    projectId: string,
+  ): Promise<OwnerProjectContributionRequestsDto> {
+    this.assertActiveOwner(user);
+    await this.projectsService.getContributionRequestProjectOwnerAccess(
+      projectId,
+      user.id,
+    );
+    const requests = await this.database.contributionRequest.findMany({
+      where: { project_id: projectId, owner_id: user.id },
+      include: { requirements: true },
+      orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+    });
+    const byStatus: ContributionRequestsByStatusDto = {
+      [ContributionRequestStatus.draft]: [],
+      [ContributionRequestStatus.published]: [],
+      [ContributionRequestStatus.assigned]: [],
+      [ContributionRequestStatus.completed]: [],
+      [ContributionRequestStatus.cancelled]: [],
+      [ContributionRequestStatus.discarded]: [],
+    };
+    for (const request of requests) {
+      byStatus[request.status].push(toContributionRequestDto(request));
+    }
+    return { projectId, totalCount: requests.length, byStatus };
   }
 
   async updateDraft(input: {

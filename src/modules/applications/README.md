@@ -40,12 +40,15 @@ Every valid Application enters `pending_owner_review` immediately. Submission
 does not call AI or mutate contributor attempt quotas.
 
 The service fixes ordered Requirement and approved, audience-bounded Evidence
-Snapshots plus contributor profile context in the submission transaction. Evidence is
-limited to approved skill summaries derived from repositories the contributor explicitly
-authorized when generating the skill profile; Application submission cannot select or
-expand repository access. A database uniqueness guard permits
-one Application per contributor and Contribution Request. Append-only
-`ApplicationAudit` rows protect submission and withdrawal retries.
+Snapshots plus contributor profile context in the submission transaction.
+Evidence is limited to approved skill summaries whose generation still matches
+the contributor's active GitHub App link, repository selection, and explicit
+consent. Submission locks and revalidates that authorization in the same
+transaction before fixing the snapshot; revoked or legacy unverifiable evidence
+is excluded. Application submission cannot select or expand repository access.
+A database uniqueness guard permits one Application per contributor and
+Contribution Request. Append-only `ApplicationAudit` rows protect submission
+and withdrawal retries.
 
 Owners list pending Applications with `GET /tasks/:requestId/applications` and
 inspect an authorized Application with `GET /applications/:applicationId`.
@@ -87,9 +90,23 @@ written on the decision transaction; realtime emission is deferred until commit.
 module. It exposes an explicit declined decision only to its affected
 contributor; reporting does not mutate or reopen the Application.
 
+Authorized Application detail returns nullable Owner Decision and Assignment
+projections. This makes the declined decision identifier and feedback available
+to the affected contributor before they invoke the moderation-report route.
+Owner review access is based on current Project ownership and remains available
+after Project archival, so pending Applications cannot become stranded.
+
 Issue #49 still owns publication, discovery, cancellation commands, and their
 Application side effects. This module consumes only the exported read/lock
 submission context from `contribution-tasks`.
+
+Issue #49 adds the exported transaction-scoped
+`cancelPendingForRequest()` capability. Contribution Request cancellation calls
+it after locking the Request; the Applications module locks and changes only
+its own pending rows to `request_cancelled` and appends one immutable audit per
+transition. Each child audit carries the cancellation reason, a shared
+correlation ID, and the parent Request audit ID as causation. Terminal
+Application history is not rewritten.
 
 Focused verification:
 

@@ -126,6 +126,31 @@ describe('GitHubAppService', () => {
     };
   }
 
+  it('locks the persisted link, installation, and selected repositories for an evidence snapshot', async () => {
+    const { service } = createService();
+    const transaction = {
+      $queryRaw: jest
+        .fn()
+        .mockResolvedValueOnce([{ installation_id: installation.id }])
+        .mockResolvedValueOnce([{ github_repository_id: '123' }]),
+    };
+
+    await expect(
+      service.lockRepositorySelectionAuthorization({
+        userId: '11111111-1111-4111-8111-111111111111',
+        installationLinkId: '22222222-2222-4222-8222-222222222222',
+        repositoryIds: ['123'],
+        transaction: transaction as never,
+      }),
+    ).resolves.toBe(true);
+    expect(transaction.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(
+      transaction.$queryRaw.mock.calls
+        .map(([query]) => query.strings.join(''))
+        .join('\n'),
+    ).toContain('FOR SHARE');
+  });
+
   it('creates a hashed state-bearing install URL without a setup URL', async () => {
     const { service, database } = createService();
     const result = await service.startConnection('user-1');

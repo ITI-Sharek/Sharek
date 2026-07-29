@@ -81,6 +81,7 @@ describe('DecisionFeedbackReportsService', () => {
       new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
         code: 'P2002',
         clientVersion: '6.19.3',
+        meta: { target: ['reporter_id', 'owner_decision_id'] },
       }),
     );
 
@@ -95,5 +96,26 @@ describe('DecisionFeedbackReportsService', () => {
       code: 'OWNER_DECISION_REPORT_ALREADY_EXISTS',
       statusCode: 409,
     });
+  });
+
+  it('does not misreport an unrelated unique-constraint failure as a duplicate feedback report', async () => {
+    const error = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { target: ['id'] },
+      },
+    );
+    database.report.create.mockRejectedValue(error);
+
+    await expect(
+      service.create({
+        actor,
+        ownerDecisionId,
+        reason: ReportReason.harassment,
+        description: 'The feedback contains abusive language.',
+      }),
+    ).rejects.toBe(error);
   });
 });
