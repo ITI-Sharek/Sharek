@@ -538,6 +538,8 @@ describe('ApplicationsService submission and withdrawal', () => {
     dateNow.mockReturnValue(dayFive.getTime());
     await expect(service.getForActor(contributor, applicationId)).resolves.toMatchObject({
       overdue: true,
+      reviewDueAt: new Date('2026-07-31T12:00:00.000Z'),
+      expiresAt: new Date('2026-08-04T12:00:00.000Z'),
       expiredAt: null,
     });
 
@@ -557,8 +559,15 @@ describe('ApplicationsService submission and withdrawal', () => {
     await expect(service.getForActor(contributor, applicationId)).resolves.toMatchObject({
       status: 'EXPIRED',
       overdue: false,
+      expiresAt: new Date('2026-08-04T12:00:00.000Z'),
       expiredAt: new Date('2026-08-04T12:00:00.000Z'),
     });
+    expect(database.application.updateMany).not.toHaveBeenCalled();
+    expect(database.applicationAudit.create).not.toHaveBeenCalled();
+    expect(database.ownerDecision.create).not.toHaveBeenCalled();
+    expect(database.assignment.create).not.toHaveBeenCalled();
+    expect(notifications.createApplicationNotification).not.toHaveBeenCalled();
+    expect(notifications.emitApplicationNotifications).not.toHaveBeenCalled();
     dateNow.mockRestore();
   });
 
@@ -678,6 +687,54 @@ describe('ApplicationsService submission and withdrawal', () => {
     expect(notifications.emitApplicationNotifications).toHaveBeenCalledWith([
       { notificationId: 'notification-1' },
     ]);
+  });
+
+  it('allows the owner to decline an overdue Application before expiry', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-02T12:00:00.000Z'));
+    database.application.findFirst.mockResolvedValue(applicationRecord());
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+    database.ownerDecision.findUniqueOrThrow.mockResolvedValue({
+      id: '88888888-8888-4888-8888-888888888888',
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'declined',
+      feedback: 'Another proposal is a stronger fit.',
+      idempotency_key: '77777777-7777-4777-8777-777777777777',
+      command_fingerprint: 'fingerprint',
+      decided_at: new Date('2026-08-02T12:00:00.000Z'),
+      application: applicationRecord({
+        status: ApplicationStatus.declined_by_owner,
+        owner_reviewed_at: new Date('2026-08-02T12:00:00.000Z'),
+      }),
+      assignment: null,
+    });
+
+    try {
+      await expect(
+        service.decline({
+          actor: owner,
+          applicationId,
+          feedback: 'Another proposal is a stronger fit.',
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+      ).resolves.toMatchObject({
+        application: { status: 'DECLINED_BY_OWNER' },
+        ownerDecision: { decisionType: 'DECLINED' },
+      });
+      expect(database.application.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: applicationId,
+          status: ApplicationStatus.pending_owner_review,
+        },
+        data: {
+          status: ApplicationStatus.declined_by_owner,
+          owner_reviewed_at: new Date('2026-08-02T12:00:00.000Z'),
+        },
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('exposes only the contributor own declined decision as report context without changing Application state', async () => {
@@ -861,6 +918,75 @@ describe('ApplicationsService submission and withdrawal', () => {
     },
   );
 
+  it('allows the owner to accept an overdue Application before expiry', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-02T12:00:00.000Z'));
+    const decisionId = '88888888-8888-4888-8888-888888888888';
+    const assignmentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const assignment = {
+      id: assignmentId,
+      contribution_request_id: requestId,
+      application_id: applicationId,
+      owner_decision_id: decisionId,
+      contributor_id: contributor.id,
+      agreed_delivery_duration_days: 5,
+      agreed_delivery_due_at: new Date('2026-08-07T12:00:00.000Z'),
+      assigned_at: new Date('2026-08-02T12:00:00.000Z'),
+    };
+    database.application.findFirst.mockResolvedValue(applicationRecord());
+    database.$queryRaw.mockResolvedValue([
+      { id: applicationId, contributor_id: contributor.id },
+    ]);
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+    database.application.findMany.mockResolvedValue([]);
+    database.assignment.create.mockResolvedValue(assignment);
+    database.ownerDecision.findUniqueOrThrow.mockResolvedValue({
+      id: decisionId,
+      application_id: applicationId,
+      contribution_request_id: requestId,
+      owner_id: ownerId,
+      decision_type: 'accepted',
+      feedback: null,
+      idempotency_key: '77777777-7777-4777-8777-777777777777',
+      command_fingerprint: 'fingerprint',
+      decided_at: new Date('2026-08-02T12:00:00.000Z'),
+      application: applicationRecord({
+        status: ApplicationStatus.accepted,
+        owner_reviewed_at: new Date('2026-08-02T12:00:00.000Z'),
+      }),
+      assignment,
+    });
+    contributionTasks.assignFromOwnerDecision.mockResolvedValue(undefined);
+
+    try {
+      await expect(
+        service.accept({
+          actor: owner,
+          applicationId,
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+      ).resolves.toMatchObject({
+        application: { status: 'ACCEPTED' },
+        ownerDecision: { decisionType: 'ACCEPTED', feedback: null },
+        assignment: {
+          id: assignmentId,
+          agreedDeliveryDueDate: new Date('2026-08-07T12:00:00.000Z'),
+        },
+      });
+      expect(database.application.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: applicationId,
+          status: ApplicationStatus.pending_owner_review,
+        },
+        data: {
+          status: ApplicationStatus.accepted,
+          owner_reviewed_at: new Date('2026-08-02T12:00:00.000Z'),
+        },
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('rejects an accept command for a non-pending Application with a stable error', async () => {
     database.application.findFirst.mockResolvedValue(
       applicationRecord({ status: ApplicationStatus.declined_by_owner }),
@@ -876,6 +1002,51 @@ describe('ApplicationsService submission and withdrawal', () => {
     expect(contributionTasks.assignFromOwnerDecision).not.toHaveBeenCalled();
     expect(database.assignment.create).not.toHaveBeenCalled();
   });
+
+  it.each([
+    {
+      command: 'accept',
+      decide: () =>
+        service.accept({
+          actor: owner,
+          applicationId,
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+    },
+    {
+      command: 'decline',
+      decide: () =>
+        service.decline({
+          actor: owner,
+          applicationId,
+          feedback: 'Another proposal is a stronger fit.',
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+    },
+  ])(
+    'returns the stable terminal conflict with no stale effects when expiry wins before $command',
+    async ({ decide }) => {
+      database.application.findFirst.mockResolvedValue(
+        applicationRecord({
+          status: ApplicationStatus.expired,
+          expired_at: new Date('2026-08-04T12:00:00.000Z'),
+        }),
+      );
+
+      await expect(decide()).rejects.toMatchObject({
+        code: 'APPLICATION_TERMINAL',
+        metadata: { status: ApplicationStatus.expired },
+      });
+      expect(database.ownerDecision.create).not.toHaveBeenCalled();
+      expect(database.assignment.create).not.toHaveBeenCalled();
+      expect(database.application.updateMany).not.toHaveBeenCalled();
+      expect(database.applicationAudit.create).not.toHaveBeenCalled();
+      expect(
+        notifications.createApplicationNotification,
+      ).not.toHaveBeenCalled();
+      expect(notifications.emitApplicationNotifications).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     { ...contributor, label: 'active contributor' },

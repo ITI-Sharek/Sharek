@@ -2,9 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { ConnectionOptions } from 'bullmq';
 
 export function getRedisConnection(config: ConfigService): ConnectionOptions {
-  const redisUrl = new URL(
-    config.get<string>('REDIS_URL', 'redis://localhost:6379'),
-  );
+  const redisUrl = new URL(config.getOrThrow<string>('REDIS_URL'));
 
   return {
     host: redisUrl.hostname,

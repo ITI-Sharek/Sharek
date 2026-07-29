@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 let processor: (() => Promise<unknown>) | null = null;
@@ -65,5 +66,39 @@ describe('ApplicationReviewWindowWorker', () => {
     expect(processor).toBeNull();
     expect(queue.schedule).not.toHaveBeenCalled();
     expect(queue.enqueueCatchUp).not.toHaveBeenCalled();
+  });
+
+  it('logs the terminal job failure after BullMQ exhausts configured retries', async () => {
+    const loggerError = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    const queue = {
+      schedule: jest.fn().mockResolvedValue(undefined),
+      enqueueCatchUp: jest.fn().mockResolvedValue(undefined),
+    };
+    const reviewWindow = { processDue: jest.fn() };
+    const worker = new ApplicationReviewWindowWorker(
+      new ConfigService({
+        APPLICATION_REVIEW_QUEUE_ENABLED: true,
+        REDIS_URL: 'redis://localhost:6379',
+      }),
+      queue as never,
+      reviewWindow as never,
+    );
+
+    await worker.onApplicationBootstrap();
+    const failedHandler = workerOn.mock.calls.find(
+      ([event]) => event === 'failed',
+    )?.[1] as
+      | ((job: { id: string; attemptsMade: number }, error: Error) => void)
+      | undefined;
+    const error = new Error('sweep failed after retries');
+    failedHandler?.({ id: 'scheduled-sweep', attemptsMade: 3 }, error);
+
+    expect(failedHandler).toBeDefined();
+    expect(loggerError).toHaveBeenCalledWith(
+      'Application review sweep scheduled-sweep failed',
+      error.stack,
+    );
   });
 });
