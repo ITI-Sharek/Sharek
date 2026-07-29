@@ -153,6 +153,55 @@ describe('ContributionTasksService', () => {
     ).resolves.toBeNull();
   });
 
+  it('creates an attributed draft Request from an accepted Proposal in the caller transaction', async () => {
+    const proposalId = '55555555-5555-4555-8555-555555555555';
+    const contributorId = '66666666-6666-4666-8666-666666666666';
+    database.contributionRequest.create.mockResolvedValue(
+      makeRequest({
+        status: ContributionRequestStatus.draft,
+        origin_proposal_id: proposalId,
+        attributed_contributor_id: contributorId,
+        requirements: [],
+      }),
+    );
+
+    const result = await service.createDraftFromAcceptedProposal({
+      transaction: database as never,
+      ownerId: owner.id,
+      projectId,
+      proposalId,
+      attributedContributorId: contributorId,
+      title: 'Add a caching layer',
+      description: 'Problem or opportunity:\nSlow discovery feed.',
+    });
+
+    expect(database.contributionRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: ContributionRequestStatus.draft,
+          origin_proposal_id: proposalId,
+          attributed_contributor_id: contributorId,
+          owner_id: owner.id,
+        }),
+      }),
+    );
+    expect(database.contributionRequestAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: ContributionRequestAuditAction.created,
+        to_status: ContributionRequestStatus.draft,
+        metadata: expect.objectContaining({
+          source: 'contribution_proposal',
+          originProposalId: proposalId,
+          attributedContributorId: contributorId,
+        }),
+      }),
+    });
+    expect(result.attribution).toEqual({
+      proposalId,
+      contributorId,
+    });
+  });
+
   it('revalidates the parent Project publication inside the submission transaction', async () => {
     database.$queryRaw.mockResolvedValue([
       {
@@ -398,12 +447,18 @@ describe('ContributionTasksService', () => {
         published_at: { not: null },
         applications_close_at: { gt: expect.any(Date) },
       },
-      include: { requirements: true },
+      include: {
+        requirements: true,
+        attributedContributor: {
+          select: { id: true, first_name: true, last_name: true },
+        },
+      },
     });
     expect(result.requirements).toEqual([
       expect.objectContaining({ classification: 'required' }),
       expect.objectContaining({ classification: 'preferred' }),
     ]);
+    expect(result.attribution).toBeNull();
   });
 
   it('does not reveal non-actionable Requests through public detail', async () => {
@@ -1116,6 +1171,8 @@ function baseRequest() {
     reward_currency: 'USD',
     status: ContributionRequestStatus.draft as ContributionRequestStatus,
     max_applicants: 1,
+    origin_proposal_id: null as string | null,
+    attributed_contributor_id: null as string | null,
     published_at: null as Date | null,
     created_at: new Date('2026-07-28T00:00:00.000Z'),
     updated_at: new Date('2026-07-28T00:00:00.000Z'),

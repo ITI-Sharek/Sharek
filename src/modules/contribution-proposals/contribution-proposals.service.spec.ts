@@ -54,6 +54,10 @@ describe('ContributionProposalsService', () => {
     },
     contributionProposalVersion: { create: jest.fn() },
     contributionProposalAudit: { findFirst: jest.fn(), create: jest.fn() },
+    contributionProposalMisuseReport: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+    },
     projectProposalIntake: { upsert: jest.fn() },
     $executeRaw: jest.fn(),
     $queryRaw: jest.fn(),
@@ -63,9 +67,13 @@ describe('ContributionProposalsService', () => {
     getProposalProjectContext: jest.fn(),
     lockProposalProjectContext: jest.fn(),
   };
+  const contributionTasks = {
+    createDraftFromAcceptedProposal: jest.fn(),
+  };
   const service = new ContributionProposalsService(
     database as never,
     projects as never,
+    contributionTasks as never,
   );
 
   beforeEach(() => {
@@ -96,6 +104,13 @@ describe('ContributionProposalsService', () => {
     database.contributionProposal.findUniqueOrThrow.mockResolvedValue(
       proposalRecord(),
     );
+    database.contributionProposalMisuseReport.findFirst.mockResolvedValue(null);
+    database.contributionProposalMisuseReport.create.mockResolvedValue(
+      misuseReportRecord(),
+    );
+    contributionTasks.createDraftFromAcceptedProposal.mockResolvedValue({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
   });
 
   describe('submit', () => {
@@ -527,6 +542,244 @@ describe('ContributionProposalsService', () => {
     });
   });
 
+  describe('accept', () => {
+    it('accepts a pending proposal and creates one attributed draft Request', async () => {
+      database.contributionProposal.findUnique.mockResolvedValue({
+        id: proposalId,
+        project_id: projectId,
+        proposer_id: contributor.id,
+        status: ContributionProposalStatus.pending,
+        current_version: 1,
+        revision_request_sequence: 0,
+        versions: [
+          {
+            version: 1,
+            title: 'Add caching layer',
+            problem_or_opportunity: proposalContent.problemOrOpportunity,
+            proposed_outcome: proposalContent.proposedOutcome,
+            project_benefit: proposalContent.projectBenefit,
+          },
+        ],
+      });
+      database.contributionProposal.updateMany.mockResolvedValue({ count: 1 });
+      database.contributionProposal.findUniqueOrThrow.mockResolvedValue(
+        proposalRecord({
+          status: ContributionProposalStatus.accepted,
+          accepted_at: new Date('2026-07-29T09:00:00.000Z'),
+          originatedRequest: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+        }),
+      );
+
+      const result = await service.accept({
+        actor: owner,
+        proposalId,
+        idempotencyKey,
+      });
+
+      expect(result.status).toBe('ACCEPTED');
+      expect(result.resultingContributionRequestId).toBe(
+        'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      );
+      // Exactly one draft Request is created, attributed to the proposer.
+      expect(
+        contributionTasks.createDraftFromAcceptedProposal,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        contributionTasks.createDraftFromAcceptedProposal,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ownerId: owner.id,
+          projectId,
+          proposalId,
+          attributedContributorId: contributor.id,
+          title: 'Add caching layer',
+        }),
+      );
+      // Acceptance flips pending -> accepted under an optimistic guard.
+      expect(database.contributionProposal.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: ContributionProposalStatus.pending,
+            current_version: 1,
+            revision_request_sequence: 0,
+          }),
+          data: expect.objectContaining({
+            status: ContributionProposalStatus.accepted,
+          }),
+        }),
+      );
+      expect(database.contributionProposalAudit.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'accepted' }),
+      });
+    });
+
+    it('rejects acceptance by an owner of another Project', async () => {
+      database.contributionProposal.findUnique.mockResolvedValue({
+        id: proposalId,
+        project_id: projectId,
+        proposer_id: contributor.id,
+        status: ContributionProposalStatus.pending,
+        current_version: 1,
+        revision_request_sequence: 0,
+        versions: [{ version: 1, title: 'x' }],
+      });
+      projects.lockProposalProjectContext.mockResolvedValue({
+        id: projectId,
+        ownerId: 'someone-else',
+        status: ProjectStatus.published,
+      });
+
+      await expect(
+        service.accept({ actor: owner, proposalId, idempotencyKey }),
+      ).rejects.toMatchObject({ code: 'PROPOSAL_NOT_FOUND' });
+      expect(
+        contributionTasks.createDraftFromAcceptedProposal,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('does not accept a terminal proposal', async () => {
+      database.contributionProposal.findUnique.mockResolvedValue({
+        id: proposalId,
+        project_id: projectId,
+        proposer_id: contributor.id,
+        status: ContributionProposalStatus.withdrawn,
+        current_version: 1,
+        revision_request_sequence: 0,
+        versions: [{ version: 1, title: 'x' }],
+      });
+
+      await expect(
+        service.accept({ actor: owner, proposalId, idempotencyKey }),
+      ).rejects.toMatchObject({ code: 'PROPOSAL_TERMINAL', statusCode: 409 });
+      expect(
+        contributionTasks.createDraftFromAcceptedProposal,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('decline', () => {
+    it('declines a pending proposal with a contributor-visible reason', async () => {
+      database.contributionProposal.findUnique.mockResolvedValue({
+        id: proposalId,
+        project_id: projectId,
+        status: ContributionProposalStatus.pending,
+        current_version: 1,
+        revision_request_sequence: 0,
+      });
+      database.contributionProposal.updateMany.mockResolvedValue({ count: 1 });
+      database.contributionProposal.findUniqueOrThrow.mockResolvedValue(
+        proposalRecord({
+          status: ContributionProposalStatus.declined,
+          declined_at: new Date('2026-07-29T09:00:00.000Z'),
+          decline_reason: 'Out of scope for this Project right now.',
+        }),
+      );
+
+      const result = await service.decline({
+        actor: owner,
+        proposalId,
+        reason: 'Out of scope for this Project right now.',
+        idempotencyKey,
+      });
+
+      expect(result.status).toBe('DECLINED');
+      expect(result.declineReason).toBe(
+        'Out of scope for this Project right now.',
+      );
+      expect(database.contributionProposal.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: ContributionProposalStatus.declined,
+            decline_reason: 'Out of scope for this Project right now.',
+          }),
+        }),
+      );
+      expect(
+        contributionTasks.createDraftFromAcceptedProposal,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reportMisuse', () => {
+    it('preserves authorship evidence without any automatic finding', async () => {
+      database.contributionProposal.findUnique.mockResolvedValue({
+        id: proposalId,
+        project_id: projectId,
+        proposer_id: contributor.id,
+        status: ContributionProposalStatus.pending,
+        current_version: 1,
+        created_at: new Date('2026-07-28T09:00:00.000Z'),
+        versions: [
+          {
+            version: 1,
+            title: 'Add caching layer',
+            problem_or_opportunity: proposalContent.problemOrOpportunity,
+            proposed_outcome: proposalContent.proposedOutcome,
+            project_benefit: proposalContent.projectBenefit,
+            authored_by: contributor.id,
+            created_at: new Date('2026-07-28T09:00:00.000Z'),
+          },
+        ],
+      });
+
+      const result = await service.reportMisuse({
+        actor: owner,
+        proposalId,
+        reason: 'This proposal appears to copy another contributor’s work.',
+        idempotencyKey,
+      });
+
+      expect(result).toMatchObject({ proposalId, reportedVersion: 1 });
+      const createArg =
+        database.contributionProposalMisuseReport.create.mock.calls[0][0];
+      expect(createArg.data.evidence_snapshot).toMatchObject({
+        proposalId,
+        proposerId: contributor.id,
+        reportedVersion: 1,
+      });
+    });
+
+    it('replays an identical report instead of duplicating it', async () => {
+      database.contributionProposalMisuseReport.findFirst.mockResolvedValue(
+        misuseReportRecord(),
+      );
+
+      await service.reportMisuse({
+        actor: contributor,
+        proposalId,
+        reason: 'Duplicate submission of the same report.',
+        idempotencyKey,
+      });
+
+      expect(
+        database.contributionProposalMisuseReport.create,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('hides the proposal from non-participants', async () => {
+      database.contributionProposalMisuseReport.findFirst.mockResolvedValue(
+        null,
+      );
+      database.contributionProposal.findUnique.mockResolvedValue(
+        proposalRecord({ proposer_id: 'another-contributor' }),
+      );
+      projects.getProposalProjectContext.mockResolvedValue({
+        id: projectId,
+        ownerId: 'someone-else',
+        status: ProjectStatus.published,
+      });
+
+      await expect(
+        service.reportMisuse({
+          actor: contributor,
+          proposalId,
+          reason: 'I should not be able to report this proposal.',
+          idempotencyKey,
+        }),
+      ).rejects.toMatchObject({ code: 'PROPOSAL_NOT_FOUND' });
+    });
+  });
+
   function submit() {
     return service.submit({
       actor: contributor,
@@ -537,6 +790,20 @@ describe('ContributionProposalsService', () => {
     });
   }
 });
+
+function misuseReportRecord(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    proposal_id: proposalId,
+    reporter_id: owner.id,
+    reported_version: 1,
+    reason: 'This proposal appears to copy another contributor’s work.',
+    created_at: new Date('2026-07-29T09:00:00.000Z'),
+    ...overrides,
+  };
+}
 
 function proposalRecord(
   overrides: Record<string, unknown> = {},
@@ -551,6 +818,10 @@ function proposalRecord(
     disclosure_version: '2026-07-attribution-assignment',
     disclosure_acknowledged_at: new Date('2026-07-28T09:00:00.000Z'),
     revision_requested_at: null,
+    accepted_at: null,
+    declined_at: null,
+    decline_reason: null,
+    originatedRequest: null,
     created_at: new Date('2026-07-28T09:00:00.000Z'),
     updated_at: new Date('2026-07-28T09:00:00.000Z'),
     versions: [
