@@ -27,10 +27,12 @@ function readEnvironmentFile() {
 }
 
 function resolveServiceUrl(input, fileEnvironment, runningInDocker) {
-  const rawValue =
-    process.env[input.urlKey] ??
-    fileEnvironment[input.urlKey] ??
-    input.defaultUrl;
+  const rawValue = process.env[input.urlKey] ?? fileEnvironment[input.urlKey];
+  if (!rawValue) {
+    throw new Error(
+      `${input.urlKey} must be configured through the environment or .env`,
+    );
+  }
   const serviceUrl = new URL(rawValue);
   if (!runningInDocker && serviceUrl.hostname === input.composeHostname) {
     serviceUrl.hostname = 'localhost';
@@ -55,8 +57,6 @@ const databaseUrl = resolveServiceUrl(
     hostPortKey: 'POSTGRES_PORT',
     composeHostname: 'postgres',
     defaultHostPort: '5433',
-    defaultUrl:
-      'postgresql://sharek:sharek@postgres:5432/sharek?schema=public',
   },
   fileEnvironment,
   runningInDocker,
@@ -67,7 +67,6 @@ const redisUrl = resolveServiceUrl(
     hostPortKey: 'REDIS_PORT',
     composeHostname: 'redis',
     defaultHostPort: '6379',
-    defaultUrl: 'redis://redis:6379',
   },
   fileEnvironment,
   runningInDocker,

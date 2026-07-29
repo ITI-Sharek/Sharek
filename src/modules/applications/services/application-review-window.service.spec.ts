@@ -23,6 +23,11 @@ describe('ApplicationReviewWindowService', () => {
         updateMany: jest.fn(),
       },
       applicationAudit: { create: jest.fn() },
+      ownerDecision: { create: jest.fn() },
+      assignment: { create: jest.fn() },
+      contributionRequest: { update: jest.fn(), updateMany: jest.fn() },
+      reputationRecord: { update: jest.fn(), updateMany: jest.fn() },
+      skillProfile: { update: jest.fn(), updateMany: jest.fn() },
       $transaction: jest.fn(),
     };
     database.$transaction.mockImplementation(
@@ -113,6 +118,7 @@ describe('ApplicationReviewWindowService', () => {
         action: ApplicationAuditAction.expired,
         from_status: ApplicationStatus.pending_owner_review,
         to_status: ApplicationStatus.expired,
+        idempotency_key: `application-review-expiry:${expiryCandidate.id}`,
         metadata: {
           payloadVersion: 1,
           trigger: 'owner_review_window',
@@ -152,6 +158,78 @@ describe('ApplicationReviewWindowService', () => {
       2,
       [{ notificationId: 'reminder-notification' }],
     );
+  });
+
+  it('marks a due reminder without changing Application lifecycle fields', async () => {
+    const { service, database, notifications } = createFixture();
+    database.application.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([reminderCandidate]);
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+    notifications.createApplicationNotification.mockResolvedValue({
+      created: false,
+      notification: null,
+    });
+
+    await expect(service.processDue(now)).resolves.toEqual({
+      reminded: 1,
+      expired: 0,
+    });
+
+    expect(database.application.updateMany).toHaveBeenCalledTimes(1);
+    expect(database.application.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: reminderCandidate.id,
+        status: ApplicationStatus.pending_owner_review,
+        review_due_at: { lte: now },
+        review_reminder_sent_at: null,
+        expires_at: { gt: now },
+      },
+      data: { review_reminder_sent_at: now },
+    });
+    expect(database.applicationAudit.create).not.toHaveBeenCalled();
+  });
+
+  it('expires only the due Application without changing decision-neutral state', async () => {
+    const { service, database, notifications } = createFixture();
+    const siblingId = '77777777-7777-4777-8777-777777777777';
+    database.application.findMany
+      .mockResolvedValueOnce([expiryCandidate])
+      .mockResolvedValueOnce([]);
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+    database.applicationAudit.create.mockResolvedValue({});
+    notifications.createApplicationNotification.mockResolvedValue({
+      created: false,
+      notification: null,
+    });
+
+    await expect(service.processDue(now)).resolves.toEqual({
+      reminded: 0,
+      expired: 1,
+    });
+
+    expect(database.application.updateMany).toHaveBeenCalledTimes(1);
+    expect(database.application.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: expiryCandidate.id,
+        status: ApplicationStatus.pending_owner_review,
+        expires_at: { lte: now },
+      },
+      data: { status: ApplicationStatus.expired, expired_at: now },
+    });
+    expect(database.application.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: siblingId }),
+      }),
+    );
+    expect(database.ownerDecision.create).not.toHaveBeenCalled();
+    expect(database.assignment.create).not.toHaveBeenCalled();
+    expect(database.contributionRequest.update).not.toHaveBeenCalled();
+    expect(database.contributionRequest.updateMany).not.toHaveBeenCalled();
+    expect(database.reputationRecord.update).not.toHaveBeenCalled();
+    expect(database.reputationRecord.updateMany).not.toHaveBeenCalled();
+    expect(database.skillProfile.update).not.toHaveBeenCalled();
+    expect(database.skillProfile.updateMany).not.toHaveBeenCalled();
   });
 
   it('does nothing immediately before persisted reminder and expiry boundaries', async () => {

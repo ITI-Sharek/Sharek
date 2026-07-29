@@ -14,6 +14,7 @@ import {
   ApplicationReviewWindowJobData,
   ApplicationReviewWindowQueue,
 } from './application-review-window.queue';
+import { isApplicationReviewQueueEnabled } from './application-review-window.config';
 
 @Injectable()
 export class ApplicationReviewWindowWorker
@@ -29,7 +30,7 @@ export class ApplicationReviewWindowWorker
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    if (!this.isEnabled()) return;
+    if (!isApplicationReviewQueueEnabled(this.config)) return;
 
     this.worker = new Worker<ApplicationReviewWindowJobData>(
       APPLICATION_REVIEW_WINDOW_QUEUE,
@@ -53,12 +54,5 @@ export class ApplicationReviewWindowWorker
 
   async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
-  }
-
-  private isEnabled(): boolean {
-    return this.config.get<boolean>(
-      'APPLICATION_REVIEW_QUEUE_ENABLED',
-      this.config.get<string>('NODE_ENV', 'development') !== 'test',
-    );
   }
 }
