@@ -17,3 +17,6 @@ API-Key.txt
 *.locked-backup.*/
 *.locked-backup-*/
 .playwright-mcp/
+postman/sync.js
+.agent/
+.agents/
