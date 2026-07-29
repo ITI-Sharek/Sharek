@@ -20,12 +20,49 @@ export interface NotificationCreateResultDto {
   notification: RealtimeNotificationDto;
 }
 
+export type ApplicationNotificationAction =
+  | 'submitted'
+  | 'withdrawn'
+  | 'accepted'
+  | 'declined_by_owner'
+  | 'not_selected';
+
 export interface ApplicationNotificationInput {
   userId: string;
   applicationId: string;
   contributionRequestId: string;
-  action: 'submitted' | 'withdrawn';
+  action: ApplicationNotificationAction;
 }
+
+const APPLICATION_NOTIFICATION_COPY: Record<
+  ApplicationNotificationAction,
+  { title: string; message: string }
+> = {
+  submitted: {
+    title: 'New Application received',
+    message:
+      'A contributor submitted an Application for your Contribution Request.',
+  },
+  withdrawn: {
+    title: 'Application withdrawn',
+    message:
+      'A contributor withdrew an Application from your Contribution Request.',
+  },
+  accepted: {
+    title: 'Application accepted',
+    message: 'Your Application was accepted and an Assignment was created.',
+  },
+  declined_by_owner: {
+    title: 'Application declined by owner',
+    message:
+      'The Project owner declined your Application. This decision affects only this Application.',
+  },
+  not_selected: {
+    title: 'Another contributor was selected',
+    message:
+      'Another contributor was selected for this Contribution Request. This does not affect your eligibility or reputation.',
+  },
+};
 
 @Injectable()
 export class NotificationsService {
@@ -66,33 +103,34 @@ export class NotificationsService {
 
   async createApplicationNotification(
     input: ApplicationNotificationInput,
+    options?: {
+      transaction?: Prisma.TransactionClient;
+      emitRealtime?: boolean;
+    },
   ): Promise<NotificationCreateResultDto> {
+    const notifications =
+      options?.transaction?.notification ?? this.database.notification;
     const deduplicationKey = `application:${input.applicationId}:${input.action}`;
-    const existing = await this.database.notification.findUnique({
+    const copy = APPLICATION_NOTIFICATION_COPY[input.action];
+    const existing = await notifications.findUnique({
       where: { deduplication_key: deduplicationKey },
     });
     let notification = existing;
     let created = false;
     if (!notification) {
       try {
-        notification = await this.database.notification.create({
-        data: {
-          user_id: input.userId,
-          type: NotificationType.application_status,
-          title:
-            input.action === 'submitted'
-              ? 'New Application received'
-              : 'Application withdrawn',
-          message:
-            input.action === 'submitted'
-              ? 'A contributor submitted an Application for your Contribution Request.'
-              : 'A contributor withdrew an Application from your Contribution Request.',
-          metadata: {
-            applicationId: input.applicationId,
-            contributionRequestId: input.contributionRequestId,
-            action: input.action,
-          },
-          deduplication_key: deduplicationKey,
+        notification = await notifications.create({
+          data: {
+            user_id: input.userId,
+            type: NotificationType.application_status,
+            title: copy.title,
+            message: copy.message,
+            metadata: {
+              applicationId: input.applicationId,
+              contributionRequestId: input.contributionRequestId,
+              action: input.action,
+            },
+            deduplication_key: deduplicationKey,
           },
         });
         created = true;
@@ -103,13 +141,13 @@ export class NotificationsService {
         ) {
           throw error;
         }
-        notification = await this.database.notification.findUniqueOrThrow({
+        notification = await notifications.findUniqueOrThrow({
           where: { deduplication_key: deduplicationKey },
         });
       }
     }
     const realtimeNotification = this.presentRealtimeNotification(notification);
-    const deliveredRealtime = created
+    const deliveredRealtime = created && options?.emitRealtime !== false
       ? this.notificationsGateway.emitNotification(realtimeNotification)
       : false;
 
@@ -119,6 +157,14 @@ export class NotificationsService {
       deliveredRealtime,
       notification: realtimeNotification,
     };
+  }
+
+  emitApplicationNotifications(
+    notifications: RealtimeNotificationDto[],
+  ): void {
+    for (const notification of notifications) {
+      this.notificationsGateway.emitNotification(notification);
+    }
   }
 
   private presentRealtimeNotification(

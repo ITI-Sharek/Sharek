@@ -16,6 +16,7 @@ admin decisions.
 - `POST /admin/experience-levels`
 - `PATCH /admin/experience-levels/:levelId`
 - `GET /admin/published-project-owners`
+- `POST /owner-decisions/:ownerDecisionId/reports`
 
 ## Structure
 
@@ -25,10 +26,15 @@ controllers/
   admin-contributor-fields.controller.ts
   admin-experience-levels.controller.ts
   admin-published-project-owners.controller.ts
+  decision-feedback-reports.controller.ts
 dto/
   admin-skill-review.request.ts
   contributor-field.request.ts
   experience-level.request.ts
+  decision-feedback-report.request.ts
+  decision-feedback-report.response.ts
+services/
+  decision-feedback-reports.service.ts
 admin.module.ts
 README.md
 ```
@@ -53,3 +59,9 @@ The published-project owner route delegates to the exported `ProjectsService`.
 It provides the admin overview with owner identity, an accurate published
 project count, and each owner's latest published project without moving project
 reads or ownership decisions into the admin module.
+
+An affected contributor can report abusive or otherwise inappropriate decline
+feedback. The admin-owned service writes the existing `Report` model with a
+foreign key to the immutable `OwnerDecision`, after the Applications module
+confirms the contributor/decision relationship. A report is moderation input,
+not an appeal, and never changes Application state.

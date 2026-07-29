@@ -50,6 +50,8 @@ projects              projects, project_operations, project_state_transitions, p
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
 contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes, contribution_proposal_misuse_reports
+applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits, owner_decisions, assignments
+contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes
 delivery-reviews      deliveries, delivery_reviews
 reputation            reputation_profiles, reputation_events
 admin                 admin_review_queue, reports, disputes, moderation_actions
@@ -119,6 +121,15 @@ table directly.
 Application submission and withdrawal notifications use a nullable unique
 `deduplication_key` so a retried Application command cannot create or deliver
 the same durable notification twice.
+
+Migration `20260729120000_owner_decisions_assignments` adds immutable human
+Owner Decisions and one-to-one Assignments. Decline feedback remains nullable in
+the Prisma type because acceptance stores null, while a PostgreSQL `CHECK`
+requires declined decisions to contain non-null text whose `btrim` value is not
+empty. Unique Assignment keys enforce at most one Assignment per Contribution
+Request, Application, and accepted decision. Owner/idempotency-key uniqueness
+supports exact command replay. `Report.owner_decision_id` links moderation to
+the decision without changing the Application lifecycle.
 
 Migration `20260714130000_normalize_skill_profile_keys` aligns historical
 aliases such as `ts`, `js`, and `c sharp` with the same canonical policy.

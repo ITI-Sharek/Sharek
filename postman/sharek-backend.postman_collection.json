@@ -1560,10 +1560,104 @@
 								"withdraw"
 							]
 						},
-						"description": "Withdraw a pending Application as its contributor. Reuse withdrawalIdempotencyKey to test replay behavior."
+							"description": "Withdraw a pending Application as its contributor. Reuse withdrawalIdempotencyKey to test replay behavior."
+						}
+					},
+					{
+						"name": "07 - Accept Application",
+						"request": {
+							"method": "POST",
+							"header": [
+								{
+									"key": "Authorization",
+									"value": "Bearer {{ownerAccessToken}}"
+								},
+								{
+									"key": "Idempotency-Key",
+									"value": "{{acceptIdempotencyKey}}"
+								}
+							],
+							"url": {
+								"raw": "{{baseUrl}}/applications/{{applicationId}}/accept",
+								"host": ["{{baseUrl}}"],
+								"path": ["applications", "{{applicationId}}", "accept"]
+							},
+							"description": "Accept one pending Application as the current Project owner. Reusing acceptIdempotencyKey returns the original Owner Decision and Assignment."
+						}
+					},
+					{
+						"name": "08 - Decline Application with Feedback",
+						"event": [
+							{
+								"listen": "test",
+								"script": {
+									"exec": [
+										"if (pm.response.code === 200) {",
+										"  const body = pm.response.json();",
+										"  pm.environment.set('ownerDecisionId', body.ownerDecision.id);",
+										"}"
+									],
+									"type": "text/javascript"
+								}
+							}
+						],
+						"request": {
+							"method": "POST",
+							"header": [
+								{
+									"key": "Authorization",
+									"value": "Bearer {{ownerAccessToken}}"
+								},
+								{
+									"key": "Idempotency-Key",
+									"value": "{{declineIdempotencyKey}}"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": {
+								"mode": "raw",
+								"raw": "{\n  \"feedback\": \"The approach needs a more concrete test strategy.\"\n}",
+								"options": { "raw": { "language": "json" } }
+							},
+							"url": {
+								"raw": "{{baseUrl}}/applications/{{declineApplicationId}}/decline",
+								"host": ["{{baseUrl}}"],
+								"path": ["applications", "{{declineApplicationId}}", "decline"]
+							},
+							"description": "Decline a different pending Application with required non-blank feedback. The stored feedback is trimmed."
+						}
+					},
+					{
+						"name": "09 - Report Decline Feedback",
+						"request": {
+							"method": "POST",
+							"header": [
+								{
+									"key": "Authorization",
+									"value": "Bearer {{contributorAccessToken}}"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": {
+								"mode": "raw",
+								"raw": "{\n  \"reason\": \"harassment\",\n  \"description\": \"The decline feedback contains abusive language.\"\n}",
+								"options": { "raw": { "language": "json" } }
+							},
+							"url": {
+								"raw": "{{baseUrl}}/owner-decisions/{{ownerDecisionId}}/reports",
+								"host": ["{{baseUrl}}"],
+								"path": ["owner-decisions", "{{ownerDecisionId}}", "reports"]
+							},
+							"description": "Create a moderation Report for explicit decline feedback as the affected contributor. This does not reopen or change the Application."
+						}
 					}
-				}
-			]
+				]
 		},
 		{
 			"name": "Google",
@@ -2728,6 +2822,22 @@
 		{
 			"key": "withdrawalIdempotencyKey",
 			"value": "00000000-0000-4000-8000-000000000002"
+		},
+		{
+			"key": "acceptIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000003"
+		},
+		{
+			"key": "declineIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000004"
+		},
+		{
+			"key": "declineApplicationId",
+			"value": ""
+		},
+		{
+			"key": "ownerDecisionId",
+			"value": ""
 		},
 		{
 			"key": "contributionProposalId",
