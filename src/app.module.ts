@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AdminModule } from './modules/admin/admin.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
+import { ContributionProposalsModule } from './modules/contribution-proposals/contribution-proposals.module';
 import { ContributionTasksModule } from './modules/contribution-tasks/contribution-tasks.module';
 import { ContributorProfilesModule } from './modules/contributor-profiles/contributor-profiles.module';
 import { DeliveryReviewsModule } from './modules/delivery-reviews/delivery-reviews.module';
@@ -44,6 +45,7 @@ import { ObservabilityModule } from './shared/observability/observability.module
     ContributionTasksModule,
     ContributorProfilesModule,
     ApplicationsModule,
+    ContributionProposalsModule,
     DeliveryReviewsModule,
     ReputationModule,
     AdminModule,

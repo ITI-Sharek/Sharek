@@ -1050,6 +1050,176 @@
 			]
 		},
 		{
+			"name": "Contribution Proposals",
+			"item": [
+				{
+					"name": "01 - Submit Proposal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"  pm.collectionVariables.set('contributionProposalId', pm.response.json().id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"title\": \"Add repository insight caching\",\n  \"problemOrOpportunity\": \"Repository insight pages repeat expensive provider lookups.\",\n  \"proposedOutcome\": \"Cache normalized repository insight results with explicit invalidation.\",\n  \"projectBenefit\": \"Contributors receive faster and more reliable project discovery.\",\n  \"acknowledgesAttributionAndAssignmentDisclosure\": true,\n  \"idempotencyKey\": \"{{proposalSubmissionIdempotencyKey}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/contribution-proposals",
+						"description": "Submit a structured proposal to a published Project with proposal intake enabled."
+					}
+				},
+				{
+					"name": "02 - List My Proposals",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/mine?limit=20",
+						"description": "List the authenticated contributor's proposals using bounded cursor pagination."
+					}
+				},
+				{
+					"name": "03 - List Project Proposals",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/for-project/{{projectId}}?limit=20",
+						"description": "List proposals for a Project owned by the authenticated owner."
+					}
+				},
+				{
+					"name": "04 - Get Proposal Detail",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}",
+						"description": "Read private proposal detail as its proposer or Project owner."
+					}
+				},
+				{
+					"name": "05 - Request Revision",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Please clarify the invalidation and rollout strategy.\",\n  \"idempotencyKey\": \"{{proposalRevisionIdempotencyKey}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/revision-requests",
+						"description": "Append an immutable revision request as the Project owner."
+					}
+				},
+				{
+					"name": "06 - Submit Revised Version",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Add repository insight caching with safe invalidation\",\n  \"problemOrOpportunity\": \"Repository insight pages repeat expensive provider lookups.\",\n  \"proposedOutcome\": \"Cache normalized results and invalidate entries after Project publication changes.\",\n  \"projectBenefit\": \"Discovery stays fast while contributors continue to receive current information.\",\n  \"idempotencyKey\": \"{{proposalVersionIdempotencyKey}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/versions",
+						"description": "Submit an immutable new version in response to the latest revision request."
+					}
+				},
+				{
+					"name": "07 - Toggle Project Intake",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"enabled\": false\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/contribution-proposals/for-project/{{projectId}}/intake",
+						"description": "Enable or disable new Contribution Proposal intake for an owned Project."
+					}
+				},
+				{
+					"name": "08 - Withdraw Proposal",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{proposalWithdrawalIdempotencyKey}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/withdraw",
+						"description": "Withdraw a pending proposal without deleting its version or audit history."
+					}
+				}
+			]
+		},
+		{
 			"name": "Applications",
 			"event": [
 				{
@@ -2448,6 +2618,26 @@
 		{
 			"key": "withdrawalIdempotencyKey",
 			"value": "00000000-0000-4000-8000-000000000002"
+		},
+		{
+			"key": "contributionProposalId",
+			"value": ""
+		},
+		{
+			"key": "proposalSubmissionIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000011"
+		},
+		{
+			"key": "proposalRevisionIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000012"
+		},
+		{
+			"key": "proposalVersionIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000013"
+		},
+		{
+			"key": "proposalWithdrawalIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000014"
 		},
 		{
 			"key": "contributorAccessToken",

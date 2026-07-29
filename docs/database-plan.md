@@ -49,6 +49,7 @@ notifications         notifications
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
+contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes
 delivery-reviews      deliveries, delivery_reviews
 reputation            reputation_profiles, reputation_events
 admin                 admin_review_queue, reports, disputes, moderation_actions
@@ -56,6 +57,10 @@ ai                    ai_call_audit, AI service response snapshots, embeddings w
 ```
 
 Only the owning module writes its tables.
+
+Contribution Proposals additionally use a PostgreSQL partial unique index over
+`(project_id, proposer_id)` while `status = 'pending'`. The raw migration owns
+that invariant because Prisma schema syntax cannot express partial indexes.
 
 Prompt definitions and provider-specific model execution belong in the separate
 FastAPI AI repository. The backend stores the metadata and snapshots needed for

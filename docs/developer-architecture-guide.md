@@ -17,6 +17,7 @@ Choose the module that owns the final business state:
 | `notifications` | in-app notification records and notification write workflows |
 | `contribution-tasks` | project task definitions and requirements |
 | `applications` | contributor applications and eligibility state |
+| `contribution-proposals` | contributor-authored proposals, immutable versions, owner revision requests, intake |
 | `delivery-reviews` | delivery submissions, owner review, feedback, ratings |
 | `reputation` | reputation summaries and history |
 | `admin` | moderation, reports, disputes, admin queues |
