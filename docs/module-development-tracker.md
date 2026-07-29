@@ -1747,7 +1747,7 @@ This keeps the system strong without making it heavy:
 - Scope: Issues #48, #49, and #50 endpoint handoff.
 - Documentation: added all eight Contribution Request draft/public lifecycle
   endpoints and retained the four Application endpoints. Audited every NestJS
-  controller and filled the collection out to all 86 current HTTP routes,
+  controller and filled the collection out to all 87 current HTTP routes,
   including canonical Projects, GitHub App, Skill Profiles, Contributor
   Profiles, Admin, and supplemental Identity routes. Added runnable auth,
   Project, Request, provider, catalog, date, and idempotency variables to the
@@ -1757,8 +1757,8 @@ This keeps the system strong without making it heavy:
   ID so publication, discovery, Application, withdrawal, and cancellation can
   be tested without destroying the shared workflow state early.
 - Verification: both Postman JSON files parse successfully. An exact
-  method/path inventory reports 86 controller routes and zero missing Postman
-  routes (90 requests total, including login/workflow duplicates).
+  method/path inventory reports 87 controller routes and zero missing Postman
+  routes (91 requests total, including login/workflow duplicates).
 
 ## 2026-07-28 — Issues #49/#50 integration hardening
 
@@ -1787,9 +1787,31 @@ This keeps the system strong without making it heavy:
   migration regression, Postman JSON/route inventory, and diff checks pass. The
   full Jest run passes 62 suites and 325 tests.
 
-### 2026-07-29 - Contribution Proposals: submit, version, withdraw (S4-B09)
+## 2026-07-28 — Owner Project Contribution Request lifecycle list
 
-- Modules: `contribution-proposals` (new), `projects` (added one exported read).
+- Module: `contribution-tasks`; frontend dependency: owner Project workspace
+  Issue #4 acceptance criterion.
+- API: added protected `GET /projects/:projectId/contribution-requests` for an
+  active owner. The response contains `projectId`, `totalCount`, and an
+  exhaustive `byStatus` object for all six persisted Request lifecycle states.
+- Authorization: Project ownership is checked through the exported Projects
+  capability and the Request query is also owner-scoped. Owned archived Projects
+  remain readable so lifecycle history does not disappear from the workspace;
+  unknown and other-owner Projects retain the safe Project-not-found response.
+- Frontend contract: every status key is always present and items use the full
+  owner-safe Contribution Request DTO, ordered by latest update within each
+  group. The frontend can render sections directly without maintaining a local
+  draft list or inferring missing states.
+- Documentation/testing: added service and HTTP contract coverage, REST and API
+  examples, module documentation, and a runnable Postman request.
+- Verification: architecture, lint, type-check, Prisma validation, production
+  build, Postman JSON/route inventory, and diff checks pass. The full Jest run
+  passes 62 suites and 327 tests.
+
+## 2026-07-29 - Contribution Proposals: submit, version, withdraw (S4-B09)
+
+- Modules: `contribution-proposals` (new), `projects` (added exported read and
+  transaction-lock capabilities).
 - Requirement/task IDs: GitHub issue #55 (S4-B09); parent spec issue #46;
   `specs/005-sprint-4-contribution-workflows/spec.md`; ADR 0002, ADR 0003.
 - Change type: new module, new Prisma models + migration, one exported
@@ -1803,7 +1825,7 @@ This keeps the system strong without making it heavy:
   can answer a revision request with a new version; owners never edit
   contributor-authored content. All state changes append immutable audit records
   with idempotency keys and command fingerprints. The module reads Project facts
-  only through the exported `ProjectsService.getProposalProjectContext`.
+  only through exported `ProjectsService` capabilities.
 - API/database changes: new routes under `/contribution-proposals`; new
   migration `20260729122140_contribution_proposals` adding `ContributionProposal`,
   `ContributionProposalVersion`, `ContributionProposalAudit`,
@@ -1818,3 +1840,24 @@ This keeps the system strong without making it heavy:
 - Risks/follow-up: proposal acceptance into an attributed draft Contribution
   Request (S4-B10) and decline/misuse-report handling remain out of scope; owner
   submission notifications were intentionally deferred to keep this slice focused.
+
+## 2026-07-29 - PR #62 Contribution Proposal review hardening
+
+- Requirement/task IDs: GitHub issue #55 and PR #62.
+- Contract: replaced the generic proposal body with the canonical problem or
+  opportunity, proposed outcome, and Project benefit fields; added bounded
+  cursor pagination to both list routes and runnable REST/Postman examples for
+  all eight endpoints.
+- Consistency: submission now locks and revalidates Project publication, intake,
+  daily rate, idempotency replay, and pending-proposal state inside the write
+  transaction. A PostgreSQL partial unique index protects the one-pending rule,
+  while revision request sequencing prevents a concurrent version from clearing
+  a newer owner request. Prisma failures are mapped only when their exact
+  constraint is known.
+- Tests: added transaction, constraint-error, cursor, revision race,
+  HTTP-to-service, and Project-lock coverage. Applied the migration to an
+  isolated PostgreSQL 14 database and verified that a duplicate pending row is
+  rejected while a new pending row is allowed after withdrawal.
+- Verification: architecture, lint, type-check, Prisma schema validation,
+  focused tests, and the full Jest run pass; the full run covers 64 suites and
+  361 tests.

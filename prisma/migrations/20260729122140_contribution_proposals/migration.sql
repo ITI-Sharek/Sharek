@@ -23,6 +23,7 @@ CREATE TABLE "ContributionProposal" (
     "current_version" INTEGER NOT NULL DEFAULT 1,
     "disclosure_version" VARCHAR(50) NOT NULL,
     "disclosure_acknowledged_at" TIMESTAMP(3) NOT NULL,
+    "revision_request_sequence" INTEGER NOT NULL DEFAULT 0,
     "revision_requested_at" TIMESTAMP(3),
     "withdrawn_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -37,7 +38,9 @@ CREATE TABLE "ContributionProposalVersion" (
     "proposal_id" UUID NOT NULL,
     "version" INTEGER NOT NULL,
     "title" VARCHAR(255) NOT NULL,
-    "body" TEXT NOT NULL,
+    "problem_or_opportunity" TEXT NOT NULL,
+    "proposed_outcome" TEXT NOT NULL,
+    "project_benefit" TEXT NOT NULL,
     "authored_by" UUID NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -64,6 +67,12 @@ CREATE TABLE "ContributionProposalAudit" (
 
 -- CreateIndex
 CREATE INDEX "ContributionProposal_project_id_status_idx" ON "ContributionProposal"("project_id", "status");
+
+-- Enforce the one-pending-proposal-per-contributor-and-Project invariant even
+-- when two requests race with different idempotency keys.
+CREATE UNIQUE INDEX "ContributionProposal_project_id_proposer_id_pending_key"
+ON "ContributionProposal"("project_id", "proposer_id")
+WHERE "status" = 'pending';
 
 -- CreateIndex
 CREATE INDEX "ContributionProposal_proposer_id_created_at_idx" ON "ContributionProposal"("proposer_id", "created_at");

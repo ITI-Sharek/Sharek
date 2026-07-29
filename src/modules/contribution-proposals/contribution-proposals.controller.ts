@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -16,6 +17,7 @@ import { CurrentUser } from '../../shared/auth/current-user.decorator';
 import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
 import { ContributionProposalsService } from './contribution-proposals.service';
 import {
+  ContributionProposalPageQueryDto,
   RequestProposalRevisionDto,
   SetProposalIntakeDto,
   SubmitContributionProposalDto,
@@ -36,22 +38,28 @@ export class ContributionProposalsController {
       actor,
       projectId: body.projectId,
       title: body.title,
-      body: body.body,
+      problemOrOpportunity: body.problemOrOpportunity,
+      proposedOutcome: body.proposedOutcome,
+      projectBenefit: body.projectBenefit,
       idempotencyKey: body.idempotencyKey,
     });
   }
 
   @Get('mine')
-  listMine(@CurrentUser() actor: AuthenticatedUser) {
-    return this.proposals.listMine(actor);
+  listMine(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Query() query: ContributionProposalPageQueryDto,
+  ) {
+    return this.proposals.listMine(actor, query);
   }
 
   @Get('for-project/:projectId')
   listForProject(
     @CurrentUser() actor: AuthenticatedUser,
     @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
+    @Query() query: ContributionProposalPageQueryDto,
   ) {
-    return this.proposals.listForProject(actor, projectId);
+    return this.proposals.listForProject(actor, projectId, query);
   }
 
   @Put('for-project/:projectId/intake')
@@ -83,7 +91,9 @@ export class ContributionProposalsController {
       actor,
       proposalId,
       title: body.title,
-      body: body.body,
+      problemOrOpportunity: body.problemOrOpportunity,
+      proposedOutcome: body.proposedOutcome,
+      projectBenefit: body.projectBenefit,
       idempotencyKey: body.idempotencyKey,
     });
   }

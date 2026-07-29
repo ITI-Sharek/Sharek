@@ -79,14 +79,18 @@ export function toContributionProposalSummaryDto(
 function toVersionDto(version: {
   version: number;
   title: string;
-  body: string;
+  problem_or_opportunity: string;
+  proposed_outcome: string;
+  project_benefit: string;
   authored_by: string;
   created_at: Date;
 }): ContributionProposalVersionDto {
   return {
     version: version.version,
     title: version.title,
-    body: version.body,
+    problemOrOpportunity: version.problem_or_opportunity,
+    proposedOutcome: version.proposed_outcome,
+    projectBenefit: version.project_benefit,
     authoredBy: version.authored_by,
     createdAt: version.created_at,
   };
