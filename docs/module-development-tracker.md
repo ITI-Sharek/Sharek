@@ -2048,3 +2048,19 @@ This keeps the system strong without making it heavy:
 - Verification: Prisma validation and client generation, architecture check,
   lint, exact type-check, build, 7 focused suites / 94 tests, and all 69 Jest
   suites / 437 tests pass.
+
+## 2026-07-30 - Application review-window verification hardening
+
+- Requirement/task IDs: GitHub issue #52 follow-up to PR #65 and schema repair
+  PR #66.
+- Coverage: added direct assertions for marker-only reminders, zero-effect
+  day-5 overdue presentation, overdue accept/decline, EXPIRED terminal
+  decisions, expiry-wins races, decision-neutral expiry, deterministic expiry
+  audit keys, reused deadline fields, exhausted worker retries, and the exact
+  six-route Applications HTTP inventory.
+- Standards: centralized the queue-enabled decision, named the day-3/day-5/day-7
+  policy constants, and removed invented Redis/PostgreSQL service URL fallbacks
+  in favor of validated environment or `.env` configuration.
+- Verification: Prisma validation and generation, architecture check, lint,
+  exact type-check, build, API-client inventory, the PostgreSQL migration
+  harness, 8 focused suites / 79 tests, and all 72 Jest suites / 451 tests pass.

@@ -135,6 +135,13 @@ status transition, audit, and notification use transaction guards and durable
 deduplication. Exact pre-boundary, boundary, post-boundary, retry, duplicate,
 and race behavior is covered with a controlled clock.
 
+Review-window policy uses named day-3 reminder, day-5 overdue, and day-7 expiry
+constants. The queue and worker share one enabled-state resolver, and focused
+tests directly cover marker-only reminders, side-effect-free overdue reads,
+overdue and expired decisions, both race directions, decision-neutral expiry,
+deterministic audit keys, exhausted worker retries, and the unchanged public
+route inventory.
+
 Focused verification:
 
 ```bash

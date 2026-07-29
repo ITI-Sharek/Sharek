@@ -36,6 +36,11 @@ import {
   ApplicationRequestScopeDto,
   PendingApplicationsOwnerWorkspaceSummaryDto,
 } from './dto/owner-workspace-summary.dto';
+import {
+  APPLICATION_REVIEW_EXPIRY_DAYS,
+  APPLICATION_REVIEW_OVERDUE_DAYS,
+  APPLICATION_REVIEW_REMINDER_DAYS,
+} from './application-review-window.policy';
 
 const APPLICATION_INCLUDE = {
   requirementSnapshot: true,
@@ -190,8 +195,8 @@ export class ApplicationsService {
             evidence_snapshot_id: evidenceSnapshotId,
             status: ApplicationStatus.pending_owner_review,
             submitted_at: now,
-            review_due_at: this.addDays(now, 3),
-            expires_at: this.addDays(now, 7),
+            review_due_at: this.addDays(now, APPLICATION_REVIEW_REMINDER_DAYS),
+            expires_at: this.addDays(now, APPLICATION_REVIEW_EXPIRY_DAYS),
           },
           include: APPLICATION_INCLUDE,
         });
@@ -1025,7 +1030,11 @@ export class ApplicationsService {
       expiredAt: application.expired_at,
       overdue:
         application.status === ApplicationStatus.pending_owner_review &&
-        Date.now() >= this.addDays(application.submitted_at, 5).getTime(),
+        Date.now() >=
+          this.addDays(
+            application.submitted_at,
+            APPLICATION_REVIEW_OVERDUE_DAYS,
+          ).getTime(),
       ownerDecision: application.ownerDecision
         ? this.presentOwnerDecision(application.ownerDecision)
         : null,

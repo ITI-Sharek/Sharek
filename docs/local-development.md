@@ -146,9 +146,11 @@ to 10 seconds through 24 hours and the per-phase batch size to 1 through 1000.
 Docker Compose forwards all three scheduler controls to the API container.
 
 For the supported host-run workflow, keep PostgreSQL and Redis running through
-Compose and run `npm run start:dev`. The local command reads `POSTGRES_PORT` and
-`REDIS_PORT` from `.env` and translates the Compose-only `postgres` and `redis`
-hostnames to `localhost`. The same URL resolver is used by `npm run
+Compose and run `npm run start:dev`. `DATABASE_URL` and `REDIS_URL` must come
+from the process environment or `.env`; host-run helpers do not invent fallback
+service URLs. The local command reads `POSTGRES_PORT` and `REDIS_PORT` from
+`.env` and translates the Compose-only `postgres` and `redis` hostnames to
+`localhost`. The same URL resolver is used by `npm run
 prisma:migrate` and `npm run prisma:studio`; do not manually replace Docker
 service names in the shared `.env` file.
 

@@ -14,6 +14,14 @@ const environmentPath = path.join(
 );
 const restClientPath = path.join(repositoryRoot, 'sharek-api.http');
 const httpDecorators = new Set(['Get', 'Post', 'Put', 'Patch', 'Delete']);
+const applicationPublicRoutes = new Set([
+  'POST /tasks/:parameter/applications',
+  'GET /tasks/:parameter/applications',
+  'GET /applications/:parameter',
+  'POST /applications/:parameter/withdraw',
+  'POST /applications/:parameter/accept',
+  'POST /applications/:parameter/decline',
+]);
 
 function listControllerFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -182,7 +190,15 @@ JSON.parse(fs.readFileSync(environmentPath, 'utf8'));
 const expected = controllerRoutes();
 const postman = postmanRoutes(collection);
 const restClient = restClientRoutes(fs.readFileSync(restClientPath, 'utf8'));
+const actualApplicationRoutes = new Set(
+  [...expected].filter((route) => route.includes('/applications')),
+);
 
+compareRoutes(
+  'Applications public route inventory',
+  applicationPublicRoutes,
+  actualApplicationRoutes,
+);
 compareRoutes('Postman collection', expected, postman);
 const requiredRestClientRoutes = validateRestClient(expected, restClient);
 
