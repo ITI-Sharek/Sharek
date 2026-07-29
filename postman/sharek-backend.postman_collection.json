@@ -1082,7 +1082,11 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"title\": \"Add repository insight caching\",\n  \"problemOrOpportunity\": \"Repository insight pages repeat expensive provider lookups.\",\n  \"proposedOutcome\": \"Cache normalized repository insight results with explicit invalidation.\",\n  \"projectBenefit\": \"Contributors receive faster and more reliable project discovery.\",\n  \"acknowledgesAttributionAndAssignmentDisclosure\": true,\n  \"idempotencyKey\": \"{{proposalSubmissionIdempotencyKey}}\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": "{{baseUrl}}/contribution-proposals",
 						"description": "Submit a structured proposal to a published Project with proposal intake enabled."
@@ -1147,7 +1151,11 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"reason\": \"Please clarify the invalidation and rollout strategy.\",\n  \"idempotencyKey\": \"{{proposalRevisionIdempotencyKey}}\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/revision-requests",
 						"description": "Append an immutable revision request as the Project owner."
@@ -1170,7 +1178,11 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"title\": \"Add repository insight caching with safe invalidation\",\n  \"problemOrOpportunity\": \"Repository insight pages repeat expensive provider lookups.\",\n  \"proposedOutcome\": \"Cache normalized results and invalidate entries after Project publication changes.\",\n  \"projectBenefit\": \"Discovery stays fast while contributors continue to receive current information.\",\n  \"idempotencyKey\": \"{{proposalVersionIdempotencyKey}}\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/versions",
 						"description": "Submit an immutable new version in response to the latest revision request."
@@ -1193,7 +1205,11 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"enabled\": false\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": "{{baseUrl}}/contribution-proposals/for-project/{{projectId}}/intake",
 						"description": "Enable or disable new Contribution Proposal intake for an owned Project."
@@ -1215,6 +1231,100 @@
 						],
 						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/withdraw",
 						"description": "Withdraw a pending proposal without deleting its version or audit history."
+					}
+				},
+				{
+					"name": "09 - Accept Proposal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  pm.collectionVariables.set('proposalResultingRequestId', pm.response.json().resultingContributionRequestId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idempotencyKey\": \"{{proposalAcceptIdempotencyKey}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/accept",
+						"description": "Owner accepts a pending proposal, creating an attributed owner-controlled draft Contribution Request. No Assignment, Application, quota, or selection priority is created."
+					}
+				},
+				{
+					"name": "10 - Decline Proposal",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"This is out of scope for the Project right now, but thank you.\",\n  \"idempotencyKey\": \"{{proposalDeclineIdempotencyKey}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/decline",
+						"description": "Owner declines a pending proposal with a contributor-visible reason. Terminal and idempotent."
+					}
+				},
+				{
+					"name": "11 - Report Proposal Misuse",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"This proposal appears to reuse another contributor's private work.\",\n  \"idempotencyKey\": \"{{proposalMisuseIdempotencyKey}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/misuse-reports",
+						"description": "A participant (proposer or Project owner) preserves authorship evidence for moderation. The platform records the claim only; it makes no automatic copying, ownership, or legal finding."
 					}
 				}
 			]
@@ -2722,6 +2832,22 @@
 		{
 			"key": "githubWebhookSignature",
 			"value": "sha256=replace-with-valid-signature"
+		},
+		{
+			"key": "proposalAcceptIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000007"
+		},
+		{
+			"key": "proposalDeclineIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000008"
+		},
+		{
+			"key": "proposalMisuseIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000009"
+		},
+		{
+			"key": "proposalResultingRequestId",
+			"value": ""
 		}
 	]
 }
