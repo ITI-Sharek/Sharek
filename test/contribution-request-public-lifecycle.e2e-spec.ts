@@ -97,7 +97,12 @@ describe('Contribution Request public lifecycle HTTP integration', () => {
         published_at: { not: null },
         applications_close_at: { gt: expect.any(Date) },
       },
-      include: { requirements: true },
+      include: {
+        requirements: true,
+        attributedContributor: {
+          select: { id: true, first_name: true, last_name: true },
+        },
+      },
     });
   });
 
