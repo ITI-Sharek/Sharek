@@ -90,6 +90,8 @@ enum ContributionRequestRequirementKind {
 enum ContributionRequestAuditAction {
   created
   updated
+  published
+  cancelled
   discarded
   assigned
 }
@@ -107,6 +109,7 @@ enum ApplicationStatus {
 enum ApplicationAuditAction {
   submitted
   withdrawn
+  request_cancelled
   accepted
   declined_by_owner
   not_selected
@@ -115,6 +118,18 @@ enum ApplicationAuditAction {
 enum OwnerDecisionType {
   accepted
   declined
+}
+
+enum ContributionProposalStatus {
+  pending
+  withdrawn
+}
+
+enum ContributionProposalAuditAction {
+  submitted
+  version_submitted
+  revision_requested
+  withdrawn
 }
 
 enum DeliveryStatus {
@@ -340,6 +355,9 @@ model User {
   applicationEvidenceSnapshots ApplicationEvidenceSnapshot[] @relation("ApplicationEvidenceSnapshotContributor")
   ownerDecisions               OwnerDecision[]               @relation("OwnerDecisionOwner")
   assignments                  Assignment[]                  @relation("AssignmentContributor")
+  contributionProposals        ContributionProposal[]        @relation("ContributionProposalProposer")
+  contributionProposalVersions ContributionProposalVersion[] @relation("ContributionProposalVersionAuthor")
+  contributionProposalAudits   ContributionProposalAudit[]   @relation("ContributionProposalAuditActor")
 }
 
 model AuthProviderAccount {
@@ -548,10 +566,12 @@ model Project {
   created_at            DateTime           @default(now())
   updated_at            DateTime           @default(now()) @updatedAt
 
-  owner                User                     @relation("ProjectOwner", fields: [owner_id], references: [id])
-  contributionRequests ContributionRequest[]
-  operations           ProjectOperation[]
-  stateTransitions     ProjectStateTransition[]
+  owner                 User                     @relation("ProjectOwner", fields: [owner_id], references: [id])
+  contributionRequests  ContributionRequest[]
+  operations            ProjectOperation[]
+  stateTransitions      ProjectStateTransition[]
+  contributionProposals ContributionProposal[]   @relation("ProjectContributionProposals")
+  proposalIntake        ProjectProposalIntake?   @relation("ProjectProposalIntake")
 
   @@unique([slug_normalized], map: "projects_slug_normalized_unique")
   @@index([github_repo_url])
@@ -620,6 +640,7 @@ model ContributionRequest {
 
   @@index([project_id, status])
   @@index([owner_id, created_at])
+  @@index([status, applications_close_at, published_at])
 }
 
 model ContributionRequestRequirement {
@@ -774,6 +795,77 @@ model Assignment {
   contributor         User                @relation("AssignmentContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
 
   @@index([contributor_id, assigned_at])
+}
+
+model ProjectProposalIntake {
+  project_id String   @id @db.Uuid
+  enabled    Boolean  @default(true)
+  updated_by String?  @db.Uuid
+  updated_at DateTime @default(now()) @updatedAt
+
+  project Project @relation("ProjectProposalIntake", fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model ContributionProposal {
+  id                         String                     @id @default(uuid()) @db.Uuid
+  project_id                 String                     @db.Uuid
+  proposer_id                String                     @db.Uuid
+  status                     ContributionProposalStatus @default(pending)
+  current_version            Int                        @default(1)
+  disclosure_version         String                     @db.VarChar(50)
+  disclosure_acknowledged_at DateTime
+  revision_request_sequence  Int                        @default(0)
+  revision_requested_at      DateTime?
+  withdrawn_at               DateTime?
+  created_at                 DateTime                   @default(now())
+  updated_at                 DateTime                   @default(now()) @updatedAt
+
+  project     Project                       @relation("ProjectContributionProposals", fields: [project_id], references: [id], onDelete: Restrict)
+  proposer    User                          @relation("ContributionProposalProposer", fields: [proposer_id], references: [id], onDelete: Restrict)
+  versions    ContributionProposalVersion[]
+  auditEvents ContributionProposalAudit[]
+
+  @@index([project_id, status])
+  @@index([proposer_id, created_at])
+}
+
+model ContributionProposalVersion {
+  id                     String   @id @default(uuid()) @db.Uuid
+  proposal_id            String   @db.Uuid
+  version                Int
+  title                  String   @db.VarChar(255)
+  problem_or_opportunity String
+  proposed_outcome       String
+  project_benefit        String
+  authored_by            String   @db.Uuid
+  created_at             DateTime @default(now())
+
+  proposal ContributionProposal @relation(fields: [proposal_id], references: [id], onDelete: Cascade)
+  author   User                 @relation("ContributionProposalVersionAuthor", fields: [authored_by], references: [id], onDelete: Restrict)
+
+  @@unique([proposal_id, version])
+  @@index([proposal_id, created_at])
+}
+
+model ContributionProposalAudit {
+  id                  String                          @id @default(uuid()) @db.Uuid
+  proposal_id         String                          @db.Uuid
+  actor_id            String                          @db.Uuid
+  action              ContributionProposalAuditAction
+  from_status         ContributionProposalStatus?
+  to_status           ContributionProposalStatus
+  proposal_version    Int?
+  reason              String?                         @db.VarChar(500)
+  idempotency_key     String?                         @db.VarChar(128)
+  command_fingerprint String?                         @db.Char(64)
+  metadata            Json?
+  created_at          DateTime                        @default(now())
+
+  proposal ContributionProposal @relation(fields: [proposal_id], references: [id], onDelete: Restrict)
+  actor    User                 @relation("ContributionProposalAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
+
+  @@unique([actor_id, action, idempotency_key])
+  @@index([proposal_id, created_at])
 }
 
 model AiValidationResult {

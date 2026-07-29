@@ -1,4 +1,8 @@
-import { ProjectCategory, ProjectDifficulty, ProjectStatus } from '@prisma/client';
+import {
+  ProjectCategory,
+  ProjectDifficulty,
+  ProjectStatus,
+} from '@prisma/client';
 
 import { ApplicationError } from '../../shared/errors/application.error';
 import { ProjectsService } from './projects.service';
@@ -13,6 +17,7 @@ describe('ProjectsService', () => {
       count: jest.fn(),
     },
     contributionRequest: { count: jest.fn() },
+    subscription: { findFirst: jest.fn() },
   };
   const applications = {
     summarizePendingByContributionRequests: jest.fn(),
@@ -23,6 +28,23 @@ describe('ProjectsService', () => {
     jest.resetAllMocks();
     applications.summarizePendingByContributionRequests.mockResolvedValue({
       projects: [],
+    });
+    database.subscription.findFirst.mockResolvedValue(null);
+  });
+
+  it('returns only published Project references to public Request discovery', async () => {
+    database.project.findMany.mockResolvedValue([]);
+
+    await service.listContributionRequestProjectReferences({
+      projectIds: ['project-id'],
+    });
+
+    expect(database.project.findMany).toHaveBeenCalledWith({
+      where: {
+        status: ProjectStatus.published,
+        id: { in: ['project-id'] },
+      },
+      select: { id: true, title: true, slug: true },
     });
   });
 
@@ -103,6 +125,51 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('Contribution Proposal Project context capability', () => {
+    it('locks the Project row through the caller transaction', async () => {
+      const transaction = {
+        $queryRaw: jest.fn().mockResolvedValue([
+          {
+            id: 'project-id',
+            owner_id: 'owner-id',
+            status: ProjectStatus.published,
+          },
+        ]),
+      };
+
+      await expect(
+        service.lockProposalProjectContext(
+          'project-id',
+          transaction as never,
+        ),
+      ).resolves.toEqual({
+        id: 'project-id',
+        ownerId: 'owner-id',
+        status: ProjectStatus.published,
+      });
+      const query = transaction.$queryRaw.mock.calls[0][0] as {
+        strings: string[];
+      };
+      expect(query.strings.join('')).toContain('FOR SHARE');
+    });
+
+    it('returns the proposal-safe not-found error when the row is absent', async () => {
+      const transaction = {
+        $queryRaw: jest.fn().mockResolvedValue([]),
+      };
+
+      await expect(
+        service.lockProposalProjectContext(
+          'missing-project-id',
+          transaction as never,
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'PROPOSAL_PROJECT_NOT_FOUND',
+      } satisfies Partial<ApplicationError>);
+    });
+  });
+
   it('lists owner projects with revision, pipeline counts, and quota usage', async () => {
     database.project.findMany.mockResolvedValue([
       {
@@ -121,6 +188,7 @@ describe('ProjectsService', () => {
       },
     ]);
     database.contributionRequest.count.mockResolvedValue(7);
+    database.subscription.findFirst.mockResolvedValue({ plan_type: 'gold' });
     applications.summarizePendingByContributionRequests.mockResolvedValue({
       projects: [{ projectId: 'project-id', pendingApplicationCount: 1 }],
     });
@@ -135,7 +203,16 @@ describe('ProjectsService', () => {
           pendingApplicationsCount: 1,
         },
       ],
-      quota: { used: 7, monthlyLimit: 20 },
+      quota: { used: 7, monthlyLimit: 30 },
+    });
+    expect(database.contributionRequest.count).toHaveBeenCalledWith({
+      where: {
+        owner_id: 'owner-id',
+        published_at: {
+          gte: expect.any(Date),
+          lt: expect.any(Date),
+        },
+      },
     });
     expect(
       applications.summarizePendingByContributionRequests,

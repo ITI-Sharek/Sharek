@@ -735,6 +735,491 @@
 			]
 		},
 		{
+			"name": "Contribution Requests",
+			"description": "Complete #48/#49 Contribution Request workflow. Set projectId to an owned, published Project UUID and run Applications / 01 - Login Owner first. Create Draft saves contributionRequestId automatically. Run Discard with a separate draftContributionRequestId; run Cancel only after any Application checks you want to perform.",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"const close = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);",
+							"const target = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);",
+							"pm.environment.set('applicationsCloseTime', close.toISOString());",
+							"pm.environment.set('targetCompletionDate', target.toISOString().slice(0, 10));"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"item": [
+				{
+					"name": "00 - List Owned Project Requests by Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/projects/{{projectId}}/contribution-requests",
+						"description": "Returns every owned Contribution Request grouped under draft, published, assigned, completed, cancelled, and discarded. All groups are always present. Works for owned archived Projects."
+					}
+				},
+				{
+					"name": "01 - Create Draft",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"  const body = pm.response.json();",
+									"  pm.environment.set('contributionRequestId', body.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{createRequestIdempotencyKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Document the contribution workflow\",\n  \"description\": \"Implement and verify the public Contribution Request workflow for the Sharek backend.\",\n  \"requiredRequirements\": [\n    { \"text\": \"Deliver tested NestJS endpoints\" }\n  ],\n  \"preferredRequirements\": [\n    { \"text\": \"Include clear teammate documentation\" }\n  ],\n  \"technologyTags\": [\"NestJS\", \"PostgreSQL\"],\n  \"applicationsCloseTime\": \"{{applicationsCloseTime}}\",\n  \"targetCompletionDate\": \"{{targetCompletionDate}}\",\n  \"difficulty\": \"intermediate\",\n  \"reward\": 150,\n  \"rewardCurrency\": \"USD\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/contribution-requests",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"projects",
+								"{{projectId}}",
+								"contribution-requests"
+							]
+						},
+						"description": "Create a private draft for an owned, published Project. The response ID is saved as contributionRequestId. Change the idempotency key before creating another draft."
+					}
+				},
+				{
+					"name": "02 - Get Owned Request",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/contribution-requests/{{contributionRequestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"contribution-requests",
+								"{{contributionRequestId}}"
+							]
+						},
+						"description": "Read a Contribution Request as its owner. Unknown and other-owner UUIDs return the same safe not-found response."
+					}
+				},
+				{
+					"name": "03 - Update Draft",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{updateRequestIdempotencyKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Document and test the contribution workflow\",\n  \"preferredRequirements\": [\n    { \"text\": \"Include runnable Postman examples\" }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/contribution-requests/{{contributionRequestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"contribution-requests",
+								"{{contributionRequestId}}"
+							]
+						},
+						"description": "Update owner-controlled fields while the Request is still a draft. Reusing the key with a different payload returns an idempotency conflict."
+					}
+				},
+				{
+					"name": "04 - Publish Request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{publishRequestIdempotencyKey}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/contribution-requests/{{contributionRequestId}}/publish",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"contribution-requests",
+								"{{contributionRequestId}}",
+								"publish"
+							]
+						},
+						"description": "Explicitly publish a complete draft after ownership, Project state, entitlement, monthly limit, and close-time checks."
+					}
+				},
+				{
+					"name": "05 - Discover Open Requests",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/tasks?q=document&technologies=NestJS,PostgreSQL&difficulty=intermediate&hasReward=true",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"tasks"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "document"
+								},
+								{
+									"key": "technologies",
+									"value": "NestJS,PostgreSQL"
+								},
+								{
+									"key": "difficulty",
+									"value": "intermediate"
+								},
+								{
+									"key": "hasReward",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Public feed of published Requests whose Applications Close Time is still in the future. Remove query parameters to list every actionable Request."
+					}
+				},
+				{
+					"name": "06 - Get Public Request Detail",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/tasks/{{contributionRequestId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"tasks",
+								"{{contributionRequestId}}"
+							]
+						},
+						"description": "Public allowlisted detail with Required and Preferred Requirements classified separately. Draft, cancelled, terminal, and closed Requests return the same not-found code."
+					}
+				},
+				{
+					"name": "07 - Discard Draft",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{discardRequestIdempotencyKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Draft is no longer needed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/contribution-requests/{{draftContributionRequestId}}/discard",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"contribution-requests",
+								"{{draftContributionRequestId}}",
+								"discard"
+							]
+						},
+						"description": "Terminally discard an unpublished draft. Create a second draft and copy its ID to draftContributionRequestId so the published workflow ID remains usable."
+					}
+				},
+				{
+					"name": "08 - Cancel Published Request",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{cancelRequestIdempotencyKey}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Project priorities changed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/contribution-requests/{{contributionRequestId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"contribution-requests",
+								"{{contributionRequestId}}",
+								"cancel"
+							]
+						},
+						"description": "Cancel a published Request without deleting history. Pending Applications become REQUEST_CANCELLED atomically; terminal Applications remain unchanged. Run this after Application checks."
+					}
+				}
+			]
+		},
+		{
+			"name": "Contribution Proposals",
+			"item": [
+				{
+					"name": "01 - Submit Proposal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"  pm.collectionVariables.set('contributionProposalId', pm.response.json().id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"title\": \"Add repository insight caching\",\n  \"problemOrOpportunity\": \"Repository insight pages repeat expensive provider lookups.\",\n  \"proposedOutcome\": \"Cache normalized repository insight results with explicit invalidation.\",\n  \"projectBenefit\": \"Contributors receive faster and more reliable project discovery.\",\n  \"acknowledgesAttributionAndAssignmentDisclosure\": true,\n  \"idempotencyKey\": \"{{proposalSubmissionIdempotencyKey}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/contribution-proposals",
+						"description": "Submit a structured proposal to a published Project with proposal intake enabled."
+					}
+				},
+				{
+					"name": "02 - List My Proposals",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/mine?limit=20",
+						"description": "List the authenticated contributor's proposals using bounded cursor pagination."
+					}
+				},
+				{
+					"name": "03 - List Project Proposals",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/for-project/{{projectId}}?limit=20",
+						"description": "List proposals for a Project owned by the authenticated owner."
+					}
+				},
+				{
+					"name": "04 - Get Proposal Detail",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}",
+						"description": "Read private proposal detail as its proposer or Project owner."
+					}
+				},
+				{
+					"name": "05 - Request Revision",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Please clarify the invalidation and rollout strategy.\",\n  \"idempotencyKey\": \"{{proposalRevisionIdempotencyKey}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/revision-requests",
+						"description": "Append an immutable revision request as the Project owner."
+					}
+				},
+				{
+					"name": "06 - Submit Revised Version",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Add repository insight caching with safe invalidation\",\n  \"problemOrOpportunity\": \"Repository insight pages repeat expensive provider lookups.\",\n  \"proposedOutcome\": \"Cache normalized results and invalidate entries after Project publication changes.\",\n  \"projectBenefit\": \"Discovery stays fast while contributors continue to receive current information.\",\n  \"idempotencyKey\": \"{{proposalVersionIdempotencyKey}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/versions",
+						"description": "Submit an immutable new version in response to the latest revision request."
+					}
+				},
+				{
+					"name": "07 - Toggle Project Intake",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"enabled\": false\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{baseUrl}}/contribution-proposals/for-project/{{projectId}}/intake",
+						"description": "Enable or disable new Contribution Proposal intake for an owned Project."
+					}
+				},
+				{
+					"name": "08 - Withdraw Proposal",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{proposalWithdrawalIdempotencyKey}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/{{contributionProposalId}}/withdraw",
+						"description": "Withdraw a pending proposal without deleting its version or audit history."
+					}
+				}
+			]
+		},
+		{
 			"name": "Applications",
 			"event": [
 				{
@@ -770,16 +1255,30 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/auth/login",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "login"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
 						}
 					}
 				},
@@ -801,16 +1300,30 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"email\": \"{{contributorEmail}}\",\n  \"password\": \"{{contributorPassword}}\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{baseUrl}}/auth/login",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "login"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
 						}
 					}
 				},
@@ -853,8 +1366,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/tasks/{{contributionRequestId}}/applications",
-							"host": ["{{baseUrl}}"],
-							"path": ["tasks", "{{contributionRequestId}}", "applications"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"tasks",
+								"{{contributionRequestId}}",
+								"applications"
+							]
 						},
 						"description": "Submit one Application as an active contributor. Reuse applicationIdempotencyKey to test replay behavior."
 					}
@@ -871,10 +1390,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/tasks/{{contributionRequestId}}/applications",
-							"host": ["{{baseUrl}}"],
-							"path": ["tasks", "{{contributionRequestId}}", "applications"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"tasks",
+								"{{contributionRequestId}}",
+								"applications"
+							]
 						},
-						"description": "List pending Applications as the owning Project owner. Set accessToken to an owner session token."
+						"description": "List pending Applications as the owning Project owner. The request uses ownerAccessToken."
 					}
 				},
 				{
@@ -889,8 +1414,13 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/applications/{{applicationId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["applications", "{{applicationId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"applications",
+								"{{applicationId}}"
+							]
 						},
 						"description": "Inspect an Application as its contributor or the owning Project owner."
 					}
@@ -911,8 +1441,14 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/applications/{{applicationId}}/withdraw",
-							"host": ["{{baseUrl}}"],
-							"path": ["applications", "{{applicationId}}", "withdraw"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"applications",
+								"{{applicationId}}",
+								"withdraw"
+							]
 						},
 							"description": "Withdraw a pending Application as its contributor. Reuse withdrawalIdempotencyKey to test replay behavior."
 						}
@@ -1096,6 +1632,976 @@
 					}
 				}
 			]
+		},
+		{
+			"name": "Identity - Additional Endpoints",
+			"description": "Username availability and GitHub social-auth/account routes.",
+			"item": [
+				{
+					"name": "Check Username Availability",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/auth/username-availability?username={{contributorUsername}}",
+						"description": "Public registration username check."
+					}
+				},
+				{
+					"name": "Start GitHub Social Sign-In",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/auth/github/start?role=contributor",
+						"description": "Starts minimal-scope GitHub social sign-in."
+					}
+				},
+				{
+					"name": "GitHub Social Browser Callback",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/auth/github/callback?code={{githubCode}}&state={{githubState}}",
+						"description": "Provider browser callback; normally redirects to the frontend."
+					}
+				},
+				{
+					"name": "GitHub Repository OAuth Browser Callback",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/auth/github/callback/repository?code={{githubCode}}&state={{githubState}}",
+						"description": "Provider-facing callback for repository-evidence OAuth; normally redirects to the frontend."
+					}
+				},
+				{
+					"name": "Complete GitHub Social Sign-In",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"{{githubCode}}\",\n  \"state\": \"{{githubState}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/auth/github/callback",
+						"description": "Exchanges the social callback for a Sharek session."
+					}
+				},
+				{
+					"name": "Connect GitHub Sign-In Account",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"{{githubCode}}\",\n  \"state\": \"{{githubState}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/auth/github/account/callback",
+						"description": "Adds GitHub sign-in to the authenticated account."
+					}
+				},
+				{
+					"name": "Disconnect GitHub Sign-In Account",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/auth/github/account",
+						"description": "Disconnects GitHub sign-in when another login method remains."
+					}
+				}
+			]
+		},
+		{
+			"name": "Contributor Profiles",
+			"description": "Contributor setup, editing, audience-bounded reads, and catalogs.",
+			"item": [
+				{
+					"name": "Ensure My Profile",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contributors/profiles/me/ensure",
+						"description": "Creates the current contributor profile if missing."
+					}
+				},
+				{
+					"name": "Update My Profile",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bio\": \"NestJS contributor focused on reliable APIs.\",\n  \"availability\": \"10 hours per week\",\n  \"experienceLevelId\": \"{{experienceLevelId}}\",\n  \"fieldIds\": [\n    \"{{fieldId}}\"\n  ],\n  \"declaredSkills\": [\n    \"TypeScript\",\n    \"NestJS\"\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/contributors/profiles/me",
+						"description": "Updates allowlisted contributor profile fields."
+					}
+				},
+				{
+					"name": "Upload My Avatar",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": "{{baseUrl}}/contributors/profiles/me/avatar",
+						"description": "Send multipart/form-data with a file field (PNG/JPEG/WebP, max 2 MB)."
+					}
+				},
+				{
+					"name": "Get Contributor Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contributors/profiles/{{contributorUsername}}",
+						"description": "Gets an audience-bounded contributor profile."
+					}
+				},
+				{
+					"name": "List Contributor Fields",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contributors/profile-fields",
+						"description": "Lists active contributor-field options."
+					}
+				},
+				{
+					"name": "List Experience Levels",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/contributors/experience-levels",
+						"description": "Public registration experience-level catalog."
+					}
+				},
+				{
+					"name": "Get Contributor Avatar",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/contributors/profiles/{{contributorUsername}}/avatar",
+						"description": "Gets the public binary avatar response."
+					}
+				}
+			]
+		},
+		{
+			"name": "Projects - Canonical Lifecycle",
+			"description": "Current Project preview, draft, owner, publication, discovery, and public routes.",
+			"item": [
+				{
+					"name": "Discover Published Projects",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/projects/discover?page=1&limit=12&technologies=TypeScript,NestJS&difficulty=intermediate&search=api",
+						"description": "Authenticated published-Project discovery."
+					}
+				},
+				{
+					"name": "List My Projects",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/projects/me?limit=20",
+						"description": "Owner workspace with pipeline counts and current plan quota."
+					}
+				},
+				{
+					"name": "Preview GitHub Source",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"repositoryReference\": \"{{repositoryReference}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/projects/github/preview",
+						"description": "Read-only source preview; copy previewFingerprint from the response."
+					}
+				},
+				{
+					"name": "Create Project Draft",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{projectCommandIdempotencyKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"source\": {\n    \"provider\": \"github\",\n    \"repositoryReference\": \"{{repositoryReference}}\",\n    \"previewFingerprint\": \"{{previewFingerprint}}\"\n  },\n  \"project\": {\n    \"title\": \"Sharek API\",\n    \"description\": \"Backend collaboration API\",\n    \"tags\": [\n      \"nestjs\"\n    ],\n    \"technologies\": [\n      \"TypeScript\",\n      \"PostgreSQL\"\n    ],\n    \"category\": \"web\",\n    \"difficulty\": \"intermediate\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/projects",
+						"description": "Confirms a source preview into a private draft."
+					}
+				},
+				{
+					"name": "Get My Project",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/projects/me/{{projectId}}",
+						"description": "Gets an owned Project."
+					}
+				},
+				{
+					"name": "Update My Project",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{projectCommandIdempotencyKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expectedRevision\": 1,\n  \"title\": \"Sharek API\",\n  \"description\": \"Updated owner presentation\",\n  \"tags\": [\n    \"nestjs\"\n  ],\n  \"technologies\": [\n    \"TypeScript\",\n    \"PostgreSQL\"\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/projects/me/{{projectId}}",
+						"description": "Optimistic owner presentation update; use the latest revision."
+					}
+				},
+				{
+					"name": "Refresh Project Source",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{projectCommandIdempotencyKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expectedRevision\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/projects/me/{{projectId}}/source/refresh",
+						"description": "Refreshes repository-derived fields."
+					}
+				},
+				{
+					"name": "Publish Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{projectCommandIdempotencyKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expectedRevision\": 1,\n  \"confirm\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/projects/me/{{projectId}}/publish",
+						"description": "Explicit draft-to-published transition."
+					}
+				},
+				{
+					"name": "Archive Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Idempotency-Key",
+								"value": "{{projectCommandIdempotencyKey}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expectedRevision\": 1,\n  \"confirm\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/projects/me/{{projectId}}/archive",
+						"description": "Explicit published-to-archived transition."
+					}
+				},
+				{
+					"name": "List Public Projects",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/public/projects?limit=20",
+						"description": "Public cursor-paginated published Projects."
+					}
+				},
+				{
+					"name": "Get Public Project",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/public/projects/{{projectSlug}}",
+						"description": "Public allowlisted Project detail by slug."
+					}
+				}
+			]
+		},
+		{
+			"name": "GitHub App",
+			"description": "Installation, repository authorization, callback, disconnect, and webhook routes.",
+			"item": [
+				{
+					"name": "Start Installation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flowType\": \"install_and_authorize\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/github/app/installations/start",
+						"description": "Starts an install-and-authorize attempt."
+					}
+				},
+				{
+					"name": "Browser Callback",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/auth/github/app/callback?state={{githubAppState}}&installation_id={{providerInstallationId}}",
+						"description": "Provider browser callback; normally redirects to the frontend."
+					}
+				},
+				{
+					"name": "Complete Installation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"attemptId\": \"{{installationAttemptId}}\",\n  \"providerInstallationId\": \"{{providerInstallationId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/github/app/installations/callback",
+						"description": "Completes the owned installation attempt."
+					}
+				},
+				{
+					"name": "List Installations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/github/app/installations",
+						"description": "Lists the current user's installation links."
+					}
+				},
+				{
+					"name": "Get Installation Attempt",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/github/app/installations/attempts/{{installationAttemptId}}",
+						"description": "Recovers an owned attempt after reload."
+					}
+				},
+				{
+					"name": "List Selected Repositories",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/github/app/repositories?installationLinkId={{installationLinkId}}&page=1&perPage=30",
+						"description": "Lists repositories authorized for an active link."
+					}
+				},
+				{
+					"name": "Disconnect Installation",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/github/app/installations/{{installationLinkId}}",
+						"description": "Disconnects the local link without provider uninstall."
+					}
+				},
+				{
+					"name": "GitHub App Webhook",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-GitHub-Event",
+								"value": "installation_repositories"
+							},
+							{
+								"key": "X-GitHub-Delivery",
+								"value": "{{githubDeliveryId}}"
+							},
+							{
+								"key": "X-Hub-Signature-256",
+								"value": "{{githubWebhookSignature}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"removed\",\n  \"installation\": {\n    \"id\": 12345\n  },\n  \"repositories_removed\": [\n    {\n      \"id\": 101,\n      \"full_name\": \"owner/repository\"\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/webhooks/github/app",
+						"description": "Replace body/signature with a real GitHub delivery."
+					}
+				}
+			]
+		},
+		{
+			"name": "Skill Profiles",
+			"description": "Repository-evidence generation, polling, recovery, and retry.",
+			"item": [
+				{
+					"name": "Start Generation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"installationLinkId\": \"{{installationLinkId}}\",\n  \"repositoryIds\": [\n    \"{{repositoryId}}\"\n  ],\n  \"consent\": {\n    \"accepted\": true,\n    \"version\": \"github-skill-analysis-v1\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/skill-profiles/me/generations",
+						"description": "Starts durable generation from explicitly selected repositories."
+					}
+				},
+				{
+					"name": "Get Latest Generation",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/skill-profiles/me/generations/latest",
+						"description": "Gets the latest generation for polling recovery."
+					}
+				},
+				{
+					"name": "Get Generation",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/skill-profiles/me/generations/{{generationId}}",
+						"description": "Gets one owned generation."
+					}
+				},
+				{
+					"name": "Retry Generation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{contributorAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"consent\": {\n    \"accepted\": true,\n    \"version\": \"github-skill-analysis-v1\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/skill-profiles/me/generations/{{generationId}}/retry",
+						"description": "Retries a retryable terminal generation."
+					}
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"description": "Admin-only reviews, catalogs, and published-owner summary.",
+			"item": [
+				{
+					"name": "List Pending Skill Reviews",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/skill-reviews/pending?page=1&limit=20",
+						"description": "Paginated pending review queue."
+					}
+				},
+				{
+					"name": "Approve Skill",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"proficiency\": \"intermediate\",\n  \"notes\": \"Evidence verified.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/admin/skill-reviews/{{skillProfileId}}/approve",
+						"description": "Approves a pending skill."
+					}
+				},
+				{
+					"name": "Reject Skill",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"notes\": \"Evidence does not support this skill.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/admin/skill-reviews/{{skillProfileId}}/reject",
+						"description": "Rejects a pending skill."
+					}
+				},
+				{
+					"name": "Adjust Skill Proficiency",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"proficiency\": \"beginner\",\n  \"notes\": \"Adjusted to match evidence.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/admin/skill-reviews/{{skillProfileId}}/proficiency",
+						"description": "Adjusts reviewed proficiency."
+					}
+				},
+				{
+					"name": "List Contributor Fields",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/contributor-fields",
+						"description": "Lists all contributor fields."
+					}
+				},
+				{
+					"name": "Create Contributor Field",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"key\": \"backend\",\n  \"labelEn\": \"Backend\",\n  \"labelAr\": \"خلفية\",\n  \"sortOrder\": 10\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/admin/contributor-fields",
+						"description": "Creates a contributor field."
+					}
+				},
+				{
+					"name": "Update Contributor Field",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"labelEn\": \"Backend Engineering\",\n  \"active\": true,\n  \"sortOrder\": 10\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/admin/contributor-fields/{{fieldId}}",
+						"description": "Updates a contributor field."
+					}
+				},
+				{
+					"name": "List Experience Levels",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/experience-levels",
+						"description": "Lists all experience levels."
+					}
+				},
+				{
+					"name": "Create Experience Level",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"key\": \"intermediate\",\n  \"labelEn\": \"Intermediate\",\n  \"labelAr\": \"متوسط\",\n  \"sortOrder\": 20\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/admin/experience-levels",
+						"description": "Creates an experience level."
+					}
+				},
+				{
+					"name": "Update Experience Level",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"labelEn\": \"Intermediate\",\n  \"active\": true,\n  \"sortOrder\": 20\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{baseUrl}}/admin/experience-levels/{{experienceLevelId}}",
+						"description": "Updates an experience level."
+					}
+				},
+				{
+					"name": "List Published Project Owners",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/admin/published-project-owners",
+						"description": "Admin-safe published-owner summary."
+					}
+				}
+			]
 		}
 	],
 	"variable": [
@@ -1160,6 +2666,42 @@
 			"value": "e9f13368-6922-4b96-9bb3-51bba1ac632e"
 		},
 		{
+			"key": "projectId",
+			"value": "replace-with-owned-published-project-uuid"
+		},
+		{
+			"key": "draftContributionRequestId",
+			"value": "replace-with-separate-draft-request-uuid"
+		},
+		{
+			"key": "applicationsCloseTime",
+			"value": ""
+		},
+		{
+			"key": "targetCompletionDate",
+			"value": ""
+		},
+		{
+			"key": "createRequestIdempotencyKey",
+			"value": "create-request-001"
+		},
+		{
+			"key": "updateRequestIdempotencyKey",
+			"value": "update-request-001"
+		},
+		{
+			"key": "discardRequestIdempotencyKey",
+			"value": "discard-request-001"
+		},
+		{
+			"key": "publishRequestIdempotencyKey",
+			"value": "publish-request-001"
+		},
+		{
+			"key": "cancelRequestIdempotencyKey",
+			"value": "cancel-request-001"
+		},
+		{
 			"key": "applicationId",
 			"value": ""
 		},
@@ -1188,6 +2730,26 @@
 			"value": ""
 		},
 		{
+			"key": "contributionProposalId",
+			"value": ""
+		},
+		{
+			"key": "proposalSubmissionIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000011"
+		},
+		{
+			"key": "proposalRevisionIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000012"
+		},
+		{
+			"key": "proposalVersionIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000013"
+		},
+		{
+			"key": "proposalWithdrawalIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000014"
+		},
+		{
 			"key": "contributorAccessToken",
 			"value": ""
 		},
@@ -1202,6 +2764,74 @@
 		{
 			"key": "contributorPassword",
 			"value": "Admin@1234"
+		},
+		{
+			"key": "contributorUsername",
+			"value": "sharek-contributor"
+		},
+		{
+			"key": "repositoryReference",
+			"value": "openai/openai-node"
+		},
+		{
+			"key": "previewFingerprint",
+			"value": "replace-with-64-character-preview-fingerprint"
+		},
+		{
+			"key": "projectRevision",
+			"value": "1"
+		},
+		{
+			"key": "projectCommandIdempotencyKey",
+			"value": "project-command-001"
+		},
+		{
+			"key": "projectSlug",
+			"value": "sharek-api"
+		},
+		{
+			"key": "fieldId",
+			"value": "replace-with-field-uuid"
+		},
+		{
+			"key": "experienceLevelId",
+			"value": "replace-with-experience-level-uuid"
+		},
+		{
+			"key": "githubAppState",
+			"value": "replace-with-github-app-state"
+		},
+		{
+			"key": "providerInstallationId",
+			"value": "replace-with-provider-installation-id"
+		},
+		{
+			"key": "installationAttemptId",
+			"value": "replace-with-installation-attempt-uuid"
+		},
+		{
+			"key": "installationLinkId",
+			"value": "replace-with-installation-link-uuid"
+		},
+		{
+			"key": "repositoryId",
+			"value": "replace-with-github-repository-id"
+		},
+		{
+			"key": "generationId",
+			"value": "replace-with-generation-uuid"
+		},
+		{
+			"key": "skillProfileId",
+			"value": "replace-with-skill-profile-uuid"
+		},
+		{
+			"key": "githubDeliveryId",
+			"value": "replace-with-delivery-uuid"
+		},
+		{
+			"key": "githubWebhookSignature",
+			"value": "sha256=replace-with-valid-signature"
 		}
 	]
 }

@@ -2,6 +2,7 @@ import {
   ApplicationAuditAction,
   ApplicationStatus,
   ContributionRequestStatus,
+  OwnerDecisionType,
   Prisma,
 } from '@prisma/client';
 
@@ -111,16 +112,19 @@ describe('ApplicationsService submission and withdrawal', () => {
       create: jest.fn(),
     },
     assignment: { findUnique: jest.fn(), create: jest.fn() },
-    $queryRaw: jest.fn(),
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
   };
   const contributionTasks = {
     getApplicationSubmissionContext: jest.fn(),
     lockApplicationSubmissionContext: jest.fn(),
+    confirmOwnerDecisionActor: jest.fn(),
     reconfirmOwnerDecisionActor: jest.fn(),
     assignFromOwnerDecision: jest.fn(),
   };
-  const skillProfiles = { listApprovedSkillsForEligibility: jest.fn() };
+  const skillProfiles = {
+    listAuthorizedSkillsForApplicationSnapshot: jest.fn(),
+  };
   const identity = { getUserById: jest.fn() };
   const notifications = {
     createApplicationNotification: jest.fn(),
@@ -158,6 +162,7 @@ describe('ApplicationsService submission and withdrawal', () => {
     contributionTasks.lockApplicationSubmissionContext.mockResolvedValue(
       requestContext,
     );
+    contributionTasks.confirmOwnerDecisionActor.mockResolvedValue(undefined);
     contributionTasks.reconfirmOwnerDecisionActor.mockResolvedValue(undefined);
     identity.getUserById.mockResolvedValue({
       id: contributor.id,
@@ -165,7 +170,7 @@ describe('ApplicationsService submission and withdrawal', () => {
       first_name: 'Example',
       last_name: 'Contributor',
     });
-    skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
+    skillProfiles.listAuthorizedSkillsForApplicationSnapshot.mockResolvedValue([
       {
         skillProfileId: 'skill-1',
         name: 'NestJS',
@@ -195,6 +200,7 @@ describe('ApplicationsService submission and withdrawal', () => {
     database.applicationEvidenceSnapshot.create.mockResolvedValue({});
     database.applicationAudit.create.mockResolvedValue({});
     database.applicationAudit.createMany.mockResolvedValue({ count: 0 });
+    database.$queryRaw.mockResolvedValue([]);
     database.application.create.mockResolvedValue(applicationRecord());
     database.application.findUniqueOrThrow.mockResolvedValue(
       applicationRecord(),
@@ -245,6 +251,9 @@ describe('ApplicationsService submission and withdrawal', () => {
         }),
       }),
     );
+    expect(
+      skillProfiles.listAuthorizedSkillsForApplicationSnapshot,
+    ).toHaveBeenCalledWith(contributor.id, database);
     expect(database.applicationAudit.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: 'submitted' }),
@@ -305,6 +314,19 @@ describe('ApplicationsService submission and withdrawal', () => {
         idempotencyKey: '77777777-7777-4777-8777-777777777777',
       }),
     ).rejects.toMatchObject({ code: 'APPLICATIONS_CLOSED' });
+
+    contributionTasks.getApplicationSubmissionContext.mockResolvedValueOnce(
+      null,
+    );
+    await expect(
+      service.submit({
+        actor: contributor,
+        contributionRequestId: requestId,
+        contributionApproach: 'I will deliver this request safely.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey: '77777777-7777-4777-8777-777777777777',
+      }),
+    ).rejects.toMatchObject({ code: 'APPLICATION_NOT_AUTHORIZED' });
 
     await expect(
       service.submit({
@@ -406,21 +428,15 @@ describe('ApplicationsService submission and withdrawal', () => {
     );
     await expect(
       service.withdraw({ actor: contributor, applicationId }),
-    ).rejects.toMatchObject({ code: 'APPLICATION_TERMINAL' });
+    ).rejects.toMatchObject({
+      code: 'APPLICATION_TERMINAL',
+    });
     expect(database.application.updateMany).not.toHaveBeenCalled();
   });
 
   it.each([undefined, 'pending', 'failed'])(
     'keeps pending Applications visible and decidable regardless of AI assessment state %j',
     async (assessmentStatus) => {
-      contributionTasks.getApplicationSubmissionContext.mockResolvedValue({
-        id: requestId,
-        ownerId,
-        status: ContributionRequestStatus.published,
-        applicationsCloseAt: new Date('2030-01-01T00:00:00.000Z'),
-        updatedAt: new Date('2026-07-28T11:00:00.000Z'),
-        requirements: [],
-      });
       database.application.findMany.mockResolvedValue([
         applicationRecord({ assessmentStatus }),
       ]);
@@ -436,8 +452,75 @@ describe('ApplicationsService submission and withdrawal', () => {
         orderBy: [{ submitted_at: 'asc' }, { id: 'asc' }],
         include: expect.any(Object),
       });
+      expect(contributionTasks.confirmOwnerDecisionActor).toHaveBeenCalledWith({
+        requestId,
+        ownerId,
+      });
     },
   );
+
+  it('conceals an unknown Request or former owner when listing the decision queue', async () => {
+    contributionTasks.confirmOwnerDecisionActor.mockRejectedValue(
+      new NotFoundApplicationError(
+        'Project was not found',
+        'CONTRIBUTION_REQUEST_PROJECT_NOT_FOUND',
+      ),
+    );
+
+    await expect(service.listForOwner(owner, requestId)).rejects.toMatchObject({
+      code: 'APPLICATION_NOT_FOUND',
+      statusCode: 404,
+    });
+    expect(database.application.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns the declined decision and feedback in contributor-visible Application detail', async () => {
+    const decisionId = '88888888-8888-4888-8888-888888888888';
+    database.application.findUnique.mockResolvedValue(
+      applicationRecord({
+        status: ApplicationStatus.declined_by_owner,
+        ownerDecision: {
+          id: decisionId,
+          application_id: applicationId,
+          contribution_request_id: requestId,
+          owner_id: ownerId,
+          decision_type: OwnerDecisionType.declined,
+          feedback: 'The test strategy needs more detail.',
+          idempotency_key: '77777777-7777-4777-8777-777777777777',
+          command_fingerprint: 'fingerprint',
+          decided_at: new Date('2026-07-29T12:00:00.000Z'),
+        },
+      }),
+    );
+
+    await expect(service.getForActor(contributor, applicationId)).resolves.toMatchObject({
+      status: 'DECLINED_BY_OWNER',
+      ownerDecision: {
+        id: decisionId,
+        decisionType: 'DECLINED',
+        feedback: 'The test strategy needs more detail.',
+      },
+      assignment: null,
+    });
+  });
+
+  it('authorizes owner detail through current Project ownership instead of the denormalized Request owner', async () => {
+    database.application.findUnique.mockResolvedValue(
+      applicationRecord({
+        contributionRequest: {
+          owner_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        },
+      }),
+    );
+
+    await expect(service.getForActor(owner, applicationId)).resolves.toMatchObject({
+      id: applicationId,
+    });
+    expect(contributionTasks.confirmOwnerDecisionActor).toHaveBeenCalledWith({
+      requestId,
+      ownerId,
+    });
+  });
 
   it.each(['', '   '])(
     'rejects blank owner-decline feedback before opening a transaction: %j',
@@ -816,6 +899,82 @@ describe('ApplicationsService submission and withdrawal', () => {
     });
   });
 
+  it('returns every pending Application as REQUEST_CANCELLED with immutable audits', async () => {
+    const secondApplicationId = '55555555-5555-4555-8555-555555555555';
+    database.$queryRaw.mockResolvedValue([
+      { id: applicationId },
+      { id: secondApplicationId },
+    ]);
+    database.application.updateMany.mockResolvedValue({ count: 2 });
+    database.applicationAudit.createMany.mockResolvedValue({ count: 2 });
+
+    await expect(
+      service.cancelPendingForRequest({
+        contributionRequestId: requestId,
+        actorId: ownerId,
+        reason: 'Project priorities changed',
+        correlationId: '77777777-7777-4777-8777-777777777777',
+        causationAuditId: '88888888-8888-4888-8888-888888888888',
+        transaction: database as never,
+      }),
+    ).resolves.toEqual({
+      cancelledApplicationIds: [applicationId, secondApplicationId],
+    });
+
+    expect(database.application.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: [applicationId, secondApplicationId] },
+        status: ApplicationStatus.pending_owner_review,
+      },
+      data: { status: ApplicationStatus.request_cancelled },
+    });
+    expect(database.applicationAudit.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          application_id: applicationId,
+          actor_id: ownerId,
+          action: 'request_cancelled',
+          from_status: ApplicationStatus.pending_owner_review,
+          to_status: ApplicationStatus.request_cancelled,
+          metadata: {
+            payloadVersion: 1,
+            contributionRequestId: requestId,
+            reason: 'Project priorities changed',
+            correlationId: '77777777-7777-4777-8777-777777777777',
+            causation: {
+              type: 'contribution_request_audit',
+              id: '88888888-8888-4888-8888-888888888888',
+            },
+          },
+        }),
+        expect.objectContaining({ application_id: secondApplicationId }),
+      ],
+    });
+  });
+
+  it('aborts cancellation when the locked pending set changes concurrently', async () => {
+    database.$queryRaw.mockResolvedValue([
+      { id: applicationId },
+      { id: '55555555-5555-4555-8555-555555555555' },
+    ]);
+    database.application.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.cancelPendingForRequest({
+        contributionRequestId: requestId,
+        actorId: ownerId,
+        reason: null,
+        correlationId: '77777777-7777-4777-8777-777777777777',
+        causationAuditId: '88888888-8888-4888-8888-888888888888',
+        transaction: database as never,
+      }),
+    ).rejects.toMatchObject({
+      code: 'APPLICATION_CONCURRENT_MODIFICATION',
+      statusCode: 409,
+    });
+    expect(database.applicationAudit.createMany).not.toHaveBeenCalled();
+  });
+
   it('returns the original accept result when the same idempotency key is retried', async () => {
     const decisionId = '88888888-8888-4888-8888-888888888888';
     const replay = {
@@ -1028,6 +1187,61 @@ describe('ApplicationsService submission and withdrawal', () => {
     expect(database.assignment.create).toHaveBeenCalledTimes(1);
   });
 
+  it('leaves accepted and withdrawn Applications and their audit history unchanged', async () => {
+    const acceptedId = '55555555-5555-4555-8555-555555555555';
+    const withdrawnId = '66666666-6666-4666-8666-666666666666';
+    const storedApplications = [
+      { id: applicationId, status: ApplicationStatus.pending_owner_review },
+      { id: acceptedId, status: ApplicationStatus.accepted },
+      { id: withdrawnId, status: ApplicationStatus.withdrawn },
+    ];
+    const storedAudits = [
+      { applicationId: acceptedId, action: 'accepted' },
+      { applicationId: withdrawnId, action: 'withdrawn' },
+    ];
+    database.$queryRaw.mockResolvedValue([{ id: applicationId }]);
+    database.application.updateMany.mockImplementation(({ where, data }) => {
+      const matching = storedApplications.filter(
+        (application) =>
+          where.id.in.includes(application.id) &&
+          application.status === where.status,
+      );
+      matching.forEach((application) => {
+        application.status = data.status;
+      });
+      return { count: matching.length };
+    });
+    database.applicationAudit.createMany.mockImplementation(({ data }) => {
+      storedAudits.push(
+        ...data.map((audit: { application_id: string; action: string }) => ({
+          applicationId: audit.application_id,
+          action: audit.action,
+        })),
+      );
+      return { count: data.length };
+    });
+
+    await service.cancelPendingForRequest({
+      contributionRequestId: requestId,
+      actorId: ownerId,
+      reason: null,
+      correlationId: '77777777-7777-4777-8777-777777777777',
+      causationAuditId: '88888888-8888-4888-8888-888888888888',
+      transaction: database as never,
+    });
+
+    expect(storedApplications).toEqual([
+      { id: applicationId, status: ApplicationStatus.request_cancelled },
+      { id: acceptedId, status: ApplicationStatus.accepted },
+      { id: withdrawnId, status: ApplicationStatus.withdrawn },
+    ]);
+    expect(storedAudits).toEqual([
+      { applicationId: acceptedId, action: 'accepted' },
+      { applicationId: withdrawnId, action: 'withdrawn' },
+      { applicationId, action: 'request_cancelled' },
+    ]);
+  });
+
   function applicationRecord(overrides: Record<string, unknown> = {}) {
     const submittedAt = new Date('2026-07-28T12:00:00.000Z');
     return {
@@ -1068,6 +1282,8 @@ describe('ApplicationsService submission and withdrawal', () => {
         evidence: [],
       },
       contributionRequest: { owner_id: ownerId },
+      ownerDecision: null,
+      assignment: null,
       ...overrides,
     };
   }

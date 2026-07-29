@@ -45,10 +45,7 @@ export class DecisionFeedbackReportsService {
         createdAt: report.created_at,
       };
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
+      if (this.isDuplicateOwnerDecisionReport(error)) {
         throw new ConflictApplicationError(
           'This Owner Decision was already reported',
           'OWNER_DECISION_REPORT_ALREADY_EXISTS',
@@ -56,5 +53,22 @@ export class DecisionFeedbackReportsService {
       }
       throw error;
     }
+  }
+
+  private isDuplicateOwnerDecisionReport(error: unknown): boolean {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
+    }
+    const target = error.meta?.target;
+    if (target === 'Report_reporter_id_owner_decision_id_key') return true;
+    return (
+      Array.isArray(target) &&
+      target.length === 2 &&
+      target.includes('reporter_id') &&
+      target.includes('owner_decision_id')
+    );
   }
 }

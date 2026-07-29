@@ -163,8 +163,8 @@ needs workflow code.
 | `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, and dynamic admin-managed contributor fields and experience levels | root controller/service, DTOs, presenter, validator, field/experience-level catalogs | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
-| `contribution-tasks` | Implemented private Contribution Request draft create/read/update/discard with structured Requirements, concurrency control, and immutable audit | controller, service, DTOs, mapper, tests, module README | issue #49 publication/discovery/cancellation after issue #47 Application states land | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
-| `applications` | Registered placeholder module | module README and module file | apply-to-task, eligibility recommendation, manual review, owner decision | Update when application status, AI decision handling, or application APIs are added |
+| `contribution-tasks` | Implemented private drafts plus explicit publication, actionable public discovery/detail, owner-plan limits, cancellation, and immutable lifecycle audits | grouped protected/public controllers, focused draft/publication/discovery services, DTOs, mapper, tests, module README | owner decisions/assignment integration and later Proposal-created draft attribution | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
+| `applications` | Implemented direct owner-review submission, owner/contributor reads, withdrawal, and Request-cancellation propagation | controller, service, DTOs, tests, module README | expiry, owner decisions, Assignments, and optional Advisory Fit | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
@@ -1732,3 +1732,186 @@ This keeps the system strong without making it heavy:
   notification, and PostgreSQL constraint fixtures cover the #51 flows. The
   PostgreSQL migration harness, architecture check, lint, exact type-check,
   Prisma validation, build, and all 61 Jest suites / 319 tests pass.
+### 2026-07-28 - Publish, discover, and cancel Contribution Requests (#49)
+
+- Modules: `contribution-tasks`, with transaction-scoped cancellation effects
+  through the exported `ApplicationsService`.
+- Requirement/task IDs: Sprint 4 B03, GitHub issue #49, TASK-4-02/4-03,
+  FR-046 through FR-050, FR-073 through FR-075, DEC-026/031/036, and parent
+  specification #46.
+- Summary: added explicit idempotent `draft -> published` and `published ->
+  cancelled` owner commands. Publication rechecks Project ownership/state,
+  completeness, close time, and current Bronze/Silver/Gold monthly usage under
+  a serialized owner scope. Public feed/detail queries expose only published
+  Requests with a future Applications Close Time and preserve Required versus
+  Preferred Requirement classification.
+- API changes: added protected `POST /contribution-requests/:id/publish` and
+  `POST /contribution-requests/:id/cancel`, plus public `GET /tasks` and `GET
+  /tasks/:id`. Feed filters are `q`, `technologies`, `difficulty`, and
+  `hasReward`; stable publication-limit, state, and audience-safe not-found
+  codes are documented.
+- Database changes: migration
+  `20260728230000_contribution_request_publication` adds Request
+  `published`/`cancelled` and Application `request_cancelled` audit actions plus
+  the actionable-read index. Request cancellation and every still-pending
+  Application transition/audit are committed atomically; terminal Application
+  history is unchanged.
+- Authorization/privacy: owner commands derive the actor from the bearer
+  session and recheck owned published Project access in the transaction. Public
+  reads return dedicated allowlisted DTOs and never expose owner identity,
+  Applications, audits, subscription records, or draft/cancelled identifiers.
+- Architecture: grouped controllers and focused draft, publication, and public
+  discovery services keep the module seams explicit. Discovery obtains Project
+  title/slug projections only through the exported `ProjectsService`.
+- Documentation: updated Contribution Requests, Applications, API contracts,
+  REST examples, database plan, and this tracker.
+- Verification: focused Request/Application service suites and both mocked and
+  real-service Supertest HTTP contracts pass. Architecture, lint, type-check,
+  Prisma validation, build, migration harness/status, and diff checks pass.
+  The final full suite passes 62 suites and 313 tests.
+- Known risk/follow-up: payment processing remains intentionally absent. The
+  current Subscription table supplies plan context and owners without an active
+  assignment receive Bronze; the broader admin/demo entitlement management API
+  remains the separately scheduled subscription capability.
+
+## 2026-07-28 — Contribution Request and Application Postman workflow
+
+- Scope: Issues #48, #49, and #50 endpoint handoff.
+- Documentation: added all eight Contribution Request draft/public lifecycle
+  endpoints and retained the four Application endpoints. Audited every NestJS
+  controller and filled the collection out to all 87 current HTTP routes,
+  including canonical Projects, GitHub App, Skill Profiles, Contributor
+  Profiles, Admin, and supplemental Identity routes. Added runnable auth,
+  Project, Request, provider, catalog, date, and idempotency variables to the
+  collection and local environment.
+- Workflow: draft creation captures `contributionRequestId`; future close and
+  completion dates are generated automatically; discard uses a separate draft
+  ID so publication, discovery, Application, withdrawal, and cancellation can
+  be tested without destroying the shared workflow state early.
+- Verification: both Postman JSON files parse successfully. An exact
+  method/path inventory reports 87 controller routes and zero missing Postman
+  routes (91 requests total, including login/workflow duplicates).
+
+## 2026-07-28 — Issues #49/#50 integration hardening
+
+- Modules: `projects`, `contribution-tasks`, `applications`, `skill-profiles`,
+  and `github`.
+- Summary: closed the dependency-order gaps between Request publication and
+  Application submission. Public Request reads and submission now require the
+  parent Project to remain published, while the owning owner can still cancel
+  a published Request after Project archival so pending Applications are not
+  stranded.
+- Consistency: the Project dashboard and Request publication use one canonical
+  Bronze/Silver/Gold entitlement lookup. Dashboard usage now counts
+  `published_at` in the current UTC month, matching publication enforcement.
+- Evidence/privacy: Application Evidence Snapshot creation transactionally
+  revalidates and locks the contributor's active GitHub App link, installation,
+  selected repositories, consent, and matching generation. Revoked or legacy
+  unverifiable evidence is excluded.
+- Auditability: Request cancellation allocates its audit ID before propagating
+  child state changes. Every resulting Application audit records the supplied
+  reason, shared correlation ID, and parent Request audit ID as causation.
+- Tests: added archived-Project discovery/submission cases, plan-aware quota
+  assertions, transactional evidence-authorization cases, stable lifecycle HTTP
+  errors, and a real HTTP/service cancellation seam covering child transitions,
+  audit linkage, and subsequent `REQUEST_CANCELLED` rejection.
+- Verification: architecture, lint, type-check, Prisma validation, build,
+  migration regression, Postman JSON/route inventory, and diff checks pass. The
+  full Jest run passes 62 suites and 325 tests.
+
+## 2026-07-28 — Owner Project Contribution Request lifecycle list
+
+- Module: `contribution-tasks`; frontend dependency: owner Project workspace
+  Issue #4 acceptance criterion.
+- API: added protected `GET /projects/:projectId/contribution-requests` for an
+  active owner. The response contains `projectId`, `totalCount`, and an
+  exhaustive `byStatus` object for all six persisted Request lifecycle states.
+- Authorization: Project ownership is checked through the exported Projects
+  capability and the Request query is also owner-scoped. Owned archived Projects
+  remain readable so lifecycle history does not disappear from the workspace;
+  unknown and other-owner Projects retain the safe Project-not-found response.
+- Frontend contract: every status key is always present and items use the full
+  owner-safe Contribution Request DTO, ordered by latest update within each
+  group. The frontend can render sections directly without maintaining a local
+  draft list or inferring missing states.
+- Documentation/testing: added service and HTTP contract coverage, REST and API
+  examples, module documentation, and a runnable Postman request.
+- Verification: architecture, lint, type-check, Prisma validation, production
+  build, Postman JSON/route inventory, and diff checks pass. The full Jest run
+  passes 62 suites and 327 tests.
+
+## 2026-07-29 - Contribution Proposals: submit, version, withdraw (S4-B09)
+
+- Modules: `contribution-proposals` (new), `projects` (added exported read and
+  transaction-lock capabilities).
+- Requirement/task IDs: GitHub issue #55 (S4-B09); parent spec issue #46;
+  `specs/005-sprint-4-contribution-workflows/spec.md`; ADR 0002, ADR 0003.
+- Change type: new module, new Prisma models + migration, one exported
+  ProjectsService method, HTTP-contract and service tests.
+- Summary: Added the `contribution-proposals` module owning contributor-authored
+  Contribution Proposals with immutable versions, owner revision requests
+  (append-only), withdrawal, private proposer/owner visibility, per-Project
+  intake control, and anti-spam rate limits. Submission enforces an active
+  published Project, intake enabled, the attribution-and-assignment disclosure,
+  a daily submission cap, and one pending proposal per Project. Only the proposer
+  can answer a revision request with a new version; owners never edit
+  contributor-authored content. All state changes append immutable audit records
+  with idempotency keys and command fingerprints. The module reads Project facts
+  only through exported `ProjectsService` capabilities.
+- API/database changes: new routes under `/contribution-proposals`; new
+  migration `20260729122140_contribution_proposals` adding `ContributionProposal`,
+  `ContributionProposalVersion`, `ContributionProposalAudit`,
+  `ProjectProposalIntake`, and the `ContributionProposalStatus` /
+  `ContributionProposalAuditAction` enums. No existing table was modified beyond
+  additive back-relations.
+- Checks: `check:architecture`, `eslint`, `tsc --noEmit`, `jest` (full suite),
+  and `nest build` all pass. Migration generated and applied against a throwaway
+  Postgres via `prisma migrate dev`.
+- Docs updated: module README, developer architecture guide, API contracts,
+  database plan, and this tracker.
+- Risks/follow-up: proposal acceptance into an attributed draft Contribution
+  Request (S4-B10) and decline/misuse-report handling remain out of scope; owner
+  submission notifications were intentionally deferred to keep this slice focused.
+
+## 2026-07-29 - PR #62 Contribution Proposal review hardening
+
+- Requirement/task IDs: GitHub issue #55 and PR #62.
+- Contract: replaced the generic proposal body with the canonical problem or
+  opportunity, proposed outcome, and Project benefit fields; added bounded
+  cursor pagination to both list routes and runnable REST/Postman examples for
+  all eight endpoints.
+- Consistency: submission now locks and revalidates Project publication, intake,
+  daily rate, idempotency replay, and pending-proposal state inside the write
+  transaction. A PostgreSQL partial unique index protects the one-pending rule,
+  while revision request sequencing prevents a concurrent version from clearing
+  a newer owner request. Prisma failures are mapped only when their exact
+  constraint is known.
+- Tests: added transaction, constraint-error, cursor, revision race,
+  HTTP-to-service, and Project-lock coverage. Applied the migration to an
+  isolated PostgreSQL 14 database and verified that a duplicate pending row is
+  rejected while a new pending row is allowed after withdrawal.
+- Verification: architecture, lint, type-check, Prisma schema validation,
+  focused tests, and the full Jest run pass; the full run covers 64 suites and
+  361 tests.
+
+## 2026-07-29 - PR #63 Owner Decision review hardening
+
+- Requirement/task IDs: GitHub issue #51, Sprint 4 B05, TASK-4-06/07, and PR
+  #63.
+- Merge integration: resolved the PR against current `main` while preserving
+  Contribution Request publication/cancellation and Contribution Proposal
+  contracts. Removed unrelated agent-skill configuration from the feature diff.
+- Authorization/lifecycle: pending queues, detail, accept, and decline now use
+  current Project ownership rather than the denormalized Request owner. Review
+  and decisions remain available after Project archival so pending Applications
+  cannot become stranded; Request state still gates Assignment creation.
+- Contributor contract: authorized Application detail exposes nullable immutable
+  Owner Decision and Assignment projections, including the declined decision ID
+  and feedback required by the moderation-report route.
+- Error handling: duplicate feedback reports are mapped only for the exact
+  reporter/Owner Decision uniqueness constraint; unrelated Prisma uniqueness
+  failures remain visible to their owning error path.
+- Verification: the isolated PostgreSQL 14 migration harness passes, including
+  feedback and uniqueness constraints. Architecture, lint, exact type-check,
+  Prisma validation, build, diff checks, focused tests, and all 66 Jest suites /
+  404 tests pass.

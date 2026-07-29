@@ -16,7 +16,7 @@ import {
   ForbiddenApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
-import { ContributionTasksService } from '../contribution-tasks/contribution-tasks.service';
+import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
 import { ContributorProfilesService } from '../contributor-profiles/contributor-profiles.service';
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -41,6 +41,8 @@ const APPLICATION_INCLUDE = {
   requirementSnapshot: true,
   evidenceSnapshot: true,
   contributionRequest: { select: { owner_id: true } },
+  ownerDecision: true,
+  assignment: true,
 } satisfies Prisma.ApplicationInclude;
 
 type ApplicationWithSnapshots = Prisma.ApplicationGetPayload<{
@@ -102,9 +104,8 @@ export class ApplicationsService {
         input.contributionRequestId,
       );
     this.assertRequestAcceptsApplications(context, new Date());
-    const [user, approvedSkills, profileContext] = await Promise.all([
+    const [user, profileContext] = await Promise.all([
       this.identity.getUserById(input.actor.id),
-      this.skillProfiles.listApprovedSkillsForEligibility(input.actor.id),
       this.contributorProfiles.getApplicationProfileContext(input.actor.id),
     ]);
     const contributorContext = {
@@ -132,6 +133,12 @@ export class ApplicationsService {
           fingerprint,
         });
         if (transactionReplay) return transactionReplay;
+
+        const approvedSkills =
+          await this.skillProfiles.listAuthorizedSkillsForApplicationSnapshot(
+            input.actor.id,
+            transaction,
+          );
 
         const existing = await transaction.application.findUnique({
           where: {
@@ -227,12 +234,10 @@ export class ApplicationsService {
     contributionRequestId: string,
   ): Promise<OwnerApplicationsDto> {
     this.assertActiveOwner(actor);
-    const context =
-      await this.contributionTasks.getApplicationSubmissionContext(
-        contributionRequestId,
-      );
-    if (!context || context.ownerId !== actor.id)
-      throw this.applicationNotFound();
+    await this.confirmOwnerDecisionActor({
+      requestId: contributionRequestId,
+      ownerId: actor.id,
+    });
     const applications = await this.database.application.findMany({
       where: {
         contribution_request_id: contributionRequestId,
@@ -257,12 +262,13 @@ export class ApplicationsService {
       where: { id: applicationId },
       include: APPLICATION_INCLUDE,
     });
-    if (
-      !application ||
-      (application.contributor_id !== actor.id &&
-        application.contributionRequest.owner_id !== actor.id)
-    ) {
-      throw this.applicationNotFound();
+    if (!application) throw this.applicationNotFound();
+    if (application.contributor_id !== actor.id) {
+      if (actor.role !== 'owner') throw this.applicationNotFound();
+      await this.confirmOwnerDecisionActor({
+        requestId: application.contribution_request_id,
+        ownerId: actor.id,
+      });
     }
     return this.present(application);
   }
@@ -766,6 +772,66 @@ export class ApplicationsService {
     };
   }
 
+  async cancelPendingForRequest(input: {
+    contributionRequestId: string;
+    actorId: string;
+    reason: string | null;
+    correlationId: string;
+    causationAuditId: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<{ cancelledApplicationIds: string[] }> {
+    const pending = await input.transaction.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`
+        SELECT "id"
+        FROM "Application"
+        WHERE "contribution_request_id" = ${input.contributionRequestId}::uuid
+          AND "status" = ${ApplicationStatus.pending_owner_review}::"ApplicationStatus"
+        ORDER BY "id"
+        FOR UPDATE
+      `,
+    );
+    const cancelledApplicationIds = pending.map(
+      (application) => application.id,
+    );
+    if (cancelledApplicationIds.length === 0) {
+      return { cancelledApplicationIds };
+    }
+
+    const updated = await input.transaction.application.updateMany({
+      where: {
+        id: { in: cancelledApplicationIds },
+        status: ApplicationStatus.pending_owner_review,
+      },
+      data: { status: ApplicationStatus.request_cancelled },
+    });
+    if (updated.count !== cancelledApplicationIds.length) {
+      throw new ConflictApplicationError(
+        'An Application changed during Contribution Request cancellation',
+        'APPLICATION_CONCURRENT_MODIFICATION',
+      );
+    }
+    await input.transaction.applicationAudit.createMany({
+      data: cancelledApplicationIds.map((applicationId) => ({
+        application_id: applicationId,
+        actor_id: input.actorId,
+        action: ApplicationAuditAction.request_cancelled,
+        from_status: ApplicationStatus.pending_owner_review,
+        to_status: ApplicationStatus.request_cancelled,
+        metadata: {
+          payloadVersion: 1,
+          contributionRequestId: input.contributionRequestId,
+          reason: input.reason,
+          correlationId: input.correlationId,
+          causation: {
+            type: 'contribution_request_audit',
+            id: input.causationAuditId,
+          },
+        },
+      })),
+    });
+    return { cancelledApplicationIds };
+  }
+
   private assertRequestAcceptsApplications(
     context: ApplicationRequestContextDto | null,
     now: Date,
@@ -956,6 +1022,12 @@ export class ApplicationsService {
       submittedAt: application.submitted_at,
       reviewDueAt: application.review_due_at,
       expiresAt: application.expires_at,
+      ownerDecision: application.ownerDecision
+        ? this.presentOwnerDecision(application.ownerDecision)
+        : null,
+      assignment: application.assignment
+        ? this.presentAssignment(application.assignment)
+        : null,
     };
   }
 
@@ -964,32 +1036,42 @@ export class ApplicationsService {
   ): OwnerDecisionResultDto {
     return {
       application: this.present(decision.application),
-      ownerDecision: {
-        id: decision.id,
-        applicationId: decision.application_id,
-        contributionRequestId: decision.contribution_request_id,
-        decisionType:
-          decision.decision_type === OwnerDecisionType.accepted
-            ? 'ACCEPTED'
-            : 'DECLINED',
-        feedback: decision.feedback,
-        decidedAt: decision.decided_at,
-      },
+      ownerDecision: this.presentOwnerDecision(decision),
       assignment: decision.assignment
-        ? {
-            id: decision.assignment.id,
-            contributionRequestId:
-              decision.assignment.contribution_request_id,
-            applicationId: decision.assignment.application_id,
-            ownerDecisionId: decision.assignment.owner_decision_id,
-            contributorId: decision.assignment.contributor_id,
-            agreedDeliveryDurationDays:
-              decision.assignment.agreed_delivery_duration_days,
-            agreedDeliveryDueDate:
-              decision.assignment.agreed_delivery_due_at,
-            assignedAt: decision.assignment.assigned_at,
-          }
+        ? this.presentAssignment(decision.assignment)
         : null,
+    };
+  }
+
+  private presentOwnerDecision(
+    decision: Prisma.OwnerDecisionGetPayload<Record<string, never>>,
+  ) {
+    return {
+      id: decision.id,
+      applicationId: decision.application_id,
+      contributionRequestId: decision.contribution_request_id,
+      decisionType:
+        decision.decision_type === OwnerDecisionType.accepted
+          ? ('ACCEPTED' as const)
+          : ('DECLINED' as const),
+      feedback: decision.feedback,
+      decidedAt: decision.decided_at,
+    };
+  }
+
+  private presentAssignment(
+    assignment: Prisma.AssignmentGetPayload<Record<string, never>>,
+  ) {
+    return {
+      id: assignment.id,
+      contributionRequestId: assignment.contribution_request_id,
+      applicationId: assignment.application_id,
+      ownerDecisionId: assignment.owner_decision_id,
+      contributorId: assignment.contributor_id,
+      agreedDeliveryDurationDays:
+        assignment.agreed_delivery_duration_days,
+      agreedDeliveryDueDate: assignment.agreed_delivery_due_at,
+      assignedAt: assignment.assigned_at,
     };
   }
 
@@ -1160,6 +1242,20 @@ export class ApplicationsService {
         error instanceof NotFoundApplicationError &&
         error.code !== 'APPLICATION_NOT_FOUND'
       ) {
+        throw this.applicationNotFound();
+      }
+      throw error;
+    }
+  }
+
+  private async confirmOwnerDecisionActor(input: {
+    requestId: string;
+    ownerId: string;
+  }): Promise<void> {
+    try {
+      await this.contributionTasks.confirmOwnerDecisionActor(input);
+    } catch (error) {
+      if (error instanceof NotFoundApplicationError) {
         throw this.applicationNotFound();
       }
       throw error;

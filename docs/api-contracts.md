@@ -30,6 +30,7 @@ Expected API groups:
 /projects
 /contribution-tasks
 /applications
+/contribution-proposals
 /skill-profiles
 /admin
 /deliveries
@@ -472,7 +473,7 @@ current user's owner-project dashboard data:
   ],
   "quota": {
     "used": 0,
-    "monthlyLimit": 20
+    "monthlyLimit": 10
   },
   "pageInfo": { "nextCursor": null, "hasNextPage": false }
 }
@@ -480,7 +481,11 @@ current user's owner-project dashboard data:
 
 The response includes all projects owned by the authenticated owner, including
 drafts. It is an owner workspace endpoint, not contributor discovery. Contributor
-discovery must continue to filter on published projects only.
+discovery must continue to filter on published projects only. `quota.used`
+counts Contribution Requests whose `published_at` falls in the current UTC
+calendar month, including Requests later cancelled. `monthlyLimit` is the
+caller's current owner entitlement: Bronze 10, Silver 20, Gold 30; no active
+assignment defaults to Bronze.
 
 The canonical publication workflow separates source inspection, persistence,
 and public state:
@@ -567,6 +572,7 @@ project import.
 Implemented private-draft endpoints:
 
 ```text
+GET   /projects/:projectId/contribution-requests
 POST  /projects/:projectId/contribution-requests
 GET   /contribution-requests/:requestId
 PATCH /contribution-requests/:requestId
@@ -577,6 +583,28 @@ All endpoints require an authenticated active account. The backend derives the
 owner from the bearer session. Only the owner of the referenced published
 Project can create a draft, and only that owner can inspect, update, or discard
 it. Unknown and other-owner resources use the same non-enumerating 404.
+
+The Project-scoped GET is the canonical owner workspace read. It remains
+available for an owned archived Project and returns every lifecycle bucket,
+including empty buckets:
+
+```json
+{
+  "projectId": "project-uuid",
+  "totalCount": 2,
+  "byStatus": {
+    "draft": [{ "id": "request-uuid", "status": "draft" }],
+    "published": [{ "id": "request-uuid", "status": "published" }],
+    "assigned": [],
+    "completed": [],
+    "cancelled": [],
+    "discarded": []
+  }
+}
+```
+
+Items use the full owner-safe `ContributionRequestDto` shape and are ordered by
+most recently updated first within each group.
 
 Create accepts:
 
@@ -635,9 +663,80 @@ CONTRIBUTION_REQUEST_IDEMPOTENCY_KEY_INVALID
 CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT
 ```
 
-Public publication, discovery, and cancellation are not part of this contract
-yet. Issue #47 now provides their prerequisite Application owner-review state
-model; the public lifecycle remains scoped to issue #49.
+## Contribution Request Public Lifecycle
+
+Owner commands require an authenticated active `owner`, an owned published
+Project, and an optional 8-128 character `Idempotency-Key`:
+
+```text
+POST /contribution-requests/:requestId/publish
+POST /contribution-requests/:requestId/cancel
+```
+
+Publication is the only `draft -> published` path. It revalidates the complete
+work contract and Applications Close Time, then enforces the current owner plan
+against publications in the current UTC calendar month. Owners without a
+current plan assignment use Bronze. Limits are Bronze 10, Silver 20, and Gold
+30. Cancelled Requests still count in the month in which they were published.
+
+Cancellation accepts optional `{ "reason": "..." }`, preserves the Request,
+and atomically changes every `PENDING_OWNER_REVIEW` Application to
+`REQUEST_CANCELLED`. Existing terminal Applications and all snapshots/audits
+remain unchanged. Cancellation remains available to the owning owner after the
+parent Project is archived, preventing pending Applications from being
+stranded. The Request audit and all resulting Application audits share a
+correlation ID; each child audit points to the Request audit as its cause and
+retains the supplied reason.
+
+Public, unauthenticated reads keep the compatible `/tasks` transport path:
+
+```text
+GET /tasks?q=webhook&technologies=NestJS,PostgreSQL&difficulty=intermediate&hasReward=true
+GET /tasks/:requestId
+```
+
+Both reads expose only `published` Requests whose Applications Close Time is
+strictly in the future and whose parent Project remains published. Draft,
+discarded, cancelled, assigned, completed, closed, and Requests on archived
+Projects never appear and public detail returns the same
+`CONTRIBUTION_REQUEST_NOT_FOUND` response for all of them.
+
+The feed returns:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "projectId": "uuid",
+      "projectName": "Share-k Backend",
+      "projectSlug": "share-k-backend",
+      "title": "Build a webhook viewer",
+      "technologyTags": ["NestJS", "PostgreSQL"],
+      "difficulty": "intermediate",
+      "applicationsCloseAt": "2030-03-10T12:00:00.000Z",
+      "targetCompletionDate": "2030-03-20",
+      "reward": { "amount": 150, "currency": "USD" }
+    }
+  ],
+  "totalCount": 1,
+  "technologyFacets": ["NestJS", "PostgreSQL"]
+}
+```
+
+`q` searches Request title/description and Project title. `technologies` accepts
+repeated or comma-separated values and matches any tag. `difficulty` accepts
+`beginner`, `intermediate`, or `advanced`; `hasReward` is boolean. Detail adds
+`description`, `status: "published"`, and ordered `requirements`, each with
+`classification: "required" | "preferred"`.
+
+Additional stable lifecycle errors are:
+
+```text
+CONTRIBUTION_REQUEST_DRAFT_NOT_PUBLISHABLE
+CONTRIBUTION_REQUEST_LIMIT_REACHED
+CONTRIBUTION_REQUEST_NOT_CANCELLABLE
+```
 
 ## Skill Profile Contracts
 
@@ -1079,7 +1178,11 @@ identity and profile context, and review timing. The Contribution Approach is
 required and must contain 10 to 5000 characters. Evidence is limited to approved
 skill summaries whose underlying repository evidence was collected under the
 contributor’s explicit repository-selection consent; submission does not
-authorize new evidence access. Submission performs no AI or attempt-quota work.
+authorize new evidence access. The submission transaction revalidates and locks
+the active GitHub App link, installation, selected repositories, consent, and
+matching generation before fixing the snapshot. Revoked or unverifiable legacy
+evidence is omitted. The parent Project must also still be published.
+Submission performs no AI or attempt-quota work.
 
 ```http
 GET  /tasks/:taskId/applications
@@ -1093,6 +1196,10 @@ Withdrawal is contributor-owned and pending-only. Stable workflow errors include
 `ALREADY_APPLIED`, `APPLICATIONS_CLOSED`, `REQUEST_CANCELLED`,
 `REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, `APPLICATION_TERMINAL`, and
 `APPLICATION_IDEMPOTENCY_CONFLICT`.
+
+Application detail includes nullable `ownerDecision` and `assignment` fields.
+For a declined Application, the applying contributor receives the immutable
+decision identifier and feedback needed to use the moderation-report route.
 
 ## Sprint 4 Owner Decisions and Assignments (#51)
 
@@ -1141,6 +1248,63 @@ Only the contributor affected by an explicit declined decision can create the
 linked moderation Report. Reporting returns `201`, does not change the
 Application state, and is not an appeal. A duplicate returns
 `OWNER_DECISION_REPORT_ALREADY_EXISTS`.
+
+## Sprint 4 Contribution Proposals (#55)
+
+A Contribution Proposal is a private, contributor-authored suggestion of new
+Project work. It is not an Application and grants no Assignment or selection
+priority. All routes require an authenticated account; role, status, and
+ownership are enforced by the service.
+
+```http
+POST /contribution-proposals
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{
+  "projectId": "22222222-2222-4222-8222-222222222222",
+  "title": "Add a caching layer",
+  "problemOrOpportunity": "The discovery feed repeats expensive repository-derived lookups.",
+  "proposedOutcome": "Introduce a Redis cache with explicit invalidation on publication.",
+  "projectBenefit": "Owners and contributors receive faster, more reliable discovery results.",
+  "acknowledgesAttributionAndAssignmentDisclosure": true,
+  "idempotencyKey": "00000000-0000-4000-8000-000000000003"
+}
+```
+
+Submission returns `201` with a `PENDING` proposal, its immutable version 1, the
+acknowledged disclosure, and an empty revision-request history. The Project must
+be published with proposal intake enabled, the disclosure acknowledgement must be
+`true`, and all four canonical proposal fields are required. `title` is 5–255
+characters, `problemOrOpportunity` and `proposedOutcome` are 20–5000 characters,
+and `projectBenefit` is 20–3000 characters. A contributor may hold only one
+pending proposal per Project and is bounded by a daily submission limit. These
+invariants are rechecked transactionally; a database partial unique index also
+protects the pending-proposal rule under concurrency.
+
+```http
+GET  /contribution-proposals/mine?limit=20&cursor=<opaque>
+GET  /contribution-proposals/for-project/:projectId?limit=20&cursor=<opaque>
+GET  /contribution-proposals/:proposalId
+PUT  /contribution-proposals/for-project/:projectId/intake
+POST /contribution-proposals/:proposalId/versions
+POST /contribution-proposals/:proposalId/revision-requests
+POST /contribution-proposals/:proposalId/withdraw
+Idempotency-Key: 00000000-0000-4000-8000-000000000004
+```
+
+`mine` is proposer-scoped; `for-project` and `intake` are Project-owner-scoped;
+both lists return `proposals` plus `pageInfo.hasNextPage` and an opaque
+`pageInfo.nextCursor`. Detail permits only the proposer and the Project owner. A new version can be
+submitted only by the proposer and only to answer an outstanding owner revision
+request. A revision request is an owner-only append-only action that never edits
+contributor-authored content. Withdrawal is proposer-owned and pending-only.
+Pending proposals never expire and consume no Application or subscription quota.
+Stable workflow errors include `PROPOSAL_PROJECT_NOT_PUBLISHED`,
+`PROPOSAL_INTAKE_DISABLED`, `PROPOSAL_RATE_LIMITED`, `PROPOSAL_ALREADY_PENDING`,
+`PROPOSAL_NO_REVISION_REQUESTED`, `PROPOSAL_TERMINAL`, `PROPOSAL_NOT_AUTHORIZED`,
+`PROPOSAL_NOT_FOUND`, `PROPOSAL_CURSOR_INVALID`,
+`PROPOSAL_CONCURRENT_MODIFICATION`, and `PROPOSAL_IDEMPOTENCY_CONFLICT`.
 
 ## Contract Change Rules
 

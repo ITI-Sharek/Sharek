@@ -15,7 +15,10 @@ project visibility.
 - `GET /projects/me`: cursor-paginated owner workspace for active owners and
   contributors, including revision, request/application counters, and quota.
   `pendingApplicationsCount` includes only `pending_owner_review` Applications;
-  legacy AI eligibility states are not treated as an owner queue.
+  legacy AI eligibility states are not treated as an owner queue. Quota usage
+  counts Request publications by `published_at` in the current UTC month and
+  reports the same Bronze 10 / Silver 20 / Gold 30 entitlement used at
+  publication.
 - `GET|PATCH /projects/me/:projectId`: persisted-owner detail and editable
   presentation fields. Unknown and non-owned IDs share `PROJECT_NOT_FOUND`.
 - `POST /projects/me/:projectId/source/refresh`: idempotent source refresh that
@@ -52,6 +55,16 @@ owner/publication facts needed by the Contribution Requests module.
 `lockContributionRequestProjectAccess()` provides the same check with a shared
 Project-row lock on the caller's write transaction so an archive or ownership
 change cannot race a Contribution Request mutation.
+`getProposalProjectContext()` and `lockProposalProjectContext()` expose the same
+minimal ID/owner/status projection to Contribution Proposals; the lock variant
+keeps proposal submission and intake commands consistent with Project state.
+`listContributionRequestProjectReferences()` exposes only Project ID, title,
+and slug projections for published Projects in public Contribution Request
+discovery; callers may resolve known IDs or search titles without joining
+Project-owned tables. Separate owner-only access capabilities permit a Request
+on an archived Project to be cancelled, while publication, discovery, and new
+Application submission continue to require a published Project. The canonical
+owner-plan lookup used by publication and the owner dashboard also lives here.
 
 The module writes `Project`, `ProjectOperation`, and
 `ProjectStateTransition`. It calls exported GitHub services for normalized
