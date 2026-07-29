@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 
 import { getRedisConnection } from '../../../shared/queue/redis-connection';
+import { isApplicationReviewQueueEnabled } from './application-review-window.config';
 
 export const APPLICATION_REVIEW_WINDOW_QUEUE = 'application-review-window';
 
@@ -18,7 +19,7 @@ export class ApplicationReviewWindowQueue implements OnModuleDestroy {
       'APPLICATION_REVIEW_SWEEP_INTERVAL_MS',
       60_000,
     );
-    this.queue = this.isEnabled()
+    this.queue = isApplicationReviewQueueEnabled(this.config)
       ? new Queue<ApplicationReviewWindowJobData>(
           APPLICATION_REVIEW_WINDOW_QUEUE,
           { connection: getRedisConnection(this.config) },
@@ -55,12 +56,5 @@ export class ApplicationReviewWindowQueue implements OnModuleDestroy {
       removeOnComplete: 100,
       removeOnFail: 500,
     };
-  }
-
-  private isEnabled(): boolean {
-    return this.config.get<boolean>(
-      'APPLICATION_REVIEW_QUEUE_ENABLED',
-      this.config.get<string>('NODE_ENV', 'development') !== 'test',
-    );
   }
 }
