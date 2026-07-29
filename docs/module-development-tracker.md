@@ -2034,3 +2034,17 @@ This keeps the system strong without making it heavy:
   `brace-expansion` advisory through legacy test/lint tooling despite the
   installed patched 1.x release. Docker builds now use deterministic `npm ci`
   installation from the reviewed lockfile.
+
+## 2026-07-30 - Prisma owner-decision relation repair
+
+- Requirement/task IDs: targeted `prisma-schema-relations` repair following
+  GitHub issue #51 and PR #64 integration.
+- Schema: restored the four Prisma-only inverse relations from `User` and
+  `ContributionRequest` to `OwnerDecision` and `Assignment`; the owning-side
+  foreign keys already exist in migration `20260729120000_owner_decisions_assignments`,
+  so no database migration was added.
+- Root cause: PR #64's main-into-feature conflict resolution omitted the inverse
+  fields that PR #63/#51 had already added.
+- Verification: Prisma validation and client generation, architecture check,
+  lint, exact type-check, build, 7 focused suites / 94 tests, and all 69 Jest
+  suites / 437 tests pass.
