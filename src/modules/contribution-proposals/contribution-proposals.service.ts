@@ -17,6 +17,7 @@ import {
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { ProjectsService } from '../projects/projects.service';
+import { ContributionProposalPageQueryDto } from './dto/contribution-proposal-input.dto';
 import {
   ContributionProposalDto,
   ContributionProposalListDto,
@@ -53,7 +54,9 @@ export class ContributionProposalsService {
     actor: AuthenticatedUser;
     projectId: string;
     title: string;
-    body: string;
+    problemOrOpportunity: string;
+    proposedOutcome: string;
+    projectBenefit: string;
     idempotencyKey: string;
   }): Promise<ContributionProposalDto> {
     this.assertActiveContributor(input.actor);
@@ -62,7 +65,9 @@ export class ContributionProposalsService {
       action: ContributionProposalAuditAction.submitted,
       projectId: input.projectId,
       title: input.title,
-      body: input.body,
+      problemOrOpportunity: input.problemOrOpportunity,
+      proposedOutcome: input.proposedOutcome,
+      projectBenefit: input.projectBenefit,
     });
     const replay = await this.readReplay({
       actorId: input.actor.id,
@@ -72,17 +77,10 @@ export class ContributionProposalsService {
     });
     if (replay) return toContributionProposalDto(replay);
 
-    const project = await this.projects.getProposalProjectContext(
-      input.projectId,
-    );
-    this.assertProjectAcceptsProposals(project, input.actor);
-    await this.assertIntakeEnabled(input.projectId);
-    await this.assertWithinDailySubmissionLimit(input.actor.id, new Date());
-    await this.assertNoPendingProposal(input.projectId, input.actor.id);
-
     let proposal: ContributionProposalWithDetail;
     try {
       proposal = await this.database.$transaction(async (transaction) => {
+        await this.lockContributorSubmissions(transaction, input.actor.id);
         const transactionReplay = await this.readReplayFromTransaction({
           transaction,
           actorId: input.actor.id,
@@ -92,16 +90,23 @@ export class ContributionProposalsService {
         });
         if (transactionReplay) return transactionReplay;
 
-        const existingPending = await transaction.contributionProposal.findFirst(
-          {
-            where: {
-              project_id: input.projectId,
-              proposer_id: input.actor.id,
-              status: ContributionProposalStatus.pending,
-            },
-          },
+        const project = await this.projects.lockProposalProjectContext(
+          input.projectId,
+          transaction,
         );
-        if (existingPending) throw this.alreadyPending();
+        this.assertProjectAcceptsProposals(project, input.actor);
+        await this.assertIntakeEnabled(input.projectId, transaction);
+        await this.assertWithinDailySubmissionLimit(
+          input.actor.id,
+          new Date(),
+          transaction,
+        );
+
+        await this.assertNoPendingProposal(
+          input.projectId,
+          input.actor.id,
+          transaction,
+        );
 
         const now = new Date();
         const proposalId = randomUUID();
@@ -121,7 +126,9 @@ export class ContributionProposalsService {
             proposal_id: proposalId,
             version: 1,
             title: input.title,
-            body: input.body,
+            problem_or_opportunity: input.problemOrOpportunity,
+            proposed_outcome: input.proposedOutcome,
+            project_benefit: input.projectBenefit,
             authored_by: input.actor.id,
           },
         });
@@ -134,7 +141,7 @@ export class ContributionProposalsService {
             proposal_version: 1,
             idempotency_key: idempotencyKey,
             command_fingerprint: fingerprint,
-            metadata: { payloadVersion: 1 },
+            metadata: { payloadVersion: 2 },
           },
         });
         return transaction.contributionProposal.findUniqueOrThrow({
@@ -151,7 +158,7 @@ export class ContributionProposalsService {
         fingerprint,
       });
       if (lostRace) proposal = lostRace;
-      else if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      else if (this.isPendingProposalConstraint(error)) {
         throw this.alreadyPending();
       } else throw error;
     }
@@ -162,7 +169,9 @@ export class ContributionProposalsService {
     actor: AuthenticatedUser;
     proposalId: string;
     title: string;
-    body: string;
+    problemOrOpportunity: string;
+    proposedOutcome: string;
+    projectBenefit: string;
     idempotencyKey: string;
   }): Promise<ContributionProposalDto> {
     this.assertActiveContributor(input.actor);
@@ -171,7 +180,9 @@ export class ContributionProposalsService {
       action: ContributionProposalAuditAction.version_submitted,
       proposalId: input.proposalId,
       title: input.title,
-      body: input.body,
+      problemOrOpportunity: input.problemOrOpportunity,
+      proposedOutcome: input.proposedOutcome,
+      projectBenefit: input.projectBenefit,
     });
     const replay = await this.readReplay({
       actorId: input.actor.id,
@@ -211,6 +222,7 @@ export class ContributionProposalsService {
             proposer_id: input.actor.id,
             status: ContributionProposalStatus.pending,
             current_version: current.current_version,
+            revision_request_sequence: current.revision_request_sequence,
           },
           data: { current_version: nextVersion, revision_requested_at: null },
         });
@@ -220,7 +232,9 @@ export class ContributionProposalsService {
             proposal_id: input.proposalId,
             version: nextVersion,
             title: input.title,
-            body: input.body,
+            problem_or_opportunity: input.problemOrOpportunity,
+            proposed_outcome: input.proposedOutcome,
+            project_benefit: input.projectBenefit,
             authored_by: input.actor.id,
           },
         });
@@ -234,7 +248,11 @@ export class ContributionProposalsService {
             proposal_version: nextVersion,
             idempotency_key: idempotencyKey,
             command_fingerprint: fingerprint,
-            metadata: { payloadVersion: 1 },
+            metadata: {
+              payloadVersion: 2,
+              answeredRevisionRequestSequence:
+                current.revision_request_sequence,
+            },
           },
         });
         return transaction.contributionProposal.findUniqueOrThrow({
@@ -251,7 +269,10 @@ export class ContributionProposalsService {
         fingerprint,
       });
       if (lostRace) proposal = lostRace;
-      else if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      else if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
         throw this.concurrentModification();
       } else throw error;
     }
@@ -279,8 +300,6 @@ export class ContributionProposalsService {
     });
     if (replay) return toContributionProposalDto(replay);
 
-    await this.assertProposalProjectOwner(input.proposalId, input.actor.id);
-
     let proposal: ContributionProposalWithDetail;
     try {
       proposal = await this.database.$transaction(async (transaction) => {
@@ -298,10 +317,26 @@ export class ContributionProposalsService {
         });
         if (!current) throw this.proposalNotFound();
         this.assertPending(current.status);
-        await transaction.contributionProposal.update({
-          where: { id: input.proposalId },
-          data: { revision_requested_at: new Date() },
+        const project = await this.projects.lockProposalProjectContext(
+          current.project_id,
+          transaction,
+        );
+        if (project.ownerId !== input.actor.id) throw this.proposalNotFound();
+        const nextRevisionRequestSequence =
+          current.revision_request_sequence + 1;
+        const updated = await transaction.contributionProposal.updateMany({
+          where: {
+            id: input.proposalId,
+            status: ContributionProposalStatus.pending,
+            current_version: current.current_version,
+            revision_request_sequence: current.revision_request_sequence,
+          },
+          data: {
+            revision_request_sequence: nextRevisionRequestSequence,
+            revision_requested_at: new Date(),
+          },
         });
+        if (updated.count !== 1) throw this.concurrentModification();
         await transaction.contributionProposalAudit.create({
           data: {
             proposal_id: input.proposalId,
@@ -313,7 +348,10 @@ export class ContributionProposalsService {
             reason: input.reason,
             idempotency_key: idempotencyKey,
             command_fingerprint: fingerprint,
-            metadata: { payloadVersion: 1 },
+            metadata: {
+              payloadVersion: 1,
+              revisionRequestSequence: nextRevisionRequestSequence,
+            },
           },
         });
         return transaction.contributionProposal.findUniqueOrThrow({
@@ -436,33 +474,23 @@ export class ContributionProposalsService {
     return toContributionProposalDto(proposal);
   }
 
-  async listMine(actor: AuthenticatedUser): Promise<ContributionProposalListDto> {
+  async listMine(
+    actor: AuthenticatedUser,
+    query: ContributionProposalPageQueryDto = {},
+  ): Promise<ContributionProposalListDto> {
     this.assertActiveContributor(actor);
-    const proposals = await this.database.contributionProposal.findMany({
-      where: { proposer_id: actor.id },
-      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-      include: PROPOSAL_SUMMARY_INCLUDE,
-    });
-    return {
-      proposals: proposals.map(toContributionProposalSummaryDto),
-    };
+    return this.listPage({ proposer_id: actor.id }, query);
   }
 
   async listForProject(
     actor: AuthenticatedUser,
     projectId: string,
+    query: ContributionProposalPageQueryDto = {},
   ): Promise<ContributionProposalListDto> {
     this.assertActiveOwner(actor);
     const project = await this.projects.getProposalProjectContext(projectId);
     if (project.ownerId !== actor.id) throw this.proposalNotFound();
-    const proposals = await this.database.contributionProposal.findMany({
-      where: { project_id: projectId },
-      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-      include: PROPOSAL_SUMMARY_INCLUDE,
-    });
-    return {
-      proposals: proposals.map(toContributionProposalSummaryDto),
-    };
+    return this.listPage({ project_id: projectId }, query);
   }
 
   async setIntake(
@@ -471,14 +499,19 @@ export class ContributionProposalsService {
     enabled: boolean,
   ): Promise<ProposalIntakeDto> {
     this.assertActiveOwner(actor);
-    const project = await this.projects.getProposalProjectContext(projectId);
-    if (project.ownerId !== actor.id) throw this.proposalNotFound();
-    const intake = await this.database.projectProposalIntake.upsert({
-      where: { project_id: projectId },
-      create: { project_id: projectId, enabled, updated_by: actor.id },
-      update: { enabled, updated_by: actor.id },
+    return this.database.$transaction(async (transaction) => {
+      const project = await this.projects.lockProposalProjectContext(
+        projectId,
+        transaction,
+      );
+      if (project.ownerId !== actor.id) throw this.proposalNotFound();
+      const intake = await transaction.projectProposalIntake.upsert({
+        where: { project_id: projectId },
+        create: { project_id: projectId, enabled, updated_by: actor.id },
+        update: { enabled, updated_by: actor.id },
+      });
+      return { projectId: intake.project_id, enabled: intake.enabled };
     });
-    return { projectId: intake.project_id, enabled: intake.enabled };
   }
 
   private assertProjectAcceptsProposals(
@@ -499,11 +532,24 @@ export class ContributionProposalsService {
     }
   }
 
-  private async assertIntakeEnabled(projectId: string): Promise<void> {
-    const intake = await this.database.projectProposalIntake.findUnique({
-      where: { project_id: projectId },
-    });
-    if (intake && !intake.enabled) {
+  private async assertIntakeEnabled(
+    projectId: string,
+    transaction: Prisma.TransactionClient,
+  ): Promise<void> {
+    await transaction.$executeRaw(Prisma.sql`
+      INSERT INTO "ProjectProposalIntake" ("project_id", "enabled")
+      VALUES (${projectId}::uuid, true)
+      ON CONFLICT ("project_id") DO NOTHING
+    `);
+    const intakes = await transaction.$queryRaw<Array<{ enabled: boolean }>>(
+      Prisma.sql`
+        SELECT "enabled"
+        FROM "ProjectProposalIntake"
+        WHERE "project_id" = ${projectId}::uuid
+        FOR SHARE
+      `,
+    );
+    if (!intakes[0]?.enabled) {
       throw new ConflictApplicationError(
         'Contribution Proposal intake is disabled for this Project',
         'PROPOSAL_INTAKE_DISABLED',
@@ -514,11 +560,12 @@ export class ContributionProposalsService {
   private async assertWithinDailySubmissionLimit(
     proposerId: string,
     now: Date,
+    transaction: Prisma.TransactionClient,
   ): Promise<void> {
     const dayStart = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
     );
-    const submittedToday = await this.database.contributionProposal.count({
+    const submittedToday = await transaction.contributionProposal.count({
       where: { proposer_id: proposerId, created_at: { gte: dayStart } },
     });
     if (submittedToday >= PROPOSAL_DAILY_SUBMISSION_LIMIT) {
@@ -534,8 +581,9 @@ export class ContributionProposalsService {
   private async assertNoPendingProposal(
     projectId: string,
     proposerId: string,
+    transaction: Prisma.TransactionClient,
   ): Promise<void> {
-    const existingPending = await this.database.contributionProposal.findFirst({
+    const existingPending = await transaction.contributionProposal.findFirst({
       where: {
         project_id: projectId,
         proposer_id: proposerId,
@@ -545,19 +593,97 @@ export class ContributionProposalsService {
     if (existingPending) throw this.alreadyPending();
   }
 
-  private async assertProposalProjectOwner(
-    proposalId: string,
-    actorId: string,
+  private async lockContributorSubmissions(
+    transaction: Prisma.TransactionClient,
+    proposerId: string,
   ): Promise<void> {
-    const proposal = await this.database.contributionProposal.findUnique({
-      where: { id: proposalId },
-      select: { project_id: true },
+    await transaction.$queryRaw(Prisma.sql`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(${`contribution-proposals:${proposerId}`}, 0)
+      )
+    `);
+  }
+
+  private async listPage(
+    baseWhere: Prisma.ContributionProposalWhereInput,
+    query: ContributionProposalPageQueryDto,
+  ): Promise<ContributionProposalListDto> {
+    const limit = query.limit ?? 20;
+    const cursor = query.cursor ? this.decodeCursor(query.cursor) : null;
+    const cursorWhere: Prisma.ContributionProposalWhereInput | undefined = cursor
+      ? {
+          OR: [
+            { created_at: { lt: cursor.createdAt } },
+            { created_at: cursor.createdAt, id: { lt: cursor.id } },
+          ],
+        }
+      : undefined;
+    const proposals = await this.database.contributionProposal.findMany({
+      where: cursorWhere ? { AND: [baseWhere, cursorWhere] } : baseWhere,
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      include: PROPOSAL_SUMMARY_INCLUDE,
     });
-    if (!proposal) throw this.proposalNotFound();
-    const project = await this.projects.getProposalProjectContext(
-      proposal.project_id,
+    const hasNextPage = proposals.length > limit;
+    const items = proposals.slice(0, limit);
+    const last = items.at(-1);
+    return {
+      proposals: items.map(toContributionProposalSummaryDto),
+      pageInfo: {
+        hasNextPage,
+        nextCursor:
+          hasNextPage && last
+            ? this.encodeCursor(last.created_at, last.id)
+            : null,
+      },
+    };
+  }
+
+  private encodeCursor(createdAt: Date, id: string): string {
+    return Buffer.from(
+      JSON.stringify({ createdAt: createdAt.toISOString(), id }),
+    ).toString('base64url');
+  }
+
+  private decodeCursor(cursor: string): { createdAt: Date; id: string } {
+    try {
+      const parsed = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      ) as { createdAt?: unknown; id?: unknown };
+      const createdAt = new Date(String(parsed.createdAt));
+      if (
+        typeof parsed.id !== 'string' ||
+        !IDEMPOTENCY_KEY_PATTERN.test(parsed.id) ||
+        Number.isNaN(createdAt.getTime())
+      ) {
+        throw new Error('invalid cursor');
+      }
+      return { createdAt, id: parsed.id };
+    } catch {
+      throw new ApplicationError(
+        'Contribution Proposal cursor is invalid',
+        'PROPOSAL_CURSOR_INVALID',
+        400,
+      );
+    }
+  }
+
+  private isPendingProposalConstraint(error: unknown): boolean {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
+    }
+    const target = error.meta?.target;
+    return (
+      String(target).includes(
+        'ContributionProposal_project_id_proposer_id_pending_key',
+      ) ||
+      (Array.isArray(target) &&
+        target.includes('project_id') &&
+        target.includes('proposer_id'))
     );
-    if (project.ownerId !== actorId) throw this.proposalNotFound();
   }
 
   private async recoverFromIdempotencyRace(input: {

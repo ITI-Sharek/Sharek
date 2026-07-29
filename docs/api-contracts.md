@@ -572,6 +572,7 @@ project import.
 Implemented private-draft endpoints:
 
 ```text
+GET   /projects/:projectId/contribution-requests
 POST  /projects/:projectId/contribution-requests
 GET   /contribution-requests/:requestId
 PATCH /contribution-requests/:requestId
@@ -582,6 +583,28 @@ All endpoints require an authenticated active account. The backend derives the
 owner from the bearer session. Only the owner of the referenced published
 Project can create a draft, and only that owner can inspect, update, or discard
 it. Unknown and other-owner resources use the same non-enumerating 404.
+
+The Project-scoped GET is the canonical owner workspace read. It remains
+available for an owned archived Project and returns every lifecycle bucket,
+including empty buckets:
+
+```json
+{
+  "projectId": "project-uuid",
+  "totalCount": 2,
+  "byStatus": {
+    "draft": [{ "id": "request-uuid", "status": "draft" }],
+    "published": [{ "id": "request-uuid", "status": "published" }],
+    "assigned": [],
+    "completed": [],
+    "cancelled": [],
+    "discarded": []
+  }
+}
+```
+
+Items use the full owner-safe `ContributionRequestDto` shape and are ordered by
+most recently updated first within each group.
 
 Create accepts:
 
@@ -1189,7 +1212,9 @@ Content-Type: application/json
 {
   "projectId": "22222222-2222-4222-8222-222222222222",
   "title": "Add a caching layer",
-  "body": "Introduce a Redis caching layer for the discovery feed.",
+  "problemOrOpportunity": "The discovery feed repeats expensive repository-derived lookups.",
+  "proposedOutcome": "Introduce a Redis cache with explicit invalidation on publication.",
+  "projectBenefit": "Owners and contributors receive faster, more reliable discovery results.",
   "acknowledgesAttributionAndAssignmentDisclosure": true,
   "idempotencyKey": "00000000-0000-4000-8000-000000000003"
 }
@@ -1198,13 +1223,16 @@ Content-Type: application/json
 Submission returns `201` with a `PENDING` proposal, its immutable version 1, the
 acknowledged disclosure, and an empty revision-request history. The Project must
 be published with proposal intake enabled, the disclosure acknowledgement must be
-`true`, `title` is 5–255 characters, and `body` is 20–5000 characters. A
-contributor may hold only one pending proposal per Project and is bounded by a
-daily submission limit.
+`true`, and all four canonical proposal fields are required. `title` is 5–255
+characters, `problemOrOpportunity` and `proposedOutcome` are 20–5000 characters,
+and `projectBenefit` is 20–3000 characters. A contributor may hold only one
+pending proposal per Project and is bounded by a daily submission limit. These
+invariants are rechecked transactionally; a database partial unique index also
+protects the pending-proposal rule under concurrency.
 
 ```http
-GET  /contribution-proposals/mine
-GET  /contribution-proposals/for-project/:projectId
+GET  /contribution-proposals/mine?limit=20&cursor=<opaque>
+GET  /contribution-proposals/for-project/:projectId?limit=20&cursor=<opaque>
 GET  /contribution-proposals/:proposalId
 PUT  /contribution-proposals/for-project/:projectId/intake
 POST /contribution-proposals/:proposalId/versions
@@ -1214,7 +1242,8 @@ Idempotency-Key: 00000000-0000-4000-8000-000000000004
 ```
 
 `mine` is proposer-scoped; `for-project` and `intake` are Project-owner-scoped;
-detail permits only the proposer and the Project owner. A new version can be
+both lists return `proposals` plus `pageInfo.hasNextPage` and an opaque
+`pageInfo.nextCursor`. Detail permits only the proposer and the Project owner. A new version can be
 submitted only by the proposer and only to answer an outstanding owner revision
 request. A revision request is an owner-only append-only action that never edits
 contributor-authored content. Withdrawal is proposer-owned and pending-only.
@@ -1222,7 +1251,8 @@ Pending proposals never expire and consume no Application or subscription quota.
 Stable workflow errors include `PROPOSAL_PROJECT_NOT_PUBLISHED`,
 `PROPOSAL_INTAKE_DISABLED`, `PROPOSAL_RATE_LIMITED`, `PROPOSAL_ALREADY_PENDING`,
 `PROPOSAL_NO_REVISION_REQUESTED`, `PROPOSAL_TERMINAL`, `PROPOSAL_NOT_AUTHORIZED`,
-`PROPOSAL_NOT_FOUND`, and `PROPOSAL_IDEMPOTENCY_CONFLICT`.
+`PROPOSAL_NOT_FOUND`, `PROPOSAL_CURSOR_INVALID`,
+`PROPOSAL_CONCURRENT_MODIFICATION`, and `PROPOSAL_IDEMPOTENCY_CONFLICT`.
 
 ## Contract Change Rules
 

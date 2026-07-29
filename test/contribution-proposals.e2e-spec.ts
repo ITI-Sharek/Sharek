@@ -9,8 +9,11 @@ import * as request from 'supertest';
 
 import { ContributionProposalsController } from '../src/modules/contribution-proposals/contribution-proposals.controller';
 import { ContributionProposalsService } from '../src/modules/contribution-proposals/contribution-proposals.service';
+import { ProjectsService } from '../src/modules/projects/projects.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
+import { DatabaseService } from '../src/shared/database/database.service';
 import {
+  ApplicationError,
   ConflictApplicationError,
   ForbiddenApplicationError,
   NotFoundApplicationError,
@@ -26,6 +29,22 @@ const contributor = {
 const projectId = '22222222-2222-4222-8222-222222222222';
 const proposalId = '33333333-3333-4333-8333-333333333333';
 const idempotencyKey = '44444444-4444-4444-8444-444444444444';
+const proposalContent = {
+  problemOrOpportunity:
+    'The discovery feed repeats expensive repository-derived lookups.',
+  proposedOutcome:
+    'Introduce a Redis cache with explicit invalidation on publication.',
+  projectBenefit:
+    'Owners and contributors receive faster, more reliable discovery results.',
+};
+const revisedProposalContent = {
+  problemOrOpportunity:
+    'The discovery feed still repeats expensive repository-derived lookups.',
+  proposedOutcome:
+    'Add cache invalidation whenever a published Project changes.',
+  projectBenefit:
+    'Discovery remains fast without presenting stale Project information.',
+};
 
 describe('Contribution Proposals HTTP contract', () => {
   let app: INestApplication;
@@ -81,8 +100,14 @@ describe('Contribution Proposals HTTP contract', () => {
     );
     service.withdraw.mockResolvedValue(proposalDto({ status: 'WITHDRAWN' }));
     service.getForActor.mockResolvedValue(proposalDto());
-    service.listMine.mockResolvedValue({ proposals: [] });
-    service.listForProject.mockResolvedValue({ proposals: [] });
+    service.listMine.mockResolvedValue({
+      proposals: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+    service.listForProject.mockResolvedValue({
+      proposals: [],
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
     service.setIntake.mockResolvedValue({ projectId, enabled: false });
   });
 
@@ -94,7 +119,7 @@ describe('Contribution Proposals HTTP contract', () => {
       .send({
         projectId,
         title: 'Add a caching layer',
-        body: 'Introduce a Redis caching layer for the discovery feed.',
+        ...proposalContent,
         acknowledgesAttributionAndAssignmentDisclosure: true,
         idempotencyKey,
       })
@@ -105,7 +130,7 @@ describe('Contribution Proposals HTTP contract', () => {
       actor: contributor,
       projectId,
       title: 'Add a caching layer',
-      body: 'Introduce a Redis caching layer for the discovery feed.',
+      ...proposalContent,
       idempotencyKey,
     });
   });
@@ -116,7 +141,7 @@ describe('Contribution Proposals HTTP contract', () => {
       .send({
         projectId,
         title: 'Add a caching layer',
-        body: 'Introduce a Redis caching layer for the discovery feed.',
+        ...proposalContent,
         acknowledgesAttributionAndAssignmentDisclosure: false,
         idempotencyKey,
       })
@@ -125,13 +150,14 @@ describe('Contribution Proposals HTTP contract', () => {
     expect(service.submit).not.toHaveBeenCalled();
   });
 
-  it('requires a UUID idempotency key and a non-trivial body', async () => {
+  it('requires every canonical proposal field and a UUID idempotency key', async () => {
     await request(app.getHttpServer())
       .post('/contribution-proposals')
       .send({
         projectId,
         title: 'Add a caching layer',
-        body: 'too short',
+        ...proposalContent,
+        proposedOutcome: 'too short',
         acknowledgesAttributionAndAssignmentDisclosure: true,
         idempotencyKey: 'not-a-uuid',
       })
@@ -145,7 +171,7 @@ describe('Contribution Proposals HTTP contract', () => {
       .post(`/contribution-proposals/${proposalId}/versions`)
       .send({
         title: 'Add a caching layer v2',
-        body: 'Revised: add cache invalidation when a project is published.',
+        ...revisedProposalContent,
         idempotencyKey,
       })
       .expect(201)
@@ -155,7 +181,7 @@ describe('Contribution Proposals HTTP contract', () => {
       actor: contributor,
       proposalId,
       title: 'Add a caching layer v2',
-      body: 'Revised: add cache invalidation when a project is published.',
+      ...revisedProposalContent,
       idempotencyKey,
     });
   });
@@ -195,15 +221,27 @@ describe('Contribution Proposals HTTP contract', () => {
       .expect(200)
       .expect(({ body }) => expect(body.id).toBe(proposalId));
     await request(app.getHttpServer())
-      .get('/contribution-proposals/mine')
+      .get('/contribution-proposals/mine?limit=10')
       .expect(200);
     await request(app.getHttpServer())
       .get(`/contribution-proposals/for-project/${projectId}`)
       .expect(200);
 
     expect(service.getForActor).toHaveBeenCalledWith(contributor, proposalId);
-    expect(service.listMine).toHaveBeenCalledWith(contributor);
-    expect(service.listForProject).toHaveBeenCalledWith(contributor, projectId);
+    expect(service.listMine).toHaveBeenCalledWith(contributor, { limit: 10 });
+    expect(service.listForProject).toHaveBeenCalledWith(
+      contributor,
+      projectId,
+      {},
+    );
+  });
+
+  it('rejects invalid proposal pagination input before calling the service', async () => {
+    await request(app.getHttpServer())
+      .get('/contribution-proposals/mine?limit=51')
+      .expect(400);
+
+    expect(service.listMine).not.toHaveBeenCalled();
   });
 
   it('toggles proposal intake for a project', async () => {
@@ -228,12 +266,53 @@ describe('Contribution Proposals HTTP contract', () => {
       .send({
         projectId,
         title: 'Add a caching layer',
-        body: 'Introduce a Redis caching layer for the discovery feed.',
+        ...proposalContent,
         acknowledgesAttributionAndAssignmentDisclosure: true,
         idempotencyKey,
       })
       .expect(409)
       .expect(({ body }) => expect(body.code).toBe('PROPOSAL_ALREADY_PENDING'));
+
+    service.submit.mockRejectedValue(
+      new ApplicationError(
+        'Daily Contribution Proposal submission limit reached',
+        'PROPOSAL_RATE_LIMITED',
+        429,
+        { dailyLimit: 10 },
+      ),
+    );
+    await request(app.getHttpServer())
+      .post('/contribution-proposals')
+      .send({
+        projectId,
+        title: 'Add a caching layer',
+        ...proposalContent,
+        acknowledgesAttributionAndAssignmentDisclosure: true,
+        idempotencyKey,
+      })
+      .expect(429)
+      .expect(({ body }) => {
+        expect(body.code).toBe('PROPOSAL_RATE_LIMITED');
+        expect(body.metadata.dailyLimit).toBe(10);
+      });
+
+    service.submit.mockRejectedValue(
+      new ConflictApplicationError(
+        'Contribution Proposal intake is disabled for this Project',
+        'PROPOSAL_INTAKE_DISABLED',
+      ),
+    );
+    await request(app.getHttpServer())
+      .post('/contribution-proposals')
+      .send({
+        projectId,
+        title: 'Add a caching layer',
+        ...proposalContent,
+        acknowledgesAttributionAndAssignmentDisclosure: true,
+        idempotencyKey,
+      })
+      .expect(409)
+      .expect(({ body }) => expect(body.code).toBe('PROPOSAL_INTAKE_DISABLED'));
 
     service.getForActor.mockRejectedValue(
       new NotFoundApplicationError(
@@ -256,7 +335,7 @@ describe('Contribution Proposals HTTP contract', () => {
       .post(`/contribution-proposals/${proposalId}/versions`)
       .send({
         title: 'Add a caching layer v2',
-        body: 'Revised: add cache invalidation when a project is published.',
+        ...revisedProposalContent,
         idempotencyKey,
       })
       .expect(403);
@@ -265,6 +344,106 @@ describe('Contribution Proposals HTTP contract', () => {
     await request(app.getHttpServer())
       .get('/contribution-proposals/mine')
       .expect(401);
+  });
+});
+
+describe('Contribution Proposals HTTP-to-service transaction seam', () => {
+  let app: INestApplication;
+  const database = {
+    contributionProposal: {
+      findFirst: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+    },
+    contributionProposalVersion: { create: jest.fn() },
+    contributionProposalAudit: { findFirst: jest.fn(), create: jest.fn() },
+    $executeRaw: jest.fn(),
+    $queryRaw: jest.fn(),
+    $transaction: jest.fn(),
+  };
+  const projects = {
+    lockProposalProjectContext: jest.fn(),
+  };
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ContributionProposalsController],
+      providers: [
+        ContributionProposalsService,
+        { provide: DatabaseService, useValue: database },
+        { provide: ProjectsService, useValue: projects },
+      ],
+    })
+      .overrideGuard(AccessTokenGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          context.switchToHttp().getRequest().user = contributor;
+          return true;
+        },
+      })
+      .compile();
+
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    app.useGlobalFilters(new HttpExceptionFilter());
+    await app.init();
+  });
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    database.$transaction.mockImplementation(
+      (callback: (transaction: typeof database) => unknown) =>
+        callback(database),
+    );
+    database.contributionProposalAudit.findFirst.mockResolvedValue(null);
+    database.contributionProposal.findFirst.mockResolvedValue(null);
+    database.contributionProposal.count.mockResolvedValue(0);
+    database.contributionProposal.create.mockResolvedValue({});
+    database.contributionProposalVersion.create.mockResolvedValue({});
+    database.contributionProposalAudit.create.mockResolvedValue({});
+    database.$executeRaw.mockResolvedValue(1);
+    database.$queryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ enabled: true }]);
+    database.contributionProposal.findUniqueOrThrow.mockResolvedValue(
+      proposalPersistenceRecord(),
+    );
+    projects.lockProposalProjectContext.mockResolvedValue({
+      id: projectId,
+      ownerId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      status: 'published',
+    });
+  });
+
+  afterAll(async () => app.close());
+
+  it('reaches the transactional invariant checks before persisting an HTTP submission', async () => {
+    await request(app.getHttpServer())
+      .post('/contribution-proposals')
+      .send({
+        projectId,
+        title: 'Add a caching layer',
+        ...proposalContent,
+        acknowledgesAttributionAndAssignmentDisclosure: true,
+        idempotencyKey,
+      })
+      .expect(201)
+      .expect(({ body }) => expect(body.status).toBe('PENDING'));
+
+    expect(database.$transaction).toHaveBeenCalledTimes(1);
+    expect(projects.lockProposalProjectContext).toHaveBeenCalledWith(
+      projectId,
+      database,
+    );
+    expect(database.contributionProposal.count).toHaveBeenCalledTimes(1);
+    expect(database.contributionProposal.create).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -283,7 +462,7 @@ function proposalDto(overrides: Record<string, unknown> = {}) {
     latestVersion: {
       version: 1,
       title: 'Add a caching layer',
-      body: 'Introduce a Redis caching layer for the discovery feed.',
+      ...proposalContent,
       authoredBy: contributor.id,
       createdAt: '2026-07-28T09:00:00.000Z',
     },
@@ -291,7 +470,7 @@ function proposalDto(overrides: Record<string, unknown> = {}) {
       {
         version: 1,
         title: 'Add a caching layer',
-        body: 'Introduce a Redis caching layer for the discovery feed.',
+        ...proposalContent,
         authoredBy: contributor.id,
         createdAt: '2026-07-28T09:00:00.000Z',
       },
@@ -300,5 +479,37 @@ function proposalDto(overrides: Record<string, unknown> = {}) {
     createdAt: '2026-07-28T09:00:00.000Z',
     updatedAt: '2026-07-28T09:00:00.000Z',
     ...overrides,
+  };
+}
+
+function proposalPersistenceRecord() {
+  const timestamp = new Date('2026-07-28T09:00:00.000Z');
+  return {
+    id: proposalId,
+    project_id: projectId,
+    proposer_id: contributor.id,
+    status: 'pending',
+    current_version: 1,
+    revision_request_sequence: 0,
+    disclosure_version: '2026-07-attribution-assignment',
+    disclosure_acknowledged_at: timestamp,
+    revision_requested_at: null,
+    withdrawn_at: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+    versions: [
+      {
+        id: '55555555-5555-4555-8555-555555555555',
+        proposal_id: proposalId,
+        version: 1,
+        title: 'Add a caching layer',
+        problem_or_opportunity: proposalContent.problemOrOpportunity,
+        proposed_outcome: proposalContent.proposedOutcome,
+        project_benefit: proposalContent.projectBenefit,
+        authored_by: contributor.id,
+        created_at: timestamp,
+      },
+    ],
+    auditEvents: [],
   };
 }

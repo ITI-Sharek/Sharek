@@ -316,6 +316,32 @@ export class ProjectsService {
     };
   }
 
+  async lockProposalProjectContext(
+    projectId: string,
+    transaction: Prisma.TransactionClient,
+  ): Promise<ProposalProjectContextDto> {
+    const projects = await transaction.$queryRaw<
+      ContributionRequestProjectRow[]
+    >(Prisma.sql`
+      SELECT "id", "owner_id", "status"
+      FROM "Project"
+      WHERE "id" = ${projectId}::uuid
+      FOR SHARE
+    `);
+    const project = projects[0];
+    if (!project) {
+      throw new NotFoundApplicationError(
+        'Project was not found',
+        'PROPOSAL_PROJECT_NOT_FOUND',
+      );
+    }
+    return {
+      id: project.id,
+      ownerId: project.owner_id,
+      status: project.status,
+    };
+  }
+
   private toContributionRequestProjectAccess(
     project: ContributionRequestProjectRow | undefined | null,
     ownerId: string,

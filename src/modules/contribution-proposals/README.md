@@ -18,10 +18,12 @@ are enforced in the service.
 - `POST /contribution-proposals`: active contributor submits a proposal to an
   active published Project. Requires the attribution-and-assignment disclosure
   acknowledgement and a UUID idempotency key. Creates the proposal plus an
-  immutable version 1.
-- `GET /contribution-proposals/mine`: proposer lists their own proposals.
+  immutable version 1 with title, problem or opportunity, proposed outcome, and
+  Project benefit.
+- `GET /contribution-proposals/mine`: proposer cursor-pages through their own
+  proposals.
 - `GET /contribution-proposals/for-project/:projectId`: Project owner lists the
-  proposals submitted to their Project.
+  proposals submitted to their Project with the same cursor contract.
 - `PUT /contribution-proposals/for-project/:projectId/intake`: Project owner
   enables or disables proposal intake for their Project.
 - `GET /contribution-proposals/:proposalId`: proposer or Project owner reads the
@@ -44,6 +46,14 @@ are enforced in the service.
 - **Intake and eligibility**: submission requires a published Project with
   intake enabled (`ProjectProposalIntake`, default enabled). A Project owner
   cannot propose to their own Project.
+- **Transactional invariants**: submission takes a transaction-scoped shared
+  Project lock, materializes and locks the intake row, and serializes commands
+  per proposer before rechecking the daily limit and pending state. A partial
+  unique index independently enforces one pending Proposal per proposer and
+  Project.
+- **Revision concurrency**: an incrementing revision-request sequence prevents a
+  contributor version from clearing an owner Revision Request that arrived
+  concurrently.
 - **No quota, decision-neutral**: pending proposals do not expire and consume no
   Application or subscription quota. A per-contributor daily submission limit and
   a one-pending-proposal-per-Project rule provide anti-spam rate limiting.
@@ -70,4 +80,5 @@ transitions, transactions, and audit writes over its own tables
 (`ContributionProposal`, `ContributionProposalVersion`,
 `ContributionProposalAudit`, `ProjectProposalIntake`). It reads Project
 publication and ownership facts only through the exported `ProjectsService`
-(`getProposalProjectContext`) and never touches Project tables directly.
+(`getProposalProjectContext` for reads and `lockProposalProjectContext` for
+transaction-scoped commands) and never touches Project tables directly.

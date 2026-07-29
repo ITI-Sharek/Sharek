@@ -759,6 +759,7 @@ model ContributionProposal {
   current_version            Int                        @default(1)
   disclosure_version         String                     @db.VarChar(50)
   disclosure_acknowledged_at DateTime
+  revision_request_sequence  Int                        @default(0)
   revision_requested_at      DateTime?
   withdrawn_at               DateTime?
   created_at                 DateTime                   @default(now())
@@ -774,13 +775,15 @@ model ContributionProposal {
 }
 
 model ContributionProposalVersion {
-  id          String   @id @default(uuid()) @db.Uuid
-  proposal_id String   @db.Uuid
-  version     Int
-  title       String   @db.VarChar(255)
-  body        String
-  authored_by String   @db.Uuid
-  created_at  DateTime @default(now())
+  id                     String   @id @default(uuid()) @db.Uuid
+  proposal_id            String   @db.Uuid
+  version                Int
+  title                  String   @db.VarChar(255)
+  problem_or_opportunity String
+  proposed_outcome       String
+  project_benefit        String
+  authored_by            String   @db.Uuid
+  created_at             DateTime @default(now())
 
   proposal ContributionProposal @relation(fields: [proposal_id], references: [id], onDelete: Cascade)
   author   User                 @relation("ContributionProposalVersionAuthor", fields: [authored_by], references: [id], onDelete: Restrict)

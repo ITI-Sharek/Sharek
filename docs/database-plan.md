@@ -58,6 +58,10 @@ ai                    ai_call_audit, AI service response snapshots, embeddings w
 
 Only the owning module writes its tables.
 
+Contribution Proposals additionally use a PostgreSQL partial unique index over
+`(project_id, proposer_id)` while `status = 'pending'`. The raw migration owns
+that invariant because Prisma schema syntax cannot express partial indexes.
+
 Prompt definitions and provider-specific model execution belong in the separate
 FastAPI AI repository. The backend stores the metadata and snapshots needed for
 business auditability.

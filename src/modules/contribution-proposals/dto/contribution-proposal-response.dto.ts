@@ -3,7 +3,9 @@ export type ContributionProposalStatusDto = 'PENDING' | 'WITHDRAWN';
 export interface ContributionProposalVersionDto {
   version: number;
   title: string;
-  body: string;
+  problemOrOpportunity: string;
+  proposedOutcome: string;
+  projectBenefit: string;
   authoredBy: string;
   createdAt: Date;
 }
@@ -48,6 +50,10 @@ export interface ContributionProposalSummaryDto {
 
 export interface ContributionProposalListDto {
   proposals: ContributionProposalSummaryDto[];
+  pageInfo: {
+    nextCursor: string | null;
+    hasNextPage: boolean;
+  };
 }
 
 export interface ProposalIntakeDto {
