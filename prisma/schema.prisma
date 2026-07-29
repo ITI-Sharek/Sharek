@@ -114,6 +114,8 @@ enum ApplicationAuditAction {
 enum ContributionProposalStatus {
   pending
   withdrawn
+  accepted
+  declined
 }
 
 enum ContributionProposalAuditAction {
@@ -121,6 +123,9 @@ enum ContributionProposalAuditAction {
   version_submitted
   revision_requested
   withdrawn
+  accepted
+  declined
+  misuse_reported
 }
 
 enum DeliveryStatus {
@@ -310,42 +315,44 @@ model User {
   updated_at         DateTime     @default(now()) @updatedAt
   last_login_at      DateTime?
 
-  subscriptions                Subscription[]
-  projects                     Project[]                     @relation("ProjectOwner")
-  contributionRequests         ContributionRequest[]         @relation("ContributionRequestOwner")
-  applications                 Application[]                 @relation("ApplicationContributor")
-  notifications                Notification[]
-  deliveryReviews              DeliveryReview[]              @relation("DeliveryReviewReviewer")
-  disputesFiled                Dispute[]                     @relation("UserDisputesFiled")
-  disputesResolved             Dispute[]                     @relation("UserDisputesResolved")
-  githubAccount                GitHubAccount?
-  contributorProfile           ContributorProfile?
-  reputationRecord             ReputationRecord?
-  skillProfiles                SkillProfile[]
-  reviewedSkillProfiles        SkillProfile[]                @relation("SkillProfileReviewedBy")
-  skillProfileReviewDecisions  SkillProfileReviewDecision[]  @relation("SkillProfileReviewDecisionReviewer")
-  skillProfileGenerations      SkillProfileGeneration[]
-  deliveries                   Delivery[]                    @relation("DeliveryContributor")
-  aiMatchResults               AiMatchResult[]               @relation("AIMatchContributor")
-  usageTrackers                UsageTracker[]
-  reportsFiled                 Report[]                      @relation("ReportReporter")
-  reportsResolved              Report[]                      @relation("ReportResolver")
-  reportsReceived              Report[]                      @relation("ReportReportedUser")
-  skillGapContributions        SkillGapGuidance[]            @relation("SkillGapContributor")
-  authSessions                 AuthSession[]
-  authProviderAccounts         AuthProviderAccount[]
-  authOAuthStates              AuthOAuthState[]
-  githubOAuthStates            GitHubOAuthState[]
-  githubAppInstallationLinks   GitHubAppInstallationLink[]
-  githubAppLinkStates          GitHubAppLinkState[]
-  emailVerificationOtps        EmailVerificationOtp[]
-  passwordResetOtps            PasswordResetOtp[]
-  contributionRequestAudits    ContributionRequestAudit[]    @relation("ContributionRequestAuditActor")
-  applicationAudits            ApplicationAudit[]            @relation("ApplicationAuditActor")
-  applicationEvidenceSnapshots ApplicationEvidenceSnapshot[] @relation("ApplicationEvidenceSnapshotContributor")
-  contributionProposals        ContributionProposal[]        @relation("ContributionProposalProposer")
-  contributionProposalVersions ContributionProposalVersion[] @relation("ContributionProposalVersionAuthor")
-  contributionProposalAudits   ContributionProposalAudit[]   @relation("ContributionProposalAuditActor")
+  subscriptions                     Subscription[]
+  projects                          Project[]                          @relation("ProjectOwner")
+  contributionRequests              ContributionRequest[]              @relation("ContributionRequestOwner")
+  applications                      Application[]                      @relation("ApplicationContributor")
+  notifications                     Notification[]
+  deliveryReviews                   DeliveryReview[]                   @relation("DeliveryReviewReviewer")
+  disputesFiled                     Dispute[]                          @relation("UserDisputesFiled")
+  disputesResolved                  Dispute[]                          @relation("UserDisputesResolved")
+  githubAccount                     GitHubAccount?
+  contributorProfile                ContributorProfile?
+  reputationRecord                  ReputationRecord?
+  skillProfiles                     SkillProfile[]
+  reviewedSkillProfiles             SkillProfile[]                     @relation("SkillProfileReviewedBy")
+  skillProfileReviewDecisions       SkillProfileReviewDecision[]       @relation("SkillProfileReviewDecisionReviewer")
+  skillProfileGenerations           SkillProfileGeneration[]
+  deliveries                        Delivery[]                         @relation("DeliveryContributor")
+  aiMatchResults                    AiMatchResult[]                    @relation("AIMatchContributor")
+  usageTrackers                     UsageTracker[]
+  reportsFiled                      Report[]                           @relation("ReportReporter")
+  reportsResolved                   Report[]                           @relation("ReportResolver")
+  reportsReceived                   Report[]                           @relation("ReportReportedUser")
+  skillGapContributions             SkillGapGuidance[]                 @relation("SkillGapContributor")
+  authSessions                      AuthSession[]
+  authProviderAccounts              AuthProviderAccount[]
+  authOAuthStates                   AuthOAuthState[]
+  githubOAuthStates                 GitHubOAuthState[]
+  githubAppInstallationLinks        GitHubAppInstallationLink[]
+  githubAppLinkStates               GitHubAppLinkState[]
+  emailVerificationOtps             EmailVerificationOtp[]
+  passwordResetOtps                 PasswordResetOtp[]
+  contributionRequestAudits         ContributionRequestAudit[]         @relation("ContributionRequestAuditActor")
+  applicationAudits                 ApplicationAudit[]                 @relation("ApplicationAuditActor")
+  applicationEvidenceSnapshots      ApplicationEvidenceSnapshot[]      @relation("ApplicationEvidenceSnapshotContributor")
+  contributionProposals             ContributionProposal[]             @relation("ContributionProposalProposer")
+  contributionProposalVersions      ContributionProposalVersion[]      @relation("ContributionProposalVersionAuthor")
+  contributionProposalAudits        ContributionProposalAudit[]        @relation("ContributionProposalAuditActor")
+  contributionProposalMisuseReports ContributionProposalMisuseReport[] @relation("ContributionProposalMisuseReporter")
+  attributedContributionRequests    ContributionRequest[]              @relation("ContributionRequestAttributedContributor")
 }
 
 model AuthProviderAccount {
@@ -598,35 +605,40 @@ model ProjectStateTransition {
 }
 
 model ContributionRequest {
-  id                     String                         @id @default(uuid()) @db.Uuid
-  project_id             String                         @db.Uuid
-  owner_id               String                         @db.Uuid
-  title                  String                         @db.VarChar(255)
-  description            String
-  technology_tags        Json                           @default("[]")
-  difficulty             ContributionRequestDifficulty?
-  applications_close_at  DateTime?
-  target_completion_date DateTime?                      @db.Date
-  reward                 Decimal?                       @db.Decimal(10, 2)
-  reward_currency        String?                        @db.VarChar(3)
-  status                 ContributionRequestStatus      @default(draft)
-  max_applicants         Int                            @default(1)
-  published_at           DateTime?
-  created_at             DateTime                       @default(now())
-  updated_at             DateTime                       @default(now()) @updatedAt
+  id                        String                         @id @default(uuid()) @db.Uuid
+  project_id                String                         @db.Uuid
+  owner_id                  String                         @db.Uuid
+  title                     String                         @db.VarChar(255)
+  description               String
+  technology_tags           Json                           @default("[]")
+  difficulty                ContributionRequestDifficulty?
+  applications_close_at     DateTime?
+  target_completion_date    DateTime?                      @db.Date
+  reward                    Decimal?                       @db.Decimal(10, 2)
+  reward_currency           String?                        @db.VarChar(3)
+  status                    ContributionRequestStatus      @default(draft)
+  max_applicants            Int                            @default(1)
+  origin_proposal_id        String?                        @unique @db.Uuid
+  attributed_contributor_id String?                        @db.Uuid
+  published_at              DateTime?
+  created_at                DateTime                       @default(now())
+  updated_at                DateTime                       @default(now()) @updatedAt
 
-  project           Project                          @relation(fields: [project_id], references: [id])
-  owner             User                             @relation("ContributionRequestOwner", fields: [owner_id], references: [id])
-  requirements      ContributionRequestRequirement[]
-  auditEvents       ContributionRequestAudit[]
-  applications      Application[]
-  aiMatchResults    AiMatchResult[]
-  skillGapGuidances SkillGapGuidance[]
-  deliveries        Delivery[]
+  project               Project                          @relation(fields: [project_id], references: [id])
+  owner                 User                             @relation("ContributionRequestOwner", fields: [owner_id], references: [id])
+  originProposal        ContributionProposal?            @relation("ProposalOriginatedRequest", fields: [origin_proposal_id], references: [id], onDelete: SetNull)
+  attributedContributor User?                            @relation("ContributionRequestAttributedContributor", fields: [attributed_contributor_id], references: [id], onDelete: SetNull)
+  requirements          ContributionRequestRequirement[]
+  auditEvents           ContributionRequestAudit[]
+  applications          Application[]
+  aiMatchResults        AiMatchResult[]
+  skillGapGuidances     SkillGapGuidance[]
+  deliveries            Delivery[]
 
   @@index([project_id, status])
   @@index([owner_id, created_at])
   @@index([status, applications_close_at, published_at])
+  @@index([attributed_contributor_id])
 }
 
 model ContributionRequestRequirement {
@@ -762,13 +774,18 @@ model ContributionProposal {
   revision_request_sequence  Int                        @default(0)
   revision_requested_at      DateTime?
   withdrawn_at               DateTime?
+  accepted_at                DateTime?
+  declined_at                DateTime?
+  decline_reason             String?                    @db.VarChar(500)
   created_at                 DateTime                   @default(now())
   updated_at                 DateTime                   @default(now()) @updatedAt
 
-  project     Project                       @relation("ProjectContributionProposals", fields: [project_id], references: [id], onDelete: Restrict)
-  proposer    User                          @relation("ContributionProposalProposer", fields: [proposer_id], references: [id], onDelete: Restrict)
-  versions    ContributionProposalVersion[]
-  auditEvents ContributionProposalAudit[]
+  project           Project                            @relation("ProjectContributionProposals", fields: [project_id], references: [id], onDelete: Restrict)
+  proposer          User                               @relation("ContributionProposalProposer", fields: [proposer_id], references: [id], onDelete: Restrict)
+  versions          ContributionProposalVersion[]
+  auditEvents       ContributionProposalAudit[]
+  misuseReports     ContributionProposalMisuseReport[]
+  originatedRequest ContributionRequest?               @relation("ProposalOriginatedRequest")
 
   @@index([project_id, status])
   @@index([proposer_id, created_at])
@@ -810,6 +827,23 @@ model ContributionProposalAudit {
   actor    User                 @relation("ContributionProposalAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
 
   @@unique([actor_id, action, idempotency_key])
+  @@index([proposal_id, created_at])
+}
+
+model ContributionProposalMisuseReport {
+  id                String   @id @default(uuid()) @db.Uuid
+  proposal_id       String   @db.Uuid
+  reporter_id       String   @db.Uuid
+  reported_version  Int
+  reason            String   @db.VarChar(1000)
+  evidence_snapshot Json
+  idempotency_key   String?  @db.VarChar(128)
+  created_at        DateTime @default(now())
+
+  proposal ContributionProposal @relation(fields: [proposal_id], references: [id], onDelete: Restrict)
+  reporter User                 @relation("ContributionProposalMisuseReporter", fields: [reporter_id], references: [id], onDelete: Restrict)
+
+  @@unique([reporter_id, idempotency_key])
   @@index([proposal_id, created_at])
 }
 
