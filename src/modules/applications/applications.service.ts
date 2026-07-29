@@ -4,6 +4,7 @@ import {
   ApplicationAuditAction,
   ApplicationStatus,
   ContributionRequestStatus,
+  OwnerDecisionType,
   Prisma,
 } from '@prisma/client';
 
@@ -27,6 +28,8 @@ import {
   ApplicationRequirementSnapshotDto,
   ApplicationStatusDto,
   OwnerApplicationsDto,
+  OwnerDecisionReportContextDto,
+  OwnerDecisionResultDto,
 } from './dto/application-response.dto';
 import { ApplicationRequestContextDto } from '../contribution-tasks/dto/application-request-context.dto';
 import {
@@ -38,10 +41,21 @@ const APPLICATION_INCLUDE = {
   requirementSnapshot: true,
   evidenceSnapshot: true,
   contributionRequest: { select: { owner_id: true } },
+  ownerDecision: true,
+  assignment: true,
 } satisfies Prisma.ApplicationInclude;
 
 type ApplicationWithSnapshots = Prisma.ApplicationGetPayload<{
   include: typeof APPLICATION_INCLUDE;
+}>;
+
+const OWNER_DECISION_INCLUDE = {
+  application: { include: APPLICATION_INCLUDE },
+  assignment: true,
+} satisfies Prisma.OwnerDecisionInclude;
+
+type OwnerDecisionWithResult = Prisma.OwnerDecisionGetPayload<{
+  include: typeof OWNER_DECISION_INCLUDE;
 }>;
 
 const IDEMPOTENCY_KEY_PATTERN =
@@ -220,12 +234,10 @@ export class ApplicationsService {
     contributionRequestId: string,
   ): Promise<OwnerApplicationsDto> {
     this.assertActiveOwner(actor);
-    const context =
-      await this.contributionTasks.getApplicationSubmissionContext(
-        contributionRequestId,
-      );
-    if (!context || context.ownerId !== actor.id)
-      throw this.applicationNotFound();
+    await this.confirmOwnerDecisionActor({
+      requestId: contributionRequestId,
+      ownerId: actor.id,
+    });
     const applications = await this.database.application.findMany({
       where: {
         contribution_request_id: contributionRequestId,
@@ -250,12 +262,13 @@ export class ApplicationsService {
       where: { id: applicationId },
       include: APPLICATION_INCLUDE,
     });
-    if (
-      !application ||
-      (application.contributor_id !== actor.id &&
-        application.contributionRequest.owner_id !== actor.id)
-    ) {
-      throw this.applicationNotFound();
+    if (!application) throw this.applicationNotFound();
+    if (application.contributor_id !== actor.id) {
+      if (actor.role !== 'owner') throw this.applicationNotFound();
+      await this.confirmOwnerDecisionActor({
+        requestId: application.contribution_request_id,
+        ownerId: actor.id,
+      });
     }
     return this.present(application);
   }
@@ -352,6 +365,379 @@ export class ApplicationsService {
     }
     await this.notify(application, 'withdrawn');
     return this.present(application);
+  }
+
+  async accept(_input: {
+    actor: AuthenticatedUser;
+    applicationId: string;
+    idempotencyKey?: string;
+  }): Promise<OwnerDecisionResultDto> {
+    this.assertActiveOwner(_input.actor);
+    const idempotencyKey = this.normalizeRequiredIdempotencyKey(
+      _input.idempotencyKey,
+    );
+    const fingerprint = this.fingerprint({
+      action: OwnerDecisionType.accepted,
+      applicationId: _input.applicationId,
+    });
+    let decision: OwnerDecisionWithResult;
+    let notificationsToEmit: Parameters<
+      NotificationsService['emitApplicationNotifications']
+    >[0] = [];
+    try {
+      const result = await this.database.$transaction(async (transaction) => {
+        const current = await transaction.application.findFirst({
+          where: { id: _input.applicationId },
+          include: APPLICATION_INCLUDE,
+        });
+        if (!current) throw this.applicationNotFound();
+        await this.reconfirmOwnerDecisionActor({
+          requestId: current.contribution_request_id,
+          ownerId: _input.actor.id,
+          transaction,
+        });
+        const transactionReplay =
+          await this.readOwnerDecisionReplayFromTransaction({
+            transaction,
+            ownerId: _input.actor.id,
+            idempotencyKey,
+            fingerprint,
+          });
+        if (transactionReplay) {
+          return { decision: transactionReplay, notifications: [] };
+        }
+        this.assertPendingOwnerDecision(current.status);
+        if (!current.proposed_delivery_duration_days) {
+          throw new ConflictApplicationError(
+            'The Application has no Proposed Delivery Duration',
+            'APPLICATION_DELIVERY_DURATION_MISSING',
+          );
+        }
+
+        const now = new Date();
+        const decisionId = randomUUID();
+        const assignmentId = randomUUID();
+        await this.contributionTasks.assignFromOwnerDecision({
+          requestId: current.contribution_request_id,
+          ownerId: _input.actor.id,
+          ownerDecisionId: decisionId,
+          idempotencyKey,
+          commandFingerprint: fingerprint,
+          transaction,
+        });
+
+        const lockedPendingApplications = await transaction.$queryRaw<
+          Array<{ id: string; contributor_id: string }>
+        >(Prisma.sql`
+          SELECT "id", "contributor_id"
+          FROM "Application"
+          WHERE "contribution_request_id" = ${current.contribution_request_id}::uuid
+            AND "status" = 'pending_owner_review'
+          ORDER BY "id"
+          FOR UPDATE
+        `);
+        if (
+          !lockedPendingApplications.some(
+            (application) => application.id === current.id,
+          )
+        ) {
+          throw this.concurrentDecision();
+        }
+        const siblings = lockedPendingApplications.filter(
+          (application) => application.id !== current.id,
+        );
+
+        await transaction.ownerDecision.create({
+          data: {
+            id: decisionId,
+            application_id: current.id,
+            contribution_request_id: current.contribution_request_id,
+            owner_id: _input.actor.id,
+            decision_type: OwnerDecisionType.accepted,
+            feedback: null,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: fingerprint,
+            decided_at: now,
+          },
+        });
+        const accepted = await transaction.application.updateMany({
+          where: {
+            id: current.id,
+            status: ApplicationStatus.pending_owner_review,
+          },
+          data: {
+            status: ApplicationStatus.accepted,
+            owner_reviewed_at: now,
+          },
+        });
+        if (accepted.count !== 1) throw this.concurrentDecision();
+
+        await transaction.assignment.create({
+          data: {
+            id: assignmentId,
+            contribution_request_id: current.contribution_request_id,
+            application_id: current.id,
+            owner_decision_id: decisionId,
+            contributor_id: current.contributor_id,
+            agreed_delivery_duration_days:
+              current.proposed_delivery_duration_days,
+            agreed_delivery_due_at: this.addDays(
+              now,
+              current.proposed_delivery_duration_days,
+            ),
+            assigned_at: now,
+          },
+        });
+        await transaction.applicationAudit.create({
+          data: {
+            application_id: current.id,
+            actor_id: _input.actor.id,
+            action: ApplicationAuditAction.accepted,
+            from_status: ApplicationStatus.pending_owner_review,
+            to_status: ApplicationStatus.accepted,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: fingerprint,
+            metadata: {
+              payloadVersion: 1,
+              ownerDecisionId: decisionId,
+              assignmentId,
+            },
+          },
+        });
+
+        if (siblings.length > 0) {
+          const closed = await transaction.application.updateMany({
+            where: {
+              contribution_request_id: current.contribution_request_id,
+              id: { not: current.id },
+              status: ApplicationStatus.pending_owner_review,
+            },
+            data: { status: ApplicationStatus.not_selected },
+          });
+          if (closed.count !== siblings.length) {
+            throw this.concurrentDecision();
+          }
+          await transaction.applicationAudit.createMany({
+            data: siblings.map((sibling) => ({
+              application_id: sibling.id,
+              actor_id: _input.actor.id,
+              action: ApplicationAuditAction.not_selected,
+              from_status: ApplicationStatus.pending_owner_review,
+              to_status: ApplicationStatus.not_selected,
+              idempotency_key: `${idempotencyKey}:${sibling.id}`,
+              command_fingerprint: fingerprint,
+              metadata: {
+                payloadVersion: 1,
+                selectedApplicationId: current.id,
+                ownerDecisionId: decisionId,
+              },
+            })),
+          });
+        }
+
+        const notificationResults = [];
+        notificationResults.push(
+          await this.notifications.createApplicationNotification(
+            {
+              userId: current.contributor_id,
+              applicationId: current.id,
+              contributionRequestId: current.contribution_request_id,
+              action: 'accepted',
+            },
+            { transaction, emitRealtime: false },
+          ),
+        );
+        for (const sibling of siblings) {
+          notificationResults.push(
+            await this.notifications.createApplicationNotification(
+              {
+                userId: sibling.contributor_id,
+                applicationId: sibling.id,
+                contributionRequestId: current.contribution_request_id,
+                action: 'not_selected',
+              },
+              { transaction, emitRealtime: false },
+            ),
+          );
+        }
+        const savedDecision = await transaction.ownerDecision.findUniqueOrThrow({
+          where: { id: decisionId },
+          include: OWNER_DECISION_INCLUDE,
+        });
+        return {
+          decision: savedDecision,
+          notifications: notificationResults
+            .filter((notification) => notification.created)
+            .map((notification) => notification.notification),
+        };
+      });
+      decision = result.decision;
+      notificationsToEmit = result.notifications;
+    } catch (error) {
+      decision = await this.resolveOwnerDecisionRaceOrThrow({
+        error,
+        ownerId: _input.actor.id,
+        idempotencyKey,
+        fingerprint,
+      });
+    }
+
+    this.notifications.emitApplicationNotifications(notificationsToEmit);
+    return this.presentOwnerDecisionResult(decision);
+  }
+
+  async decline(_input: {
+    actor: AuthenticatedUser;
+    applicationId: string;
+    feedback: string;
+    idempotencyKey?: string;
+  }): Promise<OwnerDecisionResultDto> {
+    this.assertActiveOwner(_input.actor);
+    const feedback = this.normalizeDeclineFeedback(_input.feedback);
+    const idempotencyKey = this.normalizeRequiredIdempotencyKey(
+      _input.idempotencyKey,
+    );
+    const fingerprint = this.fingerprint({
+      action: OwnerDecisionType.declined,
+      applicationId: _input.applicationId,
+      feedback,
+    });
+    let decision: OwnerDecisionWithResult;
+    let notificationsToEmit: Parameters<
+      NotificationsService['emitApplicationNotifications']
+    >[0] = [];
+    try {
+      const result = await this.database.$transaction(async (transaction) => {
+        const current = await transaction.application.findFirst({
+          where: { id: _input.applicationId },
+          include: APPLICATION_INCLUDE,
+        });
+        if (!current) throw this.applicationNotFound();
+        await this.reconfirmOwnerDecisionActor({
+          requestId: current.contribution_request_id,
+          ownerId: _input.actor.id,
+          transaction,
+        });
+        const transactionReplay =
+          await this.readOwnerDecisionReplayFromTransaction({
+            transaction,
+            ownerId: _input.actor.id,
+            idempotencyKey,
+            fingerprint,
+          });
+        if (transactionReplay) {
+          return { decision: transactionReplay, notifications: [] };
+        }
+        this.assertPendingOwnerDecision(current.status);
+
+        const now = new Date();
+        const decisionId = randomUUID();
+        await transaction.ownerDecision.create({
+          data: {
+            id: decisionId,
+            application_id: current.id,
+            contribution_request_id: current.contribution_request_id,
+            owner_id: _input.actor.id,
+            decision_type: OwnerDecisionType.declined,
+            feedback,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: fingerprint,
+            decided_at: now,
+          },
+        });
+        const updated = await transaction.application.updateMany({
+          where: {
+            id: current.id,
+            status: ApplicationStatus.pending_owner_review,
+          },
+          data: {
+            status: ApplicationStatus.declined_by_owner,
+            owner_reviewed_at: now,
+          },
+        });
+        if (updated.count !== 1) throw this.concurrentDecision();
+        await transaction.applicationAudit.create({
+          data: {
+            application_id: current.id,
+            actor_id: _input.actor.id,
+            action: ApplicationAuditAction.declined_by_owner,
+            from_status: ApplicationStatus.pending_owner_review,
+            to_status: ApplicationStatus.declined_by_owner,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: fingerprint,
+            metadata: { payloadVersion: 1, ownerDecisionId: decisionId },
+          },
+        });
+        const notification =
+          await this.notifications.createApplicationNotification(
+            {
+              userId: current.contributor_id,
+              applicationId: current.id,
+              contributionRequestId: current.contribution_request_id,
+              action: 'declined_by_owner',
+            },
+            { transaction, emitRealtime: false },
+          );
+        const savedDecision = await transaction.ownerDecision.findUniqueOrThrow({
+          where: { id: decisionId },
+          include: OWNER_DECISION_INCLUDE,
+        });
+        return {
+          decision: savedDecision,
+          notifications: notification.created
+            ? [notification.notification]
+            : [],
+        };
+      });
+      decision = result.decision;
+      notificationsToEmit = result.notifications;
+    } catch (error) {
+      decision = await this.resolveOwnerDecisionRaceOrThrow({
+        error,
+        ownerId: _input.actor.id,
+        idempotencyKey,
+        fingerprint,
+      });
+    }
+
+    this.notifications.emitApplicationNotifications(notificationsToEmit);
+    return this.presentOwnerDecisionResult(decision);
+  }
+
+  async getOwnerDecisionReportContext(
+    actor: AuthenticatedUser,
+    ownerDecisionId: string,
+  ): Promise<OwnerDecisionReportContextDto> {
+    this.assertActiveContributor(actor);
+    const decision = await this.database.ownerDecision.findFirst({
+      where: {
+        id: ownerDecisionId,
+        decision_type: OwnerDecisionType.declined,
+        application: { contributor_id: actor.id },
+      },
+      select: {
+        id: true,
+        application_id: true,
+        contribution_request_id: true,
+        owner_id: true,
+        feedback: true,
+        application: { select: { contributor_id: true } },
+      },
+    });
+    if (!decision?.feedback) {
+      throw new NotFoundApplicationError(
+        'Owner Decision was not found',
+        'OWNER_DECISION_NOT_FOUND',
+      );
+    }
+    return {
+      ownerDecisionId: decision.id,
+      applicationId: decision.application_id,
+      contributionRequestId: decision.contribution_request_id,
+      contributorId: decision.application.contributor_id,
+      ownerId: decision.owner_id,
+      feedback: decision.feedback,
+    };
   }
 
   async summarizePendingByContributionRequests(input: {
@@ -495,6 +881,83 @@ export class ApplicationsService {
     return this.presentReplay(audit, input.fingerprint);
   }
 
+  private async readOwnerDecisionReplay(input: {
+    ownerId: string;
+    idempotencyKey: string;
+    fingerprint: string;
+  }): Promise<OwnerDecisionWithResult | null> {
+    const decision = await this.database.ownerDecision.findUnique({
+      where: {
+        owner_id_idempotency_key: {
+          owner_id: input.ownerId,
+          idempotency_key: input.idempotencyKey,
+        },
+      },
+      include: OWNER_DECISION_INCLUDE,
+    });
+    return this.presentOwnerDecisionReplay(decision, input.fingerprint);
+  }
+
+  private async readOwnerDecisionReplayFromTransaction(input: {
+    transaction: Prisma.TransactionClient;
+    ownerId: string;
+    idempotencyKey: string;
+    fingerprint: string;
+  }): Promise<OwnerDecisionWithResult | null> {
+    const decision = await input.transaction.ownerDecision.findUnique({
+      where: {
+        owner_id_idempotency_key: {
+          owner_id: input.ownerId,
+          idempotency_key: input.idempotencyKey,
+        },
+      },
+      include: OWNER_DECISION_INCLUDE,
+    });
+    return this.presentOwnerDecisionReplay(decision, input.fingerprint);
+  }
+
+  private presentOwnerDecisionReplay(
+    decision: OwnerDecisionWithResult | null,
+    fingerprint: string,
+  ): OwnerDecisionWithResult | null {
+    if (!decision) return null;
+    if (decision.command_fingerprint !== fingerprint) {
+      throw new ConflictApplicationError(
+        'Idempotency key was already used for another Owner Decision',
+        'APPLICATION_IDEMPOTENCY_CONFLICT',
+      );
+    }
+    return decision;
+  }
+
+  private async resolveOwnerDecisionRaceOrThrow(input: {
+    error: unknown;
+    ownerId: string;
+    idempotencyKey: string;
+    fingerprint: string;
+  }): Promise<OwnerDecisionWithResult> {
+    const mayHaveLostRace =
+      (input.error instanceof Prisma.PrismaClientKnownRequestError &&
+        input.error.code === 'P2002') ||
+      (input.error instanceof ConflictApplicationError &&
+        [
+          'APPLICATION_CONCURRENT_MODIFICATION',
+          'APPLICATION_TERMINAL',
+          'REQUEST_TERMINAL',
+        ].includes(input.error.code));
+    if (mayHaveLostRace) {
+      const replay = await this.readOwnerDecisionReplay(input);
+      if (replay) return replay;
+      if (
+        input.error instanceof Prisma.PrismaClientKnownRequestError &&
+        input.error.code === 'P2002'
+      ) {
+        throw this.concurrentDecision();
+      }
+    }
+    throw input.error;
+  }
+
   private async readReplayFromTransaction(input: {
     transaction: Prisma.TransactionClient;
     actorId: string;
@@ -559,6 +1022,56 @@ export class ApplicationsService {
       submittedAt: application.submitted_at,
       reviewDueAt: application.review_due_at,
       expiresAt: application.expires_at,
+      ownerDecision: application.ownerDecision
+        ? this.presentOwnerDecision(application.ownerDecision)
+        : null,
+      assignment: application.assignment
+        ? this.presentAssignment(application.assignment)
+        : null,
+    };
+  }
+
+  private presentOwnerDecisionResult(
+    decision: OwnerDecisionWithResult,
+  ): OwnerDecisionResultDto {
+    return {
+      application: this.present(decision.application),
+      ownerDecision: this.presentOwnerDecision(decision),
+      assignment: decision.assignment
+        ? this.presentAssignment(decision.assignment)
+        : null,
+    };
+  }
+
+  private presentOwnerDecision(
+    decision: Prisma.OwnerDecisionGetPayload<Record<string, never>>,
+  ) {
+    return {
+      id: decision.id,
+      applicationId: decision.application_id,
+      contributionRequestId: decision.contribution_request_id,
+      decisionType:
+        decision.decision_type === OwnerDecisionType.accepted
+          ? ('ACCEPTED' as const)
+          : ('DECLINED' as const),
+      feedback: decision.feedback,
+      decidedAt: decision.decided_at,
+    };
+  }
+
+  private presentAssignment(
+    assignment: Prisma.AssignmentGetPayload<Record<string, never>>,
+  ) {
+    return {
+      id: assignment.id,
+      contributionRequestId: assignment.contribution_request_id,
+      applicationId: assignment.application_id,
+      ownerDecisionId: assignment.owner_decision_id,
+      contributorId: assignment.contributor_id,
+      agreedDeliveryDurationDays:
+        assignment.agreed_delivery_duration_days,
+      agreedDeliveryDueDate: assignment.agreed_delivery_due_at,
+      assignedAt: assignment.assigned_at,
     };
   }
 
@@ -690,6 +1203,65 @@ export class ApplicationsService {
     return normalized;
   }
 
+  private normalizeRequiredIdempotencyKey(value?: string): string {
+    if (!value) {
+      throw new BadRequestApplicationError(
+        'Idempotency-Key is required for an Owner Decision',
+        'APPLICATION_IDEMPOTENCY_KEY_REQUIRED',
+      );
+    }
+    return this.normalizeIdempotencyKey(value);
+  }
+
+  private normalizeDeclineFeedback(value: string): string {
+    if (typeof value !== 'string') {
+      throw new BadRequestApplicationError(
+        'Owner decision feedback is required when declining an Application',
+        'APPLICATION_DECISION_FEEDBACK_REQUIRED',
+      );
+    }
+    const normalized = value.trim();
+    if (normalized.length === 0) {
+      throw new BadRequestApplicationError(
+        'Owner decision feedback is required when declining an Application',
+        'APPLICATION_DECISION_FEEDBACK_REQUIRED',
+      );
+    }
+    return normalized;
+  }
+
+  private async reconfirmOwnerDecisionActor(input: {
+    requestId: string;
+    ownerId: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<void> {
+    try {
+      await this.contributionTasks.reconfirmOwnerDecisionActor(input);
+    } catch (error) {
+      if (
+        error instanceof NotFoundApplicationError &&
+        error.code !== 'APPLICATION_NOT_FOUND'
+      ) {
+        throw this.applicationNotFound();
+      }
+      throw error;
+    }
+  }
+
+  private async confirmOwnerDecisionActor(input: {
+    requestId: string;
+    ownerId: string;
+  }): Promise<void> {
+    try {
+      await this.contributionTasks.confirmOwnerDecisionActor(input);
+    } catch (error) {
+      if (error instanceof NotFoundApplicationError) {
+        throw this.applicationNotFound();
+      }
+      throw error;
+    }
+  }
+
   private alreadyApplied(): ConflictApplicationError {
     return new ConflictApplicationError(
       'An Application already exists for this Contribution Request',
@@ -701,6 +1273,23 @@ export class ApplicationsService {
     return new NotFoundApplicationError(
       'Application was not found',
       'APPLICATION_NOT_FOUND',
+    );
+  }
+
+  private assertPendingOwnerDecision(status: ApplicationStatus): void {
+    if (status !== ApplicationStatus.pending_owner_review) {
+      throw new ConflictApplicationError(
+        'Only a pending Application can receive an Owner Decision',
+        'APPLICATION_TERMINAL',
+        { status },
+      );
+    }
+  }
+
+  private concurrentDecision(): ConflictApplicationError {
+    return new ConflictApplicationError(
+      'Application changed during the Owner Decision',
+      'APPLICATION_CONCURRENT_MODIFICATION',
     );
   }
 

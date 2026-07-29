@@ -93,6 +93,7 @@ enum ContributionRequestAuditAction {
   published
   cancelled
   discarded
+  assigned
 }
 
 enum ApplicationStatus {
@@ -109,6 +110,14 @@ enum ApplicationAuditAction {
   submitted
   withdrawn
   request_cancelled
+  accepted
+  declined_by_owner
+  not_selected
+}
+
+enum OwnerDecisionType {
+  accepted
+  declined
 }
 
 enum ContributionProposalStatus {
@@ -291,6 +300,7 @@ enum ReportedContentType {
   project
   contribution_request
   application
+  owner_decision
   delivery
   skill_profile
 }
@@ -701,6 +711,8 @@ model Application {
   requirementSnapshot ApplicationRequirementSnapshot? @relation(fields: [requirement_snapshot_id], references: [id], onDelete: Restrict)
   evidenceSnapshot    ApplicationEvidenceSnapshot?    @relation(fields: [evidence_snapshot_id], references: [id], onDelete: Restrict)
   auditEvents         ApplicationAudit[]
+  ownerDecision       OwnerDecision?
+  assignment          Assignment?
   aiValidationResult  AiValidationResult?
   delivery            Delivery?
   skillGapGuidance    SkillGapGuidance?
@@ -752,6 +764,45 @@ model ApplicationAudit {
 
   @@unique([actor_id, action, idempotency_key])
   @@index([application_id, created_at])
+}
+
+model OwnerDecision {
+  id                      String            @id @default(uuid()) @db.Uuid
+  application_id          String            @unique @db.Uuid
+  contribution_request_id String            @db.Uuid
+  owner_id                String            @db.Uuid
+  decision_type           OwnerDecisionType
+  feedback                String?           @db.VarChar(2000)
+  idempotency_key         String            @db.VarChar(128)
+  command_fingerprint     String            @db.Char(64)
+  decided_at              DateTime          @default(now())
+
+  application         Application         @relation(fields: [application_id], references: [id], onDelete: Restrict)
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id], onDelete: Restrict)
+  owner               User                @relation("OwnerDecisionOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  assignment          Assignment?
+  reports             Report[]
+
+  @@unique([owner_id, idempotency_key])
+  @@index([contribution_request_id, decided_at])
+}
+
+model Assignment {
+  id                            String   @id @default(uuid()) @db.Uuid
+  contribution_request_id       String   @unique @db.Uuid
+  application_id                String   @unique @db.Uuid
+  owner_decision_id             String   @unique @db.Uuid
+  contributor_id                String   @db.Uuid
+  agreed_delivery_duration_days Int
+  agreed_delivery_due_at        DateTime
+  assigned_at                   DateTime @default(now())
+
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id], onDelete: Restrict)
+  application         Application         @relation(fields: [application_id], references: [id], onDelete: Restrict)
+  ownerDecision       OwnerDecision       @relation(fields: [owner_decision_id], references: [id], onDelete: Restrict)
+  contributor         User                @relation("AssignmentContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+
+  @@index([contributor_id, assigned_at])
 }
 
 model ProjectProposalIntake {
@@ -1120,6 +1171,7 @@ model Report {
   reported_user_id      String?              @db.Uuid
   reported_content_id   String?              @db.Uuid
   reported_content_type ReportedContentType?
+  owner_decision_id     String?              @db.Uuid
   reason                ReportReason
   description           String
   status                ReportStatus         @default(open)
@@ -1129,9 +1181,13 @@ model Report {
   created_at            DateTime             @default(now())
   updated_at            DateTime             @default(now()) @updatedAt
 
-  reporter     User  @relation("ReportReporter", fields: [reporter_id], references: [id])
-  reportedUser User? @relation("ReportReportedUser", fields: [reported_user_id], references: [id])
-  resolvedBy   User? @relation("ReportResolver", fields: [resolved_by], references: [id])
+  reporter      User           @relation("ReportReporter", fields: [reporter_id], references: [id])
+  reportedUser  User?          @relation("ReportReportedUser", fields: [reported_user_id], references: [id])
+  resolvedBy    User?          @relation("ReportResolver", fields: [resolved_by], references: [id])
+  ownerDecision OwnerDecision? @relation(fields: [owner_decision_id], references: [id], onDelete: Restrict)
+
+  @@unique([reporter_id, owner_decision_id])
+  @@index([owner_decision_id, created_at])
 }
 
 model ReputationRecord {

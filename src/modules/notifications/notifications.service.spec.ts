@@ -143,4 +143,117 @@ describe('NotificationsService', () => {
     expect(database.notification.create).toHaveBeenCalledTimes(1);
     expect(gateway.emitNotification).toHaveBeenCalledTimes(1);
   });
+
+  it('persists an Application notification on the caller transaction and defers realtime delivery until commit', async () => {
+    const notification = {
+      id: 'notification-transaction-1',
+      user_id: 'contributor-1',
+      type: NotificationType.application_status,
+      title: 'Application accepted',
+      message: 'Your Application was accepted and an Assignment was created.',
+      metadata: {
+        applicationId: 'application-1',
+        contributionRequestId: 'request-1',
+        action: 'accepted',
+      },
+      deduplication_key: 'application:application-1:accepted',
+      is_read: false,
+      read_at: null,
+      created_at: new Date('2026-07-29T12:00:00.000Z'),
+    };
+    const database = { notification: { findUnique: jest.fn(), create: jest.fn() } };
+    const transaction = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(notification),
+      },
+    };
+    const gateway = { emitNotification: jest.fn().mockReturnValue(true) };
+    const service = new NotificationsService(database as never, gateway as never);
+
+    const result = await service.createApplicationNotification(
+      {
+        userId: 'contributor-1',
+        applicationId: 'application-1',
+        contributionRequestId: 'request-1',
+        action: 'accepted',
+      },
+      { transaction: transaction as never, emitRealtime: false },
+    );
+
+    expect(result.created).toBe(true);
+    expect(transaction.notification.create).toHaveBeenCalledTimes(1);
+    expect(database.notification.create).not.toHaveBeenCalled();
+    expect(gateway.emitNotification).not.toHaveBeenCalled();
+
+    service.emitApplicationNotifications([result.notification]);
+    expect(gateway.emitNotification).toHaveBeenCalledWith(result.notification);
+  });
+
+  it.each([
+    [
+      'accepted',
+      'Application accepted',
+      'Your Application was accepted and an Assignment was created.',
+    ],
+    [
+      'declined_by_owner',
+      'Application declined by owner',
+      'The Project owner declined your Application. This decision affects only this Application.',
+    ],
+    [
+      'not_selected',
+      'Another contributor was selected',
+      'Another contributor was selected for this Contribution Request. This does not affect your eligibility or reputation.',
+    ],
+  ] as const)(
+    'creates a distinct, deduplicated %s Application notification',
+    async (action, title, message) => {
+      const createdAt = new Date('2026-07-29T12:00:00.000Z');
+      const persisted = {
+        id: `notification-${action}`,
+        user_id: 'contributor-1',
+        type: NotificationType.application_status,
+        title,
+        message,
+        metadata: {
+          applicationId: 'application-1',
+          contributionRequestId: 'request-1',
+          action,
+        },
+        deduplication_key: `application:application-1:${action}`,
+        is_read: false,
+        read_at: null,
+        created_at: createdAt,
+      };
+      const database = {
+        notification: {
+          findUnique: jest.fn().mockResolvedValue(null),
+          create: jest.fn().mockResolvedValue(persisted),
+        },
+      };
+      const gateway = { emitNotification: jest.fn().mockReturnValue(false) };
+      const service = new NotificationsService(
+        database as never,
+        gateway as never,
+      );
+
+      await expect(
+        service.createApplicationNotification({
+          userId: 'contributor-1',
+          applicationId: 'application-1',
+          contributionRequestId: 'request-1',
+          action,
+        }),
+      ).resolves.toMatchObject({ created: true });
+
+      expect(database.notification.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          title,
+          message,
+          deduplication_key: `application:application-1:${action}`,
+        }),
+      });
+    },
+  );
 });

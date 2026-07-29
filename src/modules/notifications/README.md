@@ -41,6 +41,13 @@ Current supported workflow:
 - idempotent Application-submitted and Application-withdrawn notifications for
   Project owners, deduplicated by Application and action before realtime
   delivery.
+- idempotent accepted, declined-by-owner, and not-selected Application outcomes
+  for contributors. The not-selected message is decision-neutral and does not
+  imply a decline, eligibility failure, or reputation effect.
+
+Owner Decision workflows pass their Prisma transaction into the notification
+service so durable rows commit atomically with the state transition. Realtime
+delivery happens only after the transaction commits.
 
 Future notification inbox, read-state, delivery channels, task-match alerts, and
 premium-tier notification rules should stay in this module.
