@@ -60,6 +60,46 @@ Stable submission errors are `ALREADY_APPLIED`, `APPLICATIONS_CLOSED`,
 `REQUEST_CANCELLED`, `REQUEST_TERMINAL`, and `APPLICATION_NOT_AUTHORIZED`.
 Terminal withdrawal returns `APPLICATION_TERMINAL`.
 
+## Implemented: Owner Decisions and Assignments (#51)
+
+The current Project owner accepts or declines a pending Application through
+`POST /applications/:applicationId/accept` and
+`POST /applications/:applicationId/decline`. Both commands require a UUID
+`Idempotency-Key`, recheck ownership and lifecycle state inside the transaction,
+and create one immutable `OwnerDecision`.
+
+Ownership is revalidated against the current Project row through the exported,
+transaction-scoped Projects capability; the denormalized Request owner is not an
+authorization source. Replay lookup happens only after that check.
+
+Acceptance assigns the Contribution Request in the same transaction, creates
+exactly one `Assignment`, and derives its due date from the acceptance timestamp
+plus the Application's Proposed Delivery Duration. Other pending Applications
+become `not_selected` through Application audits only; they do not receive
+decline decisions or feedback. Decline trims and requires feedback, changes only
+the selected Application, and creates no Assignment.
+
+The database permits null feedback for accepted decisions but enforces non-null,
+non-blank feedback for declines with `btrim`. Unique Request, Application, and
+Owner Decision assignment keys protect concurrent acceptance. AI assessment data
+is absent from queue and transition predicates and remains informational only.
+Durable accepted, declined, and not-selected notifications are deduplicated and
+written on the decision transaction; realtime emission is deferred until commit.
+
+`getOwnerDecisionReportContext()` is the narrow exported read used by the admin
+module. It exposes an explicit declined decision only to its affected
+contributor; reporting does not mutate or reopen the Application.
+
+Authorized Application detail returns nullable Owner Decision and Assignment
+projections. This makes the declined decision identifier and feedback available
+to the affected contributor before they invoke the moderation-report route.
+Owner review access is based on current Project ownership and remains available
+after Project archival, so pending Applications cannot become stranded.
+
+Issue #49 still owns publication, discovery, cancellation commands, and their
+Application side effects. This module consumes only the exported read/lock
+submission context from `contribution-tasks`.
+
 Issue #49 adds the exported transaction-scoped
 `cancelPendingForRequest()` capability. Contribution Request cancellation calls
 it after locking the Request; the Applications module locks and changes only
