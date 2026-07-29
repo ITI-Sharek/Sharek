@@ -89,7 +89,12 @@ export class PublicContributionRequestsService {
   ): Promise<PublicContributionRequestDetailDto> {
     const request = await this.database.contributionRequest.findFirst({
       where: { id: requestId, ...this.actionableWhere(new Date()) },
-      include: { requirements: true },
+      include: {
+        requirements: true,
+        attributedContributor: {
+          select: { id: true, first_name: true, last_name: true },
+        },
+      },
     });
     if (!request) throw this.requestNotFound();
     const [project] =
@@ -121,6 +126,13 @@ export class PublicContributionRequestsService {
         text: requirement.text,
         classification: requirement.kind,
       })),
+      attribution: request.attributedContributor
+        ? {
+            contributorId: request.attributedContributor.id,
+            contributorName:
+              `${request.attributedContributor.first_name} ${request.attributedContributor.last_name}`.trim(),
+          }
+        : null,
     };
   }
 

@@ -85,6 +85,31 @@ export class RequestProposalRevisionDto {
   idempotencyKey!: string;
 }
 
+export class AcceptContributionProposalDto {
+  @IsUUID('4')
+  idempotencyKey!: string;
+}
+
+export class DeclineContributionProposalDto {
+  @Transform(normalizeString)
+  @IsString()
+  @Length(5, 500)
+  reason!: string;
+
+  @IsUUID('4')
+  idempotencyKey!: string;
+}
+
+export class ReportProposalMisuseDto {
+  @Transform(normalizeString)
+  @IsString()
+  @Length(10, 1000)
+  reason!: string;
+
+  @IsUUID('4')
+  idempotencyKey!: string;
+}
+
 export class SetProposalIntakeDto {
   @IsBoolean()
   enabled!: boolean;

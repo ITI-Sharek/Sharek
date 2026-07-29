@@ -1,4 +1,8 @@
-export type ContributionProposalStatusDto = 'PENDING' | 'WITHDRAWN';
+export type ContributionProposalStatusDto =
+  | 'PENDING'
+  | 'WITHDRAWN'
+  | 'ACCEPTED'
+  | 'DECLINED';
 
 export interface ContributionProposalVersionDto {
   version: number;
@@ -29,6 +33,10 @@ export interface ContributionProposalDto {
   currentVersion: number;
   disclosure: ContributionProposalDisclosureDto;
   revisionRequestedAt: Date | null;
+  acceptedAt: Date | null;
+  declinedAt: Date | null;
+  declineReason: string | null;
+  resultingContributionRequestId: string | null;
   latestVersion: ContributionProposalVersionDto | null;
   versions: ContributionProposalVersionDto[];
   revisionRequests: ContributionProposalRevisionRequestDto[];
@@ -59,4 +67,13 @@ export interface ContributionProposalListDto {
 export interface ProposalIntakeDto {
   projectId: string;
   enabled: boolean;
+}
+
+export interface ContributionProposalMisuseReportDto {
+  id: string;
+  proposalId: string;
+  reporterId: string;
+  reportedVersion: number;
+  reason: string;
+  createdAt: Date;
 }
