@@ -92,7 +92,12 @@ export class PublicContributionRequestsService {
       include: {
         requirements: true,
         attributedContributor: {
-          select: { id: true, first_name: true, last_name: true },
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
         },
       },
     });
@@ -131,6 +136,7 @@ export class PublicContributionRequestsService {
             contributorId: request.attributedContributor.id,
             contributorName:
               `${request.attributedContributor.first_name} ${request.attributedContributor.last_name}`.trim(),
+            contributorUsername: request.attributedContributor.username,
           }
         : null,
     };

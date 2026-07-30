@@ -10,6 +10,7 @@ import * as request from 'supertest';
 import { ContributionProposalsController } from '../src/modules/contribution-proposals/contribution-proposals.controller';
 import { ContributionProposalsService } from '../src/modules/contribution-proposals/contribution-proposals.service';
 import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
+import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { ProjectsService } from '../src/modules/projects/projects.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { DatabaseService } from '../src/shared/database/database.service';
@@ -108,6 +109,7 @@ describe('Contribution Proposals HTTP contract', () => {
         acceptedAt: '2026-07-29T09:00:00.000Z',
         resultingContributionRequestId:
           'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        resultingContributionRequestStatus: 'DRAFT',
       }),
     );
     service.decline.mockResolvedValue(
@@ -283,24 +285,6 @@ describe('Contribution Proposals HTTP contract', () => {
 
   it('serializes stable workflow errors and requires authentication', async () => {
     service.submit.mockRejectedValue(
-      new ConflictApplicationError(
-        'A pending Contribution Proposal already exists for this Project',
-        'PROPOSAL_ALREADY_PENDING',
-      ),
-    );
-    await request(app.getHttpServer())
-      .post('/contribution-proposals')
-      .send({
-        projectId,
-        title: 'Add a caching layer',
-        ...proposalContent,
-        acknowledgesAttributionAndAssignmentDisclosure: true,
-        idempotencyKey,
-      })
-      .expect(409)
-      .expect(({ body }) => expect(body.code).toBe('PROPOSAL_ALREADY_PENDING'));
-
-    service.submit.mockRejectedValue(
       new ApplicationError(
         'Daily Contribution Proposal submission limit reached',
         'PROPOSAL_RATE_LIMITED',
@@ -383,6 +367,7 @@ describe('Contribution Proposals HTTP contract', () => {
         expect(body.resultingContributionRequestId).toBe(
           'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         );
+        expect(body.resultingContributionRequestStatus).toBe('DRAFT');
       });
 
     expect(service.accept).toHaveBeenCalledWith({
@@ -481,6 +466,10 @@ describe('Contribution Proposals HTTP-to-service transaction seam', () => {
   const contributionTasks = {
     createDraftFromAcceptedProposal: jest.fn(),
   };
+  const notifications = {
+    createProposalNotification: jest.fn(),
+    emitProposalNotifications: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -490,6 +479,7 @@ describe('Contribution Proposals HTTP-to-service transaction seam', () => {
         { provide: DatabaseService, useValue: database },
         { provide: ProjectsService, useValue: projects },
         { provide: ContributionTasksService, useValue: contributionTasks },
+        { provide: NotificationsService, useValue: notifications },
       ],
     })
       .overrideGuard(AccessTokenGuard)
@@ -580,6 +570,7 @@ function proposalDto(overrides: Record<string, unknown> = {}) {
     declinedAt: null,
     declineReason: null,
     resultingContributionRequestId: null,
+    resultingContributionRequestStatus: null,
     latestVersion: {
       version: 1,
       title: 'Add a caching layer',

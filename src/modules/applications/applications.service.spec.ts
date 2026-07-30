@@ -1049,6 +1049,53 @@ describe('ApplicationsService submission and withdrawal', () => {
   );
 
   it.each([
+    {
+      command: 'accept',
+      decide: () =>
+        service.accept({
+          actor: owner,
+          applicationId,
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+    },
+    {
+      command: 'decline',
+      decide: () =>
+        service.decline({
+          actor: owner,
+          applicationId,
+          feedback: 'Another proposal is a stronger fit.',
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+    },
+  ])(
+    'rejects $command at the day-7 boundary even when the expiry sweep is late',
+    async ({ decide }) => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-08-04T12:00:00.000Z'));
+      database.application.findFirst.mockResolvedValue(applicationRecord());
+
+      try {
+        await expect(decide()).rejects.toMatchObject({
+          code: 'APPLICATION_TERMINAL',
+          metadata: { status: ApplicationStatus.expired },
+        });
+        expect(
+          contributionTasks.assignFromOwnerDecision,
+        ).not.toHaveBeenCalled();
+        expect(database.ownerDecision.create).not.toHaveBeenCalled();
+        expect(database.assignment.create).not.toHaveBeenCalled();
+        expect(database.application.updateMany).not.toHaveBeenCalled();
+        expect(database.applicationAudit.create).not.toHaveBeenCalled();
+        expect(
+          notifications.createApplicationNotification,
+        ).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    },
+  );
+
+  it.each([
     { ...contributor, label: 'active contributor' },
     { ...owner, status: 'pending' as const, label: 'inactive owner' },
   ])('rejects $label before opening an Owner Decision transaction', async ({ label: _label, ...actor }) => {

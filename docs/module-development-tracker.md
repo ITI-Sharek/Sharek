@@ -2064,3 +2064,34 @@ This keeps the system strong without making it heavy:
 - Verification: Prisma validation and generation, architecture check, lint,
   exact type-check, build, API-client inventory, the PostgreSQL migration
   harness, 8 focused suites / 79 tests, and all 72 Jest suites / 451 tests pass.
+
+## 2026-07-30 - Sprint 4 backend review fixes
+
+- Modules: `applications`, `contribution-proposals`, `contribution-tasks`,
+  `notifications`, and `projects`.
+- Requirement/task IDs: Sprint 4 parent #46; closed issues #51, #55, and #56;
+  review-window follow-up to #52.
+- Workflow fixes: Owner Decisions now reject the inclusive day-7 expiry
+  boundary even when the sweep is delayed. Proposal revision, acceptance, and
+  decline notifications commit atomically with their response and emit
+  realtime only afterward. Proposal detail exposes the resulting Request
+  lifecycle, and public accepted-Proposal attribution includes the canonical
+  contributor username.
+- Contract fixes: malformed owner-project IDs are rejected as UUIDv4 at the
+  controller boundary, and project titles are trimmed before non-empty
+  validation. Distinct pending Proposals to one Project are allowed within the
+  existing serialized daily rate limit.
+- Database: migration
+  `20260730130000_proposal_response_notifications` adds
+  `NotificationType.proposal_status`; migration
+  `20260730131000_allow_multiple_pending_proposals` drops the superseded
+  one-pending-Proposal partial unique index.
+- Documentation: updated the Applications, Contribution Proposals,
+  Contribution Requests, Notifications, and Projects module READMEs plus API
+  and database contracts.
+- Verification: architecture check, lint, exact type-check, Prisma validation
+  and generation, build, API-client inventory, migration harness, clean
+  27-migration deployment on a temporary PostgreSQL database, focused tests,
+  and all 72 Jest suites / 454 tests pass.
+- Remaining Sprint 4 scope: issues #53, #54, and #57-#60 remain open; Advisory
+  Fit and the gated Materials slice were not implemented by this review.

@@ -412,6 +412,8 @@ export class ApplicationsService {
           return { decision: transactionReplay, notifications: [] };
         }
         this.assertPendingOwnerDecision(current.status);
+        const now = new Date();
+        this.assertOwnerDecisionWindowOpen(current.expires_at, now);
         if (!current.proposed_delivery_duration_days) {
           throw new ConflictApplicationError(
             'The Application has no Proposed Delivery Duration',
@@ -419,7 +421,6 @@ export class ApplicationsService {
           );
         }
 
-        const now = new Date();
         const decisionId = randomUUID();
         const assignmentId = randomUUID();
         await this.contributionTasks.assignFromOwnerDecision({
@@ -636,6 +637,7 @@ export class ApplicationsService {
         this.assertPendingOwnerDecision(current.status);
 
         const now = new Date();
+        this.assertOwnerDecisionWindowOpen(current.expires_at, now);
         const decisionId = randomUUID();
         await transaction.ownerDecision.create({
           data: {
@@ -1295,6 +1297,19 @@ export class ApplicationsService {
         'Only a pending Application can receive an Owner Decision',
         'APPLICATION_TERMINAL',
         { status },
+      );
+    }
+  }
+
+  private assertOwnerDecisionWindowOpen(
+    expiresAt: Date | null,
+    now: Date,
+  ): void {
+    if (expiresAt !== null && expiresAt <= now) {
+      throw new ConflictApplicationError(
+        'Only a pending Application can receive an Owner Decision',
+        'APPLICATION_TERMINAL',
+        { status: ApplicationStatus.expired },
       );
     }
   }

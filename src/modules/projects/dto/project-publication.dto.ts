@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -45,6 +45,9 @@ export class ProjectDraftSourceDto {
 
 export class ProjectPresentationDto {
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @Length(1, 255)
   title?: string;
