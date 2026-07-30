@@ -196,6 +196,7 @@ describe('SkillProfileGenerationService', () => {
         contributorId: 'user-1',
         githubLogin: 'owner',
         generationId: 'generation-1',
+        role: 'contributor',
       }),
     );
     expect(generations.completeWithPendingSkills).toHaveBeenCalledWith(
