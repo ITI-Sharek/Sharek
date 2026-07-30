@@ -10,6 +10,7 @@ describe('AiService private evidence boundary', () => {
       contributorId: 'user-1',
       githubLogin: 'member',
       generationId: 'generation-1',
+      role: 'contributor' as const,
       requestedAt: '2026-07-27T12:00:00.000Z',
       selectedRepositories: [
         {

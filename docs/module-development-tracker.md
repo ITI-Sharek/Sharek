@@ -2095,3 +2095,19 @@ This keeps the system strong without making it heavy:
   and all 72 Jest suites / 454 tests pass.
 - Remaining Sprint 4 scope: issues #53, #54, and #57-#60 remain open; Advisory
   Fit and the gated Materials slice were not implemented by this review.
+
+## 2026-07-30 - Skill-profile AI request contract repair
+
+- Modules: `ai` and `skill-profiles`.
+- Root cause: FastAPI required a top-level skill-profile `role`, while the
+  NestJS worker serialized repository evidence without it, so valid contributor
+  generations were rejected with HTTP 422 before analysis began.
+- Contract: `SkillProfileInput` now requires `role`, and contributor generation
+  sends `role: "contributor"` explicitly.
+- Coverage: the FastAPI client test asserts the serialized request body, while
+  the generation service test asserts the contributor workflow supplies the
+  role. The AI repository's stale legacy security tests were migrated to the
+  current evidence-capsule service and now cover the compatible schema.
+- Database/API impact: no migration and no browser-facing API change.
+- Verification: architecture check, lint, exact type-check, build, all 72
+  backend Jest suites / 455 tests, Python compilation, and all 7 AI tests pass.

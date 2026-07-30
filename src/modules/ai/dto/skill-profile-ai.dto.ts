@@ -2,6 +2,7 @@ export interface SkillProfileInput {
   contributorId: string;
   githubLogin: string;
   generationId: string;
+  role: 'contributor' | 'owner';
   selectedRepositories: RepositoryEvidenceCapsule[];
   requestedAt: string;
 }

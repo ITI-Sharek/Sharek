@@ -7,6 +7,7 @@ const input: SkillProfileInput = {
   contributorId: 'user-1',
   githubLogin: 'sharek-dev',
   generationId: 'generation-1',
+  role: 'contributor',
   requestedAt: '2026-07-14T00:00:00.000Z',
   selectedRepositories: [
     {
@@ -62,6 +63,29 @@ describe('FastApiSkillProfileClient', () => {
 
   afterAll(() => {
     global.fetch = originalFetch;
+  });
+
+  it('sends the explicit contributor role required by FastAPI', async () => {
+    jest.mocked(global.fetch).mockResolvedValueOnce(
+      responseWith({
+        skills: [],
+        fraudSignals: [],
+        evidenceQuality: 'weak',
+        recommendation: 'needs_more_evidence',
+        provider: 'groq',
+        model: 'openai/gpt-oss-120b',
+        promptVersion: 'v1',
+        schemaVersion: 'v1',
+        serviceVersion: 'v1',
+      }),
+    );
+
+    await client.generate(input);
+
+    const request = jest.mocked(global.fetch).mock.calls[0]?.[1];
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      role: 'contributor',
+    });
   });
 
   it('accepts cited evidence from the submitted capsules', async () => {

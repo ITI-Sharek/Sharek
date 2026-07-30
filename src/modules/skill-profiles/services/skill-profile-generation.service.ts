@@ -103,6 +103,7 @@ export class SkillProfileGenerationService {
       contributorId: generation.user_id,
       githubLogin,
       generationId,
+      role: 'contributor',
       selectedRepositories: evidenceCapsules,
       requestedAt: generation.created_at.toISOString(),
     });

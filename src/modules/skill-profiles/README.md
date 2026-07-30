@@ -49,7 +49,8 @@ README.md
 `GitHubAccountService`, calls `AiService`, applies confidence/evidence rules,
 and makes the final backend decision. The concrete repository contains the
 cohesive multi-write Prisma workflow. The BullMQ worker handles retries and
-recovery, then delegates to the generation service.
+recovery, then delegates to the generation service. Its FastAPI request marks
+this workflow explicitly with `role: "contributor"`.
 
 `SkillProfilesReviewService` lists pending AI-generated skills and performs
 admin review transitions. Approve, reject, and proficiency-adjustment actions
