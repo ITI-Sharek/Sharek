@@ -98,6 +98,7 @@ export interface PublicContributionRequestRequirementDto {
 export interface PublicContributionRequestAttributionDto {
   contributorId: string;
   contributorName: string;
+  contributorUsername: string | null;
 }
 
 export interface PublicContributionRequestDetailDto

@@ -17,6 +17,7 @@ import {
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ProjectsService } from '../projects/projects.service';
 import { ContributionProposalPageQueryDto } from './dto/contribution-proposal-input.dto';
 import {
@@ -51,6 +52,7 @@ export class ContributionProposalsService {
     private readonly database: DatabaseService,
     private readonly projects: ProjectsService,
     private readonly contributionTasks: ContributionTasksService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async submit(input: {
@@ -105,12 +107,6 @@ export class ContributionProposalsService {
           transaction,
         );
 
-        await this.assertNoPendingProposal(
-          input.projectId,
-          input.actor.id,
-          transaction,
-        );
-
         const now = new Date();
         const proposalId = randomUUID();
         await transaction.contributionProposal.create({
@@ -161,9 +157,7 @@ export class ContributionProposalsService {
         fingerprint,
       });
       if (lostRace) proposal = lostRace;
-      else if (this.isPendingProposalConstraint(error)) {
-        throw this.alreadyPending();
-      } else throw error;
+      else throw error;
     }
     return toContributionProposalDto(proposal);
   }
@@ -304,8 +298,11 @@ export class ContributionProposalsService {
     if (replay) return toContributionProposalDto(replay);
 
     let proposal: ContributionProposalWithDetail;
+    let notificationsToEmit: Parameters<
+      NotificationsService['emitProposalNotifications']
+    >[0] = [];
     try {
-      proposal = await this.database.$transaction(async (transaction) => {
+      const result = await this.database.$transaction(async (transaction) => {
         const transactionReplay = await this.readReplayFromTransaction({
           transaction,
           actorId: input.actor.id,
@@ -313,7 +310,9 @@ export class ContributionProposalsService {
           idempotencyKey,
           fingerprint,
         });
-        if (transactionReplay) return transactionReplay;
+        if (transactionReplay) {
+          return { proposal: transactionReplay, notifications: [] };
+        }
 
         const current = await transaction.contributionProposal.findUnique({
           where: { id: input.proposalId },
@@ -357,11 +356,31 @@ export class ContributionProposalsService {
             },
           },
         });
-        return transaction.contributionProposal.findUniqueOrThrow({
+        const notification =
+          await this.notifications.createProposalNotification(
+            {
+              userId: current.proposer_id,
+              proposalId: current.id,
+              projectId: current.project_id,
+              action: 'revision_requested',
+              revisionRequestSequence: nextRevisionRequestSequence,
+            },
+            { transaction, emitRealtime: false },
+          );
+        const savedProposal =
+          await transaction.contributionProposal.findUniqueOrThrow({
           where: { id: input.proposalId },
           include: PROPOSAL_DETAIL_INCLUDE,
         });
+        return {
+          proposal: savedProposal,
+          notifications: notification.created
+            ? [notification.notification]
+            : [],
+        };
       });
+      proposal = result.proposal;
+      notificationsToEmit = result.notifications;
     } catch (error) {
       const lostRace = await this.recoverFromIdempotencyRace({
         error,
@@ -373,6 +392,7 @@ export class ContributionProposalsService {
       if (lostRace) proposal = lostRace;
       else throw error;
     }
+    this.notifications.emitProposalNotifications(notificationsToEmit);
     return toContributionProposalDto(proposal);
   }
 
@@ -478,8 +498,11 @@ export class ContributionProposalsService {
     if (replay) return toContributionProposalDto(replay);
 
     let proposal: ContributionProposalWithDetail;
+    let notificationsToEmit: Parameters<
+      NotificationsService['emitProposalNotifications']
+    >[0] = [];
     try {
-      proposal = await this.database.$transaction(async (transaction) => {
+      const result = await this.database.$transaction(async (transaction) => {
         const transactionReplay = await this.readReplayFromTransaction({
           transaction,
           actorId: input.actor.id,
@@ -487,7 +510,9 @@ export class ContributionProposalsService {
           idempotencyKey,
           fingerprint,
         });
-        if (transactionReplay) return transactionReplay;
+        if (transactionReplay) {
+          return { proposal: transactionReplay, notifications: [] };
+        }
 
         const current = await transaction.contributionProposal.findUnique({
           where: { id: input.proposalId },
@@ -547,11 +572,31 @@ export class ContributionProposalsService {
             },
           },
         });
-        return transaction.contributionProposal.findUniqueOrThrow({
+        const notification =
+          await this.notifications.createProposalNotification(
+            {
+              userId: current.proposer_id,
+              proposalId: current.id,
+              projectId: current.project_id,
+              action: 'accepted',
+              resultingContributionRequestId: draft.id,
+            },
+            { transaction, emitRealtime: false },
+          );
+        const savedProposal =
+          await transaction.contributionProposal.findUniqueOrThrow({
           where: { id: input.proposalId },
           include: PROPOSAL_DETAIL_INCLUDE,
         });
+        return {
+          proposal: savedProposal,
+          notifications: notification.created
+            ? [notification.notification]
+            : [],
+        };
       });
+      proposal = result.proposal;
+      notificationsToEmit = result.notifications;
     } catch (error) {
       const lostRace = await this.recoverFromIdempotencyRace({
         error,
@@ -563,6 +608,7 @@ export class ContributionProposalsService {
       if (lostRace) proposal = lostRace;
       else throw error;
     }
+    this.notifications.emitProposalNotifications(notificationsToEmit);
     return toContributionProposalDto(proposal);
   }
 
@@ -588,8 +634,11 @@ export class ContributionProposalsService {
     if (replay) return toContributionProposalDto(replay);
 
     let proposal: ContributionProposalWithDetail;
+    let notificationsToEmit: Parameters<
+      NotificationsService['emitProposalNotifications']
+    >[0] = [];
     try {
-      proposal = await this.database.$transaction(async (transaction) => {
+      const result = await this.database.$transaction(async (transaction) => {
         const transactionReplay = await this.readReplayFromTransaction({
           transaction,
           actorId: input.actor.id,
@@ -597,7 +646,9 @@ export class ContributionProposalsService {
           idempotencyKey,
           fingerprint,
         });
-        if (transactionReplay) return transactionReplay;
+        if (transactionReplay) {
+          return { proposal: transactionReplay, notifications: [] };
+        }
 
         const current = await transaction.contributionProposal.findUnique({
           where: { id: input.proposalId },
@@ -639,11 +690,30 @@ export class ContributionProposalsService {
             metadata: { payloadVersion: 1 },
           },
         });
-        return transaction.contributionProposal.findUniqueOrThrow({
+        const notification =
+          await this.notifications.createProposalNotification(
+            {
+              userId: current.proposer_id,
+              proposalId: current.id,
+              projectId: current.project_id,
+              action: 'declined',
+            },
+            { transaction, emitRealtime: false },
+          );
+        const savedProposal =
+          await transaction.contributionProposal.findUniqueOrThrow({
           where: { id: input.proposalId },
           include: PROPOSAL_DETAIL_INCLUDE,
         });
+        return {
+          proposal: savedProposal,
+          notifications: notification.created
+            ? [notification.notification]
+            : [],
+        };
       });
+      proposal = result.proposal;
+      notificationsToEmit = result.notifications;
     } catch (error) {
       const lostRace = await this.recoverFromIdempotencyRace({
         error,
@@ -655,6 +725,7 @@ export class ContributionProposalsService {
       if (lostRace) proposal = lostRace;
       else throw error;
     }
+    this.notifications.emitProposalNotifications(notificationsToEmit);
     return toContributionProposalDto(proposal);
   }
 
@@ -884,21 +955,6 @@ export class ContributionProposalsService {
     }
   }
 
-  private async assertNoPendingProposal(
-    projectId: string,
-    proposerId: string,
-    transaction: Prisma.TransactionClient,
-  ): Promise<void> {
-    const existingPending = await transaction.contributionProposal.findFirst({
-      where: {
-        project_id: projectId,
-        proposer_id: proposerId,
-        status: ContributionProposalStatus.pending,
-      },
-    });
-    if (existingPending) throw this.alreadyPending();
-  }
-
   private async lockContributorSubmissions(
     transaction: Prisma.TransactionClient,
     proposerId: string,
@@ -972,24 +1028,6 @@ export class ContributionProposalsService {
         400,
       );
     }
-  }
-
-  private isPendingProposalConstraint(error: unknown): boolean {
-    if (
-      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-      error.code !== 'P2002'
-    ) {
-      return false;
-    }
-    const target = error.meta?.target;
-    return (
-      String(target).includes(
-        'ContributionProposal_project_id_proposer_id_pending_key',
-      ) ||
-      (Array.isArray(target) &&
-        target.includes('project_id') &&
-        target.includes('proposer_id'))
-    );
   }
 
   private async recoverFromIdempotencyRace(input: {
@@ -1115,13 +1153,6 @@ export class ContributionProposalsService {
       );
     }
     return normalized;
-  }
-
-  private alreadyPending(): ConflictApplicationError {
-    return new ConflictApplicationError(
-      'A pending Contribution Proposal already exists for this Project',
-      'PROPOSAL_ALREADY_PENDING',
-    );
   }
 
   private concurrentModification(): ConflictApplicationError {

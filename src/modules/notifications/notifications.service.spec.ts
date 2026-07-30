@@ -190,6 +190,66 @@ describe('NotificationsService', () => {
     expect(gateway.emitNotification).toHaveBeenCalledWith(result.notification);
   });
 
+  it('persists and deduplicates a Proposal response notification on the caller transaction', async () => {
+    const notification = {
+      id: 'notification-proposal-1',
+      user_id: 'contributor-1',
+      type: NotificationType.proposal_status,
+      title: 'Proposal accepted',
+      message:
+        'The Project owner accepted your Contribution Proposal and created an attributed draft Contribution Request.',
+      metadata: {
+        proposalId: 'proposal-1',
+        projectId: 'project-1',
+        action: 'accepted',
+        resultingContributionRequestId: 'request-1',
+      },
+      deduplication_key: 'proposal:proposal-1:accepted',
+      is_read: false,
+      read_at: null,
+      created_at: new Date('2026-07-30T12:00:00.000Z'),
+    };
+    const database = {
+      notification: { findUnique: jest.fn(), create: jest.fn() },
+    };
+    const transaction = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(notification),
+      },
+    };
+    const gateway = { emitNotification: jest.fn().mockReturnValue(true) };
+    const service = new NotificationsService(
+      database as never,
+      gateway as never,
+    );
+
+    const result = await service.createProposalNotification(
+      {
+        userId: 'contributor-1',
+        proposalId: 'proposal-1',
+        projectId: 'project-1',
+        action: 'accepted',
+        resultingContributionRequestId: 'request-1',
+      },
+      { transaction: transaction as never, emitRealtime: false },
+    );
+
+    expect(result.created).toBe(true);
+    expect(transaction.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: 'contributor-1',
+        type: NotificationType.proposal_status,
+        deduplication_key: 'proposal:proposal-1:accepted',
+      }),
+    });
+    expect(database.notification.create).not.toHaveBeenCalled();
+    expect(gateway.emitNotification).not.toHaveBeenCalled();
+
+    service.emitProposalNotifications([result.notification]);
+    expect(gateway.emitNotification).toHaveBeenCalledWith(result.notification);
+  });
+
   it.each([
     [
       'accepted',

@@ -4,6 +4,13 @@ export type ContributionProposalStatusDto =
   | 'ACCEPTED'
   | 'DECLINED';
 
+export type ContributionProposalResultingRequestStatusDto =
+  | 'DRAFT'
+  | 'PUBLISHED'
+  | 'ASSIGNED'
+  | 'CANCELLED'
+  | 'DISCARDED';
+
 export interface ContributionProposalVersionDto {
   version: number;
   title: string;
@@ -37,6 +44,9 @@ export interface ContributionProposalDto {
   declinedAt: Date | null;
   declineReason: string | null;
   resultingContributionRequestId: string | null;
+  resultingContributionRequestStatus:
+    | ContributionProposalResultingRequestStatusDto
+    | null;
   latestVersion: ContributionProposalVersionDto | null;
   versions: ContributionProposalVersionDto[];
   revisionRequests: ContributionProposalRevisionRequestDto[];

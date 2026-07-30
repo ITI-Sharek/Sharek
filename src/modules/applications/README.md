@@ -130,6 +130,10 @@ system actor, and notifies the contributor. Expiry is decision-neutral: it
 does not write reputation, eligibility, profile, sibling Application, Request,
 or Assignment state.
 
+Owner Decision commands also compare the persisted expiry boundary with their
+transaction clock before writing. An accept or decline at or after day 7 is
+rejected as terminal even when a delayed sweep has not persisted `expired` yet.
+
 Retries, duplicate jobs, and owner-decision races are safe because the marker,
 status transition, audit, and notification use transaction guards and durable
 deduplication. Exact pre-boundary, boundary, post-boundary, retry, duplicate,

@@ -40,6 +40,8 @@ project visibility.
 Every side-effecting canonical command requires an `Idempotency-Key`; mutable
 commands also require `expectedRevision`. Project creation, successful state
 transitions, transition audit facts, and command receipts use transactions.
+Owner-route Project IDs are validated as UUIDv4 values at the HTTP boundary,
+and presentation titles are trimmed before their non-empty length check.
 
 ## Boundaries and persistence
 

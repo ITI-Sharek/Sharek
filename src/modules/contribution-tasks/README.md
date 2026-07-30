@@ -71,7 +71,9 @@ sections without reconstructing them from local state.
   `CONTRIBUTION_REQUEST_NOT_FOUND` detail outcome.
 - Feed filters are `q`, `technologies`, `difficulty`, and `hasReward`.
   Technology matches use any requested tag. Detail returns ordered
-  Requirements with explicit `required`/`preferred` classification.
+  Requirements with explicit `required`/`preferred` classification. A Request
+  created from an accepted Proposal also exposes the proposer username for the
+  approved public “Suggested by @username” attribution.
 - Cancellation is an idempotent `published -> cancelled` owner command. It
   preserves the Request and calls the exported Applications service in the same
   transaction. Every pending Application becomes `request_cancelled` with an

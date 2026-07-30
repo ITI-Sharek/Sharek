@@ -70,10 +70,15 @@ describe('ContributionProposalsService', () => {
   const contributionTasks = {
     createDraftFromAcceptedProposal: jest.fn(),
   };
+  const notifications = {
+    createProposalNotification: jest.fn(),
+    emitProposalNotifications: jest.fn(),
+  };
   const service = new ContributionProposalsService(
     database as never,
     projects as never,
     contributionTasks as never,
+    notifications as never,
   );
 
   beforeEach(() => {
@@ -110,6 +115,10 @@ describe('ContributionProposalsService', () => {
     );
     contributionTasks.createDraftFromAcceptedProposal.mockResolvedValue({
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+    notifications.createProposalNotification.mockResolvedValue({
+      created: true,
+      notification: { notificationId: 'notification-1' },
     });
   });
 
@@ -179,17 +188,6 @@ describe('ContributionProposalsService', () => {
       } satisfies Partial<ApplicationError>);
     });
 
-    it('rejects a second pending proposal to the same Project', async () => {
-      database.contributionProposal.findFirst.mockResolvedValue({
-        id: proposalId,
-      });
-
-      await expect(submit()).rejects.toMatchObject({
-        code: 'PROPOSAL_ALREADY_PENDING',
-        statusCode: 409,
-      } satisfies Partial<ApplicationError>);
-    });
-
     it('replays an identical submission without creating a duplicate', async () => {
       database.contributionProposalAudit.findFirst.mockResolvedValue({
         command_fingerprint: fingerprintFor({
@@ -212,21 +210,6 @@ describe('ContributionProposalsService', () => {
       expect(database.contributionProposal.create).not.toHaveBeenCalled();
     });
 
-    it('maps only the pending-proposal unique index to the stable conflict', async () => {
-      database.contributionProposal.create.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError('pending proposal race', {
-          code: 'P2002',
-          clientVersion: '6.19.3',
-          meta: { target: ['project_id', 'proposer_id'] },
-        }),
-      );
-
-      await expect(submit()).rejects.toMatchObject({
-        code: 'PROPOSAL_ALREADY_PENDING',
-        statusCode: 409,
-      });
-    });
-
     it('does not disguise unrelated Prisma failures as an already-pending conflict', async () => {
       const databaseError = new Prisma.PrismaClientKnownRequestError(
         'project foreign key changed during submission',
@@ -240,7 +223,7 @@ describe('ContributionProposalsService', () => {
       await expect(submit()).rejects.toBe(databaseError);
     });
 
-    it('revalidates Project, intake, rate limit, and pending state inside the write transaction', async () => {
+    it('revalidates Project, intake, and the daily rate limit inside the write transaction', async () => {
       await submit();
 
       expect(projects.lockProposalProjectContext).toHaveBeenCalledWith(
@@ -249,13 +232,7 @@ describe('ContributionProposalsService', () => {
       );
       expect(database.$executeRaw).toHaveBeenCalledTimes(1);
       expect(database.contributionProposal.count).toHaveBeenCalledTimes(1);
-      expect(database.contributionProposal.findFirst).toHaveBeenCalledWith({
-        where: {
-          project_id: projectId,
-          proposer_id: contributor.id,
-          status: ContributionProposalStatus.pending,
-        },
-      });
+      expect(database.contributionProposal.findFirst).not.toHaveBeenCalled();
     });
   });
 
@@ -364,6 +341,7 @@ describe('ContributionProposalsService', () => {
       database.contributionProposal.findUnique.mockResolvedValue({
         id: proposalId,
         project_id: projectId,
+        proposer_id: contributor.id,
         status: ContributionProposalStatus.pending,
         current_version: 1,
         revision_request_sequence: 0,
@@ -392,6 +370,19 @@ describe('ContributionProposalsService', () => {
         }),
       });
       expect(database.contributionProposalVersion.create).not.toHaveBeenCalled();
+      expect(notifications.createProposalNotification).toHaveBeenCalledWith(
+        {
+          userId: contributor.id,
+          proposalId,
+          projectId,
+          action: 'revision_requested',
+          revisionRequestSequence: 1,
+        },
+        { transaction: database, emitRealtime: false },
+      );
+      expect(notifications.emitProposalNotifications).toHaveBeenCalledWith([
+        { notificationId: 'notification-1' },
+      ]);
     });
 
     it('hides proposals from owners of other Projects', async () => {
@@ -566,7 +557,10 @@ describe('ContributionProposalsService', () => {
         proposalRecord({
           status: ContributionProposalStatus.accepted,
           accepted_at: new Date('2026-07-29T09:00:00.000Z'),
-          originatedRequest: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+          originatedRequest: {
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            status: 'draft',
+          },
         }),
       );
 
@@ -580,6 +574,7 @@ describe('ContributionProposalsService', () => {
       expect(result.resultingContributionRequestId).toBe(
         'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       );
+      expect(result.resultingContributionRequestStatus).toBe('DRAFT');
       // Exactly one draft Request is created, attributed to the proposer.
       expect(
         contributionTasks.createDraftFromAcceptedProposal,
@@ -611,6 +606,17 @@ describe('ContributionProposalsService', () => {
       expect(database.contributionProposalAudit.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ action: 'accepted' }),
       });
+      expect(notifications.createProposalNotification).toHaveBeenCalledWith(
+        {
+          userId: contributor.id,
+          proposalId,
+          projectId,
+          action: 'accepted',
+          resultingContributionRequestId:
+            'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        },
+        { transaction: database, emitRealtime: false },
+      );
     });
 
     it('rejects acceptance by an owner of another Project', async () => {
@@ -662,6 +668,7 @@ describe('ContributionProposalsService', () => {
       database.contributionProposal.findUnique.mockResolvedValue({
         id: proposalId,
         project_id: projectId,
+        proposer_id: contributor.id,
         status: ContributionProposalStatus.pending,
         current_version: 1,
         revision_request_sequence: 0,
@@ -697,6 +704,15 @@ describe('ContributionProposalsService', () => {
       expect(
         contributionTasks.createDraftFromAcceptedProposal,
       ).not.toHaveBeenCalled();
+      expect(notifications.createProposalNotification).toHaveBeenCalledWith(
+        {
+          userId: contributor.id,
+          proposalId,
+          projectId,
+          action: 'declined',
+        },
+        { transaction: database, emitRealtime: false },
+      );
     });
   });
 

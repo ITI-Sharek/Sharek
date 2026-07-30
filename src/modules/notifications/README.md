@@ -48,11 +48,16 @@ Current supported workflow:
   and day-7 expiry notifications for contributors. Expiry copy explicitly
   states that owner silence is not rejection and has no eligibility or
   reputation effect.
+- idempotent Contribution Proposal revision-request, accepted, and declined
+  notifications for the proposer, with the resulting draft Request ID attached
+  to accepted notifications.
 
 Owner Decision and Application review-window workflows pass their Prisma
 transaction into the notification service so durable rows commit atomically
 with the state transition or reminder marker. Realtime delivery happens only
 after the transaction commits.
+Contribution Proposal response workflows use the same transaction-aware
+notification contract.
 
 Future notification inbox, read-state, delivery channels, task-match alerts, and
 premium-tier notification rules should stay in this module.

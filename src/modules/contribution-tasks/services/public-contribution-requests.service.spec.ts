@@ -86,6 +86,7 @@ describe('PublicContributionRequestsService', () => {
       requirements: [],
       attributedContributor: {
         id: 'contributor-1',
+        username: 'nour-hassan',
         first_name: 'Nour',
         last_name: 'Hassan',
       },
@@ -99,6 +100,7 @@ describe('PublicContributionRequestsService', () => {
     expect(detail.attribution).toEqual({
       contributorId: 'contributor-1',
       contributorName: 'Nour Hassan',
+      contributorUsername: 'nour-hassan',
     });
   });
 

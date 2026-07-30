@@ -6,6 +6,7 @@ import {
 
 import {
   ContributionProposalDto,
+  ContributionProposalResultingRequestStatusDto,
   ContributionProposalStatusDto,
   ContributionProposalSummaryDto,
   ContributionProposalVersionDto,
@@ -17,7 +18,7 @@ export const PROPOSAL_DETAIL_INCLUDE = {
     where: { action: ContributionProposalAuditAction.revision_requested },
     orderBy: { created_at: 'asc' },
   },
-  originatedRequest: { select: { id: true } },
+  originatedRequest: { select: { id: true, status: true } },
 } satisfies Prisma.ContributionProposalInclude;
 
 export const PROPOSAL_SUMMARY_INCLUDE = {
@@ -53,6 +54,9 @@ export function toContributionProposalDto(
     declinedAt: proposal.declined_at,
     declineReason: proposal.decline_reason,
     resultingContributionRequestId: proposal.originatedRequest?.id ?? null,
+    resultingContributionRequestStatus: proposal.originatedRequest
+      ? (proposal.originatedRequest.status.toUpperCase() as ContributionProposalResultingRequestStatusDto)
+      : null,
     latestVersion: versions.length > 0 ? versions[versions.length - 1] : null,
     versions,
     revisionRequests: proposal.auditEvents.map((event) => ({

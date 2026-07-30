@@ -32,7 +32,8 @@ are enforced in the service.
 - `PUT /contribution-proposals/for-project/:projectId/intake`: Project owner
   enables or disables proposal intake for their Project.
 - `GET /contribution-proposals/:proposalId`: proposer or Project owner reads the
-  full proposal, its version history, and its revision requests.
+  full proposal, its version history, its revision requests, and the resulting
+  Contribution Request lifecycle status when one exists.
 - `POST /contribution-proposals/:proposalId/versions`: proposer answers an
   outstanding owner revision request by submitting a new immutable version.
 - `POST /contribution-proposals/:proposalId/revision-requests`: Project owner
@@ -62,9 +63,8 @@ are enforced in the service.
   cannot propose to their own Project.
 - **Transactional invariants**: submission takes a transaction-scoped shared
   Project lock, materializes and locks the intake row, and serializes commands
-  per proposer before rechecking the daily limit and pending state. A partial
-  unique index independently enforces one pending Proposal per proposer and
-  Project.
+  per proposer before rechecking the daily limit. Distinct pending suggestions
+  to the same Project are allowed within that limit.
 - **Revision concurrency**: an incrementing revision-request sequence prevents a
   contributor version from clearing an owner Revision Request that arrived
   concurrently. Accept, decline, and version commands flip state under an
@@ -75,13 +75,16 @@ are enforced in the service.
   Acceptance creates exactly one attributed draft Request; the unique
   `origin_proposal_id` on Contribution Request backstops duplicate creation.
   Discarding the resulting draft never reopens the proposal.
+- **Durable responses**: revision requests, acceptance, and decline write a
+  deduplicated contributor notification in the same transaction. Realtime
+  delivery is deferred until commit.
 - **Misuse reports**: a participant's report captures an immutable evidence
   snapshot of the reported version, authorship, and timestamps in
   `ContributionProposalMisuseReport`; no automatic similarity, copying, or legal
   judgement is made.
 - **No quota, decision-neutral**: pending proposals do not expire and consume no
-  Application or subscription quota. A per-contributor daily submission limit and
-  a one-pending-proposal-per-Project rule provide anti-spam rate limiting.
+  Application or subscription quota. A per-contributor daily submission limit
+  provides anti-spam rate limiting.
 - **Append-only audit + idempotency**: submission, versioning, revision requests,
   accept, decline, withdrawal, and misuse reports append immutable
   `ContributionProposalAudit` records carrying an idempotency key and command

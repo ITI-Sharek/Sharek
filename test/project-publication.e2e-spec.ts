@@ -14,6 +14,7 @@ import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter'
 
 describe('Project publication HTTP contract', () => {
   let app: INestApplication;
+  const projectId = '22222222-2222-4222-8222-222222222222';
   const actor = {
     id: '11111111-1111-4111-8111-111111111111',
     email: 'owner@example.com',
@@ -108,17 +109,35 @@ describe('Project publication HTTP contract', () => {
 
   it('binds idempotency and explicit publish confirmation', async () => {
     await request(app.getHttpServer())
-      .post('/projects/me/project-id/publish')
+      .post(`/projects/me/${projectId}/publish`)
       .set('Idempotency-Key', 'publish-contract-001')
       .send({ expectedRevision: 1, confirm: true })
       .expect(200);
 
     expect(publication.publish).toHaveBeenCalledWith(
       actor,
-      'project-id',
+      projectId,
       { expectedRevision: 1, confirm: true },
       'publish-contract-001',
     );
+  });
+
+  it('rejects malformed owner-route ids before invoking persistence', async () => {
+    await request(app.getHttpServer())
+      .get('/projects/me/not-a-uuid')
+      .expect(400);
+
+    expect(publication.getOwnerProject).not.toHaveBeenCalled();
+  });
+
+  it('rejects a whitespace-only project title after normalization', async () => {
+    await request(app.getHttpServer())
+      .patch(`/projects/me/${projectId}`)
+      .set('Idempotency-Key', 'update-contract-001')
+      .send({ expectedRevision: 1, title: '   ' })
+      .expect(400);
+
+    expect(publication.updateProject).not.toHaveBeenCalled();
   });
 
   it('exposes published reads publicly and retires the combined write', async () => {

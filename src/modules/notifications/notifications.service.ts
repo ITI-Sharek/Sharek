@@ -36,6 +36,20 @@ export interface ApplicationNotificationInput {
   action: ApplicationNotificationAction;
 }
 
+export type ProposalNotificationAction =
+  | 'revision_requested'
+  | 'accepted'
+  | 'declined';
+
+export interface ProposalNotificationInput {
+  userId: string;
+  proposalId: string;
+  projectId: string;
+  action: ProposalNotificationAction;
+  revisionRequestSequence?: number;
+  resultingContributionRequestId?: string;
+}
+
 const APPLICATION_NOTIFICATION_COPY: Record<
   ApplicationNotificationAction,
   { title: string; message: string }
@@ -73,6 +87,27 @@ const APPLICATION_NOTIFICATION_COPY: Record<
     title: 'Application review window expired',
     message:
       'Your Application expired because it was not reviewed within 7 days. This is not an owner rejection and does not affect your eligibility or reputation.',
+  },
+};
+
+const PROPOSAL_NOTIFICATION_COPY: Record<
+  ProposalNotificationAction,
+  { title: string; message: string }
+> = {
+  revision_requested: {
+    title: 'Proposal revision requested',
+    message:
+      'The Project owner requested a revision to your Contribution Proposal.',
+  },
+  accepted: {
+    title: 'Proposal accepted',
+    message:
+      'The Project owner accepted your Contribution Proposal and created an attributed draft Contribution Request.',
+  },
+  declined: {
+    title: 'Proposal declined',
+    message:
+      'The Project owner declined your Contribution Proposal. Review the proposal for the owner’s reason.',
   },
 };
 
@@ -171,7 +206,91 @@ export class NotificationsService {
     };
   }
 
+  async createProposalNotification(
+    input: ProposalNotificationInput,
+    options?: {
+      transaction?: Prisma.TransactionClient;
+      emitRealtime?: boolean;
+    },
+  ): Promise<NotificationCreateResultDto> {
+    const notifications =
+      options?.transaction?.notification ?? this.database.notification;
+    const sequence =
+      input.action === 'revision_requested'
+        ? `:${input.revisionRequestSequence ?? 0}`
+        : '';
+    const deduplicationKey =
+      `proposal:${input.proposalId}:${input.action}${sequence}`;
+    const copy = PROPOSAL_NOTIFICATION_COPY[input.action];
+    const existing = await notifications.findUnique({
+      where: { deduplication_key: deduplicationKey },
+    });
+    let notification = existing;
+    let created = false;
+    if (!notification) {
+      try {
+        notification = await notifications.create({
+          data: {
+            user_id: input.userId,
+            type: NotificationType.proposal_status,
+            title: copy.title,
+            message: copy.message,
+            metadata: {
+              proposalId: input.proposalId,
+              projectId: input.projectId,
+              action: input.action,
+              ...(input.revisionRequestSequence === undefined
+                ? {}
+                : {
+                    revisionRequestSequence:
+                      input.revisionRequestSequence,
+                  }),
+              ...(input.resultingContributionRequestId === undefined
+                ? {}
+                : {
+                    resultingContributionRequestId:
+                      input.resultingContributionRequestId,
+                  }),
+            },
+            deduplication_key: deduplicationKey,
+          },
+        });
+        created = true;
+      } catch (error) {
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== 'P2002'
+        ) {
+          throw error;
+        }
+        notification = await notifications.findUniqueOrThrow({
+          where: { deduplication_key: deduplicationKey },
+        });
+      }
+    }
+    const realtimeNotification = this.presentRealtimeNotification(notification);
+    const deliveredRealtime =
+      created && options?.emitRealtime !== false
+        ? this.notificationsGateway.emitNotification(realtimeNotification)
+        : false;
+
+    return {
+      notificationId: notification.id,
+      created,
+      deliveredRealtime,
+      notification: realtimeNotification,
+    };
+  }
+
   emitApplicationNotifications(
+    notifications: RealtimeNotificationDto[],
+  ): void {
+    for (const notification of notifications) {
+      this.notificationsGateway.emitNotification(notification);
+    }
+  }
+
+  emitProposalNotifications(
     notifications: RealtimeNotificationDto[],
   ): void {
     for (const notification of notifications) {

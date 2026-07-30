@@ -506,7 +506,8 @@ Project. Creating the confirmed draft requires `Idempotency-Key` and accepts the
 preview fingerprint plus optional owner presentation fields; it never accepts
 `ownerId` or `status` and always creates `draft`. PATCH/refresh/publish/archive
 also require `Idempotency-Key`, and mutable commands require
-`expectedRevision`.
+`expectedRevision`. All `:projectId` values on owner routes must be UUIDv4, and
+project titles are trimmed before the non-empty length validation is applied.
 
 ```json
 {
@@ -1329,7 +1330,7 @@ request. A revision request is an owner-only append-only action that never edits
 contributor-authored content. Withdrawal is proposer-owned and pending-only.
 Pending proposals never expire and consume no Application or subscription quota.
 Stable workflow errors include `PROPOSAL_PROJECT_NOT_PUBLISHED`,
-`PROPOSAL_INTAKE_DISABLED`, `PROPOSAL_RATE_LIMITED`, `PROPOSAL_ALREADY_PENDING`,
+`PROPOSAL_INTAKE_DISABLED`, `PROPOSAL_RATE_LIMITED`,
 `PROPOSAL_NO_REVISION_REQUESTED`, `PROPOSAL_TERMINAL`, `PROPOSAL_NOT_AUTHORIZED`,
 `PROPOSAL_NOT_FOUND`, `PROPOSAL_CURSOR_INVALID`,
 `PROPOSAL_CONCURRENT_MODIFICATION`, and `PROPOSAL_IDEMPOTENCY_CONFLICT`.
@@ -1342,6 +1343,9 @@ Contribution Request from the latest Proposal Version and returns the proposal
 with `status: "ACCEPTED"` and `resultingContributionRequestId`; it creates no
 Assignment, Application, reserved place, quota use, ownership claim, or selection
 priority, and discarding the resulting draft never reopens the proposal.
+Proposal detail also returns `resultingContributionRequestStatus`, allowing the
+proposer to observe the resulting Request lifecycle without exposing private
+unfinished Request fields.
 `decline` returns `status: "DECLINED"` with the contributor-visible
 `declineReason`. `misuse-reports` may be filed by the proposer or the Project
 owner, returns the stored report, and preserves an immutable authorship-evidence
@@ -1350,7 +1354,8 @@ finding. The resulting draft records immutable proposer attribution: the owner
 `GET /contribution-requests/:id` view exposes `attribution: { proposalId,
 contributorId }`, and once the Request is published `GET
 /contribution-requests/:id` public detail exposes `attribution: { contributorId,
-contributorName }`.
+contributorName, contributorUsername }`; clients display the handle as
+`@contributorUsername` when present.
 
 ## Contract Change Rules
 

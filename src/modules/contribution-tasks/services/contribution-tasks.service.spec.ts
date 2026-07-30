@@ -458,7 +458,12 @@ describe('ContributionTasksService', () => {
       include: {
         requirements: true,
         attributedContributor: {
-          select: { id: true, first_name: true, last_name: true },
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
         },
       },
     });

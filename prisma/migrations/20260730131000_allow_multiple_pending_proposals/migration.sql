@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS "ContributionProposal_project_id_proposer_id_pending_key";

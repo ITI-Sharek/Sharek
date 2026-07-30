@@ -60,9 +60,10 @@ ai                    ai_call_audit, AI service response snapshots, embeddings w
 
 Only the owning module writes its tables.
 
-Contribution Proposals additionally use a PostgreSQL partial unique index over
-`(project_id, proposer_id)` while `status = 'pending'`. The raw migration owns
-that invariant because Prisma schema syntax cannot express partial indexes.
+Contribution Proposal submissions are serialized per proposer and bounded by a
+daily rate limit. Migration `20260730131000_allow_multiple_pending_proposals`
+drops the earlier partial unique index so distinct pending suggestions to the
+same Project are not conflated.
 
 Owner responses (S4-B10) add `accepted`/`declined` proposal states, an
 `accepted_at`/`declined_at`/`decline_reason` audit trail, and a
@@ -74,6 +75,9 @@ proposal and its proposer with `ON DELETE SET NULL`. The `contribution-tasks`
 module owns those Contribution Request columns; the `contribution-proposals`
 module only supplies their values through the exported
 `createDraftFromAcceptedProposal` call inside the acceptance transaction.
+Migration `20260730130000_proposal_response_notifications` adds the
+`proposal_status` notification type used for durable revision, acceptance, and
+decline notifications.
 
 Prompt definitions and provider-specific model execution belong in the separate
 FastAPI AI repository. The backend stores the metadata and snapshots needed for

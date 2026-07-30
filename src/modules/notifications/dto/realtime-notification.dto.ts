@@ -3,6 +3,7 @@ export interface RealtimeNotificationDto {
   userId: string;
   type:
     | 'application_status'
+    | 'proposal_status'
     | 'skill_review'
     | 'delivery_update'
     | 'match_found'

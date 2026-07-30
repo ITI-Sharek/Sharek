@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -80,7 +81,7 @@ export class ProjectsController {
   @Get('me/:projectId')
   getOwnerProject(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
   ) {
     return this.publicationService.getOwnerProject(user, projectId);
   }
@@ -90,7 +91,7 @@ export class ProjectsController {
   @Patch('me/:projectId')
   updateOwnerProject(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
     @Headers('idempotency-key') idempotencyKey: string,
     @Body() body: UpdateProjectDto,
   ) {
@@ -108,7 +109,7 @@ export class ProjectsController {
   @HttpCode(HttpStatus.OK)
   refreshSource(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
     @Headers('idempotency-key') idempotencyKey: string,
     @Body() body: RefreshProjectSourceDto,
   ) {
@@ -126,7 +127,7 @@ export class ProjectsController {
   @HttpCode(HttpStatus.OK)
   publish(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
     @Headers('idempotency-key') idempotencyKey: string,
     @Body() body: ConfirmProjectTransitionDto,
   ) {
@@ -144,7 +145,7 @@ export class ProjectsController {
   @HttpCode(HttpStatus.OK)
   archive(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
     @Headers('idempotency-key') idempotencyKey: string,
     @Body() body: ConfirmProjectTransitionDto,
   ) {
