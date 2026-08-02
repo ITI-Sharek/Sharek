@@ -16,13 +16,18 @@ import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
 import { ApplicationsService } from './applications.service';
 import {
   DeclineApplicationDto,
+  RequestAssessmentDto,
   SubmitApplicationDto,
 } from './dto/application-input.dto';
+import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment.service';
 
 @UseGuards(AccessTokenGuard)
 @Controller()
 export class ApplicationsController {
-  constructor(private readonly applicationsService: ApplicationsService) {}
+  constructor(
+    private readonly applicationsService: ApplicationsService,
+    private readonly advisoryFitAssessments: AdvisoryFitAssessmentService,
+  ) {}
 
   @Post('tasks/:requestId/applications')
   submit(
@@ -102,5 +107,29 @@ export class ApplicationsController {
       feedback: body.feedback,
       idempotencyKey,
     });
+  }
+
+  @Post('applications/:applicationId/assessment-requests')
+  @HttpCode(202)
+  requestAssessment(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('applicationId', new ParseUUIDPipe({ version: '4' }))
+    applicationId: string,
+    @Body() body: RequestAssessmentDto,
+  ) {
+    return this.advisoryFitAssessments.request({
+      actor,
+      applicationId,
+      idempotencyKey: body.idempotencyKey,
+    });
+  }
+
+  @Get('applications/:applicationId/assessment')
+  getAssessment(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('applicationId', new ParseUUIDPipe({ version: '4' }))
+    applicationId: string,
+  ) {
+    return this.advisoryFitAssessments.getAssessment(actor, applicationId);
   }
 }

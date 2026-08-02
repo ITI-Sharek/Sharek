@@ -13,6 +13,7 @@ import { ContributionTasksService } from '../src/modules/contribution-tasks/serv
 import { PublicContributionRequestsService } from '../src/modules/contribution-tasks/services/public-contribution-requests.service';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
 import { ApplicationsController } from '../src/modules/applications/applications.controller';
+import { AdvisoryFitAssessmentService } from '../src/modules/applications/services/advisory-fit-assessment.service';
 import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
 import { IdentityUsernameService } from '../src/modules/identity/services/identity-username.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
@@ -232,6 +233,7 @@ describe('Contribution Request owner publication HTTP integration', () => {
       providers: [
         ContributionRequestPublicationService,
         ApplicationsService,
+        { provide: AdvisoryFitAssessmentService, useValue: {} },
         {
           provide: ContributionTasksService,
           useValue: contributionTasksService,

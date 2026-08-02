@@ -90,6 +90,8 @@
 # - [DONE] POST /applications/:applicationId/withdraw
 # - [DONE] POST /applications/:applicationId/accept
 # - [DONE] POST /applications/:applicationId/decline
+# - [DONE] POST /applications/:applicationId/assessment-requests
+# - [DONE] GET /applications/:applicationId/assessment
 # - [DONE] POST /contribution-proposals
 # - [DONE] GET /contribution-proposals/mine
 # - [DONE] GET /contribution-proposals/for-project/:projectId
@@ -143,6 +145,7 @@
 @skillProfileGenerationId = replace-with-generation-uuid
 @publishedProjectId = replace-with-published-project-uuid
 @contributionRequestId = replace-with-contribution-request-uuid
+@assessmentIdempotencyKey = 00000000-0000-4000-8000-000000000005
 @declineApplicationId = replace-with-another-pending-application-uuid
 @contributionProposalId = replace-with-contribution-proposal-uuid
 @proposalCursor = replace-with-next-cursor-or-remove-query
@@ -1170,7 +1173,26 @@ GET {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
-### 28 - Withdraw a pending Application
+### 28 - Request an Advisory Fit Assessment as owner
+# The request uses the Application's immutable Requirement and Evidence
+# Snapshots. It is advisory only and never changes Application state.
+POST {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/assessment-requests
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "idempotencyKey": "{{assessmentIdempotencyKey}}"
+}
+
+
+### 29 - Read the Advisory Fit Assessment
+# The response exposes REQUESTED, COMPLETED, bounded not-started states,
+# CANCELLED_NOT_NEEDED, or UNAVAILABLE plus a NestJS-derived fitBand.
+GET {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/assessment
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 30 - Withdraw a pending Application
 POST {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/withdraw
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: 00000000-0000-4000-8000-000000000002
@@ -1179,7 +1201,7 @@ Content-Type: application/json
 {}
 
 
-### 29 - Accept a pending Application and create its Assignment
+### 31 - Accept a pending Application and create its Assignment
 # @name acceptedApplication
 # Use a pending Application owned by the logged-in Project owner.
 POST {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/accept
@@ -1187,7 +1209,7 @@ Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: 00000000-0000-4000-8000-000000000003
 
 
-### 30 - Decline a different pending Application with required feedback
+### 32 - Decline a different pending Application with required feedback
 # @name declinedApplication
 # Replace the id below; an accepted or withdrawn Application is terminal.
 POST {{baseUrl}}/applications/{{declineApplicationId}}/decline
@@ -1200,7 +1222,7 @@ Content-Type: application/json
 }
 
 
-### 31 - Report explicit owner-decline feedback (moderation, not an appeal)
+### 33 - Report explicit owner-decline feedback (moderation, not an appeal)
 POST {{baseUrl}}/owner-decisions/{{declinedApplication.response.body.$.ownerDecision.id}}/reports
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 Content-Type: application/json

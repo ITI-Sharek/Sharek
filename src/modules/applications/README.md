@@ -146,6 +146,27 @@ overdue and expired decisions, both race directions, decision-neutral expiry,
 deterministic audit keys, exhausted worker retries, and the unchanged public
 route inventory.
 
+## Implemented: Advisory Fit Assessment (#53)
+
+The current Project owner may request one advisory assessment for a pending
+Application through `POST /applications/:applicationId/assessment-requests`.
+The body contains a UUIDv4 `idempotencyKey`; the request fixes the immutable
+Requirement and authorized Evidence Snapshots already stored on the
+Application. `GET /applications/:applicationId/assessment` returns the latest
+owner-scoped request, findings, derived fit band, and first-presentation time.
+
+NestJS calls the separate FastAPI contract only after it confirms that the
+Application is still pending and that the fixed evidence snapshot contains
+assessable evidence. It validates one finding per Requirement, requirement
+kind, citation scope, finding vocabulary, and confidence before storing the
+attempt and append-only audit rows. NestJS derives `STRONG`, `PARTIAL`,
+`LIMITED`, or `UNKNOWN`; Preferred Requirements never change the band.
+
+System limits and missing evidence do not create attempts. Terminal races are
+recorded as `CANCELLED_NOT_NEEDED`, provider failures or invalid responses as
+`UNAVAILABLE`, and no assessment result changes Application state, visibility,
+owner decisions, Assignments, or contributor eligibility.
+
 Focused verification:
 
 ```bash

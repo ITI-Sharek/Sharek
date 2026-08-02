@@ -1588,6 +1588,51 @@
 					}
 				},
 				{
+					"name": "06 - Request Advisory Fit Assessment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idempotencyKey\": \"{{assessmentIdempotencyKey}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/applications/{{applicationId}}/assessment-requests",
+							"host": ["{{baseUrl}}"],
+							"path": ["applications", "{{applicationId}}", "assessment-requests"]
+						},
+						"description": "Request one owner-scoped Advisory Fit Assessment from the Application's fixed snapshots. Reuse assessmentIdempotencyKey to test replay behavior."
+					}
+				},
+				{
+					"name": "07 - Read Advisory Fit Assessment",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/applications/{{applicationId}}/assessment",
+							"host": ["{{baseUrl}}"],
+							"path": ["applications", "{{applicationId}}", "assessment"]
+						},
+						"description": "Read the owner-scoped assessment request, validated findings, derived fit band, and first presentation time."
+					}
+				},
+				{
 					"name": "06 - Withdraw Application",
 					"request": {
 						"method": "POST",
@@ -2870,6 +2915,10 @@
 		{
 			"key": "applicationIdempotencyKey",
 			"value": "00000000-0000-4000-8000-000000000001"
+		},
+		{
+			"key": "assessmentIdempotencyKey",
+			"value": "00000000-0000-4000-8000-000000000005"
 		},
 		{
 			"key": "withdrawalIdempotencyKey",

@@ -21,6 +21,8 @@ const applicationPublicRoutes = new Set([
   'POST /applications/:parameter/withdraw',
   'POST /applications/:parameter/accept',
   'POST /applications/:parameter/decline',
+  'POST /applications/:parameter/assessment-requests',
+  'GET /applications/:parameter/assessment',
 ]);
 
 function listControllerFiles(directory) {

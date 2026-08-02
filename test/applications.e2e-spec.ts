@@ -8,6 +8,7 @@ import * as request from 'supertest';
 
 import { ApplicationsController } from '../src/modules/applications/applications.controller';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
+import { AdvisoryFitAssessmentService } from '../src/modules/applications/services/advisory-fit-assessment.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import {
   ConflictApplicationError,
@@ -44,11 +45,18 @@ describe('Applications HTTP contract', () => {
     accept: jest.fn(),
     decline: jest.fn(),
   };
+  const assessmentService = {
+    request: jest.fn(),
+    getAssessment: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [ApplicationsController],
-      providers: [{ provide: ApplicationsService, useValue: service }],
+      providers: [
+        { provide: ApplicationsService, useValue: service },
+        { provide: AdvisoryFitAssessmentService, useValue: assessmentService },
+      ],
     })
       .overrideGuard(AccessTokenGuard)
       .useValue({
@@ -71,6 +79,28 @@ describe('Applications HTTP contract', () => {
     authenticated = true;
     authenticatedActor = contributor;
     jest.resetAllMocks();
+    assessmentService.request.mockResolvedValue({
+      id: applicationId,
+      applicationId,
+      requestStatus: 'COMPLETED',
+      fitBand: 'STRONG',
+      findings: [],
+      presentedAt: null,
+      requestedAt: '2026-08-02T12:00:00.000Z',
+      completedAt: '2026-08-02T12:00:01.000Z',
+      attempts: 1,
+    });
+    assessmentService.getAssessment.mockResolvedValue({
+      id: applicationId,
+      applicationId,
+      requestStatus: 'NOT_REQUESTED',
+      fitBand: null,
+      findings: [],
+      presentedAt: null,
+      requestedAt: null,
+      completedAt: null,
+      attempts: 0,
+    });
     service.submit.mockResolvedValue(applicationDto());
     service.listForOwner.mockResolvedValue({
       applications: [applicationDto()],
@@ -314,6 +344,44 @@ describe('Applications HTTP contract', () => {
     await request(app.getHttpServer())
       .get(`/applications/${applicationId}`)
       .expect(401);
+  });
+
+  it('requests and reads an owner-only Advisory Fit Assessment', async () => {
+    authenticatedActor = owner;
+
+    await request(app.getHttpServer())
+      .post(`/applications/${applicationId}/assessment-requests`)
+      .send({ idempotencyKey })
+      .expect(202)
+      .expect(({ body }) => {
+        expect(body.requestStatus).toBe('COMPLETED');
+        expect(body.fitBand).toBe('STRONG');
+      });
+
+    await request(app.getHttpServer())
+      .get(`/applications/${applicationId}/assessment`)
+      .expect(200)
+      .expect(({ body }) => expect(body.requestStatus).toBe('NOT_REQUESTED'));
+
+    expect(assessmentService.request).toHaveBeenCalledWith({
+      actor: owner,
+      applicationId,
+      idempotencyKey,
+    });
+    expect(assessmentService.getAssessment).toHaveBeenCalledWith(
+      owner,
+      applicationId,
+    );
+  });
+
+  it('validates the assessment idempotency key at the HTTP boundary', async () => {
+    authenticatedActor = owner;
+    await request(app.getHttpServer())
+      .post(`/applications/${applicationId}/assessment-requests`)
+      .send({ idempotencyKey: 'not-a-uuid' })
+      .expect(400);
+
+    expect(assessmentService.request).not.toHaveBeenCalled();
   });
 
   it.each([

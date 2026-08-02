@@ -154,6 +154,8 @@ email returns an error; use login for an existing test user.
 | `POST` | `/applications/:applicationId/withdraw` | Applying contributor + idempotency key | Withdraw a pending Application. |
 | `POST` | `/applications/:applicationId/accept` | Current Project owner + idempotency key | Accept and create an Assignment. |
 | `POST` | `/applications/:applicationId/decline` | Current Project owner + idempotency key | Decline with required feedback. |
+| `POST` | `/applications/:applicationId/assessment-requests` | Current Project owner + UUID body idempotency key | Request an advisory Fit Assessment from fixed Application snapshots. |
+| `GET` | `/applications/:applicationId/assessment` | Current Project owner | Read the advisory request, findings, fit band, and presentation time. |
 | `POST` | `/owner-decisions/:ownerDecisionId/reports` | Affected contributor bearer | Report explicit decline feedback. |
 
 ### Contributor Profiles
