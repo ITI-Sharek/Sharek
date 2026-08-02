@@ -7,6 +7,7 @@ ai.module.ts
 ai.service.ts
 dto/
 integrations/fastapi-skill-profile.client.ts
+integrations/advisory-fit.client.ts
 README.md
 ```
 
@@ -19,3 +20,9 @@ workflow always sends `role: "contributor"`.
 Provider keys, prompt execution, model orchestration, and Python AI tooling live
 in the FastAPI repository. Owning NestJS services apply deterministic policy and
 store audit snapshots.
+
+The Advisory Fit client sends fixed Application Requirement/Evidence Snapshots
+to the FastAPI assessment contract and validates the bounded result vocabulary.
+It returns provider metadata and findings to the Applications module; NestJS
+owns citation validation, fit-band derivation, persistence, presentation, and
+all workflow safety rules.

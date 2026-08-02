@@ -116,6 +116,52 @@ enum ApplicationAuditAction {
   expired
 }
 
+enum AssessmentRequestStatus {
+  requested
+  completed
+  not_started_system_limit
+  not_started_no_assessable_evidence
+  cancelled_not_needed
+  unavailable
+}
+
+enum AssessmentAttemptStatus {
+  completed
+  failed
+}
+
+enum AssessmentFindingKind {
+  supported
+  partially_supported
+  not_evidenced
+  inconclusive
+}
+
+enum AssessmentConfidence {
+  high
+  medium
+  low
+}
+
+enum AdvisoryFitBand {
+  strong
+  partial
+  limited
+  unknown
+  unavailable
+}
+
+enum AssessmentAuditAction {
+  requested
+  attempt_completed
+  attempt_failed
+  not_started_system_limit
+  not_started_no_assessable_evidence
+  cancelled_not_needed
+  unavailable
+  presented
+}
+
 enum OwnerDecisionType {
   accepted
   declined
@@ -367,6 +413,9 @@ model User {
   contributionProposalAudits        ContributionProposalAudit[]        @relation("ContributionProposalAuditActor")
   contributionProposalMisuseReports ContributionProposalMisuseReport[] @relation("ContributionProposalMisuseReporter")
   attributedContributionRequests    ContributionRequest[]              @relation("ContributionRequestAttributedContributor")
+  assessmentRequestsOwned            AssessmentRequest[]                 @relation("AssessmentRequestOwner")
+  assessmentPresentations            AssessmentPresentation[]            @relation("AssessmentPresentationOwner")
+  assessmentAuditEvents              AssessmentRequestAudit[]             @relation("AssessmentRequestAuditActor")
 }
 
 model AuthProviderAccount {
@@ -650,6 +699,7 @@ model ContributionRequest {
   deliveries            Delivery[]
   ownerDecisions        OwnerDecision[]
   assignments           Assignment[]
+  assessmentRequests    AssessmentRequest[]
 
   @@index([project_id, status])
   @@index([owner_id, created_at])
@@ -723,6 +773,7 @@ model Application {
   aiValidationResult  AiValidationResult?
   delivery            Delivery?
   skillGapGuidance    SkillGapGuidance?
+  assessmentRequests  AssessmentRequest[]
 
   @@unique([contribution_request_id, contributor_id])
   @@index([contribution_request_id, status, submitted_at])
@@ -739,6 +790,7 @@ model ApplicationRequirementSnapshot {
   created_at                DateTime @default(now())
 
   application Application?
+  assessmentRequests AssessmentRequest[]
 
   @@index([contribution_request_id])
 }
@@ -752,6 +804,7 @@ model ApplicationEvidenceSnapshot {
 
   contributor User         @relation("ApplicationEvidenceSnapshotContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
   application Application?
+  assessmentRequests AssessmentRequest[]
 
   @@index([contributor_id, created_at])
 }
@@ -773,6 +826,118 @@ model ApplicationAudit {
 
   @@unique([actor_id, action, idempotency_key])
   @@index([application_id, created_at])
+}
+
+model AssessmentRequest {
+  id                        String                  @id @default(uuid()) @db.Uuid
+  application_id            String                  @db.Uuid
+  contribution_request_id   String                  @db.Uuid
+  owner_id                  String                  @db.Uuid
+  requirement_snapshot_id   String                  @db.Uuid
+  evidence_snapshot_id      String                  @db.Uuid
+  status                    AssessmentRequestStatus @default(requested)
+  idempotency_key           String                  @db.VarChar(128)
+  command_fingerprint       String                  @db.Char(64)
+  requested_at              DateTime                @default(now())
+  completed_at              DateTime?
+  created_at                DateTime                @default(now())
+  updated_at                DateTime                @default(now()) @updatedAt
+
+  application             Application                    @relation(fields: [application_id], references: [id], onDelete: Restrict)
+  contributionRequest     ContributionRequest            @relation(fields: [contribution_request_id], references: [id], onDelete: Restrict)
+  owner                   User                           @relation("AssessmentRequestOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  requirementSnapshot     ApplicationRequirementSnapshot @relation(fields: [requirement_snapshot_id], references: [id], onDelete: Restrict)
+  evidenceSnapshot        ApplicationEvidenceSnapshot    @relation(fields: [evidence_snapshot_id], references: [id], onDelete: Restrict)
+  attempts                AssessmentAttempt[]
+  auditEvents             AssessmentRequestAudit[]
+
+  @@unique([owner_id, idempotency_key])
+  @@index([application_id, status, created_at])
+  @@index([contribution_request_id, created_at])
+}
+
+model AssessmentAttempt {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  assessment_request_id String                  @db.Uuid
+  attempt_number        Int
+  status                AssessmentAttemptStatus
+  provider              String?                 @db.VarChar(100)
+  model                 String?                 @db.VarChar(100)
+  prompt_version        String?                 @db.VarChar(100)
+  schema_version        String?                 @db.VarChar(100)
+  service_version       String?                 @db.VarChar(100)
+  latency_ms            Int?
+  input_tokens          Int?
+  output_tokens         Int?
+  error_code            String?                 @db.VarChar(100)
+  started_at            DateTime                @default(now())
+  completed_at          DateTime?
+  created_at            DateTime                @default(now())
+
+  assessmentRequest     AssessmentRequest       @relation(fields: [assessment_request_id], references: [id], onDelete: Restrict)
+  advisoryFitAssessment AdvisoryFitAssessment?
+
+  @@unique([assessment_request_id, attempt_number])
+  @@index([assessment_request_id, created_at])
+}
+
+model AdvisoryFitAssessment {
+  id                   String             @id @default(uuid()) @db.Uuid
+  assessment_attempt_id String            @unique @db.Uuid
+  fit_band             AdvisoryFitBand
+  created_at           DateTime           @default(now())
+
+  attempt       AssessmentAttempt       @relation(fields: [assessment_attempt_id], references: [id], onDelete: Restrict)
+  findings      AssessmentFinding[]
+  presentation  AssessmentPresentation?
+}
+
+model AssessmentFinding {
+  id                         String                         @id @default(uuid()) @db.Uuid
+  advisory_fit_assessment_id String                         @db.Uuid
+  requirement_id             String                         @db.Uuid
+  requirement_kind           ContributionRequestRequirementKind
+  finding                    AssessmentFindingKind
+  confidence                 AssessmentConfidence
+  citations                  Json
+  uncertainty                Json
+  explanation                String                         @db.VarChar(2000)
+  created_at                 DateTime                       @default(now())
+
+  assessment AdvisoryFitAssessment @relation(fields: [advisory_fit_assessment_id], references: [id], onDelete: Cascade)
+
+  @@unique([advisory_fit_assessment_id, requirement_id])
+  @@index([requirement_id])
+}
+
+model AssessmentPresentation {
+  id                         String   @id @default(uuid()) @db.Uuid
+  advisory_fit_assessment_id String   @unique @db.Uuid
+  owner_id                   String   @db.Uuid
+  presented_at               DateTime @default(now())
+
+  assessment AdvisoryFitAssessment @relation(fields: [advisory_fit_assessment_id], references: [id], onDelete: Restrict)
+  owner      User                 @relation("AssessmentPresentationOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+}
+
+model AssessmentRequestAudit {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  assessment_request_id String                  @db.Uuid
+  actor_id              String?                 @db.Uuid
+  action                AssessmentAuditAction
+  from_status           AssessmentRequestStatus?
+  to_status             AssessmentRequestStatus
+  attempt_number        Int?
+  idempotency_key       String?                 @db.VarChar(128)
+  command_fingerprint   String?                 @db.Char(64)
+  metadata              Json?
+  created_at            DateTime                @default(now())
+
+  assessmentRequest AssessmentRequest @relation(fields: [assessment_request_id], references: [id], onDelete: Restrict)
+  actor             User?             @relation("AssessmentRequestAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
+
+  @@unique([assessment_request_id, action, attempt_number])
+  @@index([assessment_request_id, created_at])
 }
 
 model OwnerDecision {

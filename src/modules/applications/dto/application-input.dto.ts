@@ -43,3 +43,8 @@ export class DeclineApplicationDto {
   @MaxLength(2000)
   feedback!: string;
 }
+
+export class RequestAssessmentDto {
+  @IsUUID('4')
+  idempotencyKey!: string;
+}

@@ -1270,6 +1270,41 @@ eligibility, contributor profile, sibling Application, or Assignment data.
 Queue retries, duplicate delivery, backend restarts, and a decision racing the
 expiry boundary are handled idempotently from PostgreSQL state.
 
+## Sprint 4 Advisory Fit Assessment (#53)
+
+The current Project owner can request one advisory assessment for a pending
+Application:
+
+```http
+POST /applications/:applicationId/assessment-requests
+Authorization: Bearer <owner-access-token>
+Content-Type: application/json
+
+{ "idempotencyKey": "00000000-0000-4000-8000-000000000005" }
+```
+
+The endpoint returns `202` with the persisted assessment projection. The
+request uses the Application's fixed Requirement and authorized Evidence
+Snapshots. Reusing the same owner/key replays the request; a different active
+request returns `ASSESSMENT_ALREADY_ACTIVE`. A terminal Application returns
+`APPLICATION_TERMINAL`.
+
+```http
+GET /applications/:applicationId/assessment
+Authorization: Bearer <owner-access-token>
+```
+
+The read returns `NOT_REQUESTED`, `REQUESTED`, `COMPLETED`,
+`NOT_STARTED_SYSTEM_LIMIT`, `NOT_STARTED_NO_ASSESSABLE_EVIDENCE`,
+`CANCELLED_NOT_NEEDED`, or `UNAVAILABLE`. Completed responses contain one
+validated finding per Requirement and a NestJS-derived `STRONG`, `PARTIAL`,
+`LIMITED`, or `UNKNOWN` fit band. Preferred Requirements never affect the band.
+Provider citations must be drawn from the supplied Evidence Snapshot; invalid
+coverage, citations, or vocabulary are stored as `UNAVAILABLE` rather than
+being shown as a valid assessment. First owner presentation is append-only.
+The assessment is advisory only and never hides, ranks, accepts, declines, or
+transitions an Application.
+
 ## Sprint 4 Contribution Proposals (#55)
 
 A Contribution Proposal is a private, contributor-authored suggestion of new

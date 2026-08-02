@@ -186,6 +186,16 @@ stored atomically; the reminder marker and owner notification are likewise
 atomic. The PostgreSQL migration harness validates the enum, null actor,
 marker, indexes, and representative system expiry audit.
 
+Migration `20260802120000_advisory_fit_assessments` adds the append-only
+`AssessmentRequest`, `AssessmentAttempt`, `AdvisoryFitAssessment`,
+`AssessmentFinding`, `AssessmentPresentation`, and `AssessmentRequestAudit`
+tables. Requests retain the owner/key fingerprint and fixed Application
+snapshot references. Attempts retain safe provider/model/prompt/schema/service
+metadata, while findings retain Requirement kind, finding/confidence vocabulary,
+citations, uncertainty, and explanation. Results are linked through the attempt
+and can be presented once by the owner; no Application lifecycle column is
+updated by assessment persistence.
+
 ## Vector Rules
 
 - Store embeddings for stable text snapshots, not constantly changing raw text.
