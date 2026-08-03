@@ -1286,7 +1286,11 @@ Content-Type: application/json
 The endpoint returns `202` with the persisted assessment projection. The
 request uses the Application's fixed Requirement and authorized Evidence
 Snapshots. Reusing the same owner/key replays the request; a different active
-request returns `ASSESSMENT_ALREADY_ACTIVE`. A terminal Application returns
+request returns `ASSESSMENT_ALREADY_ACTIVE`. A technical or invalid provider
+failure returns `UNAVAILABLE` with one immutable failed attempt. Repeating the
+POST with a new UUID idempotency key retries an unavailable request at most
+once; the new attempt links to the prior attempt and a further retry returns
+`ASSESSMENT_RETRY_LIMIT_REACHED`. A terminal Application returns
 `APPLICATION_TERMINAL`.
 
 ```http
@@ -1301,7 +1305,8 @@ validated finding per Requirement and a NestJS-derived `STRONG`, `PARTIAL`,
 `LIMITED`, or `UNKNOWN` fit band. Preferred Requirements never affect the band.
 Provider citations must be drawn from the supplied Evidence Snapshot; invalid
 coverage, citations, or vocabulary are stored as `UNAVAILABLE` rather than
-being shown as a valid assessment. First owner presentation is append-only.
+being shown as a valid assessment. First owner presentation is append-only and
+idempotent under concurrent reads.
 The assessment is advisory only and never hides, ranks, accepts, declines, or
 transitions an Application.
 

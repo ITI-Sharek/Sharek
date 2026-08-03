@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto';
-import { ApplicationStatus, ContributionRequestRequirementKind } from '@prisma/client';
+import {
+  ApplicationStatus,
+  ContributionRequestRequirementKind,
+  Prisma,
+} from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
+import { ApplicationError } from '../../../shared/errors/application.error';
 import { AdvisoryFitAssessmentService } from './advisory-fit-assessment.service';
 
 describe('AdvisoryFitAssessmentService', () => {
@@ -133,12 +138,13 @@ describe('AdvisoryFitAssessmentService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     assessmentAttempt: { create: jest.fn() },
     advisoryFitAssessment: { create: jest.fn() },
     assessmentFinding: { createMany: jest.fn() },
     assessmentRequestAudit: { create: jest.fn(), findFirst: jest.fn() },
-    assessmentPresentation: { create: jest.fn() },
+    assessmentPresentation: { create: jest.fn(), findUnique: jest.fn() },
   };
   const contributionTasks = {
     confirmOwnerDecisionActor: jest.fn(),
@@ -160,6 +166,7 @@ describe('AdvisoryFitAssessmentService', () => {
     database.assessmentRequest.findUnique.mockResolvedValue(null);
     database.assessmentRequest.findFirst.mockResolvedValue(null);
     database.assessmentRequestAudit.findFirst.mockResolvedValue(null);
+    database.assessmentRequest.updateMany.mockResolvedValue({ count: 1 });
     database.assessmentRequest.create.mockResolvedValue({
       ...completedRequest(),
       status: 'requested',
@@ -173,6 +180,7 @@ describe('AdvisoryFitAssessmentService', () => {
     database.advisoryFitAssessment.create.mockResolvedValue({ id: 'fit-1' });
     database.assessmentFinding.createMany.mockResolvedValue({ count: 2 });
     database.assessmentRequestAudit.create.mockResolvedValue({});
+    database.assessmentPresentation.findUnique.mockResolvedValue(null);
     contributionTasks.confirmOwnerDecisionActor.mockResolvedValue(undefined);
     contributionTasks.reconfirmOwnerDecisionActor.mockResolvedValue(undefined);
     advisoryFitClient.requestAdvisoryFit.mockResolvedValue(providerResult('SUPPORTED'));
@@ -241,6 +249,17 @@ describe('AdvisoryFitAssessmentService', () => {
     ).resolves.toMatchObject({ requestStatus: 'UNAVAILABLE', fitBand: 'UNAVAILABLE' });
     expect(database.advisoryFitAssessment.create).not.toHaveBeenCalled();
     expect(database.assessmentFinding.createMany).not.toHaveBeenCalled();
+    expect(database.assessmentAttempt.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'failed',
+          provider: 'deterministic-fake',
+          model: 'fixture-v1',
+          prompt_version: 'advisory-fit-v1',
+          error_code: 'AI_ADVISORY_FIT_RESPONSE_INVALID',
+        }),
+      }),
+    );
   });
 
   it.each([
@@ -283,6 +302,100 @@ describe('AdvisoryFitAssessmentService', () => {
       fitBand: null,
       findings: [],
     });
+    expect(database.assessmentAttempt.create).not.toHaveBeenCalled();
+  });
+
+  it('links a bounded technical retry to the prior immutable attempt', async () => {
+    advisoryFitClient.requestAdvisoryFit.mockRejectedValueOnce(
+      new ApplicationError(
+        'Advisory Fit service is unavailable',
+        'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE',
+      ),
+    );
+
+    await expect(
+      service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
+    ).resolves.toMatchObject({
+      requestStatus: 'UNAVAILABLE',
+      fitBand: 'UNAVAILABLE',
+      attempts: 1,
+    });
+
+    const firstAttemptId = '88888888-8888-4888-8888-888888888888';
+    const unavailableRequest = {
+      ...completedRequest(),
+      status: 'unavailable',
+      completed_at: new Date('2026-08-02T12:00:01.000Z'),
+      attempts: [
+        {
+          id: firstAttemptId,
+          attempt_number: 1,
+          status: 'failed',
+          advisoryFitAssessment: null,
+        },
+      ],
+    };
+    database.assessmentRequest.findFirst.mockResolvedValueOnce(unavailableRequest);
+    database.assessmentRequest.updateMany.mockResolvedValueOnce({ count: 1 });
+    advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(providerResult('SUPPORTED'));
+
+    const retryKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    await expect(
+      service.request({ actor: owner, applicationId, idempotencyKey: retryKey }),
+    ).resolves.toMatchObject({
+      requestStatus: 'COMPLETED',
+      fitBand: 'STRONG',
+      attempts: 2,
+    });
+
+    expect(database.assessmentAttempt.create).toHaveBeenCalledTimes(2);
+    expect(database.assessmentAttempt.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          attempt_number: 2,
+          retry_of_attempt_id: firstAttemptId,
+        }),
+      }),
+    );
+    expect(database.assessmentRequestAudit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'requested',
+          from_status: 'unavailable',
+          metadata: expect.objectContaining({ retry: true }),
+        }),
+      }),
+    );
+  });
+
+  it('rejects a technical retry after the bounded attempt budget is exhausted', async () => {
+    database.assessmentRequest.findFirst.mockResolvedValueOnce({
+      ...completedRequest(),
+      status: 'unavailable',
+      attempts: [
+        {
+          id: '88888888-8888-4888-8888-888888888888',
+          attempt_number: 2,
+          status: 'failed',
+          advisoryFitAssessment: null,
+        },
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          attempt_number: 1,
+          status: 'failed',
+          advisoryFitAssessment: null,
+        },
+      ],
+    });
+
+    await expect(
+      service.request({
+        actor: owner,
+        applicationId,
+        idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      }),
+    ).rejects.toMatchObject({ code: 'ASSESSMENT_RETRY_LIMIT_REACHED' });
+    expect(advisoryFitClient.requestAdvisoryFit).not.toHaveBeenCalled();
     expect(database.assessmentAttempt.create).not.toHaveBeenCalled();
   });
 
@@ -350,6 +463,29 @@ describe('AdvisoryFitAssessmentService', () => {
         }),
       }),
     );
+  });
+
+  it('returns the persisted first presentation when a concurrent read loses the uniqueness race', async () => {
+    database.assessmentRequest.findFirst.mockResolvedValueOnce(completedRequest());
+    database.assessmentPresentation.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('presentation already exists', {
+        code: 'P2002',
+        clientVersion: '6.1.0',
+      }),
+    );
+    const persistedPresentationAt = new Date('2026-08-02T12:05:00.000Z');
+    database.assessmentPresentation.findUnique.mockResolvedValueOnce({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      advisory_fit_assessment_id: '99999999-9999-4999-8999-999999999999',
+      owner_id: owner.id,
+      presented_at: persistedPresentationAt,
+    });
+
+    await expect(service.getAssessment(owner, applicationId)).resolves.toMatchObject({
+      requestStatus: 'COMPLETED',
+      presentedAt: persistedPresentationAt,
+    });
+    expect(database.assessmentRequestAudit.create).not.toHaveBeenCalled();
   });
 
 });

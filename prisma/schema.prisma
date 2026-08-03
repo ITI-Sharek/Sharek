@@ -859,6 +859,7 @@ model AssessmentRequest {
 model AssessmentAttempt {
   id                    String                  @id @default(uuid()) @db.Uuid
   assessment_request_id String                  @db.Uuid
+  retry_of_attempt_id   String?                 @db.Uuid
   attempt_number        Int
   status                AssessmentAttemptStatus
   provider              String?                 @db.VarChar(100)
@@ -875,9 +876,12 @@ model AssessmentAttempt {
   created_at            DateTime                @default(now())
 
   assessmentRequest     AssessmentRequest       @relation(fields: [assessment_request_id], references: [id], onDelete: Restrict)
+  retryOfAttempt        AssessmentAttempt?      @relation("AssessmentAttemptRetry", fields: [retry_of_attempt_id], references: [id], onDelete: Restrict)
+  retries               AssessmentAttempt[]     @relation("AssessmentAttemptRetry")
   advisoryFitAssessment AdvisoryFitAssessment?
 
   @@unique([assessment_request_id, attempt_number])
+  @@index([retry_of_attempt_id])
   @@index([assessment_request_id, created_at])
 }
 

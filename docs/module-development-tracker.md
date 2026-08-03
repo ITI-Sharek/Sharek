@@ -164,7 +164,7 @@ needs workflow code.
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
 | `contribution-tasks` | Implemented private drafts plus explicit publication, actionable public discovery/detail, owner-plan limits, cancellation, and immutable lifecycle audits | grouped protected/public controllers, focused draft/publication/discovery services, DTOs, mapper, tests, module README | owner decisions/assignment integration and later Proposal-created draft attribution | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
-| `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, and advisory Fit Assessment persistence | controller, services, DTOs, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
+| `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, and bounded advisory Fit Assessment attempts/presentation auditing | controller, services, DTOs, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
 | `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
@@ -2111,3 +2111,27 @@ This keeps the system strong without making it heavy:
 - Database/API impact: no migration and no browser-facing API change.
 - Verification: architecture check, lint, exact type-check, build, all 72
   backend Jest suites / 455 tests, Python compilation, and all 7 AI tests pass.
+
+## 2026-08-03 - Advisory Fit attempt and presentation auditing (#54)
+
+- Modules: `applications`, with the existing authenticated FastAPI contract
+  consumed through the exported `ai` facade.
+- Requirement/task IDs: Sprint 4 B08, GitHub issue #54, parent #46, and the
+  completed assessment foundation in #53.
+- Workflow: provider failures and invalid findings now append immutable failed
+  `AssessmentAttempt` rows with safe metadata. A new idempotency key may retry
+  an unavailable request once; each retry has an incremented attempt number and
+  a `retry_of_attempt_id` link, while conditional claims prevent concurrent
+  retries from duplicating provider work. Exhausted retries return
+  `ASSESSMENT_RETRY_LIMIT_REACHED` without changing Application or Owner
+  Decision state.
+- Presentation: the first authorized completed-assessment presentation is
+  recorded through the unique durable marker and append-only audit, with a
+  persisted-marker readback for concurrent uniqueness races. It is not a read
+  receipt.
+- Database/API documentation: added the retry-link migration and updated the
+  Prisma schema, Applications README, API contract, database plan, and module
+  dashboard.
+- Verification: architecture check, lint, exact type-check, Prisma generation
+  and validation, focused service/AI/HTTP tests, and the full 74-suite / 477
+  test Jest run pass.
