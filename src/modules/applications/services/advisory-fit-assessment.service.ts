@@ -60,6 +60,11 @@ type AssessmentRequestWithResults = Prisma.AssessmentRequestGetPayload<{
 
 const UUID4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_PROVIDER_ATTEMPTS = 2;
+const RETRYABLE_REQUEST_STATUSES = new Set<AssessmentRequestStatus>([
+  AssessmentRequestStatus.not_started_system_limit,
+  AssessmentRequestStatus.unavailable,
+]);
 
 @Injectable()
 export class AdvisoryFitAssessmentService {
@@ -144,7 +149,7 @@ export class AdvisoryFitAssessmentService {
         });
         if (
           existing &&
-          existing.status !== AssessmentRequestStatus.not_started_system_limit
+          !RETRYABLE_REQUEST_STATUSES.has(existing.status)
         ) {
           throw new ConflictApplicationError(
             'An Assessment Request is already active for this Application',
@@ -153,27 +158,53 @@ export class AdvisoryFitAssessmentService {
         }
 
         if (existing) {
-          const retried = await transaction.assessmentRequest.update({
-            where: { id: existing.id },
+          if (
+            existing.status === AssessmentRequestStatus.unavailable &&
+            existing.attempts.length >= MAX_PROVIDER_ATTEMPTS
+          ) {
+            throw new ConflictApplicationError(
+              'The Assessment Request has exhausted its retry budget',
+              'ASSESSMENT_RETRY_LIMIT_REACHED',
+            );
+          }
+          const retryClaim = await transaction.assessmentRequest.updateMany({
+            where: { id: existing.id, status: existing.status },
             data: {
               status: AssessmentRequestStatus.requested,
               completed_at: null,
             },
-            include: ASSESSMENT_REQUEST_INCLUDE,
           });
+          if (retryClaim.count !== 1) {
+            throw new ConflictApplicationError(
+              'The Assessment Request is already being retried',
+              'ASSESSMENT_RETRY_IN_PROGRESS',
+            );
+          }
           await transaction.assessmentRequestAudit.create({
             data: {
               assessment_request_id: existing.id,
               actor_id: input.actor.id,
               action: AssessmentAuditAction.requested,
-              from_status: AssessmentRequestStatus.not_started_system_limit,
+              from_status: existing.status,
               to_status: AssessmentRequestStatus.requested,
               idempotency_key: idempotencyKey,
               command_fingerprint: fingerprint,
-              metadata: { payloadVersion: 1, retry: true },
+              metadata: {
+                payloadVersion: 1,
+                retry: true,
+                previousAttemptId: existing.attempts[0]?.id ?? null,
+              },
             },
           });
-          return { application, request: retried, replay: false };
+          return {
+            application,
+            request: {
+              ...existing,
+              status: AssessmentRequestStatus.requested,
+              completed_at: null,
+            },
+            replay: false,
+          };
         }
 
         if (!application.requirement_snapshot_id || !application.evidence_snapshot_id) {
@@ -291,6 +322,10 @@ export class AdvisoryFitAssessmentService {
         });
       } catch (error) {
         if (!this.isUniqueViolation(error)) throw error;
+        const presentation = await this.database.assessmentPresentation.findUnique({
+          where: { advisory_fit_assessment_id: assessment.id },
+        });
+        return this.present(request, presentation?.presented_at ?? null);
       }
       return this.present(request, presentedAt);
     }
@@ -298,10 +333,13 @@ export class AdvisoryFitAssessmentService {
   }
 
   private async process(
-    request: Prisma.AssessmentRequestGetPayload<Record<string, never>>,
+    request: AssessmentRequestWithResults,
     application: AssessmentApplication,
     actorId: string,
   ): Promise<AdvisoryFitAssessmentDto> {
+    const attemptNumber = request.attempts.length + 1;
+    const previousAttemptId = request.attempts[0]?.id ?? null;
+    const attemptStartedAt = new Date();
     const currentApplication = await this.database.application.findUnique({
       where: { id: application.id },
       select: { status: true },
@@ -347,7 +385,14 @@ export class AdvisoryFitAssessmentService {
         contractVersion: 'advisory-fit-v1',
       });
     } catch (error) {
-      return this.persistUnavailable(request, actorId, this.safeErrorCode(error));
+      return this.persistUnavailable({
+        request,
+        actorId,
+        errorCode: this.safeErrorCode(error),
+        attemptNumber,
+        previousAttemptId,
+        startedAt: attemptStartedAt,
+      });
     }
 
     if (providerResult.kind === 'system_limit') {
@@ -380,11 +425,15 @@ export class AdvisoryFitAssessmentService {
         new Set(allowedEvidenceIds),
       );
     } catch {
-      return this.persistUnavailable(
+      return this.persistUnavailable({
         request,
         actorId,
-        'AI_ADVISORY_FIT_RESPONSE_INVALID',
-      );
+        errorCode: 'AI_ADVISORY_FIT_RESPONSE_INVALID',
+        providerResult,
+        attemptNumber,
+        previousAttemptId,
+        startedAt: attemptStartedAt,
+      });
     }
 
     const fitBand = this.deriveFitBand(findings);
@@ -396,7 +445,8 @@ export class AdvisoryFitAssessmentService {
         data: {
           id: attemptId,
           assessment_request_id: request.id,
-          attempt_number: 1,
+          retry_of_attempt_id: previousAttemptId,
+          attempt_number: attemptNumber,
           status: AssessmentAttemptStatus.completed,
           provider: providerResult.provider,
           model: providerResult.model,
@@ -406,7 +456,7 @@ export class AdvisoryFitAssessmentService {
           latency_ms: providerResult.latencyMs,
           input_tokens: providerResult.inputTokens,
           output_tokens: providerResult.outputTokens,
-          started_at: now,
+          started_at: attemptStartedAt,
           completed_at: now,
         },
       });
@@ -442,9 +492,16 @@ export class AdvisoryFitAssessmentService {
           assessment_request_id: request.id,
           actor_id: actorId,
           action: AssessmentAuditAction.attempt_completed,
+          from_status: AssessmentRequestStatus.requested,
           to_status: AssessmentRequestStatus.completed,
-          attempt_number: 1,
-          metadata: { payloadVersion: 1, assessmentId, fitBand },
+          attempt_number: attemptNumber,
+          metadata: {
+            payloadVersion: 1,
+            assessmentId,
+            fitBand,
+            retryOfAttemptId: previousAttemptId,
+            ...this.safeProviderMetadata(providerResult),
+          },
         },
       });
     });
@@ -458,30 +515,45 @@ export class AdvisoryFitAssessmentService {
       presentedAt: null,
       requestedAt: request.requested_at,
       completedAt: now,
-      attempts: 1,
+      attempts: attemptNumber,
     };
   }
 
   private async persistUnavailable(
-    request: Prisma.AssessmentRequestGetPayload<Record<string, never>>,
-    actorId: string,
-    errorCode: string,
+    input: {
+      request: AssessmentRequestWithResults;
+      actorId: string;
+      errorCode: string;
+      providerResult?: Extract<AdvisoryFitAssessmentResult, { kind: 'completed' }>;
+      attemptNumber: number;
+      previousAttemptId: string | null;
+      startedAt: Date;
+    },
   ): Promise<AdvisoryFitAssessmentDto> {
     const now = new Date();
     await this.database.$transaction(async (transaction) => {
       await transaction.assessmentAttempt.create({
         data: {
           id: randomUUID(),
-          assessment_request_id: request.id,
-          attempt_number: 1,
+          assessment_request_id: input.request.id,
+          retry_of_attempt_id: input.previousAttemptId,
+          attempt_number: input.attemptNumber,
           status: AssessmentAttemptStatus.failed,
-          error_code: errorCode,
-          started_at: now,
+          provider: input.providerResult?.provider,
+          model: input.providerResult?.model,
+          prompt_version: input.providerResult?.promptVersion,
+          schema_version: input.providerResult?.schemaVersion,
+          service_version: input.providerResult?.serviceVersion,
+          latency_ms: input.providerResult?.latencyMs,
+          input_tokens: input.providerResult?.inputTokens,
+          output_tokens: input.providerResult?.outputTokens,
+          error_code: input.errorCode,
+          started_at: input.startedAt,
           completed_at: now,
         },
       });
       await transaction.assessmentRequest.update({
-        where: { id: request.id },
+        where: { id: input.request.id },
         data: {
           status: AssessmentRequestStatus.unavailable,
           completed_at: now,
@@ -489,16 +561,42 @@ export class AdvisoryFitAssessmentService {
       });
       await transaction.assessmentRequestAudit.create({
         data: {
-          assessment_request_id: request.id,
-          actor_id: actorId,
-          action: AssessmentAuditAction.unavailable,
+          assessment_request_id: input.request.id,
+          actor_id: input.actorId,
+          action: AssessmentAuditAction.attempt_failed,
+          from_status: AssessmentRequestStatus.requested,
           to_status: AssessmentRequestStatus.unavailable,
-          attempt_number: 1,
-          metadata: { payloadVersion: 1, errorCode },
+          attempt_number: input.attemptNumber,
+          metadata: {
+            payloadVersion: 1,
+            errorCode: input.errorCode,
+            retryOfAttemptId: input.previousAttemptId,
+            ...this.safeProviderMetadata(input.providerResult),
+          },
+        },
+      });
+      await transaction.assessmentRequestAudit.create({
+        data: {
+          assessment_request_id: input.request.id,
+          actor_id: input.actorId,
+          action: AssessmentAuditAction.unavailable,
+          from_status: AssessmentRequestStatus.requested,
+          to_status: AssessmentRequestStatus.unavailable,
+          attempt_number: input.attemptNumber,
+          metadata: {
+            payloadVersion: 1,
+            errorCode: input.errorCode,
+            retryOfAttemptId: input.previousAttemptId,
+          },
         },
       });
     });
-    return this.presentStatusOnly(request, AssessmentRequestStatus.unavailable, now);
+    return this.presentStatusOnly(
+      input.request,
+      AssessmentRequestStatus.unavailable,
+      now,
+      input.attemptNumber,
+    );
   }
 
   private async finishWithoutAttempt(input: {
@@ -523,6 +621,7 @@ export class AdvisoryFitAssessmentService {
           assessment_request_id: input.requestId,
           actor_id: input.actorId,
           action: input.action,
+          from_status: AssessmentRequestStatus.requested,
           to_status: input.status,
           metadata: { payloadVersion: 1 },
         },
@@ -652,6 +751,7 @@ export class AdvisoryFitAssessmentService {
     request: Prisma.AssessmentRequestGetPayload<Record<string, never>>,
     status: AssessmentRequestStatus,
     completedAt: Date | null = null,
+    attempts = 0,
   ): AdvisoryFitAssessmentDto {
     return {
       id: request.id,
@@ -662,7 +762,7 @@ export class AdvisoryFitAssessmentService {
       presentedAt: null,
       requestedAt: request.requested_at,
       completedAt,
-      attempts: 0,
+      attempts,
     };
   }
 
@@ -776,7 +876,29 @@ export class AdvisoryFitAssessmentService {
   }
 
   private safeErrorCode(error: unknown): string {
-    return error instanceof ApplicationError ? error.code : 'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE';
+    const code =
+      error instanceof ApplicationError
+        ? error.code
+        : 'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE';
+    return /^[A-Z0-9_]{1,100}$/.test(code)
+      ? code
+      : 'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE';
+  }
+
+  private safeProviderMetadata(
+    result?: Extract<AdvisoryFitAssessmentResult, { kind: 'completed' }>,
+  ): Record<string, unknown> {
+    if (!result) return {};
+    return {
+      provider: result.provider,
+      model: result.model,
+      promptVersion: result.promptVersion,
+      schemaVersion: result.schemaVersion,
+      serviceVersion: result.serviceVersion,
+      ...(result.latencyMs === undefined ? {} : { latencyMs: result.latencyMs }),
+      ...(result.inputTokens === undefined ? {} : { inputTokens: result.inputTokens }),
+      ...(result.outputTokens === undefined ? {} : { outputTokens: result.outputTokens }),
+    };
   }
 
   private isUniqueViolation(error: unknown): boolean {

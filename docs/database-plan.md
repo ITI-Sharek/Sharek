@@ -191,10 +191,11 @@ Migration `20260802120000_advisory_fit_assessments` adds the append-only
 `AssessmentFinding`, `AssessmentPresentation`, and `AssessmentRequestAudit`
 tables. Requests retain the owner/key fingerprint and fixed Application
 snapshot references. Attempts retain safe provider/model/prompt/schema/service
-metadata, while findings retain Requirement kind, finding/confidence vocabulary,
-citations, uncertainty, and explanation. Results are linked through the attempt
-and can be presented once by the owner; no Application lifecycle column is
-updated by assessment persistence.
+metadata, remain append-only, and link to the prior attempt for a bounded
+technical retry. Findings retain Requirement kind, finding/confidence
+vocabulary, citations, uncertainty, and explanation. Results are linked
+through the attempt and can be presented once by the owner; no Application
+lifecycle column is updated by assessment persistence.
 
 ## Vector Rules
 

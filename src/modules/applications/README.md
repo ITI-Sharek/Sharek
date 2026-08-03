@@ -163,9 +163,14 @@ attempt and append-only audit rows. NestJS derives `STRONG`, `PARTIAL`,
 `LIMITED`, or `UNKNOWN`; Preferred Requirements never change the band.
 
 System limits and missing evidence do not create attempts. Terminal races are
-recorded as `CANCELLED_NOT_NEEDED`, provider failures or invalid responses as
-`UNAVAILABLE`, and no assessment result changes Application state, visibility,
-owner decisions, Assignments, or contributor eligibility.
+recorded as `CANCELLED_NOT_NEEDED`. Provider failures or invalid responses
+append an immutable failed attempt with safe provider metadata and return
+`UNAVAILABLE`; a new idempotency key may retry that request once, with the
+retry linked to the prior attempt, after which `ASSESSMENT_RETRY_LIMIT_REACHED`
+is returned. No assessment result changes Application state, visibility, owner
+decisions, Assignments, or contributor eligibility. The first authorized owner
+presentation is protected by a unique durable marker and is audited exactly
+once, including when concurrent reads race.
 
 Focused verification:
 
