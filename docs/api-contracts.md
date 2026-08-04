@@ -1293,6 +1293,12 @@ once; the new attempt links to the prior attempt and a further retry returns
 `ASSESSMENT_RETRY_LIMIT_REACHED`. A terminal Application returns
 `APPLICATION_TERMINAL`.
 
+Every assessment projection includes `attempts` and the server-derived
+`retryAvailable` boolean. `retryAvailable` becomes true after the first
+`UNAVAILABLE` provider attempt and for `NOT_STARTED_SYSTEM_LIMIT`, and false
+after the single provider retry has been consumed. Clients must use this value
+instead of duplicating the backend retry limit.
+
 ```http
 GET /applications/:applicationId/assessment
 Authorization: Bearer <owner-access-token>

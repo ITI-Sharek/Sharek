@@ -73,7 +73,13 @@ export const envValidationSchema = Joi.object({
   AI_SERVICE_URL: Joi.string().uri().default('http://localhost:8010'),
   AI_SERVICE_TIMEOUT_MS: Joi.number().integer().min(100).default(60000),
   AI_ADVISORY_FIT_PATH: Joi.string().pattern(/^\/[a-zA-Z0-9/_-]+$/).default('/advisory-fit/assess'),
-  AI_ADVISORY_FIT_TIMEOUT_MS: Joi.number().integer().min(100).default(10000),
+  // FastAPI allows up to 60 seconds for the provider call; leave network
+  // overhead before NestJS converts a slow but valid response into UNAVAILABLE.
+  AI_ADVISORY_FIT_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120_000)
+    .default(75_000),
   AI_SERVICE_AUTH_TOKEN: Joi.string()
     .min(32)
     .when('NODE_ENV', {

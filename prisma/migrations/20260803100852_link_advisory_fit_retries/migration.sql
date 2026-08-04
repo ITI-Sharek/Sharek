@@ -1,0 +1,5 @@
+-- RenameIndex
+ALTER INDEX "AssessmentRequestAudit_assessment_request_id_action_attempt_num" RENAME TO "AssessmentRequestAudit_assessment_request_id_action_attempt_key";
+
+-- RenameIndex
+ALTER INDEX "ContributionRequestRequirement_contribution_request_id_kind_pos" RENAME TO "ContributionRequestRequirement_contribution_request_id_kind_key";

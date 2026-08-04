@@ -38,4 +38,5 @@ export interface AdvisoryFitAssessmentDto {
   requestedAt: Date | null;
   completedAt: Date | null;
   attempts: number;
+  retryAvailable: boolean;
 }
