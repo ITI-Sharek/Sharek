@@ -25,7 +25,7 @@ export class AdvisoryFitClient {
     );
     const timeoutMs = this.config.get<number>(
       'AI_ADVISORY_FIT_TIMEOUT_MS',
-      10000,
+      75_000,
     );
     const authToken = this.config.get<string>('AI_SERVICE_AUTH_TOKEN', '');
     const controller = new AbortController();

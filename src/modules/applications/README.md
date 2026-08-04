@@ -167,7 +167,9 @@ recorded as `CANCELLED_NOT_NEEDED`. Provider failures or invalid responses
 append an immutable failed attempt with safe provider metadata and return
 `UNAVAILABLE`; a new idempotency key may retry that request once, with the
 retry linked to the prior attempt, after which `ASSESSMENT_RETRY_LIMIT_REACHED`
-is returned. No assessment result changes Application state, visibility, owner
+is returned. Assessment projections expose `retryAvailable`, so clients do not
+duplicate the bounded-attempt policy or offer an exhausted retry. No assessment
+result changes Application state, visibility, owner
 decisions, Assignments, or contributor eligibility. The first authorized owner
 presentation is protected by a unique durable marker and is audited exactly
 once, including when concurrent reads race.

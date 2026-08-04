@@ -26,3 +26,8 @@ to the FastAPI assessment contract and validates the bounded result vocabulary.
 It returns provider metadata and findings to the Applications module; NestJS
 owns citation validation, fit-band derivation, persistence, presentation, and
 all workflow safety rules.
+
+The Advisory Fit timeout defaults to `75000` ms. FastAPI allows up to 60 seconds
+for the provider call, so the backend keeps a short network-overhead margin
+before recording a technical `UNAVAILABLE` result. Override it with
+`AI_ADVISORY_FIT_TIMEOUT_MS` when deploying a provider with a different budget.

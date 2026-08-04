@@ -20,6 +20,7 @@ describe('environment validation', () => {
       APPLICATION_REVIEW_QUEUE_ENABLED: true,
       APPLICATION_REVIEW_SWEEP_INTERVAL_MS: 60_000,
       APPLICATION_REVIEW_SWEEP_BATCH_SIZE: 100,
+      AI_ADVISORY_FIT_TIMEOUT_MS: 75_000,
     });
   });
 

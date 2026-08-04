@@ -2135,3 +2135,34 @@ This keeps the system strong without making it heavy:
 - Verification: architecture check, lint, exact type-check, Prisma generation
   and validation, focused service/AI/HTTP tests, and the full 74-suite / 477
   test Jest run pass.
+
+## 2026-08-03 - Advisory Fit retry recovery contract
+
+- Modules: backend `applications` and frontend `contribution-requests`.
+- Requirement/task: follow-up to Sprint 4 Advisory Fit issues #53/#54 so an
+  owner can recover visibly when the first provider attempt is unavailable.
+- Backend contract: every assessment projection now returns the derived
+  `retryAvailable` flag. It is true for a temporary system limit and after the
+  first unavailable provider attempt, then false after the one allowed provider
+  retry. Existing immutable attempts, retry linkage, idempotency, concurrency
+  claims, and `ASSESSMENT_RETRY_LIMIT_REACHED` enforcement are unchanged.
+- Frontend recovery: the retry button follows `retryAvailable`, exhausted
+  requests show neutral explanatory copy without another button, stable retry
+  conflict codes have specific Arabic copy, and ambiguous POST failures trigger
+  a GET refresh while preserving the idempotency key for safe replay.
+- Database/migration impact: none. The pre-existing retry-attempt persistence
+  model is unchanged.
+- Verification: all 74 backend suites / 478 tests and all 58 frontend suites /
+  305 tests pass. Backend architecture check, backend/frontend lint, exact
+  type-checks, production builds, the Docker watch compilation, and the live
+  backend health check also pass.
+
+## 2026-08-03 - Advisory Fit provider timeout margin
+
+- Modules: backend `ai` integration and Advisory Fit configuration.
+- Diagnosis: a real `UNAVAILABLE` response completed exactly at the previous
+  10-second NestJS Advisory Fit timeout, while FastAPI permits a 60-second
+  provider call. This converted slow valid provider responses into failed
+  assessment attempts before the AI service could respond.
+- Change: raised the bounded default to 75 seconds, validated it, forwarded it
+  through Docker Compose, and documented `AI_ADVISORY_FIT_TIMEOUT_MS`.

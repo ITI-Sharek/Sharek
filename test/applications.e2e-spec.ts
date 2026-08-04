@@ -89,6 +89,7 @@ describe('Applications HTTP contract', () => {
       requestedAt: '2026-08-02T12:00:00.000Z',
       completedAt: '2026-08-02T12:00:01.000Z',
       attempts: 1,
+      retryAvailable: false,
     });
     assessmentService.getAssessment.mockResolvedValue({
       id: applicationId,
@@ -100,6 +101,7 @@ describe('Applications HTTP contract', () => {
       requestedAt: null,
       completedAt: null,
       attempts: 0,
+      retryAvailable: false,
     });
     service.submit.mockResolvedValue(applicationDto());
     service.listForOwner.mockResolvedValue({
@@ -356,12 +358,16 @@ describe('Applications HTTP contract', () => {
       .expect(({ body }) => {
         expect(body.requestStatus).toBe('COMPLETED');
         expect(body.fitBand).toBe('STRONG');
+        expect(body.retryAvailable).toBe(false);
       });
 
     await request(app.getHttpServer())
       .get(`/applications/${applicationId}/assessment`)
       .expect(200)
-      .expect(({ body }) => expect(body.requestStatus).toBe('NOT_REQUESTED'));
+      .expect(({ body }) => {
+        expect(body.requestStatus).toBe('NOT_REQUESTED');
+        expect(body.retryAvailable).toBe(false);
+      });
 
     expect(assessmentService.request).toHaveBeenCalledWith({
       actor: owner,

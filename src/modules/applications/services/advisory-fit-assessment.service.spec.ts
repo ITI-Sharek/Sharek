@@ -319,6 +319,7 @@ describe('AdvisoryFitAssessmentService', () => {
       requestStatus: 'UNAVAILABLE',
       fitBand: 'UNAVAILABLE',
       attempts: 1,
+      retryAvailable: true,
     });
 
     const firstAttemptId = '88888888-8888-4888-8888-888888888888';
@@ -346,6 +347,7 @@ describe('AdvisoryFitAssessmentService', () => {
       requestStatus: 'COMPLETED',
       fitBand: 'STRONG',
       attempts: 2,
+      retryAvailable: false,
     });
 
     expect(database.assessmentAttempt.create).toHaveBeenCalledTimes(2);
@@ -397,6 +399,33 @@ describe('AdvisoryFitAssessmentService', () => {
     ).rejects.toMatchObject({ code: 'ASSESSMENT_RETRY_LIMIT_REACHED' });
     expect(advisoryFitClient.requestAdvisoryFit).not.toHaveBeenCalled();
     expect(database.assessmentAttempt.create).not.toHaveBeenCalled();
+  });
+
+  it('presents an exhausted unavailable request without another retry', async () => {
+    database.assessmentRequest.findFirst.mockResolvedValueOnce({
+      ...completedRequest(),
+      status: 'unavailable',
+      attempts: [
+        {
+          id: '88888888-8888-4888-8888-888888888888',
+          attempt_number: 2,
+          status: 'failed',
+          advisoryFitAssessment: null,
+        },
+        {
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          attempt_number: 1,
+          status: 'failed',
+          advisoryFitAssessment: null,
+        },
+      ],
+    });
+
+    await expect(service.getAssessment(owner, applicationId)).resolves.toMatchObject({
+      requestStatus: 'UNAVAILABLE',
+      attempts: 2,
+      retryAvailable: false,
+    });
   });
 
   it.each([

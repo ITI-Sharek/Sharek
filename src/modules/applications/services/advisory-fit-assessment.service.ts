@@ -516,6 +516,7 @@ export class AdvisoryFitAssessmentService {
       requestedAt: request.requested_at,
       completedAt: now,
       attempts: attemptNumber,
+      retryAvailable: false,
     };
   }
 
@@ -730,6 +731,7 @@ export class AdvisoryFitAssessmentService {
     const attempt = 'attempts' in request ? request.attempts[0] : undefined;
     const assessment = attempt?.advisoryFitAssessment;
     const status = request.status as AssessmentRequestStatus;
+    const attempts = 'attempts' in request ? request.attempts.length : 0;
     return {
       id: request.id,
       applicationId: request.application_id,
@@ -743,7 +745,8 @@ export class AdvisoryFitAssessmentService {
       presentedAt: assessment?.presentation?.presented_at ?? presentedAtOverride,
       requestedAt: request.requested_at,
       completedAt: request.completed_at,
-      attempts: 'attempts' in request ? request.attempts.length : 0,
+      attempts,
+      retryAvailable: this.isRetryAvailable(status, attempts),
     };
   }
 
@@ -763,6 +766,7 @@ export class AdvisoryFitAssessmentService {
       requestedAt: request.requested_at,
       completedAt,
       attempts,
+      retryAvailable: this.isRetryAvailable(status, attempts),
     };
   }
 
@@ -777,6 +781,7 @@ export class AdvisoryFitAssessmentService {
       requestedAt: null,
       completedAt: null,
       attempts: 0,
+      retryAvailable: false,
     };
   }
 
@@ -795,6 +800,17 @@ export class AdvisoryFitAssessmentService {
 
   private presentRequestStatus(status: AssessmentRequestStatus): AssessmentRequestStatusDto {
     return status.toUpperCase() as AssessmentRequestStatusDto;
+  }
+
+  private isRetryAvailable(
+    status: AssessmentRequestStatus,
+    attempts: number,
+  ): boolean {
+    return (
+      status === AssessmentRequestStatus.not_started_system_limit ||
+      (status === AssessmentRequestStatus.unavailable &&
+        attempts < MAX_PROVIDER_ATTEMPTS)
+    );
   }
 
   private assertPendingApplication(status: ApplicationStatus): void {
