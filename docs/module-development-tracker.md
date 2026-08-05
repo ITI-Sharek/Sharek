@@ -2166,3 +2166,27 @@ This keeps the system strong without making it heavy:
   assessment attempts before the AI service could respond.
 - Change: raised the bounded default to 75 seconds, validated it, forwarded it
   through Docker Compose, and documented `AI_ADVISORY_FIT_TIMEOUT_MS`.
+
+## 2026-08-05 - Sprint 4 core release gate (S4-B11 / #57)
+
+- Scope: verified Project/Contribution Request publication, Application
+  submission and human decision, optional non-gating Advisory Fit, and private
+  Proposal revision/acceptance into an attributed owner draft across Backend,
+  Frontend, and AI contracts.
+- Release evidence: added immutable camel-case Advisory Fit request/response
+  fixtures, a cross-repository contract verifier, and a documented deterministic
+  demo mapped to the existing HTTP/service/UI contract suites.
+- Gate defect: canonical `AI_Agents/main` lacked the Advisory Fit endpoint. A
+  clean prerequisite delivery was separated from the accumulated feature branch
+  as AI PR #7; B11 remains merge-blocked until that PR is reviewed, merged, and
+  the verifier is rerun at the merged AI revision.
+- Authorization/privacy: confirmed owner/contributor boundaries, immediate
+  owner visibility independent of assessment state, private Proposal history,
+  bearer-authenticated AI access, citation allowlisting, and attribution without
+  Assignment or selection priority.
+- API/database: no backend route, response, or schema change. Existing Sprint 4
+  migrations remain authoritative and are exercised by the migration harness.
+- Verification: cross-repository fixture verifier, focused core Jest replay,
+  Prisma generation/validation, architecture, lint, exact type-check, full Jest,
+  API-client inventory, migration harness, build, full Frontend gates, and the
+  clean AI prerequisite's pytest/compile gates.
