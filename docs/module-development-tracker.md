@@ -2166,3 +2166,42 @@ This keeps the system strong without making it heavy:
   assessment attempts before the AI service could respond.
 - Change: raised the bounded default to 75 seconds, validated it, forwarded it
   through Docker Compose, and documented `AI_ADVISORY_FIT_TIMEOUT_MS`.
+
+## 2026-08-05 - Sprint 4 core release gate (S4-B11 / #57)
+
+- Scope: verified Project/Contribution Request publication, Application
+  submission and human decision, optional non-gating Advisory Fit, and private
+  Proposal revision/acceptance into an attributed owner draft across Backend,
+  Frontend, and AI contracts.
+- Release evidence: added immutable camel-case Advisory Fit request/response
+  fixtures and a required CI gate that machine-runs eight named Backend
+  HTTP/service suites. Cross-repository mode additionally verifies clean exact
+  reviewed SHAs and default-branch ancestry, runs six named Frontend suites,
+  validates the fixtures with the actual FastAPI schemas, and runs AI HTTP tests.
+- Gate prerequisite: AI PR #7 merged to `AI_Agents/main` at
+  `1fa196a13aeb6cc5477e48017b7d15a7b6aa46c1`. The cross-repository verifier was
+  rerun against that clean merged revision and Frontend `master`; Backend passed
+  152/152 named tests, Frontend passed 40/40, and AI passed 26/26 plus real
+  Pydantic fixture validation.
+- Authorization/privacy: confirmed owner/contributor boundaries, immediate
+  owner visibility independent of assessment state, private Proposal history,
+  bearer-authenticated AI access, citation allowlisting, and attribution without
+  Assignment or selection priority.
+- API/database: no browser route or database schema change. The internal AI
+  request now replaces opaque skill records with bounded evidence capsules and
+  exact evidence-ID allowlisting. Existing Sprint 4 migrations remain
+  authoritative and are exercised by the migration harness.
+- Runtime evidence: a fresh pgvector PostgreSQL 16 environment deployed all 30
+  migrations, then a real NestJS/Redis HTTP sequence passed 22 sanitized steps:
+  publish/discover, immediate Application visibility, optional non-blocking
+  no-evidence Advisory Fit, independent accept and decline decisions, Proposal
+  revision/version/acceptance, and attributed draft completion/publication.
+  The run exposed and closed a Prisma `P2010` caused by deserializing the `void`
+  result of `pg_advisory_xact_lock`; the query now returns a supported text cast,
+  with 26/26 focused Proposal service tests passing.
+- Verification: cross-repository fixture verifier, focused core Jest replay,
+  Prisma generation/validation, architecture, lint, exact type-check, full Jest,
+  API-client inventory, migration harness, build, full Frontend gates, and the
+  clean AI prerequisite's pytest/compile gates, and the dated real-process HTTP
+  evidence under `docs/release-gates/`. B11 is ready to merge once final PR #69
+  CI passes; Materials remains gated until #57 closes through that merge.

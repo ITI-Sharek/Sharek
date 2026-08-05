@@ -51,6 +51,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Verify Sprint 4 core contracts
+        run: npm run test:release-gate:s4-core
+
       - name: Test
         run: npm test -- --runInBand
 

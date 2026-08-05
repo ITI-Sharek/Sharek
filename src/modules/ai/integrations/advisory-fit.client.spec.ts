@@ -1,16 +1,20 @@
 import { ConfigService } from '@nestjs/config';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { AdvisoryFitAssessmentInput } from '../dto/advisory-fit-assessment.dto';
 import { AdvisoryFitClient } from './advisory-fit.client';
 
-const input: AdvisoryFitAssessmentInput = {
-  assessmentRequestId: 'assessment-1',
-  requirements: [{ id: 'requirement-1', kind: 'required', text: 'NestJS' }],
-  evidence: [{ evidenceId: 'github:evidence-1', summary: 'NestJS API work' }],
-  allowedEvidenceIds: ['github:evidence-1'],
-  requestedAt: '2026-08-02T12:00:00.000Z',
-  contractVersion: 'advisory-fit-v1',
-};
+const fixtureRoot = join(
+  __dirname,
+  '../../../../test/fixtures/sprint4-core',
+);
+const input = JSON.parse(
+  readFileSync(join(fixtureRoot, 'advisory-fit-request.json'), 'utf8'),
+) as AdvisoryFitAssessmentInput;
+const completedFixture = JSON.parse(
+  readFileSync(join(fixtureRoot, 'advisory-fit-response.json'), 'utf8'),
+) as unknown;
 
 describe('AdvisoryFitClient', () => {
   const originalFetch = global.fetch;
@@ -35,33 +39,21 @@ describe('AdvisoryFitClient', () => {
 
   it('sends fixed snapshots to the authenticated FastAPI advisory endpoint', async () => {
     jest.mocked(global.fetch).mockResolvedValueOnce(
-      responseWith({
-        status: 'COMPLETED',
-        findings: [
-          {
-            requirementId: 'requirement-1',
-            requirementKind: 'required',
-            finding: 'SUPPORTED',
-            confidence: 'HIGH',
-            citations: ['github:evidence-1'],
-            uncertainty: [],
-            explanation: 'The supplied evidence supports the Requirement.',
-          },
-        ],
-        metadata: {
-          provider: 'deterministic-fake',
-          model: 'fixture-v1',
-          promptVersion: 'advisory-fit-v1',
-          schemaVersion: '1',
-          serviceVersion: 'test',
-        },
-      }),
+      responseWith(completedFixture),
     );
 
-    await expect(client.assess(input)).resolves.toMatchObject({
-      kind: 'completed',
-      findings: [{ requirementId: 'requirement-1', finding: 'SUPPORTED' }],
-    });
+    const result = await client.assess(input);
+    expect(result.kind).toBe('completed');
+    if (result.kind === 'completed') {
+      expect(result.findings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+          requirementId: '00000000-0000-4000-8000-000000000101',
+          finding: 'SUPPORTED',
+          }),
+        ]),
+      );
+    }
     const [url, options] = jest.mocked(global.fetch).mock.calls[0];
     expect(url).toBe('http://ai-service/advisory-fit/assess');
     expect(options?.headers).toMatchObject({
@@ -105,6 +97,25 @@ describe('AdvisoryFitClient', () => {
       code: 'AI_ADVISORY_FIT_RESPONSE_INVALID',
     });
   });
+
+  it.each(['missing', 'duplicate', 'unknown'])(
+    'rejects %s Requirement IDs at the HTTP boundary',
+    async (mode) => {
+      const payload = structuredClone(completedFixture) as {
+        findings: Array<Record<string, unknown>>;
+      };
+      if (mode === 'missing') payload.findings.pop();
+      if (mode === 'duplicate') {
+        payload.findings[1].requirementId = payload.findings[0].requirementId;
+      }
+      if (mode === 'unknown') payload.findings[1].requirementId = 'unknown';
+      jest.mocked(global.fetch).mockResolvedValueOnce(responseWith(payload));
+
+      await expect(client.assess(input)).rejects.toMatchObject({
+        code: 'AI_ADVISORY_FIT_RESPONSE_INVALID',
+      });
+    },
+  );
 });
 
 function responseWith(payload: unknown): Response {
