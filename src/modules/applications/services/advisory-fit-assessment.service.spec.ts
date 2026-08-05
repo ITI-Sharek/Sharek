@@ -206,7 +206,13 @@ describe('AdvisoryFitAssessmentService', () => {
       expect.objectContaining({
         assessmentRequestId: assessmentId,
         requirements: application().requirementSnapshot.requirements,
-        evidence: application().evidenceSnapshot.evidence,
+        evidence: [
+          {
+            evidenceId: 'github:evidence-1',
+            type: 'approved_skill',
+            label: 'NestJS',
+          },
+        ],
         allowedEvidenceIds: ['github:evidence-1'],
       }),
     );

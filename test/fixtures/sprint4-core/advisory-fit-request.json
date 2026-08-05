@@ -17,7 +17,8 @@
   "evidence": [
     {
       "evidenceId": "github:core-gate-1",
-      "type": "github_repository",
+      "type": "approved_skill",
+      "label": "NestJS",
       "summary": "Authorized deterministic release-gate evidence"
     }
   ],

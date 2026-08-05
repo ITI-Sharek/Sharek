@@ -10,18 +10,20 @@ release remains **merge-blocked** until the AI prerequisite PR is merged into
 | --- | --- | --- |
 | `ITI-Sharek/Sharek` | `869fe477d9291e268c326900ef9b8f44fdbc2ffa` plus this gate change | B11 PR pending |
 | `ITI-Sharek/Frontend` | `fa870f79878a742fc3c25c691dbd078a11cd90a8` | merged to `master` |
-| `ITI-Sharek/AI_Agents` | `7b1943c5adc77ccd4fe079c56bda3d92dfe47eaa` | PR #7 pending against `main` |
+| `ITI-Sharek/AI_Agents` | `e8235c8d748cf0aa2be95b13886d3e4c4a34fab4` | PR #7 pending against `main` |
 
 The earlier remote AI feature branch was not used as release evidence because
 it contained unrelated accumulated work. PR #7 is a clean delivery from the
 canonical default branch and is the exact AI revision verified here.
 
-## Automated Demo Exercise
+## Deterministic Contract Gate
 
-The exercise uses controller-level Supertest contracts, real owning services
-with deterministic persistence fakes, controlled clocks, immutable contract
-fixtures, and frontend/AI boundary tests. It intentionally makes no paid model
-call and does not treat a live provider as release authority.
+This is not presented as a sequential browser E2E demo. The required CI command
+machine-runs eight named Backend HTTP/service suites. Cross-repository mode also
+runs six named Frontend suites, validates the exact shared fixtures through the
+real FastAPI Pydantic request/result schemas, and runs the AI HTTP contract
+suite. It uses controlled clocks and deterministic providers, makes no paid
+model call, and does not treat a live provider as release authority.
 
 1. Owner creates a draft Contribution Request, publishes it explicitly, and
    the public discovery service returns Required and Preferred Requirements.
@@ -45,29 +47,33 @@ call and does not treat a live provider as release authority.
    attribution while the Frontend explicitly distinguishes attribution from
    Assignment and priority.
 
-The fixture pair under `test/fixtures/sprint4-core/` is shared release evidence
-for the NestJS-to-FastAPI camel-case contract. The verifier rejects missing
-routes, unauthorized citations, changed Requirement classification, incomplete
-coverage, and prohibited decision-authority fields.
+The fixture pair under `test/fixtures/sprint4-core/` is loaded by the real
+NestJS client test and cross-repository FastAPI schema validation. Structural
+validation rejects extra fields, unbounded or opaque evidence, allowlist drift,
+unauthorized citations, changed Requirement classification, incomplete or
+duplicate coverage, and prohibited decision-authority fields.
+
+## Manual Demo Evidence
+
+No manual browser/runtime demo is claimed by the deterministic contract gate.
+Before merge, an operator must record a dated run against the merged default
+branches covering the seven steps above, with the deployed/local URLs, actor
+accounts used (identifiers only, no credentials), resulting Request/Application/
+Proposal IDs, and screenshots or sanitized HTTP transcripts. Current status:
+**pending after AI PR #7 merges**. This is an explicit merge condition, not an
+automated-test result.
 
 ## Commands
 
 From the backend checkout:
 
 ```bash
-SHAREK_FRONTEND_ROOT=/path/to/Frontend \
-SHAREK_AI_ROOT=/path/to/AI_Agents \
 npm run test:release-gate:s4-core
 
-npx jest --runInBand \
-  test/contribution-requests.e2e-spec.ts \
-  test/contribution-request-public-lifecycle.e2e-spec.ts \
-  test/applications.e2e-spec.ts \
-  test/contribution-proposals.e2e-spec.ts \
-  src/modules/applications/applications.service.spec.ts \
-  src/modules/applications/services/advisory-fit-assessment.service.spec.ts \
-  src/modules/ai/integrations/advisory-fit.client.spec.ts \
-  src/modules/contribution-proposals/contribution-proposals.service.spec.ts
+SHAREK_FRONTEND_ROOT=/path/to/clean/Frontend \
+SHAREK_AI_ROOT=/path/to/clean/AI_Agents \
+SHAREK_AI_PYTHON=/path/to/AI_Agents/.venv/bin/python \
+npm run test:release-gate:s4-core:cross-repo
 ```
 
 Backend full gates:
@@ -138,8 +144,10 @@ does not ship the required `vector` extension.
    `AI_Agents/main`.
 2. Re-run this gate with `SHAREK_AI_ROOT` at that merged revision.
 3. B11 PR CI and the cross-repository verifier pass without fixture drift.
-4. Only then merge the B11 PR; `Closes #57` may close the gate issue.
-5. B12 Materials work may proceed only after #57 is closed by that merge.
+4. Record the manual demo evidence described above against the merged default
+   branches.
+5. Only then merge the B11 PR; `Closes #57` may close the gate issue.
+6. B12 Materials work may proceed only after #57 is closed by that merge.
 
 ## Residual Risks
 
