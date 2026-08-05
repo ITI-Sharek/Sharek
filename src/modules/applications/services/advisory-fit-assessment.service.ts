@@ -23,7 +23,9 @@ import {
 import { AiService } from '../../ai/ai.service';
 import {
   AdvisoryFitAssessmentResult,
+  AdvisoryFitEvidenceCapsule,
   AdvisoryFitFinding,
+  AdvisoryFitRequirementSnapshot,
 } from '../../ai/dto/advisory-fit-assessment.dto';
 import { ContributionTasksService } from '../../contribution-tasks/services/contribution-tasks.service';
 import {
@@ -358,9 +360,13 @@ export class AdvisoryFitAssessmentService {
       );
     }
 
-    const requirements = this.jsonArray(application.requirementSnapshot?.requirements);
-    const evidence = this.jsonArray(application.evidenceSnapshot?.evidence);
-    const allowedEvidenceIds = this.readEvidenceIds(evidence);
+    const requirements = this.jsonArray(
+      application.requirementSnapshot?.requirements,
+    ) as AdvisoryFitRequirementSnapshot[];
+    const evidence = this.buildEvidenceCapsules(
+      this.jsonArray(application.evidenceSnapshot?.evidence),
+    );
+    const allowedEvidenceIds = evidence.map((item) => item.evidenceId);
     if (allowedEvidenceIds.length === 0) {
       await this.finishWithoutAttempt({
         requestId: request.id,
@@ -873,18 +879,43 @@ export class AdvisoryFitAssessmentService {
       : [];
   }
 
-  private readEvidenceIds(evidence: unknown[]): string[] {
-    const ids = new Set<string>();
+  private buildEvidenceCapsules(
+    evidence: unknown[],
+  ): AdvisoryFitEvidenceCapsule[] {
+    const capsules = new Map<string, AdvisoryFitEvidenceCapsule>();
     for (const item of evidence) {
       const record = this.jsonObject(item);
-      for (const key of ['id', 'evidenceId']) {
-        if (typeof record[key] === 'string' && record[key].trim()) ids.add(record[key]);
-      }
       const sources = this.jsonObject(record.evidenceSources);
-      const sourceIds = this.jsonArray(sources.evidenceIds);
-      for (const id of sourceIds) if (typeof id === 'string' && id.trim()) ids.add(id);
+      const sourceIds = this.jsonStringArray(sources.evidenceIds);
+      if (sourceIds.length === 0 && typeof record.evidenceId === 'string') {
+        sourceIds.push(record.evidenceId);
+      }
+      const label = this.boundedSnapshotText(record.name, 'Approved skill', 200);
+      const summary = this.boundedSnapshotText(record.evidenceSummary, '', 1000);
+      for (const rawId of sourceIds) {
+        const evidenceId = rawId.trim().slice(0, 250);
+        if (!evidenceId || capsules.has(evidenceId)) continue;
+        capsules.set(evidenceId, {
+          evidenceId,
+          type: 'approved_skill',
+          label,
+          ...(summary ? { summary } : {}),
+        });
+      }
     }
-    return Array.from(ids).sort();
+    return Array.from(capsules.values()).sort((left, right) =>
+      left.evidenceId.localeCompare(right.evidenceId),
+    );
+  }
+
+  private boundedSnapshotText(
+    value: unknown,
+    fallback: string,
+    maximum: number,
+  ): string {
+    return typeof value === 'string' && value.trim()
+      ? value.trim().slice(0, maximum)
+      : fallback;
   }
 
   private fingerprint(value: unknown): string {

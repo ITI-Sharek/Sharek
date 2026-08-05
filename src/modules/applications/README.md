@@ -157,7 +157,9 @@ owner-scoped request, findings, derived fit band, and first-presentation time.
 
 NestJS calls the separate FastAPI contract only after it confirms that the
 Application is still pending and that the fixed evidence snapshot contains
-assessable evidence. It validates one finding per Requirement, requirement
+assessable evidence. Before transport it converts authorized approved-skill
+evidence into bounded capsules and sends an exact evidence-ID allowlist rather
+than the opaque persisted snapshot. It validates one finding per Requirement, requirement
 kind, citation scope, finding vocabulary, and confidence before storing the
 attempt and append-only audit rows. NestJS derives `STRONG`, `PARTIAL`,
 `LIMITED`, or `UNKNOWN`; Preferred Requirements never change the band.

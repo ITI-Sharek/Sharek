@@ -1,7 +1,21 @@
+export interface AdvisoryFitRequirementSnapshot {
+  id: string;
+  kind: 'required' | 'preferred';
+  position: number;
+  text: string;
+}
+
+export interface AdvisoryFitEvidenceCapsule {
+  evidenceId: string;
+  type: 'approved_skill' | 'github_repository';
+  label: string;
+  summary?: string;
+}
+
 export interface AdvisoryFitAssessmentInput {
   assessmentRequestId: string;
-  requirements: unknown[];
-  evidence: unknown[];
+  requirements: AdvisoryFitRequirementSnapshot[];
+  evidence: AdvisoryFitEvidenceCapsule[];
   allowedEvidenceIds: string[];
   requestedAt: string;
   contractVersion: 'advisory-fit-v1';

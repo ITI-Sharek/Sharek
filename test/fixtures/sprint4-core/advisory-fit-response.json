@@ -1,0 +1,31 @@
+{
+  "status": "COMPLETED",
+  "findings": [
+    {
+      "requirementId": "00000000-0000-4000-8000-000000000101",
+      "requirementKind": "required",
+      "finding": "SUPPORTED",
+      "confidence": "HIGH",
+      "citations": ["github:core-gate-1"],
+      "uncertainty": [],
+      "explanation": "The supplied evidence supports the required capability."
+    },
+    {
+      "requirementId": "00000000-0000-4000-8000-000000000102",
+      "requirementKind": "preferred",
+      "finding": "INCONCLUSIVE",
+      "confidence": "LOW",
+      "citations": ["github:core-gate-1"],
+      "uncertainty": ["The fixed evidence does not prove production Redis usage."],
+      "explanation": "The preferred capability remains inconclusive."
+    }
+  ],
+  "metadata": {
+    "provider": "deterministic-fake",
+    "model": "deterministic-fake",
+    "promptVersion": "advisory-fit-v1",
+    "schemaVersion": "advisory-fit-v1",
+    "serviceVersion": "release-gate",
+    "latencyMs": 0
+  }
+}

@@ -50,7 +50,7 @@ export class AdvisoryFitClient {
         );
       }
 
-      return this.validateResult(await response.json());
+      return this.validateResult(await response.json(), input);
     } catch (error) {
       if (error instanceof ApplicationError) throw error;
       throw new ApplicationError(
@@ -63,7 +63,10 @@ export class AdvisoryFitClient {
     }
   }
 
-  private validateResult(payload: unknown): AdvisoryFitAssessmentResult {
+  private validateResult(
+    payload: unknown,
+    input: AdvisoryFitAssessmentInput,
+  ): AdvisoryFitAssessmentResult {
     if (!this.isRecord(payload)) this.invalidResponse();
 
     if (payload.status === 'NOT_STARTED_SYSTEM_LIMIT') {
@@ -75,10 +78,34 @@ export class AdvisoryFitClient {
     if (payload.status !== 'COMPLETED') this.invalidResponse();
     if (!Array.isArray(payload.findings)) this.invalidResponse();
 
+    const findings = payload.findings.map((finding) =>
+      this.validateFinding(finding),
+    );
+    const requirements = new Map(
+      input.requirements.map((requirement) => [requirement.id, requirement.kind]),
+    );
+    const findingIds = findings.map((finding) => finding.requirementId);
+    if (
+      findingIds.length !== requirements.size ||
+      findingIds.length !== new Set(findingIds).size ||
+      findingIds.some((id) => !requirements.has(id)) ||
+      findings.some(
+        (finding) =>
+          requirements.get(finding.requirementId) !== finding.requirementKind,
+      ) ||
+      findings.some((finding) =>
+        finding.citations.some(
+          (citation) => !input.allowedEvidenceIds.includes(citation),
+        ),
+      )
+    ) {
+      this.invalidResponse();
+    }
+
     const metadata = this.isRecord(payload.metadata) ? payload.metadata : payload;
     return {
       kind: 'completed',
-      findings: payload.findings.map((finding) => this.validateFinding(finding)),
+      findings,
       provider: this.requiredString(metadata, 'provider'),
       model: this.requiredString(metadata, 'model'),
       promptVersion: this.requiredString(metadata, 'promptVersion'),
