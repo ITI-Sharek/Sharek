@@ -2,15 +2,16 @@
 
 ## Decision
 
-The deterministic core workflow passes at the reviewed revisions below. The
-release remains **merge-blocked** until the AI prerequisite PR is merged into
-`AI_Agents/main`; no Materials implementation may merge before that point.
+The deterministic core workflow and real sequential HTTP demo pass at the
+reviewed revisions below. AI PR #7 is merged and the cross-repository gate was
+rerun at that merged `main` revision. B11 is ready to merge after PR #69 CI;
+Materials implementation remains gated on #57 closing through that merge.
 
 | Repository | Reviewed revision | Delivery state |
 | --- | --- | --- |
-| `ITI-Sharek/Sharek` | `869fe477d9291e268c326900ef9b8f44fdbc2ffa` plus this gate change | B11 PR pending |
+| `ITI-Sharek/Sharek` | PR #69 working revision containing this gate | B11 PR pending CI/merge |
 | `ITI-Sharek/Frontend` | `fa870f79878a742fc3c25c691dbd078a11cd90a8` | merged to `master` |
-| `ITI-Sharek/AI_Agents` | `e8235c8d748cf0aa2be95b13886d3e4c4a34fab4` | PR #7 pending against `main` |
+| `ITI-Sharek/AI_Agents` | `1fa196a13aeb6cc5477e48017b7d15a7b6aa46c1` | PR #7 merged to `main` |
 
 The earlier remote AI feature branch was not used as release evidence because
 it contained unrelated accumulated work. PR #7 is a clean delivery from the
@@ -55,13 +56,11 @@ duplicate coverage, and prohibited decision-authority fields.
 
 ## Manual Demo Evidence
 
-No manual browser/runtime demo is claimed by the deterministic contract gate.
-Before merge, an operator must record a dated run against the merged default
-branches covering the seven steps above, with the deployed/local URLs, actor
-accounts used (identifiers only, no credentials), resulting Request/Application/
-Proposal IDs, and screenshots or sanitized HTTP transcripts. Current status:
-**pending after AI PR #7 merges**. This is an explicit merge condition, not an
-automated-test result.
+The dated real-process runtime demo is **PASS**. See
+[the sanitized HTTP evidence](./sprint4-core-runtime-demo-2026-08-05.md). It
+records the local service URLs, actor identifiers without credentials, logical
+record aliases without raw UUIDs, all workflow statuses, and the runtime-only
+Proposal advisory-lock defect found and corrected during the run.
 
 ## Commands
 
@@ -140,13 +139,13 @@ does not ship the required `vector` extension.
 
 ## Merge Conditions
 
-1. AI PR #7 passes independent high-effort review and merges to
-   `AI_Agents/main`.
-2. Re-run this gate with `SHAREK_AI_ROOT` at that merged revision.
-3. B11 PR CI and the cross-repository verifier pass without fixture drift.
-4. Record the manual demo evidence described above against the merged default
-   branches.
-5. Only then merge the B11 PR; `Closes #57` may close the gate issue.
+1. [x] AI PR #7 passed review and merged to `AI_Agents/main`.
+2. [x] The gate was rerun at merged AI revision
+   `1fa196a13aeb6cc5477e48017b7d15a7b6aa46c1`.
+3. [ ] B11 PR #69 CI passes at the final pushed revision. The local and
+   cross-repository verifiers pass without fixture drift.
+4. [x] The dated, sanitized real-process demo evidence is recorded.
+5. [ ] Merge B11 PR #69; `Closes #57` may close the gate issue.
 6. B12 Materials work may proceed only after #57 is closed by that merge.
 
 ## Residual Risks

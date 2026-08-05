@@ -230,6 +230,13 @@ describe('ContributionProposalsService', () => {
         projectId,
         database,
       );
+      const advisoryLockQuery = database.$queryRaw.mock.calls[0]?.[0] as {
+        strings?: string[];
+      };
+      expect(advisoryLockQuery.strings?.join('')).toContain(
+        'pg_advisory_xact_lock',
+      );
+      expect(advisoryLockQuery.strings?.join('')).toContain('::text');
       expect(database.$executeRaw).toHaveBeenCalledTimes(1);
       expect(database.contributionProposal.count).toHaveBeenCalledTimes(1);
       expect(database.contributionProposal.findFirst).not.toHaveBeenCalled();

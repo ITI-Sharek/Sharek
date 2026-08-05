@@ -2178,10 +2178,11 @@ This keeps the system strong without making it heavy:
   HTTP/service suites. Cross-repository mode additionally verifies clean exact
   reviewed SHAs and default-branch ancestry, runs six named Frontend suites,
   validates the fixtures with the actual FastAPI schemas, and runs AI HTTP tests.
-- Gate defect: canonical `AI_Agents/main` lacked the Advisory Fit endpoint. A
-  clean prerequisite delivery was separated from the accumulated feature branch
-  as AI PR #7; B11 remains merge-blocked until that PR is reviewed, merged, and
-  the verifier is rerun at the merged AI revision.
+- Gate prerequisite: AI PR #7 merged to `AI_Agents/main` at
+  `1fa196a13aeb6cc5477e48017b7d15a7b6aa46c1`. The cross-repository verifier was
+  rerun against that clean merged revision and Frontend `master`; Backend passed
+  152/152 named tests, Frontend passed 40/40, and AI passed 26/26 plus real
+  Pydantic fixture validation.
 - Authorization/privacy: confirmed owner/contributor boundaries, immediate
   owner visibility independent of assessment state, private Proposal history,
   bearer-authenticated AI access, citation allowlisting, and attribution without
@@ -2190,9 +2191,17 @@ This keeps the system strong without making it heavy:
   request now replaces opaque skill records with bounded evidence capsules and
   exact evidence-ID allowlisting. Existing Sprint 4 migrations remain
   authoritative and are exercised by the migration harness.
+- Runtime evidence: a fresh pgvector PostgreSQL 16 environment deployed all 30
+  migrations, then a real NestJS/Redis HTTP sequence passed 22 sanitized steps:
+  publish/discover, immediate Application visibility, optional non-blocking
+  no-evidence Advisory Fit, independent accept and decline decisions, Proposal
+  revision/version/acceptance, and attributed draft completion/publication.
+  The run exposed and closed a Prisma `P2010` caused by deserializing the `void`
+  result of `pg_advisory_xact_lock`; the query now returns a supported text cast,
+  with 26/26 focused Proposal service tests passing.
 - Verification: cross-repository fixture verifier, focused core Jest replay,
   Prisma generation/validation, architecture, lint, exact type-check, full Jest,
   API-client inventory, migration harness, build, full Frontend gates, and the
-  clean AI prerequisite's pytest/compile gates. A sequential manual browser/
-  runtime demo is not claimed by these deterministic checks and remains a
-  documented post-AI-merge condition before B11 can merge.
+  clean AI prerequisite's pytest/compile gates, and the dated real-process HTTP
+  evidence under `docs/release-gates/`. B11 is ready to merge once final PR #69
+  CI passes; Materials remains gated until #57 closes through that merge.
