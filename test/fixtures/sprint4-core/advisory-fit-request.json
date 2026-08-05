@@ -1,0 +1,27 @@
+{
+  "assessmentRequestId": "00000000-0000-4000-8000-000000000057",
+  "requirements": [
+    {
+      "id": "00000000-0000-4000-8000-000000000101",
+      "kind": "required",
+      "position": 0,
+      "text": "Build a tested NestJS HTTP workflow"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000102",
+      "kind": "preferred",
+      "position": 1,
+      "text": "Use Redis for background work"
+    }
+  ],
+  "evidence": [
+    {
+      "evidenceId": "github:core-gate-1",
+      "type": "github_repository",
+      "summary": "Authorized deterministic release-gate evidence"
+    }
+  ],
+  "allowedEvidenceIds": ["github:core-gate-1"],
+  "requestedAt": "2026-08-05T12:00:00.000Z",
+  "contractVersion": "advisory-fit-v1"
+}
