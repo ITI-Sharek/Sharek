@@ -4,123 +4,230 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const backendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const frontendRoot = resolve(
-  process.env.SHAREK_FRONTEND_ROOT ?? join(backendRoot, '..', 'Frontend'),
-);
-const aiRoot = resolve(
-  process.env.SHAREK_AI_ROOT ?? join(backendRoot, '..', 'AI_Agents'),
-);
+const fixtureRoot = join(backendRoot, 'test/fixtures/sprint4-core');
+const crossRepo = process.argv.includes('--cross-repo');
 
-const checks = [];
+const backendSuites = [
+  'test/contribution-requests.e2e-spec.ts',
+  'test/contribution-request-public-lifecycle.e2e-spec.ts',
+  'test/applications.e2e-spec.ts',
+  'test/contribution-proposals.e2e-spec.ts',
+  'src/modules/applications/applications.service.spec.ts',
+  'src/modules/applications/services/advisory-fit-assessment.service.spec.ts',
+  'src/modules/ai/integrations/advisory-fit.client.spec.ts',
+  'src/modules/contribution-proposals/contribution-proposals.service.spec.ts',
+];
 
-function read(root, relativePath) {
-  const path = join(root, relativePath);
-  if (!existsSync(path)) throw new Error(`Missing release-gate file: ${path}`);
-  return readFileSync(path, 'utf8');
+const frontendSuites = [
+  'src/modules/contribution-requests/services/applications.service.test.ts',
+  'src/modules/contribution-requests/components/advisory-fit-assessment.test.tsx',
+  'src/modules/contribution-requests/components/owner-application-review.test.tsx',
+  'src/modules/contribution-proposals/services/contribution-proposals.service.test.ts',
+  'src/modules/contribution-proposals/components/proposal-components.test.tsx',
+  'src/modules/contribution-requests/components/contribution-request-components.test.tsx',
+];
+
+function json(relativePath) {
+  return JSON.parse(readFileSync(join(fixtureRoot, relativePath), 'utf8'));
 }
 
-function requires(root, relativePath, patterns) {
-  const content = read(root, relativePath);
-  for (const pattern of patterns) {
-    if (!pattern.test(content)) {
-      throw new Error(`${relativePath} does not satisfy ${pattern}`);
+function exactKeys(value, expected, label) {
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    throw new Error(`${label} keys differ: ${actual.join(', ')}`);
+  }
+}
+
+function assertString(value, label, maximum) {
+  if (typeof value !== 'string' || !value.trim() || value.length > maximum) {
+    throw new Error(`${label} must be a non-blank string up to ${maximum} chars`);
+  }
+}
+
+function validateCanonicalFixtures() {
+  const request = json('advisory-fit-request.json');
+  const response = json('advisory-fit-response.json');
+  exactKeys(
+    request,
+    [
+      'assessmentRequestId',
+      'requirements',
+      'evidence',
+      'allowedEvidenceIds',
+      'requestedAt',
+      'contractVersion',
+    ],
+    'request',
+  );
+  if (request.contractVersion !== 'advisory-fit-v1') {
+    throw new Error('Unexpected Advisory Fit contract version');
+  }
+  const requirements = new Map();
+  for (const [index, requirement] of request.requirements.entries()) {
+    exactKeys(requirement, ['id', 'kind', 'position', 'text'], `requirement ${index}`);
+    assertString(requirement.id, `requirement ${index} id`, 200);
+    assertString(requirement.text, `requirement ${index} text`, 5000);
+    if (!['required', 'preferred'].includes(requirement.kind)) {
+      throw new Error(`requirement ${index} has an invalid kind`);
+    }
+    if (!Number.isInteger(requirement.position) || requirement.position < 0) {
+      throw new Error(`requirement ${index} has an invalid position`);
+    }
+    if (requirements.has(requirement.id)) throw new Error('Duplicate Requirement ID');
+    requirements.set(requirement.id, requirement.kind);
+  }
+
+  const evidenceIds = new Set();
+  for (const [index, capsule] of request.evidence.entries()) {
+    const allowedKeys = capsule.summary === undefined
+      ? ['evidenceId', 'type', 'label']
+      : ['evidenceId', 'type', 'label', 'summary'];
+    exactKeys(capsule, allowedKeys, `evidence capsule ${index}`);
+    assertString(capsule.evidenceId, `evidence capsule ${index} id`, 250);
+    assertString(capsule.label, `evidence capsule ${index} label`, 200);
+    if (!['approved_skill', 'github_repository'].includes(capsule.type)) {
+      throw new Error(`evidence capsule ${index} has an invalid type`);
+    }
+    if (capsule.summary !== undefined) {
+      assertString(capsule.summary, `evidence capsule ${index} summary`, 1000);
+    }
+    if (evidenceIds.has(capsule.evidenceId)) throw new Error('Duplicate evidence ID');
+    evidenceIds.add(capsule.evidenceId);
+  }
+  const allowlist = new Set(request.allowedEvidenceIds);
+  if (
+    allowlist.size !== request.allowedEvidenceIds.length ||
+    allowlist.size !== evidenceIds.size ||
+    [...allowlist].some((id) => !evidenceIds.has(id))
+  ) {
+    throw new Error('Evidence allowlist must exactly match unique capsule IDs');
+  }
+
+  exactKeys(response, ['status', 'findings', 'metadata'], 'response');
+  if (response.status !== 'COMPLETED') throw new Error('Fixture must be completed');
+  const findingIds = new Set();
+  for (const [index, finding] of response.findings.entries()) {
+    exactKeys(
+      finding,
+      [
+        'requirementId',
+        'requirementKind',
+        'finding',
+        'confidence',
+        'citations',
+        'uncertainty',
+        'explanation',
+      ],
+      `finding ${index}`,
+    );
+    if (findingIds.has(finding.requirementId)) throw new Error('Duplicate finding ID');
+    findingIds.add(finding.requirementId);
+    if (requirements.get(finding.requirementId) !== finding.requirementKind) {
+      throw new Error('Finding changed or invented a Requirement');
+    }
+    if (finding.citations.some((citation) => !allowlist.has(citation))) {
+      throw new Error('Finding cites evidence outside the allowlist');
     }
   }
-  checks.push(relativePath);
+  if (findingIds.size !== requirements.size) {
+    throw new Error('Findings must cover every Requirement exactly once');
+  }
+  const serialized = JSON.stringify(response).toLowerCase();
+  for (const prohibited of [
+    'eligibility',
+    'recommendation',
+    'applicationstatus',
+    'rank',
+    'score',
+  ]) {
+    if (serialized.includes(prohibited)) {
+      throw new Error(`Response contains prohibited authority: ${prohibited}`);
+    }
+  }
 }
 
-function sha(root) {
-  return execFileSync('git', ['rev-parse', 'HEAD'], {
+function run(command, args, cwd, extraEnvironment = {}) {
+  console.log(`\n$ ${command} ${args.join(' ')}`);
+  execFileSync(command, args, {
+    cwd,
+    stdio: 'inherit',
+    env: { ...process.env, ...extraEnvironment },
+  });
+}
+
+function git(root, args) {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+}
+
+function verifyReviewedCheckout(root, expected) {
+  if (git(root, ['status', '--porcelain'])) {
+    throw new Error(`${expected.repository} reviewed checkout is not clean`);
+  }
+  const head = git(root, ['rev-parse', 'HEAD']);
+  if (head !== expected.sha) {
+    throw new Error(`${expected.repository} HEAD ${head} != reviewed ${expected.sha}`);
+  }
+  execFileSync('git', ['merge-base', '--is-ancestor', expected.defaultRef, 'HEAD'], {
     cwd: root,
-    encoding: 'utf8',
-  }).trim();
+    stdio: 'inherit',
+  });
+  return head;
 }
 
-requires(backendRoot, 'src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts', [
-  /@Post\('projects\/:projectId\/contribution-requests'\)/,
-  /@Post\('contribution-requests\/:requestId\/publish'\)/,
-]);
-requires(backendRoot, 'src/modules/applications/applications.controller.ts', [
-  /@Post\('tasks\/:requestId\/applications'\)/,
-  /@Post\('applications\/:applicationId\/accept'\)/,
-  /@Post\('applications\/:applicationId\/decline'\)/,
-  /@Post\('applications\/:applicationId\/assessment-requests'\)/,
-]);
-requires(backendRoot, 'src/modules/applications/applications.service.spec.ts', [
-  /keeps pending Applications visible and decidable regardless of AI assessment state/,
-  /accepts exactly one pending Application with AI assessment state/,
-]);
-requires(backendRoot, 'src/modules/contribution-proposals/contribution-proposals.controller.ts', [
-  /@Post\(':proposalId\/versions'\)/,
-  /@Post\(':proposalId\/revision-requests'\)/,
-  /@Post\(':proposalId\/accept'\)/,
-]);
-requires(backendRoot, 'src/modules/contribution-proposals/contribution-proposals.service.spec.ts', [
-  /accepts a pending proposal and creates one attributed draft Request/,
-]);
+validateCanonicalFixtures();
+run('npx', ['jest', '--runInBand', ...backendSuites], backendRoot);
 
-requires(frontendRoot, 'src/modules/contribution-requests/services/applications.service.ts', [
-  /\/assessment-requests/,
-  /\/accept/,
-  /\/decline/,
-]);
-requires(frontendRoot, 'src/modules/contribution-requests/components/advisory-fit-assessment.test.tsx', [
-  /without making it a decision gate/,
-]);
-requires(frontendRoot, 'src/modules/contribution-proposals/services/contribution-proposals.service.ts', [
-  /\/versions/,
-  /\/revision-requests/,
-  /\/accept/,
-]);
-requires(frontendRoot, 'src/modules/contribution-proposals/components/proposal-editor.tsx', [
-  /لا يمنحني القبول إسناد العمل أو/,
-  /أولوية الاختيار/,
-]);
-
-requires(aiRoot, 'src/sharek_agents/main.py', [/\/advisory-fit\/assess/]);
-requires(aiRoot, 'src/sharek_agents/agents/advisory_fit/schemas.py', [
-  /NOT_STARTED_NO_ASSESSABLE_EVIDENCE/,
-  /NOT_STARTED_SYSTEM_LIMIT/,
-  /extra="forbid"/,
-]);
-requires(aiRoot, 'tests/test_advisory_fit_contract.py', [
-  /requires_the_shared_service_token/,
-  /unauthorized_output/,
-]);
-
-const request = JSON.parse(
-  read(backendRoot, 'test/fixtures/sprint4-core/advisory-fit-request.json'),
-);
-const response = JSON.parse(
-  read(backendRoot, 'test/fixtures/sprint4-core/advisory-fit-response.json'),
-);
-const requirements = new Map(request.requirements.map((item) => [item.id, item.kind]));
-const allowed = new Set(request.allowedEvidenceIds);
-if (response.findings.length !== requirements.size) {
-  throw new Error('Advisory Fit fixture does not cover every Requirement exactly once');
-}
-for (const finding of response.findings) {
-  if (requirements.get(finding.requirementId) !== finding.requirementKind) {
-    throw new Error('Advisory Fit fixture changed Requirement classification');
-  }
-  if (finding.citations.some((citation) => !allowed.has(citation))) {
-    throw new Error('Advisory Fit fixture cites unauthorized evidence');
-  }
-}
-const serialized = JSON.stringify(response).toLowerCase();
-for (const prohibited of ['eligibility', 'recommendation', 'applicationstatus', 'rank', 'score']) {
-  if (serialized.includes(prohibited)) {
-    throw new Error(`Advisory Fit fixture contains prohibited authority: ${prohibited}`);
-  }
-}
-
-console.log(JSON.stringify({
+const result = {
   gate: 'S4-B11',
-  status: 'contract-fixtures-passed',
-  repositories: {
-    backend: sha(backendRoot),
-    frontend: sha(frontendRoot),
-    ai: sha(aiRoot),
-  },
-  checkedFiles: checks.length,
-}, null, 2));
+  mode: crossRepo ? 'cross-repository' : 'backend-ci',
+  canonicalFixtureValidation: 'passed',
+  backendContractSuites: backendSuites.length,
+};
+
+if (crossRepo) {
+  const revisions = json('reviewed-revisions.json');
+  if (!process.env.SHAREK_FRONTEND_ROOT || !process.env.SHAREK_AI_ROOT) {
+    throw new Error('Cross-repository mode requires Frontend and AI roots');
+  }
+  const frontendRoot = resolve(process.env.SHAREK_FRONTEND_ROOT);
+  const aiRoot = resolve(process.env.SHAREK_AI_ROOT);
+  if (!existsSync(frontendRoot) || !existsSync(aiRoot)) {
+    throw new Error('Cross-repository mode requires valid Frontend and AI roots');
+  }
+  result.frontend = verifyReviewedCheckout(frontendRoot, revisions.frontend);
+  result.ai = verifyReviewedCheckout(aiRoot, revisions.ai);
+  run(
+    'corepack',
+    ['pnpm', 'exec', 'vitest', 'run', ...frontendSuites],
+    frontendRoot,
+  );
+  const aiPython = process.env.SHAREK_AI_PYTHON ?? join(aiRoot, '.venv/bin/python');
+  const schemaCheck = [
+    'import json,sys',
+    'from sharek_agents.agents.advisory_fit.schemas import AdvisoryFitInput,AdvisoryFitResult',
+    'AdvisoryFitInput.model_validate(json.load(open(sys.argv[1])))',
+    'AdvisoryFitResult.model_validate(json.load(open(sys.argv[2])))',
+  ].join(';');
+  run(
+    aiPython,
+    [
+      '-c',
+      schemaCheck,
+      join(fixtureRoot, 'advisory-fit-request.json'),
+      join(fixtureRoot, 'advisory-fit-response.json'),
+    ],
+    aiRoot,
+    { PYTHONPATH: join(aiRoot, 'src') },
+  );
+  run(
+    aiPython,
+    ['-m', 'pytest', '-q', 'tests/test_advisory_fit_contract.py'],
+    aiRoot,
+    { PYTHONPATH: join(aiRoot, 'src') },
+  );
+  result.frontendContractSuites = frontendSuites.length;
+  result.aiCanonicalSchemaAndHttpTests = 'passed';
+}
+
+console.log(`\n${JSON.stringify(result, null, 2)}`);

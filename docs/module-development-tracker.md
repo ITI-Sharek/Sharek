@@ -2174,8 +2174,10 @@ This keeps the system strong without making it heavy:
   Proposal revision/acceptance into an attributed owner draft across Backend,
   Frontend, and AI contracts.
 - Release evidence: added immutable camel-case Advisory Fit request/response
-  fixtures, a cross-repository contract verifier, and a documented deterministic
-  demo mapped to the existing HTTP/service/UI contract suites.
+  fixtures and a required CI gate that machine-runs eight named Backend
+  HTTP/service suites. Cross-repository mode additionally verifies clean exact
+  reviewed SHAs and default-branch ancestry, runs six named Frontend suites,
+  validates the fixtures with the actual FastAPI schemas, and runs AI HTTP tests.
 - Gate defect: canonical `AI_Agents/main` lacked the Advisory Fit endpoint. A
   clean prerequisite delivery was separated from the accumulated feature branch
   as AI PR #7; B11 remains merge-blocked until that PR is reviewed, merged, and
@@ -2184,9 +2186,13 @@ This keeps the system strong without making it heavy:
   owner visibility independent of assessment state, private Proposal history,
   bearer-authenticated AI access, citation allowlisting, and attribution without
   Assignment or selection priority.
-- API/database: no backend route, response, or schema change. Existing Sprint 4
-  migrations remain authoritative and are exercised by the migration harness.
+- API/database: no browser route or database schema change. The internal AI
+  request now replaces opaque skill records with bounded evidence capsules and
+  exact evidence-ID allowlisting. Existing Sprint 4 migrations remain
+  authoritative and are exercised by the migration harness.
 - Verification: cross-repository fixture verifier, focused core Jest replay,
   Prisma generation/validation, architecture, lint, exact type-check, full Jest,
   API-client inventory, migration harness, build, full Frontend gates, and the
-  clean AI prerequisite's pytest/compile gates.
+  clean AI prerequisite's pytest/compile gates. A sequential manual browser/
+  runtime demo is not claimed by these deterministic checks and remains a
+  documented post-AI-merge condition before B11 can merge.

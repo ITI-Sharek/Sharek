@@ -21,11 +21,13 @@ Provider keys, prompt execution, model orchestration, and Python AI tooling live
 in the FastAPI repository. Owning NestJS services apply deterministic policy and
 store audit snapshots.
 
-The Advisory Fit client sends fixed Application Requirement/Evidence Snapshots
-to the FastAPI assessment contract and validates the bounded result vocabulary.
-It returns provider metadata and findings to the Applications module; NestJS
-owns citation validation, fit-band derivation, persistence, presentation, and
-all workflow safety rules.
+The Advisory Fit client sends fixed Requirement Snapshots and bounded evidence
+capsules (`evidenceId`, type, label, optional summary) to FastAPI. The allowlist
+exactly matches those capsule IDs. The client validates the response vocabulary,
+complete unique Requirement coverage, classification, and citation scope before
+returning provider metadata and findings. The Applications module independently
+revalidates and owns fit-band derivation, persistence, presentation, and all
+workflow safety rules.
 
 The Advisory Fit timeout defaults to `75000` ms. FastAPI allows up to 60 seconds
 for the provider call, so the backend keeps a short network-overhead margin
