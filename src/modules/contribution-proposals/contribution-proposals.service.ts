@@ -962,7 +962,7 @@ export class ContributionProposalsService {
     await transaction.$queryRaw(Prisma.sql`
       SELECT pg_advisory_xact_lock(
         hashtextextended(${`contribution-proposals:${proposerId}`}, 0)
-      )
+      )::text AS "lockResult"
     `);
   }
 
