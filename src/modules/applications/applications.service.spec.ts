@@ -606,6 +606,7 @@ describe('ApplicationsService submission and withdrawal', () => {
   );
 
   it('declines one pending Application with trimmed feedback and no cross-Application effect', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-02T12:00:00.000Z'));
     database.application.findFirst.mockResolvedValue(applicationRecord());
     database.application.updateMany.mockResolvedValue({ count: 1 });
     database.ownerDecision.create.mockResolvedValue({
@@ -636,21 +637,25 @@ describe('ApplicationsService submission and withdrawal', () => {
       applicationRecord({ status: ApplicationStatus.declined_by_owner }),
     );
 
-    await expect(
-      service.decline({
-        actor: owner,
-        applicationId,
-        feedback: '  The proposed approach does not address testing.  ',
-        idempotencyKey: '77777777-7777-4777-8777-777777777777',
-      }),
-    ).resolves.toMatchObject({
-      application: { status: 'DECLINED_BY_OWNER' },
-      ownerDecision: {
-        decisionType: 'DECLINED',
-        feedback: 'The proposed approach does not address testing.',
-      },
-      assignment: null,
-    });
+    try {
+      await expect(
+        service.decline({
+          actor: owner,
+          applicationId,
+          feedback: '  The proposed approach does not address testing.  ',
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+      ).resolves.toMatchObject({
+        application: { status: 'DECLINED_BY_OWNER' },
+        ownerDecision: {
+          decisionType: 'DECLINED',
+          feedback: 'The proposed approach does not address testing.',
+        },
+        assignment: null,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
 
     expect(database.ownerDecision.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -1135,6 +1140,7 @@ describe('ApplicationsService submission and withdrawal', () => {
   });
 
   it('maps a different-command Owner Decision uniqueness race to a stable conflict', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-02T12:00:00.000Z'));
     database.application.findFirst.mockResolvedValue(applicationRecord());
     database.ownerDecision.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
@@ -1144,17 +1150,21 @@ describe('ApplicationsService submission and withdrawal', () => {
     );
     database.ownerDecision.findUnique.mockResolvedValue(null);
 
-    await expect(
-      service.decline({
-        actor: owner,
-        applicationId,
-        feedback: 'The test strategy is incomplete.',
-        idempotencyKey: '77777777-7777-4777-8777-777777777777',
-      }),
-    ).rejects.toMatchObject({
-      code: 'APPLICATION_CONCURRENT_MODIFICATION',
-      statusCode: 409,
-    });
+    try {
+      await expect(
+        service.decline({
+          actor: owner,
+          applicationId,
+          feedback: 'The test strategy is incomplete.',
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+      ).rejects.toMatchObject({
+        code: 'APPLICATION_CONCURRENT_MODIFICATION',
+        statusCode: 409,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('returns every pending Application as REQUEST_CANCELLED with immutable audits', async () => {
@@ -1369,6 +1379,7 @@ describe('ApplicationsService submission and withdrawal', () => {
   });
 
   it('serializes concurrent accepts for sibling Applications so only one Assignment succeeds', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-02T12:00:00.000Z'));
     const siblingId = '99999999-9999-4999-8999-999999999999';
     const siblingContributorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const decisionId = '88888888-8888-4888-8888-888888888888';
@@ -1423,18 +1434,23 @@ describe('ApplicationsService submission and withdrawal', () => {
       requestAssigned = true;
     });
 
-    const outcomes = await Promise.allSettled([
-      service.accept({
-        actor: owner,
-        applicationId,
-        idempotencyKey: '77777777-7777-4777-8777-777777777777',
-      }),
-      service.accept({
-        actor: owner,
-        applicationId: siblingId,
-        idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-      }),
-    ]);
+    let outcomes!: PromiseSettledResult<unknown>[];
+    try {
+      outcomes = await Promise.allSettled([
+        service.accept({
+          actor: owner,
+          applicationId,
+          idempotencyKey: '77777777-7777-4777-8777-777777777777',
+        }),
+        service.accept({
+          actor: owner,
+          applicationId: siblingId,
+          idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        }),
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
 
     expect(outcomes.filter(({ status }) => status === 'fulfilled')).toHaveLength(
       1,
