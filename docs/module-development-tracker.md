@@ -2257,3 +2257,35 @@ This keeps the system strong without making it heavy:
 - Focused verification: live upload against the running API covering an
   accepted PDF, a binary renamed as PDF, an unsupported type, an appended
   version preserving the previous one, storage keys, and audit rows.
+
+### 2026-08-07 - Materials: quarantine, scanning, and the reaper (S4-B12, part 3)
+
+- Scope: the `quarantined -> scanning -> ready | rejected` state machine, the
+  BullMQ queue that drives it, and a reaper for versions stranded before a
+  verdict. Still no download route; that is part 4, and until it exists no
+  version is reachable regardless of scan status.
+- Detection sits behind a `MalwareScanner` port with a deterministic stub. The
+  stub reports the EICAR test file as infected, so the rejection path is driven
+  by the same input a production scanner would reject, with no malware in the
+  repository. `MATERIAL_SCANNER_STUB_MODE` forces a verdict on demand; `error`
+  is the mode that proves an unreachable scanner does not pass files.
+- A scanner that cannot answer throws rather than returning a verdict. The
+  processor releases the version to `quarantined` and rethrows so BullMQ
+  retries, because an unreachable scanner must never be indistinguishable from
+  one that said "clean".
+- Every transition is a conditional claim on the current status, not a write.
+  A duplicate delivery and the reaper can act on one version simultaneously,
+  and the row count is the only thing that makes one of them lose.
+- The reaper sweeps two shapes on `updated_at`: stuck in `scanning` because a
+  worker died holding the claim, and sitting `quarantined` with nothing queued.
+  Attempts are counted from `scan_started` audit rows, which are written in the
+  same transaction as the claim, so the count cannot drift from what ran.
+- Giving up leaves the version `quarantined` with `MATERIAL_SCAN_ABANDONED`,
+  not `rejected`: it stays undownloadable either way, but `rejected` would tell
+  the owner their file is malware when we merely failed to check it. The DTO
+  now carries `scanErrorCode` so the distinction reaches the frontend.
+- Enqueue happens strictly after the upload transaction commits, matching the
+  Advisory Fit queue. A disabled queue throws rather than dropping the job.
+- Focused verification: live upload of a clean PDF reaching READY, an EICAR
+  upload reaching REJECTED, a forced scanner outage leaving the version
+  unscanned, and a reaper sweep releasing a version stranded in `scanning`.
