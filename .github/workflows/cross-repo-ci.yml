@@ -1,0 +1,94 @@
+name: Cross-repository CI
+
+# Deliberately not on pull_request. Three checkouts plus two toolchains is slow,
+# and backend PR feedback should stay under two minutes. This runs after merge,
+# which is when a sibling repository drifting past its reviewed revision
+# actually matters.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify Sprint 4 cross-repository contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout backend
+        uses: actions/checkout@v4
+        with:
+          path: sharek
+
+      # fetch-depth: 0 on both siblings. The gate asserts the reviewed revision
+      # is contained in HEAD, and a shallow clone does not hold that object.
+      # Checking out the default branch rather than the pinned SHA only works
+      # because that check is containment rather than equality.
+      - name: Checkout frontend
+        uses: actions/checkout@v4
+        with:
+          repository: ITI-Sharek/Frontend
+          path: frontend
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          fetch-depth: 0
+
+      - name: Checkout AI agents
+        uses: actions/checkout@v4
+        with:
+          repository: ITI-Sharek/AI_Agents
+          path: ai-agents
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: sharek
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: sharek
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      # routeTree.gen.ts is gitignored and src/router.tsx imports it, so vitest
+      # cannot load a fresh checkout without this.
+      - name: Generate frontend route tree
+        run: pnpm generate-routes
+        working-directory: frontend
+
+      - name: Install AI dependencies
+        run: python -m pip install -r requirements.txt
+        working-directory: ai-agents
+
+      # SHAREK_AI_PYTHON is required: the gate defaults to
+      # <aiRoot>/.venv/bin/python, and the AI repository installs into the
+      # setup-python interpreter without creating a venv.
+      - name: Verify Sprint 4 cross-repository contracts
+        run: npm run test:release-gate:s4-core:cross-repo
+        working-directory: sharek
+        env:
+          SHAREK_FRONTEND_ROOT: ${{ github.workspace }}/frontend
+          SHAREK_AI_ROOT: ${{ github.workspace }}/ai-agents
+          SHAREK_AI_PYTHON: python
