@@ -14,6 +14,8 @@ const backendSuites = [
   'test/contribution-proposals.e2e-spec.ts',
   'src/modules/applications/applications.service.spec.ts',
   'src/modules/applications/services/advisory-fit-assessment.service.spec.ts',
+  'src/modules/applications/services/advisory-fit-assessment-processor.service.spec.ts',
+  'src/modules/applications/services/advisory-fit-assessment-reaper.service.spec.ts',
   'src/modules/ai/integrations/advisory-fit.client.spec.ts',
   'src/modules/contribution-proposals/contribution-proposals.service.spec.ts',
 ];
