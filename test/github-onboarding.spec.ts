@@ -13,16 +13,9 @@ describe('GitHub onboarding flow', () => {
   const originalFetch = global.fetch;
 
   beforeAll(async () => {
-    process.env.GITHUB_CLIENT_ID = 'test-github-client-id';
-    process.env.GITHUB_CLIENT_SECRET = 'test-github-client-secret';
-    process.env.GITHUB_OAUTH_CALLBACK_URL =
-      'http://localhost:4000/auth/github/callback/repository';
-    process.env.GITHUB_AUTH_CALLBACK_URL =
-      'http://localhost:4000/auth/github/callback';
-    process.env.FRONTEND_URL = 'http://localhost:3001';
-    process.env.GITHUB_TOKEN_ENCRYPTION_KEY =
-      'test-github-token-encryption-key-32-chars-min';
-
+    // GitHub OAuth settings come from test/setup-env.ts. Assigning them here
+    // had no effect: ConfigModule.forRoot() is evaluated when AppModule is
+    // imported at the top of this file, which happens before beforeAll runs.
     database = new InMemoryDatabase();
     emailVerificationOtps = new Map<string, string>();
     const moduleRef = await Test.createTestingModule({
