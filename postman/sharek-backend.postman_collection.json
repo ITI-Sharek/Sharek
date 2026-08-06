@@ -1189,6 +1189,103 @@
 					}
 				},
 				{
+					"name": "M01 - Upload a Project Material",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "file", "type": "file", "src": [] },
+								{ "key": "title", "value": "Project brief", "type": "text" },
+								{ "key": "visibility", "value": "PUBLIC", "type": "text" },
+								{ "key": "idempotencyKey", "value": "{{materialIdempotencyKey}}", "type": "text" }
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/projects/{{projectId}}/materials",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects", "{{projectId}}", "materials"]
+						},
+						"description": "Upload a Project Material. Storage consent only: no extraction, embedding, retrieval, or provider call. The first version is created quarantined and is not downloadable until a scan clears it."
+					}
+				},
+				{
+					"name": "M02 - Upload a Contribution Request Material",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "file", "type": "file", "src": [] },
+								{ "key": "title", "value": "Request brief", "type": "text" },
+								{ "key": "visibility", "value": "ASSIGNMENT", "type": "text" },
+								{ "key": "idempotencyKey", "value": "{{materialIdempotencyKey}}", "type": "text" }
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/contribution-requests/{{contributionRequestId}}/materials",
+							"host": ["{{baseUrl}}"],
+							"path": ["contribution-requests", "{{contributionRequestId}}", "materials"]
+						},
+						"description": "Upload a Contribution Request Material. A Material belongs to exactly one scope, enforced by a database check constraint."
+					}
+				},
+				{
+					"name": "M03 - Append a Material Version",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{ "key": "file", "type": "file", "src": [] },
+								{ "key": "idempotencyKey", "value": "{{materialIdempotencyKey}}", "type": "text" }
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/materials/{{materialId}}/versions",
+							"host": ["{{baseUrl}}"],
+							"path": ["materials", "{{materialId}}", "versions"]
+						},
+						"description": "Append an immutable version. The previous version is untouched, so replacing a Material never rewrites what collaborators may already have read."
+					}
+				},
+				{
+					"name": "M04 - Read an owned Material",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/materials/{{materialId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["materials", "{{materialId}}"]
+						},
+						"description": "Owner view of a Material and its versions, including each version's server-authoritative scan status."
+					}
+				},
+				{
 					"name": "06b - Read Project Intake",
 					"request": {
 						"method": "GET",

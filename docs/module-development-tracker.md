@@ -2232,3 +2232,28 @@ This keeps the system strong without making it heavy:
 - Focused verification: storage adapter specs run against real temporary files
   covering digest, immutability, idempotent delete, and three path-traversal
   shapes; environment specs pin the configurable limit bounds.
+
+### 2026-08-07 - Materials: upload and immutable versions (S4-B12, part 2)
+
+- Scope: upload routes for Project and Contribution Request Materials, an
+  append-only version endpoint, and an owner read. Still no download route and
+  no scan; a version is created quarantined and stays there until B12 part 3.
+- Content is validated against the bytes, not the header. The declared
+  Content-Type is attacker-controlled, so an allowlist alone would accept
+  anything renamed: PDF is confirmed by magic bytes, DOCX by the ZIP signature
+  plus the WordprocessingML main part, and text formats -- which have no magic
+  bytes -- by being decodable UTF-8 without NUL.
+- Rejections distinguish an unsupported format from a format that lied about
+  itself, and carry the configured allowlist or size limit as metadata so
+  clients do not duplicate the numbers.
+- Appends take a per-Material advisory lock, so two concurrent uploads cannot
+  claim the same version number. The lock result is cast to text because
+  pg_advisory_xact_lock returns void, which Prisma cannot deserialize.
+- Bytes are written before the transaction so a failure can delete them; the
+  storage key therefore carries no version number, because the version is only
+  resolved inside that transaction under the lock.
+- Consent boundary: the service takes no AI dependency at all, which is the
+  strongest available form of "upload performs no provider call".
+- Focused verification: live upload against the running API covering an
+  accepted PDF, a binary renamed as PDF, an unsupported type, an appended
+  version preserving the previous one, storage keys, and audit rows.
