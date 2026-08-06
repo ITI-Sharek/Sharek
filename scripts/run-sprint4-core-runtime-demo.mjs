@@ -256,7 +256,15 @@ async function main() {
   });
   expectStatus(proposal, 201, 'submit contribution proposal');
   assert(proposal.body?.status === 'PENDING', 'proposal was not PENDING');
-  record('proposal-submitted', proposal.status, ['status=PENDING', 'identifier-redacted']);
+  assert(
+    typeof proposal.body?.proposerName === 'string' && proposal.body.proposerName.length > 0,
+    'proposal response omitted proposer identity',
+  );
+  record('proposal-submitted', proposal.status, [
+    'status=PENDING',
+    'proposer-identified',
+    'identifier-redacted',
+  ]);
 
   const revisionRequest = await call({
     method: 'POST',
