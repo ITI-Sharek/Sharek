@@ -12,11 +12,25 @@ process.env.JWT_ACCESS_SECRET =
   process.env.JWT_ACCESS_SECRET ?? 'test-access-secret-change-me';
 process.env.JWT_REFRESH_SECRET =
   process.env.JWT_REFRESH_SECRET ?? 'test-refresh-secret-change-me';
+// The GitHub settings use `||`, not `??`, on purpose. `.env.example` ships
+// GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET as empty strings, and @nestjs/config
+// lets process.env win over the env file, so a developer who follows the
+// documented `cp .env.example .env` ends up with '' here. An empty string is
+// not nullish, so `??` would preserve it and the OAuth config check would fail.
+// Empty is never a valid value for any of these.
+process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3001';
+process.env.GITHUB_CLIENT_ID =
+  process.env.GITHUB_CLIENT_ID || 'test-github-client-id';
+process.env.GITHUB_CLIENT_SECRET =
+  process.env.GITHUB_CLIENT_SECRET || 'test-github-client-secret';
 process.env.GITHUB_OAUTH_CALLBACK_URL =
-  process.env.GITHUB_OAUTH_CALLBACK_URL ??
+  process.env.GITHUB_OAUTH_CALLBACK_URL ||
   'http://localhost:4000/auth/github/callback/repository';
+process.env.GITHUB_AUTH_CALLBACK_URL =
+  process.env.GITHUB_AUTH_CALLBACK_URL ||
+  'http://localhost:4000/auth/github/callback';
 process.env.GITHUB_TOKEN_ENCRYPTION_KEY =
-  process.env.GITHUB_TOKEN_ENCRYPTION_KEY ??
+  process.env.GITHUB_TOKEN_ENCRYPTION_KEY ||
   'test-github-token-encryption-key-32-chars-min';
 process.env.AI_SERVICE_URL =
   process.env.AI_SERVICE_URL ?? 'http://localhost:8010';
