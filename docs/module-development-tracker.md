@@ -2208,3 +2208,52 @@ This keeps the system strong without making it heavy:
   clean AI prerequisite's pytest/compile gates, and the dated real-process HTTP
   evidence under `docs/release-gates/`. B11 is ready to merge once final PR #69
   CI passes; Materials remains gated until #57 closes through that merge.
+
+### 2026-08-07 - Materials: safe foundation (S4-B12, part 1)
+
+- Scope: introduced the `materials` module with the data model, private
+  storage port, and configurable format and size limits. No routes yet; upload
+  and versioning follow in the second part.
+- Data model: `Material` carries identity, ownership scope, and one of three
+  fixed visibility classes; `MaterialVersion` is immutable, so a replacement is
+  a new version rather than an edit; `MaterialGrant` is an explicit revocable
+  grant retained after revocation; `MaterialAudit` is append-only and outlives
+  content purge, because deletion removes bytes rather than the record that
+  bytes existed. Migration `20260807090000_materials_foundation`.
+- Invariant: a Material belongs to exactly one of a Project or a Contribution
+  Request, enforced by a raw check constraint because Prisma cannot express it
+  and visibility resolution is undefined for a row attached to both or neither.
+- Storage: raw bytes go through a `MaterialStorage` port rather than a client,
+  so the domain rules are written against a contract and S3 or MinIO is an
+  adapter swap. Keys are generated rather than derived from filenames, and the
+  local adapter asserts containment within its root regardless.
+- Consent boundary: nothing in this module extracts, embeds, retrieves, or
+  calls a provider. Upload is storage consent only.
+- Focused verification: storage adapter specs run against real temporary files
+  covering digest, immutability, idempotent delete, and three path-traversal
+  shapes; environment specs pin the configurable limit bounds.
+
+### 2026-08-07 - Materials: upload and immutable versions (S4-B12, part 2)
+
+- Scope: upload routes for Project and Contribution Request Materials, an
+  append-only version endpoint, and an owner read. Still no download route and
+  no scan; a version is created quarantined and stays there until B12 part 3.
+- Content is validated against the bytes, not the header. The declared
+  Content-Type is attacker-controlled, so an allowlist alone would accept
+  anything renamed: PDF is confirmed by magic bytes, DOCX by the ZIP signature
+  plus the WordprocessingML main part, and text formats -- which have no magic
+  bytes -- by being decodable UTF-8 without NUL.
+- Rejections distinguish an unsupported format from a format that lied about
+  itself, and carry the configured allowlist or size limit as metadata so
+  clients do not duplicate the numbers.
+- Appends take a per-Material advisory lock, so two concurrent uploads cannot
+  claim the same version number. The lock result is cast to text because
+  pg_advisory_xact_lock returns void, which Prisma cannot deserialize.
+- Bytes are written before the transaction so a failure can delete them; the
+  storage key therefore carries no version number, because the version is only
+  resolved inside that transaction under the lock.
+- Consent boundary: the service takes no AI dependency at all, which is the
+  strongest available form of "upload performs no provider call".
+- Focused verification: live upload against the running API covering an
+  accepted PDF, a binary renamed as PDF, an unsupported type, an appended
+  version preserving the previous one, storage keys, and audit rows.
