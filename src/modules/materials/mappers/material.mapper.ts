@@ -37,6 +37,7 @@ function toMaterialVersionDto(
   return {
     version: version.version,
     scanStatus: version.scan_status.toUpperCase() as MaterialScanStatusDto,
+    scanErrorCode: version.scan_error_code,
     byteSize: version.byte_size,
     mimeType: version.mime_type,
     originalFilename: version.original_filename,

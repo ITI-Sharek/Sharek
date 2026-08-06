@@ -99,6 +99,37 @@ describe('environment validation', () => {
     ).toBeUndefined();
   });
 
+  it('rejects a malware scanner mode the stub does not implement', () => {
+    // A typo here would otherwise fall through to the default branch and
+    // report every file clean, which is the one failure mode that must not be
+    // silent.
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        MATERIAL_SCANNER_STUB_MODE: 'permissive',
+      }).error,
+    ).toBeDefined();
+    for (const mode of ['content', 'clean', 'infected', 'error']) {
+      expect(
+        envValidationSchema.validate({
+          ...validEnvironment,
+          MATERIAL_SCANNER_STUB_MODE: mode,
+        }).error,
+      ).toBeUndefined();
+    }
+  });
+
+  it('requires at least one scan attempt', () => {
+    // Zero would abandon every version on the first sweep without ever having
+    // tried to scan it.
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        MATERIAL_SCAN_MAX_ATTEMPTS: 0,
+      }).error,
+    ).toBeDefined();
+  });
+
   it('rejects request timeouts above the overall provider budget', () => {
     const result = envValidationSchema.validate({
       ...validEnvironment,
