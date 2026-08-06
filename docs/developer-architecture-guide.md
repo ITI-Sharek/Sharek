@@ -18,6 +18,7 @@ Choose the module that owns the final business state:
 | `contribution-tasks` | project task definitions and requirements |
 | `applications` | contributor Applications and owner-review lifecycle |
 | `contribution-proposals` | contributor-authored proposals, immutable versions, owner revision requests, intake |
+| `materials` | versioned Project and Request documents, visibility classes, private storage |
 | `delivery-reviews` | delivery submissions, owner review, feedback, ratings |
 | `reputation` | reputation summaries and history |
 | `admin` | moderation, reports, disputes, admin queues |
