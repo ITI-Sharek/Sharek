@@ -92,6 +92,7 @@
 # - [DONE] POST /applications/:applicationId/decline
 # - [DONE] POST /applications/:applicationId/assessment-requests
 # - [DONE] GET /applications/:applicationId/assessment
+# - [DONE] POST /applications/:applicationId/assessment/presentations
 # - [DONE] POST /contribution-proposals
 # - [DONE] GET /contribution-proposals/mine
 # - [DONE] GET /contribution-proposals/for-project/:projectId
@@ -1189,6 +1190,14 @@ Content-Type: application/json
 # The response exposes REQUESTED, COMPLETED, bounded not-started states,
 # CANCELLED_NOT_NEEDED, or UNAVAILABLE plus a NestJS-derived fitBand.
 GET {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/assessment
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 29b - Record the owner's first presentation of the assessment
+# Explicit command: reading the assessment above never marks it presented, so
+# a prefetch or a poll cannot claim the owner has seen it. Replaying this is
+# safe - the presentation is unique per assessment.
+POST {{baseUrl}}/applications/{{submittedApplication.response.body.$.id}}/assessment/presentations
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 

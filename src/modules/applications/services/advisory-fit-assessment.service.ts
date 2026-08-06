@@ -300,40 +300,81 @@ export class AdvisoryFitAssessmentService {
       return this.present(request);
     }
 
+    return this.present(request);
+  }
+
+  /**
+   * Records the owner's first presentation of a completed assessment.
+   *
+   * This used to happen inside getAssessment, which made a read mutate state:
+   * a prefetch, a retried request or a monitoring probe would stamp
+   * `presented`. It matters more now that the read is the surface a client
+   * polls while a request is still being processed — a poll must not claim the
+   * owner has seen the result.
+   *
+   * At-most-once comes from AssessmentPresentation's unique index on
+   * advisory_fit_assessment_id, not from the audit table: `presented` rows
+   * leave attempt_number NULL, and the audit's unique index is NULLS DISTINCT,
+   * so duplicates there would not collide.
+   */
+  async presentAssessment(
+    actor: AuthenticatedUser,
+    applicationId: string,
+  ): Promise<AdvisoryFitAssessmentDto> {
+    this.assertActiveOwner(actor);
+    const application = await this.database.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true, contribution_request_id: true },
+    });
+    if (!application) throw this.applicationNotFound();
+    await this.contributionTasks.confirmOwnerDecisionActor({
+      requestId: application.contribution_request_id,
+      ownerId: actor.id,
+    });
+
+    const request = await this.database.assessmentRequest.findFirst({
+      where: { application_id: applicationId },
+      orderBy: { created_at: 'desc' },
+      include: ASSESSMENT_REQUEST_INCLUDE,
+    });
+    if (!request) return this.notRequested(applicationId);
+    if (request.status !== AssessmentRequestStatus.completed) {
+      return this.present(request);
+    }
+
     const assessment = request.attempts[0]?.advisoryFitAssessment;
     if (!assessment) return this.present(request);
-    if (!request.attempts[0]?.advisoryFitAssessment?.presentation) {
-      const presentedAt = new Date();
-      try {
-        await this.database.$transaction(async (transaction) => {
-          await transaction.assessmentPresentation.create({
-            data: {
-              id: randomUUID(),
-              advisory_fit_assessment_id: assessment.id,
-              owner_id: actor.id,
-              presented_at: presentedAt,
-            },
-          });
-          await transaction.assessmentRequestAudit.create({
-            data: {
-              assessment_request_id: request.id,
-              actor_id: actor.id,
-              action: AssessmentAuditAction.presented,
-              to_status: AssessmentRequestStatus.completed,
-              metadata: { payloadVersion: 1, assessmentId: assessment.id },
-            },
-          });
+    if (assessment.presentation) return this.present(request);
+
+    const presentedAt = new Date();
+    try {
+      await this.database.$transaction(async (transaction) => {
+        await transaction.assessmentPresentation.create({
+          data: {
+            id: randomUUID(),
+            advisory_fit_assessment_id: assessment.id,
+            owner_id: actor.id,
+            presented_at: presentedAt,
+          },
         });
-      } catch (error) {
-        if (!this.isUniqueViolation(error)) throw error;
-        const presentation = await this.database.assessmentPresentation.findUnique({
-          where: { advisory_fit_assessment_id: assessment.id },
+        await transaction.assessmentRequestAudit.create({
+          data: {
+            assessment_request_id: request.id,
+            actor_id: actor.id,
+            action: AssessmentAuditAction.presented,
+            to_status: AssessmentRequestStatus.completed,
+            metadata: { payloadVersion: 1, assessmentId: assessment.id },
+          },
         });
-        return this.present(request, presentation?.presented_at ?? null);
-      }
-      return this.present(request, presentedAt);
+      });
+    } catch (error) {
+      if (!this.isUniqueViolation(error)) throw error;
+      const presentation = await this.database.assessmentPresentation.findUnique({
+        where: { advisory_fit_assessment_id: assessment.id },
+      });
+      return this.present(request, presentation?.presented_at ?? null);
     }
-    return this.present(request);
+    return this.present(request, presentedAt);
   }
 
   private async process(

@@ -48,6 +48,7 @@ describe('Applications HTTP contract', () => {
   const assessmentService = {
     request: jest.fn(),
     getAssessment: jest.fn(),
+    presentAssessment: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -375,6 +376,39 @@ describe('Applications HTTP contract', () => {
       idempotencyKey,
     });
     expect(assessmentService.getAssessment).toHaveBeenCalledWith(
+      owner,
+      applicationId,
+    );
+  });
+
+  it('records presentation only through the explicit command, never the read', async () => {
+    authenticatedActor = owner;
+    assessmentService.presentAssessment.mockResolvedValue({
+      id: applicationId,
+      applicationId,
+      requestStatus: 'COMPLETED',
+      fitBand: 'STRONG',
+      findings: [],
+      presentedAt: '2026-08-02T12:05:00.000Z',
+      requestedAt: '2026-08-02T12:00:00.000Z',
+      completedAt: '2026-08-02T12:00:01.000Z',
+      attempts: 1,
+      retryAvailable: false,
+    });
+
+    await request(app.getHttpServer())
+      .get(`/applications/${applicationId}/assessment`)
+      .expect(200);
+    expect(assessmentService.presentAssessment).not.toHaveBeenCalled();
+
+    await request(app.getHttpServer())
+      .post(`/applications/${applicationId}/assessment/presentations`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.presentedAt).toBeTruthy();
+      });
+
+    expect(assessmentService.presentAssessment).toHaveBeenCalledWith(
       owner,
       applicationId,
     );

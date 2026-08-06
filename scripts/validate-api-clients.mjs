@@ -23,6 +23,7 @@ const applicationPublicRoutes = new Set([
   'POST /applications/:parameter/decline',
   'POST /applications/:parameter/assessment-requests',
   'GET /applications/:parameter/assessment',
+  'POST /applications/:parameter/assessment/presentations',
 ]);
 
 function listControllerFiles(directory) {
