@@ -228,11 +228,10 @@ if (crossRepo) {
   }
   result.frontend = verifyReviewedCheckout(frontendRoot, revisions.frontend);
   result.ai = verifyReviewedCheckout(aiRoot, revisions.ai);
-  run(
-    'corepack',
-    ['pnpm', 'exec', 'vitest', 'run', ...frontendSuites],
-    frontendRoot,
-  );
+  // Plain `pnpm`, not `corepack pnpm`: the Frontend package.json has no
+  // packageManager field, so corepack resolves its own bundled default rather
+  // than the pinned pnpm the checkout was installed with.
+  run('pnpm', ['exec', 'vitest', 'run', ...frontendSuites], frontendRoot);
   const aiPython = process.env.SHAREK_AI_PYTHON ?? join(aiRoot, '.venv/bin/python');
   const schemaCheck = [
     'import json,sys',
