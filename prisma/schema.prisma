@@ -416,6 +416,11 @@ model User {
   assessmentRequestsOwned            AssessmentRequest[]                 @relation("AssessmentRequestOwner")
   assessmentPresentations            AssessmentPresentation[]            @relation("AssessmentPresentationOwner")
   assessmentAuditEvents              AssessmentRequestAudit[]             @relation("AssessmentRequestAuditActor")
+  materialsOwned                     Material[]                          @relation("MaterialOwner")
+  materialVersionsUploaded           MaterialVersion[]                   @relation("MaterialVersionUploader")
+  materialGrantsReceived             MaterialGrant[]                     @relation("MaterialGrantGrantee")
+  materialGrantsIssued               MaterialGrant[]                     @relation("MaterialGrantGranter")
+  materialAuditEvents                MaterialAudit[]                     @relation("MaterialAuditActor")
 }
 
 model AuthProviderAccount {
@@ -630,6 +635,7 @@ model Project {
   stateTransitions      ProjectStateTransition[]
   contributionProposals ContributionProposal[]   @relation("ProjectContributionProposals")
   proposalIntake        ProjectProposalIntake?   @relation("ProjectProposalIntake")
+  materials             Material[]               @relation("ProjectMaterials")
 
   @@unique([slug_normalized], map: "projects_slug_normalized_unique")
   @@index([github_repo_url])
@@ -700,6 +706,7 @@ model ContributionRequest {
   ownerDecisions        OwnerDecision[]
   assignments           Assignment[]
   assessmentRequests    AssessmentRequest[]
+  materials             Material[]          @relation("ContributionRequestMaterials")
 
   @@index([project_id, status])
   @@index([owner_id, created_at])
@@ -1503,4 +1510,126 @@ model UsageTracker {
   updated_at  DateTime       @default(now()) @updatedAt
 
   user User @relation(fields: [user_id], references: [id])
+}
+
+enum MaterialVisibility {
+  public
+  restricted_project
+  assignment
+}
+
+enum MaterialScanStatus {
+  quarantined
+  scanning
+  ready
+  rejected
+}
+
+enum MaterialAuditAction {
+  uploaded
+  scan_started
+  scan_cleared
+  scan_rejected
+  scan_abandoned
+  visibility_changed
+  grant_added
+  grant_revoked
+  deleted
+  purged
+}
+
+/// A Material belongs to exactly one of a Project or a Contribution Request.
+/// Content lives in immutable MaterialVersions; this row carries identity,
+/// ownership scope, and the server-enforced visibility class.
+model Material {
+  id                      String             @id @default(uuid()) @db.Uuid
+  project_id              String?            @db.Uuid
+  contribution_request_id String?            @db.Uuid
+  owner_id                String             @db.Uuid
+  title                   String             @db.VarChar(255)
+  visibility              MaterialVisibility
+  current_version         Int                @default(0)
+  deleted_at              DateTime?
+  created_at              DateTime           @default(now())
+  updated_at              DateTime           @default(now()) @updatedAt
+
+  project             Project?             @relation("ProjectMaterials", fields: [project_id], references: [id], onDelete: Restrict)
+  contributionRequest ContributionRequest? @relation("ContributionRequestMaterials", fields: [contribution_request_id], references: [id], onDelete: Restrict)
+  owner               User                 @relation("MaterialOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  versions            MaterialVersion[]
+  grants              MaterialGrant[]
+  auditEvents         MaterialAudit[]
+
+  @@index([project_id, deleted_at])
+  @@index([contribution_request_id, deleted_at])
+  @@index([owner_id])
+}
+
+/// Immutable. A replacement is a new version, never an edit. Content is
+/// unreadable until scan_status is `ready`, and purging clears the bytes while
+/// the row survives as audit metadata.
+model MaterialVersion {
+  id                String             @id @default(uuid()) @db.Uuid
+  material_id       String             @db.Uuid
+  version           Int
+  storage_key       String             @db.VarChar(512)
+  content_hash      String             @db.Char(64)
+  byte_size         Int
+  mime_type         String             @db.VarChar(150)
+  original_filename String             @db.VarChar(255)
+  scan_status       MaterialScanStatus @default(quarantined)
+  scan_error_code   String?            @db.VarChar(100)
+  scanned_at        DateTime?
+  uploaded_by       String             @db.Uuid
+  purged_at         DateTime?
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @default(now()) @updatedAt
+
+  material   Material @relation(fields: [material_id], references: [id], onDelete: Restrict)
+  uploadedBy User     @relation("MaterialVersionUploader", fields: [uploaded_by], references: [id], onDelete: Restrict)
+
+  @@unique([material_id, version])
+  @@index([scan_status, updated_at])
+}
+
+/// An explicit, revocable grant for restricted_project Materials. Absence of a
+/// live grant denies access; a revoked grant is retained rather than deleted so
+/// the history stays auditable.
+model MaterialGrant {
+  id          String    @id @default(uuid()) @db.Uuid
+  material_id String    @db.Uuid
+  grantee_id  String    @db.Uuid
+  granted_by  String    @db.Uuid
+  granted_at  DateTime  @default(now())
+  revoked_at  DateTime?
+  revoked_by  String?   @db.Uuid
+
+  material Material @relation(fields: [material_id], references: [id], onDelete: Restrict)
+  grantee  User     @relation("MaterialGrantGrantee", fields: [grantee_id], references: [id], onDelete: Restrict)
+  grantedBy User    @relation("MaterialGrantGranter", fields: [granted_by], references: [id], onDelete: Restrict)
+
+  @@index([material_id, grantee_id, revoked_at])
+  @@index([grantee_id, revoked_at])
+}
+
+/// Append-only. Survives version purge deliberately: deletion removes content,
+/// not the record that content once existed and who acted on it.
+model MaterialAudit {
+  id                  String              @id @default(uuid()) @db.Uuid
+  material_id         String              @db.Uuid
+  material_version    Int?
+  actor_id            String?             @db.Uuid
+  action              MaterialAuditAction
+  from_status         MaterialScanStatus?
+  to_status           MaterialScanStatus?
+  idempotency_key     String?             @db.VarChar(128)
+  command_fingerprint String?             @db.Char(64)
+  metadata            Json?
+  created_at          DateTime            @default(now())
+
+  material Material @relation(fields: [material_id], references: [id], onDelete: Restrict)
+  actor    User?    @relation("MaterialAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
+
+  @@unique([actor_id, action, idempotency_key])
+  @@index([material_id, created_at])
 }

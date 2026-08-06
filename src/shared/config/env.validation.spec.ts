@@ -24,6 +24,8 @@ describe('environment validation', () => {
       ADVISORY_FIT_QUEUE_ENABLED: true,
       ADVISORY_FIT_REAP_INTERVAL_MS: 60_000,
       ADVISORY_FIT_STALE_AFTER_MS: 600_000,
+      MATERIAL_MAX_BYTES: 26_214_400,
+      MATERIAL_STORAGE_ROOT: './.material-storage',
     });
   });
 
@@ -80,6 +82,20 @@ describe('environment validation', () => {
         AI_ADVISORY_FIT_TIMEOUT_MS: 75_000,
         ADVISORY_FIT_STALE_AFTER_MS: 120_000,
       }).error,
+    ).toBeUndefined();
+  });
+
+  it('rejects Material size limits outside the supported band', () => {
+    // Supported formats and limits are configuration, not constants, so the
+    // bounds are what stop a deployment accepting a 2GB upload by typo.
+    expect(
+      envValidationSchema.validate({ ...validEnvironment, MATERIAL_MAX_BYTES: 512 }).error,
+    ).toBeDefined();
+    expect(
+      envValidationSchema.validate({ ...validEnvironment, MATERIAL_MAX_BYTES: 209_715_200 }).error,
+    ).toBeDefined();
+    expect(
+      envValidationSchema.validate({ ...validEnvironment, MATERIAL_MAX_BYTES: 5_242_880 }).error,
     ).toBeUndefined();
   });
 

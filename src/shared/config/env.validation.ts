@@ -40,6 +40,15 @@ export const envValidationSchema = Joi.object({
     .min(60_000)
     .max(86_400_000)
     .default(600_000),
+  MATERIAL_STORAGE_ROOT: Joi.string().default('./.material-storage'),
+  MATERIAL_MAX_BYTES: Joi.number()
+    .integer()
+    .min(1_024)
+    .max(104_857_600)
+    .default(26_214_400),
+  MATERIAL_ALLOWED_MIME_TYPES: Joi.string().default(
+    'application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain',
+  ),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://localhost:3001'),
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),
