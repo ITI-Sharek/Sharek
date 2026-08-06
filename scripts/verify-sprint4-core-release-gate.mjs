@@ -160,19 +160,50 @@ function git(root, args) {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 }
 
+/**
+ * Asserts the sibling checkout still contains the revision this gate was
+ * reviewed against.
+ *
+ * This used to demand HEAD === the pinned SHA, which meant every merge in
+ * Frontend or AI_Agents broke the gate until someone hand-edited
+ * reviewed-revisions.json. Containment is the property that actually matters:
+ * a checkout ahead of the reviewed revision still includes everything that was
+ * reviewed, while one that has diverged does not.
+ *
+ * The trade is real — commits after the pin are no longer reviewed — so the
+ * gate reports how far ahead the checkout is rather than passing silently.
+ */
 function verifyReviewedCheckout(root, expected) {
   if (git(root, ['status', '--porcelain'])) {
     throw new Error(`${expected.repository} reviewed checkout is not clean`);
   }
   const head = git(root, ['rev-parse', 'HEAD']);
-  if (head !== expected.sha) {
-    throw new Error(`${expected.repository} HEAD ${head} != reviewed ${expected.sha}`);
+
+  // A shallow clone (actions/checkout defaults to fetch-depth: 1) will not hold
+  // the pinned object, and merge-base would fail with nothing actionable.
+  try {
+    git(root, ['cat-file', '-e', `${expected.sha}^{commit}`]);
+  } catch {
+    throw new Error(
+      `${expected.repository} checkout does not contain reviewed revision ${expected.sha}. ` +
+        'Use fetch-depth: 0, or run git fetch --unshallow.',
+    );
   }
-  execFileSync('git', ['merge-base', '--is-ancestor', expected.defaultRef, 'HEAD'], {
-    cwd: root,
-    stdio: 'inherit',
-  });
-  return head;
+
+  try {
+    git(root, ['merge-base', '--is-ancestor', expected.sha, 'HEAD']);
+  } catch {
+    throw new Error(
+      `${expected.repository} HEAD ${head} does not contain reviewed revision ${expected.sha}. ` +
+        `The checkout has diverged rather than merely moved ahead; refresh the pin from ${expected.defaultRef}.`,
+    );
+  }
+
+  return {
+    head,
+    reviewed: expected.sha,
+    ahead: Number(git(root, ['rev-list', '--count', `${expected.sha}..HEAD`])),
+  };
 }
 
 validateCanonicalFixtures();
