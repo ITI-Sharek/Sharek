@@ -870,6 +870,27 @@ export class ContributionProposalsService {
     return this.listPage({ project_id: projectId }, query);
   }
 
+  /**
+   * Reads whether a Project is accepting Contribution Proposals.
+   *
+   * A plain read on purpose. `assertIntakeEnabled` lazily upserts the row so it
+   * can take a row lock during submission; copying that here would make a GET
+   * write, which is the defect just removed from the assessment read. Absence
+   * of a row means enabled, matching the column default.
+   */
+  async getIntake(
+    actor: AuthenticatedUser,
+    projectId: string,
+  ): Promise<ProposalIntakeDto> {
+    this.assertActiveOwner(actor);
+    const project = await this.projects.getProposalProjectContext(projectId);
+    if (project.ownerId !== actor.id) throw this.proposalNotFound();
+    const intake = await this.database.projectProposalIntake.findUnique({
+      where: { project_id: projectId },
+    });
+    return { projectId, enabled: intake?.enabled ?? true };
+  }
+
   async setIntake(
     actor: AuthenticatedUser,
     projectId: string,

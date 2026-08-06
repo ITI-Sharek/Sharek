@@ -1189,6 +1189,20 @@
 					}
 				},
 				{
+					"name": "06b - Read Project Intake",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": "{{baseUrl}}/contribution-proposals/for-project/{{projectId}}/intake",
+						"description": "Read whether an owned Project is accepting Contribution Proposals. A Project with no intake row is accepting; this read never creates one."
+					}
+				},
+				{
 					"name": "07 - Toggle Project Intake",
 					"request": {
 						"method": "PUT",

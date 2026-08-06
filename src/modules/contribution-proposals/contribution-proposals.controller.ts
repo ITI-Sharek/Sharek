@@ -65,6 +65,16 @@ export class ContributionProposalsController {
     return this.proposals.listForProject(actor, projectId, query);
   }
 
+  // Declared before @Get(':proposalId') so the literal segment wins; otherwise
+  // Nest matches "for-project" as a proposal id.
+  @Get('for-project/:projectId/intake')
+  getIntake(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
+  ) {
+    return this.proposals.getIntake(actor, projectId);
+  }
+
   @Put('for-project/:projectId/intake')
   setIntake(
     @CurrentUser() actor: AuthenticatedUser,

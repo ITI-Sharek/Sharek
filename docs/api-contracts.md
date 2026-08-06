@@ -1368,6 +1368,7 @@ enforced it, so no such database constraint exists.
 GET  /contribution-proposals/mine?limit=20&cursor=<opaque>
 GET  /contribution-proposals/for-project/:projectId?limit=20&cursor=<opaque>
 GET  /contribution-proposals/:proposalId
+GET  /contribution-proposals/for-project/:projectId/intake
 PUT  /contribution-proposals/for-project/:projectId/intake
 POST /contribution-proposals/:proposalId/versions
 POST /contribution-proposals/:proposalId/revision-requests
@@ -1382,6 +1383,11 @@ POST /contribution-proposals/:proposalId/accept
 POST /contribution-proposals/:proposalId/decline
 POST /contribution-proposals/:proposalId/misuse-reports
 ```
+
+Both intake routes are Project-owner-scoped and return `{ projectId, enabled }`.
+A Project with no stored intake row is accepting proposals, matching the column
+default; the read reports that without creating the row, so it is safe to
+prefetch and poll.
 
 `mine` is proposer-scoped; `for-project` and `intake` are Project-owner-scoped;
 both lists return `proposals` plus `pageInfo.hasNextPage` and an opaque
