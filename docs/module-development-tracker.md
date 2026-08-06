@@ -1853,7 +1853,8 @@ This keeps the system strong without making it heavy:
   (append-only), withdrawal, private proposer/owner visibility, per-Project
   intake control, and anti-spam rate limits. Submission enforces an active
   published Project, intake enabled, the attribution-and-assignment disclosure,
-  a daily submission cap, and one pending proposal per Project. Only the proposer
+  a daily submission cap, and one pending proposal per Project (that last rule was
+  dropped later in Sprint 4 — see S4-B10 below). Only the proposer
   can answer a revision request with a new version; owners never edit
   contributor-authored content. All state changes append immutable audit records
   with idempotency keys and command fingerprints. The module reads Project facts
@@ -1882,8 +1883,10 @@ This keeps the system strong without making it heavy:
   all eight endpoints.
 - Consistency: submission now locks and revalidates Project publication, intake,
   daily rate, idempotency replay, and pending-proposal state inside the write
-  transaction. A PostgreSQL partial unique index protects the one-pending rule,
-  while revision request sequencing prevents a concurrent version from clearing
+  transaction. A PostgreSQL partial unique index protects the one-pending rule
+  (superseded later in Sprint 4 — migration
+  `20260730131000_allow_multiple_pending_proposals` drops both the rule and the
+  index), while revision request sequencing prevents a concurrent version from clearing
   a newer owner request. Prisma failures are mapped only when their exact
   constraint is known.
 - Tests: added transaction, constraint-error, cursor, revision race,
