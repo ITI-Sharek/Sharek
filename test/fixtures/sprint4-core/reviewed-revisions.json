@@ -2,7 +2,7 @@
   "frontend": {
     "repository": "ITI-Sharek/Frontend",
     "defaultRef": "origin/master",
-    "sha": "fa870f79878a742fc3c25c691dbd078a11cd90a8"
+    "sha": "23d9019014cad32ee9b72cf061364b80098b7884"
   },
   "ai": {
     "repository": "ITI-Sharek/AI_Agents",
