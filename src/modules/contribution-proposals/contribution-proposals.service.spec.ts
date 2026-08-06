@@ -58,7 +58,7 @@ describe('ContributionProposalsService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
     },
-    projectProposalIntake: { upsert: jest.fn() },
+    projectProposalIntake: { upsert: jest.fn(), findUnique: jest.fn() },
     $executeRaw: jest.fn(),
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
@@ -481,6 +481,53 @@ describe('ContributionProposalsService', () => {
           update: expect.objectContaining({ enabled: false }),
         }),
       );
+    });
+  });
+
+  describe('getIntake', () => {
+    it('reports the persisted intake state to the Project owner', async () => {
+      database.projectProposalIntake.findUnique.mockResolvedValue({
+        project_id: projectId,
+        enabled: false,
+      });
+
+      await expect(service.getIntake(owner, projectId)).resolves.toEqual({
+        projectId,
+        enabled: false,
+      });
+    });
+
+    it('treats a Project with no intake row as accepting proposals', async () => {
+      database.projectProposalIntake.findUnique.mockResolvedValue(null);
+
+      await expect(service.getIntake(owner, projectId)).resolves.toEqual({
+        projectId,
+        enabled: true,
+      });
+    });
+
+    it('does not create the row it reads', async () => {
+      database.projectProposalIntake.findUnique.mockResolvedValue(null);
+
+      await service.getIntake(owner, projectId);
+
+      // assertIntakeEnabled lazily upserts so it can lock during submission.
+      // A read must never borrow that.
+      expect(database.projectProposalIntake.upsert).not.toHaveBeenCalled();
+      expect(database.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('does not reveal that a Project belongs to another owner', async () => {
+      projects.getProposalProjectContext.mockResolvedValue({
+        id: projectId,
+        ownerId: 'another-owner-id',
+        status: ProjectStatus.published,
+      });
+
+      await expect(service.getIntake(owner, projectId)).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'PROPOSAL_NOT_FOUND',
+      });
     });
   });
 

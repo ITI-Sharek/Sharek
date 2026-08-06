@@ -96,6 +96,7 @@
 # - [DONE] POST /contribution-proposals
 # - [DONE] GET /contribution-proposals/mine
 # - [DONE] GET /contribution-proposals/for-project/:projectId
+# - [DONE] GET /contribution-proposals/for-project/:projectId/intake
 # - [DONE] PUT /contribution-proposals/for-project/:projectId/intake
 # - [DONE] GET /contribution-proposals/:proposalId
 # - [DONE] POST /contribution-proposals/:proposalId/versions
@@ -1266,6 +1267,12 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 ### 34 - List Project Contribution Proposals as owner
 GET {{baseUrl}}/contribution-proposals/for-project/{{publishedProjectId}}?limit=20
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 34b - Read Project Proposal intake
+# A Project with no intake row is accepting proposals; this read never creates one.
+GET {{baseUrl}}/contribution-proposals/for-project/{{publishedProjectId}}/intake
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 
 

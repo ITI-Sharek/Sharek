@@ -63,6 +63,7 @@ describe('Contribution Proposals HTTP contract', () => {
     listMine: jest.fn(),
     listForProject: jest.fn(),
     setIntake: jest.fn(),
+    getIntake: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -281,6 +282,19 @@ describe('Contribution Proposals HTTP contract', () => {
       .expect(({ body }) => expect(body.enabled).toBe(false));
 
     expect(service.setIntake).toHaveBeenCalledWith(contributor, projectId, false);
+  });
+
+  it('reads proposal intake without matching the route as a proposal id', async () => {
+    service.getIntake.mockResolvedValue({ projectId, enabled: true });
+
+    await request(app.getHttpServer())
+      .get(`/contribution-proposals/for-project/${projectId}/intake`)
+      .expect(200)
+      .expect(({ body }) => expect(body.enabled).toBe(true));
+
+    expect(service.getIntake).toHaveBeenCalledWith(contributor, projectId);
+    // The literal segment has to win over @Get(':proposalId').
+    expect(service.getForActor).not.toHaveBeenCalled();
   });
 
   it('serializes stable workflow errors and requires authentication', async () => {
