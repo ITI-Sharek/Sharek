@@ -513,6 +513,38 @@ describe('ContributionProposalsService', () => {
       );
     });
 
+    it('identifies the proposer on every listed proposal', async () => {
+      database.contributionProposal.findMany.mockResolvedValue([
+        proposalRecord(),
+      ]);
+
+      const result = await service.listForProject(owner, projectId, {});
+
+      expect(result.proposals[0]).toMatchObject({
+        proposerId: contributor.id,
+        proposerName: 'Nour Hassan',
+        proposerUsername: 'nour',
+      });
+    });
+
+    it('reports a null username rather than inventing one', async () => {
+      database.contributionProposal.findMany.mockResolvedValue([
+        proposalRecord({
+          proposer: {
+            id: contributor.id,
+            username: null,
+            first_name: 'Nour',
+            last_name: 'Hassan',
+          },
+        }),
+      ]);
+
+      const result = await service.listForProject(owner, projectId, {});
+
+      expect(result.proposals[0].proposerUsername).toBeNull();
+      expect(result.proposals[0].proposerName).toBe('Nour Hassan');
+    });
+
     it('rejects malformed cursors with a stable public error', async () => {
       await expect(
         service.listForProject(owner, projectId, { cursor: 'not-a-cursor' }),
@@ -845,6 +877,12 @@ function proposalRecord(
     declined_at: null,
     decline_reason: null,
     originatedRequest: null,
+    proposer: {
+      id: contributor.id,
+      username: 'nour',
+      first_name: 'Nour',
+      last_name: 'Hassan',
+    },
     created_at: new Date('2026-07-28T09:00:00.000Z'),
     updated_at: new Date('2026-07-28T09:00:00.000Z'),
     versions: [

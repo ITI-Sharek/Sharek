@@ -607,6 +607,12 @@ function proposalPersistenceRecord() {
     disclosure_acknowledged_at: timestamp,
     revision_requested_at: null,
     withdrawn_at: null,
+    proposer: {
+      id: contributor.id,
+      username: 'nour',
+      first_name: 'Nour',
+      last_name: 'Hassan',
+    },
     created_at: timestamp,
     updated_at: timestamp,
     versions: [
