@@ -12,6 +12,14 @@ export interface MaterialVersionDto {
    * so it is server-authoritative rather than inferred from age or presence.
    */
   scanStatus: MaterialScanStatusDto;
+  /**
+   * Why the version is not `READY`, when there is a reason worth showing.
+   *
+   * `QUARANTINED` alone cannot distinguish "waiting to be scanned" from "we
+   * retried to the limit and never got a verdict", and those need different
+   * things said to the owner: one resolves itself, the other never will.
+   */
+  scanErrorCode: string | null;
   byteSize: number;
   mimeType: string;
   originalFilename: string;

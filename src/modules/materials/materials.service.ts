@@ -20,6 +20,7 @@ import {
 import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
 import { ProjectsService } from '../projects/projects.service';
 import { MaterialDto } from './dto/material-response.dto';
+import { MaterialScanQueue } from './jobs/material-scan.queue';
 import { MATERIAL_INCLUDE, toMaterialDto } from './mappers/material.mapper';
 import { MaterialStorage } from './storage/material-storage';
 import { LocalMaterialStorage } from './storage/local-material-storage';
@@ -52,6 +53,7 @@ export class MaterialsService {
     private readonly projects: ProjectsService,
     private readonly contributionTasks: ContributionTasksService,
     private readonly storage: MaterialStorage,
+    private readonly scanQueue: MaterialScanQueue,
   ) {}
 
   async createForProject(input: {
@@ -111,8 +113,9 @@ export class MaterialsService {
     const storageKey = LocalMaterialStorage.buildStorageKey(material.id);
     const stored = await this.storage.put(storageKey, input.file.buffer);
 
+    let appended: { dto: MaterialDto; version: number };
     try {
-      return await this.database.$transaction(async (transaction) => {
+      appended = await this.database.$transaction(async (transaction) => {
         // Serialise concurrent appends to this Material so two uploads cannot
         // claim the same version number.
         await transaction.$queryRaw(Prisma.sql`
@@ -158,7 +161,7 @@ export class MaterialsService {
             metadata: { payloadVersion: 1, contentHash: stored.contentHash },
           },
         });
-        return this.present(transaction, material.id);
+        return { dto: await this.present(transaction, material.id), version };
       });
     } catch (error) {
       // The bytes are already written, so a failed transaction would otherwise
@@ -166,6 +169,9 @@ export class MaterialsService {
       await this.storage.delete(storageKey);
       throw this.mapIdempotencyConflict(error);
     }
+
+    await this.enqueueScan(material.id, appended.version);
+    return appended.dto;
   }
 
   async getForOwner(
@@ -196,8 +202,9 @@ export class MaterialsService {
     const storageKey = LocalMaterialStorage.buildStorageKey(materialId);
     const stored = await this.storage.put(storageKey, input.file.buffer);
 
+    let created: MaterialDto;
     try {
-      return await this.database.$transaction(async (transaction) => {
+      created = await this.database.$transaction(async (transaction) => {
         await transaction.material.create({
           data: {
             id: materialId,
@@ -243,6 +250,24 @@ export class MaterialsService {
       await this.storage.delete(storageKey);
       throw this.mapIdempotencyConflict(error);
     }
+
+    await this.enqueueScan(materialId, 1);
+    return created;
+  }
+
+  /**
+   * Strictly after the transaction commits. Enqueueing inside it lets a worker
+   * pick up a job for a version that is not visible yet, and the worker would
+   * read that as "already gone" and drop the scan.
+   *
+   * If this throws, the version is committed as `quarantined` -- which is
+   * undownloadable, so nothing unsafe is reachable -- and the reaper re-queues
+   * it once the stale window passes. The command still fails, because telling
+   * the owner an upload succeeded while its scan was never scheduled would put
+   * a file in their list that quietly never becomes usable.
+   */
+  private async enqueueScan(materialId: string, version: number): Promise<void> {
+    await this.scanQueue.enqueueScan({ materialId, version, attemptNumber: 1 });
   }
 
   private async present(

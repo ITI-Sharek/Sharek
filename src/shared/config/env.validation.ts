@@ -49,6 +49,31 @@ export const envValidationSchema = Joi.object({
   MATERIAL_ALLOWED_MIME_TYPES: Joi.string().default(
     'application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain',
   ),
+  MATERIAL_SCAN_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  MATERIAL_SCAN_REAP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .max(86_400_000)
+    .default(60_000),
+  MATERIAL_SCAN_STALE_AFTER_MS: Joi.number()
+    .integer()
+    .min(60_000)
+    .max(86_400_000)
+    .default(600_000),
+  MATERIAL_SCAN_MAX_ATTEMPTS: Joi.number()
+    .integer()
+    .min(1)
+    .max(10)
+    .default(3),
+  // The stub stands in for a real scanner. `content` reports the EICAR test
+  // file as infected and everything else as clean; the other three force a
+  // verdict so an operator can reproduce one on demand.
+  MATERIAL_SCANNER_STUB_MODE: Joi.string()
+    .valid('content', 'clean', 'infected', 'error')
+    .default('content'),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://localhost:3001'),
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),
