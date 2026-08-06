@@ -1344,10 +1344,15 @@ acknowledged disclosure, and an empty revision-request history. The Project must
 be published with proposal intake enabled, the disclosure acknowledgement must be
 `true`, and all four canonical proposal fields are required. `title` is 5–255
 characters, `problemOrOpportunity` and `proposedOutcome` are 20–5000 characters,
-and `projectBenefit` is 20–3000 characters. A contributor may hold only one
-pending proposal per Project and is bounded by a daily submission limit. These
-invariants are rechecked transactionally; a database partial unique index also
-protects the pending-proposal rule under concurrency.
+and `projectBenefit` is 20–3000 characters. A contributor may hold **multiple**
+pending proposals on the same Project; submissions are bounded only by a daily
+limit of 10 per contributor (`PROPOSAL_DAILY_SUBMISSION_LIMIT`). These invariants
+are rechecked transactionally, and concurrent submissions by the same contributor
+are serialised by a `pg_advisory_xact_lock` held for the transaction.
+
+Migration `20260730131000_allow_multiple_pending_proposals` removed the earlier
+one-pending-proposal-per-Project rule together with the partial unique index that
+enforced it, so no such database constraint exists.
 
 ```http
 GET  /contribution-proposals/mine?limit=20&cursor=<opaque>
