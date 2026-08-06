@@ -5,6 +5,12 @@ on:
   push:
     branches:
       - main
+  # Manual trigger against any ref. GitHub has intermittently failed to raise
+  # pull_request events for a branch, which leaves the PR with no checks at
+  # all -- worse than a red build, because nothing then distinguishes a branch
+  # that passes from one nobody ran. Dispatching this against the branch runs
+  # the same jobs, so the signal stays real.
+  workflow_dispatch:
 
 permissions:
   contents: read
