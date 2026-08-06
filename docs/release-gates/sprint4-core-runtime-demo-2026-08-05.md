@@ -49,6 +49,20 @@ The reproducible runner is
 `result=PASS` and 22 sanitized entries, including fixture setup and both login
 entries. It fails immediately on any unexpected HTTP status or contract state.
 
+## Cleanup
+
+The runner is idempotent. It removes the fixture Project and everything the run
+created — contribution requests, applications, owner decisions, the assignment,
+the assessment request, proposals and their versions, the append-only audit rows
+and the emitted notifications — from a `finally` block, so teardown also runs
+when the sequence fails partway. Seeded users, auth sessions and any
+pre-existing data are out of scope by construction: every delete is keyed off
+the fixture Project.
+
+Pass `--keep-data` (or set `SHAREK_DEMO_KEEP_DATA=1`) to preserve the fixture
+for inspection after a failed run. Preserved runs still count toward the
+proposer's daily submission limit, so they accumulate.
+
 ## Runtime Defect Found And Closed
 
 The first real Proposal submission exposed a Prisma `P2010`: PostgreSQL
