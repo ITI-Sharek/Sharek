@@ -1629,7 +1629,25 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["applications", "{{applicationId}}", "assessment"]
 						},
-						"description": "Read the owner-scoped assessment request, validated findings, derived fit band, and first presentation time."
+						"description": "Read the owner-scoped assessment request, validated findings, derived fit band, and first presentation time. This read never writes."
+					}
+				},
+				{
+					"name": "07b - Record Advisory Fit Presentation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{ownerAccessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/applications/{{applicationId}}/assessment/presentations",
+							"host": ["{{baseUrl}}"],
+							"path": ["applications", "{{applicationId}}", "assessment", "presentations"]
+						},
+						"description": "Record the owner's first presentation of a completed assessment. Reading the assessment never writes this, so a prefetch or poll cannot claim the owner has seen it. Safe to replay: the presentation is unique per assessment."
 					}
 				},
 				{

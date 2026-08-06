@@ -132,4 +132,18 @@ export class ApplicationsController {
   ) {
     return this.advisoryFitAssessments.getAssessment(actor, applicationId);
   }
+
+  // Deliberately a command, not a side effect of the read above: a prefetch or
+  // a poll must not claim the owner has seen the result. No idempotency key —
+  // the resource identity is the idempotency, enforced by the unique index on
+  // AssessmentPresentation.advisory_fit_assessment_id.
+  @Post('applications/:applicationId/assessment/presentations')
+  @HttpCode(200)
+  presentAssessment(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('applicationId', new ParseUUIDPipe({ version: '4' }))
+    applicationId: string,
+  ) {
+    return this.advisoryFitAssessments.presentAssessment(actor, applicationId);
+  }
 }
