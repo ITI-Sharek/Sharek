@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   AdvisoryFitBand,
   ApplicationStatus,
@@ -70,6 +70,8 @@ const RETRYABLE_REQUEST_STATUSES = new Set<AssessmentRequestStatus>([
 
 @Injectable()
 export class AdvisoryFitAssessmentService {
+  private readonly logger = new Logger(AdvisoryFitAssessmentService.name);
+
   constructor(
     private readonly database: DatabaseService,
     private readonly contributionTasks: ContributionTasksService,
@@ -391,10 +393,15 @@ export class AdvisoryFitAssessmentService {
         contractVersion: 'advisory-fit-v1',
       });
     } catch (error) {
+      const errorCode = this.safeErrorCode(error);
+      this.logger.error(
+        `Advisory Fit provider call failed for assessment request ${request.id} (${errorCode})`,
+        error instanceof Error ? error.stack : String(error),
+      );
       return this.persistUnavailable({
         request,
         actorId,
-        errorCode: this.safeErrorCode(error),
+        errorCode,
         attemptNumber,
         previousAttemptId,
         startedAt: attemptStartedAt,
@@ -430,11 +437,16 @@ export class AdvisoryFitAssessmentService {
         providerResult.findings,
         new Set(allowedEvidenceIds),
       );
-    } catch {
+    } catch (error) {
+      const errorCode = this.safeErrorCode(error);
+      this.logger.error(
+        `Advisory Fit findings rejected for assessment request ${request.id} (${errorCode})`,
+        error instanceof Error ? error.stack : String(error),
+      );
       return this.persistUnavailable({
         request,
         actorId,
-        errorCode: 'AI_ADVISORY_FIT_RESPONSE_INVALID',
+        errorCode,
         providerResult,
         attemptNumber,
         previousAttemptId,
@@ -649,18 +661,31 @@ export class AdvisoryFitAssessmentService {
         !requirement.id ||
         (requirement.kind !== 'required' && requirement.kind !== 'preferred')
       ) {
-        throw new ApplicationError('Assessment requirements are invalid');
+        throw new ApplicationError(
+          'Assessment requirements are invalid',
+          'ASSESSMENT_REQUIREMENT_SNAPSHOT_INVALID',
+        );
       }
       requirementMap.set(requirement.id, {
         id: requirement.id,
         kind: requirement.kind,
       });
     }
-    if (
-      requirementMap.size !== requirements.length ||
-      findings.length !== requirements.length
-    ) {
-      throw new ApplicationError('Assessment findings are incomplete');
+    // These two conditions were one throw, but they blame different parties:
+    // a collapsed Map means duplicate requirement ids in our own snapshot,
+    // while a findings/requirements count mismatch is the provider failing to
+    // cover what we sent.
+    if (requirementMap.size !== requirements.length) {
+      throw new ApplicationError(
+        'Assessment requirement snapshot contains duplicate identifiers',
+        'ASSESSMENT_REQUIREMENT_SNAPSHOT_INVALID',
+      );
+    }
+    if (findings.length !== requirements.length) {
+      throw new ApplicationError(
+        'Assessment findings are incomplete',
+        'AI_ADVISORY_FIT_COVERAGE_INCOMPLETE',
+      );
     }
 
     const seen = new Set<string>();
@@ -692,7 +717,10 @@ export class AdvisoryFitAssessmentService {
         !finding.explanation.trim() ||
         finding.explanation.trim().length > 2000
       ) {
-        throw new ApplicationError('Assessment findings are invalid');
+        throw new ApplicationError(
+          'Assessment findings are invalid',
+          'AI_ADVISORY_FIT_RESPONSE_INVALID',
+        );
       }
       seen.add(finding.requirementId);
       return {
@@ -927,9 +955,15 @@ export class AdvisoryFitAssessmentService {
       error instanceof ApplicationError
         ? error.code
         : 'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE';
-    return /^[A-Z0-9_]{1,100}$/.test(code)
-      ? code
-      : 'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE';
+    if (/^[A-Z0-9_]{1,100}$/.test(code)) return code;
+    // Falling back here means the real cause is about to be recorded as
+    // "the provider was unavailable", which is how an internal fault gets
+    // misattributed. Leave a trace before that happens.
+    this.logger.error(
+      `Unclassified Advisory Fit failure recorded as AI_ADVISORY_FIT_SERVICE_UNAVAILABLE (raw code ${JSON.stringify(code)})`,
+      error instanceof Error ? error.stack : String(error),
+    );
+    return 'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE';
   }
 
   private safeProviderMetadata(

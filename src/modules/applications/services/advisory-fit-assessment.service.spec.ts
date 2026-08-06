@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { Logger } from '@nestjs/common';
 import {
   ApplicationStatus,
   ContributionRequestRequirementKind,
@@ -229,7 +230,9 @@ describe('AdvisoryFitAssessmentService', () => {
     expect(database.application.findUnique).toHaveBeenCalled();
   });
 
-  it('rejects findings with missing requirements or out-of-snapshot citations', async () => {
+  it('rejects findings citing evidence outside the fixed snapshot', async () => {
+    // Full coverage on purpose: an incomplete response fails earlier, on the
+    // coverage check, and would never reach the citation validation.
     advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce({
       kind: 'completed',
       provider: 'deterministic-fake',
@@ -246,6 +249,15 @@ describe('AdvisoryFitAssessmentService', () => {
           citations: ['invented-evidence'],
           uncertainty: [],
           explanation: 'Invalid citation.',
+        },
+        {
+          requirementId: 'preferred-1',
+          requirementKind: 'preferred',
+          finding: 'SUPPORTED',
+          confidence: 'HIGH',
+          citations: ['github:evidence-1'],
+          uncertainty: [],
+          explanation: 'Valid citation.',
         },
       ],
     });
@@ -266,6 +278,98 @@ describe('AdvisoryFitAssessmentService', () => {
         }),
       }),
     );
+  });
+
+  describe('failure attribution', () => {
+    const completedResult = (findings: unknown[]) => ({
+      kind: 'completed' as const,
+      provider: 'deterministic-fake',
+      model: 'fixture-v1',
+      promptVersion: 'advisory-fit-v1',
+      schemaVersion: '1',
+      serviceVersion: 'test',
+      findings,
+    });
+    const finding = (requirementId: string, kind: string) => ({
+      requirementId,
+      requirementKind: kind,
+      finding: 'SUPPORTED',
+      confidence: 'HIGH',
+      citations: ['github:evidence-1'],
+      uncertainty: [],
+      explanation: 'Evidence supports the requirement.',
+    });
+
+    async function recordedErrorCode(): Promise<unknown> {
+      await service.request({
+        actor: owner,
+        applicationId,
+        idempotencyKey: requestKey,
+      });
+      const call = database.assessmentAttempt.create.mock.calls[0]?.[0] as {
+        data: { error_code?: string };
+      };
+      return call?.data.error_code;
+    }
+
+    it('blames our own snapshot when a requirement entry is malformed', async () => {
+      const broken = application();
+      broken.requirementSnapshot.requirements = [
+        { id: '', kind: 'required', position: 0, text: 'NestJS' },
+        { id: 'preferred-1', kind: 'preferred', position: 0, text: 'Redis' },
+      ];
+      database.application.findUnique.mockResolvedValue(broken);
+      advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(
+        completedResult([
+          finding('required-1', 'required'),
+          finding('preferred-1', 'preferred'),
+        ]),
+      );
+
+      await expect(recordedErrorCode()).resolves.toBe(
+        'ASSESSMENT_REQUIREMENT_SNAPSHOT_INVALID',
+      );
+    });
+
+    it('blames our own snapshot when it carries duplicate requirement ids', async () => {
+      const duplicated = application();
+      duplicated.requirementSnapshot.requirements = [
+        { id: 'required-1', kind: 'required', position: 0, text: 'NestJS' },
+        { id: 'required-1', kind: 'required', position: 1, text: 'NestJS' },
+      ];
+      database.application.findUnique.mockResolvedValue(duplicated);
+      advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(
+        completedResult([finding('required-1', 'required')]),
+      );
+
+      await expect(recordedErrorCode()).resolves.toBe(
+        'ASSESSMENT_REQUIREMENT_SNAPSHOT_INVALID',
+      );
+    });
+
+    it('blames the provider when it does not cover every requirement', async () => {
+      advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(
+        completedResult([finding('required-1', 'required')]),
+      );
+
+      await expect(recordedErrorCode()).resolves.toBe(
+        'AI_ADVISORY_FIT_COVERAGE_INCOMPLETE',
+      );
+    });
+
+    it('records an unclassified provider throw as unavailable and logs it', async () => {
+      const logged = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      advisoryFitClient.requestAdvisoryFit.mockRejectedValueOnce(
+        new TypeError('client is not a function'),
+      );
+
+      await expect(recordedErrorCode()).resolves.toBe(
+        'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE',
+      );
+      expect(logged).toHaveBeenCalled();
+    });
   });
 
   it.each([

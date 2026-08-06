@@ -1287,7 +1287,14 @@ The endpoint returns `202` with the persisted assessment projection. The
 request uses the Application's fixed Requirement and authorized Evidence
 Snapshots. Reusing the same owner/key replays the request; a different active
 request returns `ASSESSMENT_ALREADY_ACTIVE`. A technical or invalid provider
-failure returns `UNAVAILABLE` with one immutable failed attempt. Repeating the
+failure returns `UNAVAILABLE` with one immutable failed attempt, whose
+`error_code` names the responsible party: `AI_ADVISORY_FIT_SERVICE_ERROR` and
+`AI_ADVISORY_FIT_SERVICE_UNAVAILABLE` for transport and availability failures,
+`AI_ADVISORY_FIT_RESPONSE_INVALID` for a malformed provider payload,
+`AI_ADVISORY_FIT_COVERAGE_INCOMPLETE` when the provider does not cover every
+requirement it was sent, and `ASSESSMENT_REQUIREMENT_SNAPSHOT_INVALID` when the
+fault is in our own stored Requirement Snapshot rather than the provider.
+Repeating the
 POST with a new UUID idempotency key retries an unavailable request at most
 once; the new attempt links to the prior attempt and a further retry returns
 `ASSESSMENT_RETRY_LIMIT_REACHED`. A terminal Application returns
