@@ -26,6 +26,20 @@ export const envValidationSchema = Joi.object({
     .min(1)
     .max(1_000)
     .default(100),
+  ADVISORY_FIT_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  ADVISORY_FIT_REAP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .max(86_400_000)
+    .default(60_000),
+  ADVISORY_FIT_STALE_AFTER_MS: Joi.number()
+    .integer()
+    .min(60_000)
+    .max(86_400_000)
+    .default(600_000),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://localhost:3001'),
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),
@@ -95,6 +109,19 @@ export const envValidationSchema = Joi.object({
     return helpers.error('any.invalid', {
       message:
         'GITHUB_API_REQUEST_TIMEOUT_MS must not exceed GITHUB_API_OVERALL_TIMEOUT_MS',
+    });
+  }
+  // A request can legitimately sit in `requested` for BullMQ's three attempts
+  // times the provider timeout plus backoff. Reaping sooner than that would
+  // abandon live work and discard a result the provider was about to return.
+  // Production-only so local race proofs can compress both values.
+  if (
+    value.NODE_ENV === 'production' &&
+    value.ADVISORY_FIT_STALE_AFTER_MS < 4 * value.AI_ADVISORY_FIT_TIMEOUT_MS
+  ) {
+    return helpers.error('any.invalid', {
+      message:
+        'ADVISORY_FIT_STALE_AFTER_MS must be at least four times AI_ADVISORY_FIT_TIMEOUT_MS',
     });
   }
   return value;
