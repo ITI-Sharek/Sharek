@@ -1375,7 +1375,12 @@ POST /contribution-proposals/:proposalId/misuse-reports
 
 `mine` is proposer-scoped; `for-project` and `intake` are Project-owner-scoped;
 both lists return `proposals` plus `pageInfo.hasNextPage` and an opaque
-`pageInfo.nextCursor`. Detail permits only the proposer and the Project owner. A new version can be
+`pageInfo.nextCursor`. Every proposal — in both lists and in the detail
+response — carries `proposerId`, `proposerName` (`first_name` and `last_name`
+joined and trimmed) and `proposerUsername`, which is `null` until the
+contributor has chosen one. These are the same identity fields published
+Contribution Requests expose through their attribution block.
+Detail permits only the proposer and the Project owner. A new version can be
 submitted only by the proposer and only to answer an outstanding owner revision
 request. A revision request is an owner-only append-only action that never edits
 contributor-authored content. Withdrawal is proposer-owned and pending-only.

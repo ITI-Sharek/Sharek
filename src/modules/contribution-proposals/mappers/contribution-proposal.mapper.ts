@@ -12,6 +12,14 @@ import {
   ContributionProposalVersionDto,
 } from '../dto/contribution-proposal-response.dto';
 
+/**
+ * Mirrors the attribution select used for published Contribution Requests, so
+ * an owner sees the same identity fields wherever a contributor is surfaced.
+ */
+const PROPOSER_IDENTITY_SELECT = {
+  select: { id: true, username: true, first_name: true, last_name: true },
+} as const;
+
 export const PROPOSAL_DETAIL_INCLUDE = {
   versions: { orderBy: { version: 'asc' } },
   auditEvents: {
@@ -19,10 +27,12 @@ export const PROPOSAL_DETAIL_INCLUDE = {
     orderBy: { created_at: 'asc' },
   },
   originatedRequest: { select: { id: true, status: true } },
+  proposer: PROPOSER_IDENTITY_SELECT,
 } satisfies Prisma.ContributionProposalInclude;
 
 export const PROPOSAL_SUMMARY_INCLUDE = {
   versions: { orderBy: { version: 'desc' }, take: 1 },
+  proposer: PROPOSER_IDENTITY_SELECT,
 } satisfies Prisma.ContributionProposalInclude;
 
 export type ContributionProposalWithDetail =
@@ -43,6 +53,8 @@ export function toContributionProposalDto(
     id: proposal.id,
     projectId: proposal.project_id,
     proposerId: proposal.proposer_id,
+    proposerName: toProposerName(proposal.proposer),
+    proposerUsername: proposal.proposer.username,
     status: presentStatus(proposal.status),
     currentVersion: proposal.current_version,
     disclosure: {
@@ -76,6 +88,8 @@ export function toContributionProposalSummaryDto(
     id: proposal.id,
     projectId: proposal.project_id,
     proposerId: proposal.proposer_id,
+    proposerName: toProposerName(proposal.proposer),
+    proposerUsername: proposal.proposer.username,
     status: presentStatus(proposal.status),
     currentVersion: proposal.current_version,
     title: proposal.versions[0]?.title ?? '',
@@ -83,6 +97,13 @@ export function toContributionProposalSummaryDto(
     createdAt: proposal.created_at,
     updatedAt: proposal.updated_at,
   };
+}
+
+function toProposerName(proposer: {
+  first_name: string;
+  last_name: string;
+}): string {
+  return `${proposer.first_name} ${proposer.last_name}`.trim();
 }
 
 function toVersionDto(version: {
