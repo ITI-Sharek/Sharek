@@ -54,9 +54,34 @@ quarantined -> scanning -> ready
                         -> rejected
 ```
 
-Scanning runs on a queue rather than the request path, and a reaper releases
-versions stranded mid-scan — without it, a job lost to a crash leaves a file
-its owner can neither use nor diagnose.
+Scanning runs on a queue rather than the request path, and every transition is
+a conditional claim: a duplicate delivery and the reaper can be acting on the
+same version at the same instant, and the claim is what makes one of them lose.
+
+Detection itself is behind the `MalwareScanner` port, with a deterministic stub
+bound to it. Everything around the stub is real — the state machine, the queue,
+the retry budget, the reaper, and the rule that nothing is downloadable before
+a clean verdict — so swapping in ClamAV is a provider change and nothing else.
+The stub reports the EICAR test file as infected and everything else as clean,
+and `MATERIAL_SCANNER_STUB_MODE` forces a verdict when an operator needs to
+reproduce one.
+
+A scanner that cannot answer never produces a verdict; it throws, the version
+is released to `quarantined`, and the job is retried. An unreachable scanner
+must never be mistaken for one that said "clean".
+
+### When a scan never finishes
+
+Two shapes strand a version, and both leave a file its owner can neither use
+nor diagnose: stuck in `scanning` because a worker died holding the claim, or
+sitting `quarantined` with nothing queued against it. The reaper sweeps both on
+`updated_at`, re-queues them, and — after `MATERIAL_SCAN_MAX_ATTEMPTS`, counted
+from the `scan_started` audit rows — gives up.
+
+Giving up leaves the version `quarantined` with `scan_error_code` set to
+`MATERIAL_SCAN_ABANDONED`, not `rejected`. It was never cleared, so it stays
+undownloadable either way; but `rejected` would tell the owner their file is
+malware, when what actually happened is that we failed to check it.
 
 ## Cross-module boundary
 
