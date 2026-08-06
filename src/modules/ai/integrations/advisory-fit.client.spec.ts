@@ -45,13 +45,13 @@ describe('AdvisoryFitClient', () => {
     const result = await client.assess(input);
     expect(result.kind).toBe('completed');
     if (result.kind === 'completed') {
+      // Exact shape, not arrayContaining: mapping every field of the provider
+      // response is the client's entire job, so the count, the order, and the
+      // requirementKind/confidence/citations/uncertainty/explanation mapping
+      // all have to be pinned. A partial match would pass while silently
+      // dropping the second finding.
       expect(result.findings).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-          requirementId: '00000000-0000-4000-8000-000000000101',
-          finding: 'SUPPORTED',
-          }),
-        ]),
+        (completedFixture as { findings: unknown[] }).findings,
       );
     }
     const [url, options] = jest.mocked(global.fetch).mock.calls[0];

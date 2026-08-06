@@ -211,7 +211,17 @@ describe('ApplicationsService submission and withdrawal', () => {
     });
   });
 
-  afterEach(() => jest.restoreAllMocks());
+  // Several tests below pin the clock with jest.useFakeTimers() before their
+  // mock setup, outside the try/finally that restores it. If any of that setup
+  // throws, the finally never runs and fake timers leak into every later test
+  // in this file — and with setTimeout faked, async tests hang rather than
+  // fail. restoreAllMocks does not restore timers, so do it here: afterEach
+  // runs whatever the outcome, which is the only placement that actually
+  // closes the hole.
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
 
   it('submits one immutable snapshotted Application directly to owner review without AI or quota work', async () => {
     const result = await service.submit({
