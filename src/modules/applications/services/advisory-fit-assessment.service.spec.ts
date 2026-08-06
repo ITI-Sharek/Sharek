@@ -1,13 +1,10 @@
 import { createHash } from 'node:crypto';
-import { Logger } from '@nestjs/common';
 import {
   ApplicationStatus,
-  ContributionRequestRequirementKind,
   Prisma,
 } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
-import { ApplicationError } from '../../../shared/errors/application.error';
 import { AdvisoryFitAssessmentService } from './advisory-fit-assessment.service';
 
 describe('AdvisoryFitAssessmentService', () => {
@@ -100,37 +97,6 @@ describe('AdvisoryFitAssessmentService', () => {
     ...overrides,
   });
 
-  const providerResult = (
-    requiredFinding: 'SUPPORTED' | 'PARTIALLY_SUPPORTED' | 'NOT_EVIDENCED' | 'INCONCLUSIVE',
-  ) => ({
-    kind: 'completed' as const,
-    provider: 'deterministic-fake',
-    model: 'fixture-v1',
-    promptVersion: 'advisory-fit-v1',
-    schemaVersion: '1',
-    serviceVersion: 'test',
-    findings: [
-      {
-        requirementId: 'required-1',
-        requirementKind: 'required' as const,
-        finding: requiredFinding,
-        confidence: 'HIGH' as const,
-        citations: ['github:evidence-1'],
-        uncertainty: [],
-        explanation: 'The evidence was evaluated against the fixed requirement.',
-      },
-      {
-        requirementId: 'preferred-1',
-        requirementKind: 'preferred' as const,
-        finding: 'NOT_EVIDENCED' as const,
-        confidence: 'LOW' as const,
-        citations: ['github:evidence-1'],
-        uncertainty: ['The snapshot contains no Redis-specific evidence.'],
-        explanation: 'The preferred signal is not demonstrated in the supplied evidence.',
-      },
-    ],
-  });
-
   const database = {
     $transaction: jest.fn(),
     application: { findUnique: jest.fn() },
@@ -151,11 +117,11 @@ describe('AdvisoryFitAssessmentService', () => {
     confirmOwnerDecisionActor: jest.fn(),
     reconfirmOwnerDecisionActor: jest.fn(),
   };
-  const advisoryFitClient = { requestAdvisoryFit: jest.fn() };
+  const assessmentQueue = { enqueueAssessment: jest.fn() };
   const service = new AdvisoryFitAssessmentService(
     database as never,
     contributionTasks as never,
-    advisoryFitClient as never,
+    assessmentQueue as never,
   );
 
   beforeEach(() => {
@@ -184,254 +150,55 @@ describe('AdvisoryFitAssessmentService', () => {
     database.assessmentPresentation.findUnique.mockResolvedValue(null);
     contributionTasks.confirmOwnerDecisionActor.mockResolvedValue(undefined);
     contributionTasks.reconfirmOwnerDecisionActor.mockResolvedValue(undefined);
-    advisoryFitClient.requestAdvisoryFit.mockResolvedValue(providerResult('SUPPORTED'));
+    assessmentQueue.enqueueAssessment.mockResolvedValue(undefined);
   });
 
-  it('creates an owner-authorized assessment from fixed snapshots and derives a strong band', async () => {
+  it('enqueues a first attempt and answers REQUESTED without processing inline', async () => {
     const result = await service.request({
       actor: owner,
       applicationId,
       idempotencyKey: requestKey,
     });
 
+    // This is the exact projection the frontend poller keys on: anything other
+    // than REQUESTED here and it stops polling before the result arrives.
     expect(result).toMatchObject({
-      id: assessmentId,
-      requestStatus: 'COMPLETED',
-      fitBand: 'STRONG',
-      findings: [
-        expect.objectContaining({ requirementId: 'required-1' }),
-        expect.objectContaining({ requirementId: 'preferred-1' }),
-      ],
+      requestStatus: 'REQUESTED',
+      fitBand: null,
+      findings: [],
+      attempts: 0,
+      retryAvailable: false,
     });
-    expect(advisoryFitClient.requestAdvisoryFit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        assessmentRequestId: assessmentId,
-        requirements: application().requirementSnapshot.requirements,
-        evidence: [
-          {
-            evidenceId: 'github:evidence-1',
-            type: 'approved_skill',
-            label: 'NestJS',
-          },
-        ],
-        allowedEvidenceIds: ['github:evidence-1'],
-      }),
-    );
-    expect(database.assessmentFinding.createMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            requirement_id: 'required-1',
-            requirement_kind: ContributionRequestRequirementKind.required,
-          }),
-        ]),
-      }),
-    );
-    expect(database.application.findUnique).toHaveBeenCalled();
-  });
-
-  it('rejects findings citing evidence outside the fixed snapshot', async () => {
-    // Full coverage on purpose: an incomplete response fails earlier, on the
-    // coverage check, and would never reach the citation validation.
-    advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce({
-      kind: 'completed',
-      provider: 'deterministic-fake',
-      model: 'fixture-v1',
-      promptVersion: 'advisory-fit-v1',
-      schemaVersion: '1',
-      serviceVersion: 'test',
-      findings: [
-        {
-          requirementId: 'required-1',
-          requirementKind: 'required',
-          finding: 'SUPPORTED',
-          confidence: 'HIGH',
-          citations: ['invented-evidence'],
-          uncertainty: [],
-          explanation: 'Invalid citation.',
-        },
-        {
-          requirementId: 'preferred-1',
-          requirementKind: 'preferred',
-          finding: 'SUPPORTED',
-          confidence: 'HIGH',
-          citations: ['github:evidence-1'],
-          uncertainty: [],
-          explanation: 'Valid citation.',
-        },
-      ],
+    expect(assessmentQueue.enqueueAssessment).toHaveBeenCalledWith({
+      assessmentRequestId: assessmentId,
+      attemptNumber: 1,
     });
-
-    await expect(
-      service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
-    ).resolves.toMatchObject({ requestStatus: 'UNAVAILABLE', fitBand: 'UNAVAILABLE' });
+    // No provider work happens on the request path any more.
+    expect(database.assessmentAttempt.create).not.toHaveBeenCalled();
     expect(database.advisoryFitAssessment.create).not.toHaveBeenCalled();
-    expect(database.assessmentFinding.createMany).not.toHaveBeenCalled();
-    expect(database.assessmentAttempt.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: 'failed',
-          provider: 'deterministic-fake',
-          model: 'fixture-v1',
-          prompt_version: 'advisory-fit-v1',
-          error_code: 'AI_ADVISORY_FIT_RESPONSE_INVALID',
-        }),
-      }),
+  });
+
+  it('enqueues only after the request transaction commits', async () => {
+    // A worker must never be able to pick up a job for a row that is not
+    // visible yet, so the ordering here is load-bearing rather than cosmetic.
+    const order: string[] = [];
+    database.$transaction.mockImplementation(
+      async (callback: (transaction: typeof database) => unknown) => {
+        const value = await callback(database);
+        order.push('commit');
+        return value;
+      },
     );
+    assessmentQueue.enqueueAssessment.mockImplementation(async () => {
+      order.push('enqueue');
+    });
+
+    await service.request({ actor: owner, applicationId, idempotencyKey: requestKey });
+
+    expect(order).toEqual(['commit', 'enqueue']);
   });
 
-  describe('failure attribution', () => {
-    const completedResult = (findings: unknown[]) => ({
-      kind: 'completed' as const,
-      provider: 'deterministic-fake',
-      model: 'fixture-v1',
-      promptVersion: 'advisory-fit-v1',
-      schemaVersion: '1',
-      serviceVersion: 'test',
-      findings,
-    });
-    const finding = (requirementId: string, kind: string) => ({
-      requirementId,
-      requirementKind: kind,
-      finding: 'SUPPORTED',
-      confidence: 'HIGH',
-      citations: ['github:evidence-1'],
-      uncertainty: [],
-      explanation: 'Evidence supports the requirement.',
-    });
-
-    async function recordedErrorCode(): Promise<unknown> {
-      await service.request({
-        actor: owner,
-        applicationId,
-        idempotencyKey: requestKey,
-      });
-      const call = database.assessmentAttempt.create.mock.calls[0]?.[0] as {
-        data: { error_code?: string };
-      };
-      return call?.data.error_code;
-    }
-
-    it('blames our own snapshot when a requirement entry is malformed', async () => {
-      const broken = application();
-      broken.requirementSnapshot.requirements = [
-        { id: '', kind: 'required', position: 0, text: 'NestJS' },
-        { id: 'preferred-1', kind: 'preferred', position: 0, text: 'Redis' },
-      ];
-      database.application.findUnique.mockResolvedValue(broken);
-      advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(
-        completedResult([
-          finding('required-1', 'required'),
-          finding('preferred-1', 'preferred'),
-        ]),
-      );
-
-      await expect(recordedErrorCode()).resolves.toBe(
-        'ASSESSMENT_REQUIREMENT_SNAPSHOT_INVALID',
-      );
-    });
-
-    it('blames our own snapshot when it carries duplicate requirement ids', async () => {
-      const duplicated = application();
-      duplicated.requirementSnapshot.requirements = [
-        { id: 'required-1', kind: 'required', position: 0, text: 'NestJS' },
-        { id: 'required-1', kind: 'required', position: 1, text: 'NestJS' },
-      ];
-      database.application.findUnique.mockResolvedValue(duplicated);
-      advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(
-        completedResult([finding('required-1', 'required')]),
-      );
-
-      await expect(recordedErrorCode()).resolves.toBe(
-        'ASSESSMENT_REQUIREMENT_SNAPSHOT_INVALID',
-      );
-    });
-
-    it('blames the provider when it does not cover every requirement', async () => {
-      advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(
-        completedResult([finding('required-1', 'required')]),
-      );
-
-      await expect(recordedErrorCode()).resolves.toBe(
-        'AI_ADVISORY_FIT_COVERAGE_INCOMPLETE',
-      );
-    });
-
-    it('records an unclassified provider throw as unavailable and logs it', async () => {
-      const logged = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation(() => undefined);
-      advisoryFitClient.requestAdvisoryFit.mockRejectedValueOnce(
-        new TypeError('client is not a function'),
-      );
-
-      await expect(recordedErrorCode()).resolves.toBe(
-        'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE',
-      );
-      expect(logged).toHaveBeenCalled();
-    });
-  });
-
-  it.each([
-    ['SUPPORTED', 'STRONG'],
-    ['PARTIALLY_SUPPORTED', 'PARTIAL'],
-    ['NOT_EVIDENCED', 'LIMITED'],
-    ['INCONCLUSIVE', 'UNKNOWN'],
-  ] as const)('derives %s as %s while ignoring Preferred findings', async (finding, fitBand) => {
-    advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(providerResult(finding));
-
-    await expect(
-      service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
-    ).resolves.toMatchObject({ requestStatus: 'COMPLETED', fitBand });
-  });
-
-  it('does not call AI when the fixed evidence snapshot is not assessable', async () => {
-    database.application.findUnique.mockResolvedValueOnce({
-      ...application(),
-      evidenceSnapshot: { ...application().evidenceSnapshot, evidence: [] },
-    });
-
-    await expect(
-      service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
-    ).resolves.toMatchObject({
-      requestStatus: 'NOT_STARTED_NO_ASSESSABLE_EVIDENCE',
-      fitBand: null,
-      findings: [],
-    });
-    expect(advisoryFitClient.requestAdvisoryFit).not.toHaveBeenCalled();
-    expect(database.assessmentAttempt.create).not.toHaveBeenCalled();
-  });
-
-  it('keeps a system-limit request retriable without inventing an attempt', async () => {
-    advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce({ kind: 'system_limit' });
-
-    await expect(
-      service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
-    ).resolves.toMatchObject({
-      requestStatus: 'NOT_STARTED_SYSTEM_LIMIT',
-      fitBand: null,
-      findings: [],
-    });
-    expect(database.assessmentAttempt.create).not.toHaveBeenCalled();
-  });
-
-  it('links a bounded technical retry to the prior immutable attempt', async () => {
-    advisoryFitClient.requestAdvisoryFit.mockRejectedValueOnce(
-      new ApplicationError(
-        'Advisory Fit service is unavailable',
-        'AI_ADVISORY_FIT_SERVICE_UNAVAILABLE',
-      ),
-    );
-
-    await expect(
-      service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
-    ).resolves.toMatchObject({
-      requestStatus: 'UNAVAILABLE',
-      fitBand: 'UNAVAILABLE',
-      attempts: 1,
-      retryAvailable: true,
-    });
-
+  it('claims a bounded technical retry and enqueues the next attempt', async () => {
     const firstAttemptId = '88888888-8888-4888-8888-888888888888';
     const unavailableRequest = {
       ...completedRequest(),
@@ -448,27 +215,12 @@ describe('AdvisoryFitAssessmentService', () => {
     };
     database.assessmentRequest.findFirst.mockResolvedValueOnce(unavailableRequest);
     database.assessmentRequest.updateMany.mockResolvedValueOnce({ count: 1 });
-    advisoryFitClient.requestAdvisoryFit.mockResolvedValueOnce(providerResult('SUPPORTED'));
 
     const retryKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     await expect(
       service.request({ actor: owner, applicationId, idempotencyKey: retryKey }),
-    ).resolves.toMatchObject({
-      requestStatus: 'COMPLETED',
-      fitBand: 'STRONG',
-      attempts: 2,
-      retryAvailable: false,
-    });
+    ).resolves.toMatchObject({ requestStatus: 'REQUESTED' });
 
-    expect(database.assessmentAttempt.create).toHaveBeenCalledTimes(2);
-    expect(database.assessmentAttempt.create).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          attempt_number: 2,
-          retry_of_attempt_id: firstAttemptId,
-        }),
-      }),
-    );
     expect(database.assessmentRequestAudit.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -478,7 +230,24 @@ describe('AdvisoryFitAssessmentService', () => {
         }),
       }),
     );
+    // Attempt 2, not 1. The job id is derived from this, and reusing 1 would
+    // collide with the completed job and silently never run.
+    expect(assessmentQueue.enqueueAssessment).toHaveBeenCalledWith({
+      assessmentRequestId: assessmentId,
+      attemptNumber: 2,
+    });
   });
+
+  it('fails the command when the queue is disabled rather than accepting unprocessable work', async () => {
+    assessmentQueue.enqueueAssessment.mockRejectedValueOnce(
+      new Error('Advisory Fit assessment queue is disabled'),
+    );
+
+    await expect(
+      service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
+    ).rejects.toThrow('queue is disabled');
+  });
+
 
   it('rejects a technical retry after the bounded attempt budget is exhausted', async () => {
     database.assessmentRequest.findFirst.mockResolvedValueOnce({
@@ -507,7 +276,7 @@ describe('AdvisoryFitAssessmentService', () => {
         idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       }),
     ).rejects.toMatchObject({ code: 'ASSESSMENT_RETRY_LIMIT_REACHED' });
-    expect(advisoryFitClient.requestAdvisoryFit).not.toHaveBeenCalled();
+    expect(assessmentQueue.enqueueAssessment).not.toHaveBeenCalled();
     expect(database.assessmentAttempt.create).not.toHaveBeenCalled();
   });
 
@@ -551,7 +320,7 @@ describe('AdvisoryFitAssessmentService', () => {
     await expect(
       service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
     ).rejects.toMatchObject({ code });
-    expect(advisoryFitClient.requestAdvisoryFit).not.toHaveBeenCalled();
+    expect(assessmentQueue.enqueueAssessment).not.toHaveBeenCalled();
   });
 
   it('replays the same idempotent request without a second provider call', async () => {
@@ -562,7 +331,7 @@ describe('AdvisoryFitAssessmentService', () => {
     await expect(
       service.request({ actor: owner, applicationId, idempotencyKey: requestKey }),
     ).resolves.toMatchObject({ requestStatus: 'COMPLETED', fitBand: 'STRONG' });
-    expect(advisoryFitClient.requestAdvisoryFit).not.toHaveBeenCalled();
+    expect(assessmentQueue.enqueueAssessment).not.toHaveBeenCalled();
     expect(database.assessmentRequest.create).not.toHaveBeenCalled();
   });
 
@@ -578,7 +347,7 @@ describe('AdvisoryFitAssessmentService', () => {
     await expect(
       service.request({ actor: owner, applicationId, idempotencyKey: retryKey }),
     ).resolves.toMatchObject({ requestStatus: 'COMPLETED', fitBand: 'STRONG' });
-    expect(advisoryFitClient.requestAdvisoryFit).not.toHaveBeenCalled();
+    expect(assessmentQueue.enqueueAssessment).not.toHaveBeenCalled();
   });
 
   it('records first owner presentation only when the owner presents it', async () => {

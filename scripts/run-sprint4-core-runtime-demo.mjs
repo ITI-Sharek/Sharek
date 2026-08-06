@@ -129,6 +129,32 @@ async function apply(contributorToken, requestId, alias) {
   return result.body.id;
 }
 
+/**
+ * Waits for the worker to settle an Assessment Request. Throws with the last
+ * body on timeout rather than returning it: a silent give-up here would turn a
+ * queue that never runs into a passing demo.
+ */
+async function pollAssessment(
+  ownerToken,
+  applicationId,
+  { timeoutMs = 60_000, intervalMs = 1_000 } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    last = await call({
+      path: `/applications/${applicationId}/assessment`,
+      token: ownerToken,
+    });
+    expectStatus(last, 200, 'read Advisory Fit');
+    if (last.body?.requestStatus !== 'REQUESTED') return last;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error(
+    `Advisory Fit stayed REQUESTED for ${timeoutMs}ms; is the worker running? Last body: ${JSON.stringify(last?.body)}`,
+  );
+}
+
 async function main() {
   const owner = await prisma.user.findUniqueOrThrow({
     where: { email: 'owner@sharek.local' },
@@ -186,26 +212,26 @@ async function main() {
     body: { idempotencyKey: randomUUID() },
   });
   expectStatus(assessmentRequest, 202, 'request optional Advisory Fit');
+  // The 202 is now honest: the provider call happens on a worker, so the
+  // response carries REQUESTED and the terminal state arrives later. This
+  // demo therefore needs a running Redis and worker, which it did not before.
   assert(
-    assessmentRequest.body?.requestStatus === 'NOT_STARTED_NO_ASSESSABLE_EVIDENCE',
+    assessmentRequest.body?.requestStatus === 'REQUESTED',
     `unexpected Advisory Fit state: ${assessmentRequest.body?.requestStatus}`,
   );
   record('advisory-fit-requested', assessmentRequest.status, [
-    'requestStatus=NOT_STARTED_NO_ASSESSABLE_EVIDENCE',
-    'optional-non-blocking-result',
+    'requestStatus=REQUESTED',
+    'accepted-for-background-processing',
   ]);
 
-  const assessmentRead = await call({
-    path: `/applications/${acceptedApplicationId}/assessment`,
-    token: ownerToken,
-  });
-  expectStatus(assessmentRead, 200, 'read Advisory Fit');
+  const assessmentRead = await pollAssessment(ownerToken, acceptedApplicationId);
   assert(
     assessmentRead.body?.requestStatus === 'NOT_STARTED_NO_ASSESSABLE_EVIDENCE',
-    'Advisory Fit terminal state was not persisted',
+    `Advisory Fit settled on an unexpected state: ${assessmentRead.body?.requestStatus}`,
   );
   record('advisory-fit-read', assessmentRead.status, [
     'requestStatus=NOT_STARTED_NO_ASSESSABLE_EVIDENCE',
+    'resolved-by-worker',
   ]);
 
   const accepted = await call({

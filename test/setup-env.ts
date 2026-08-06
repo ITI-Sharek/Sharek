@@ -8,6 +8,11 @@ process.env.SKILL_PROFILE_QUEUE_ENABLED =
   process.env.SKILL_PROFILE_QUEUE_ENABLED ?? 'false';
 process.env.APPLICATION_REVIEW_QUEUE_ENABLED =
   process.env.APPLICATION_REVIEW_QUEUE_ENABLED ?? 'false';
+// Disabled so no spec opens a Redis socket. Note the Advisory Fit queue throws
+// on enqueue when disabled, so any future e2e that boots the real
+// AdvisoryFitAssessmentService rather than a mock will need to account for it.
+process.env.ADVISORY_FIT_QUEUE_ENABLED =
+  process.env.ADVISORY_FIT_QUEUE_ENABLED ?? 'false';
 process.env.JWT_ACCESS_SECRET =
   process.env.JWT_ACCESS_SECRET ?? 'test-access-secret-change-me';
 process.env.JWT_REFRESH_SECRET =
