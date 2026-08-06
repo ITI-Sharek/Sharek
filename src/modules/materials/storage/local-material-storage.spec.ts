@@ -34,7 +34,7 @@ describe('LocalMaterialStorage', () => {
 
   it('stores bytes under the given key and reports their digest', async () => {
     const content = Buffer.from('a project brief');
-    const key = LocalMaterialStorage.buildStorageKey(randomUUID(), 1);
+    const key = LocalMaterialStorage.buildStorageKey(randomUUID());
 
     const stored = await storage.put(key, content);
 
@@ -50,27 +50,29 @@ describe('LocalMaterialStorage', () => {
   it('refuses to overwrite an existing object', async () => {
     // Versions are immutable, so a key collision is a bug rather than an
     // update. Failing loudly beats silently replacing someone's file.
-    const key = LocalMaterialStorage.buildStorageKey(randomUUID(), 1);
+    const key = LocalMaterialStorage.buildStorageKey(randomUUID());
     await storage.put(key, Buffer.from('first'));
 
     await expect(storage.put(key, Buffer.from('second'))).rejects.toThrow();
     expect(await readFile(join(root, key), 'utf8')).toBe('first');
   });
 
-  it('generates a distinct key per version, and never from the filename', async () => {
+  it('generates a distinct key per call, grouped by Material', async () => {
     const materialId = randomUUID();
-    const first = LocalMaterialStorage.buildStorageKey(materialId, 1);
-    const second = LocalMaterialStorage.buildStorageKey(materialId, 2);
-    const alsoFirst = LocalMaterialStorage.buildStorageKey(materialId, 1);
+    const first = LocalMaterialStorage.buildStorageKey(materialId);
+    const second = LocalMaterialStorage.buildStorageKey(materialId);
 
+    // Distinct every time: a caller retrying an upload must never land on a
+    // path that already holds bytes.
     expect(first).not.toBe(second);
-    // Even the same version twice gets a distinct key: a caller retrying an
-    // upload must never land on a path that already holds bytes.
-    expect(first).not.toBe(alsoFirst);
+    expect(first.startsWith(`${materialId}/`)).toBe(true);
+    // No version in the key. It is not known until the write transaction
+    // resolves it under lock, so encoding it would mean encoding a guess.
+    expect(first).not.toMatch(/\/\d+-/);
   });
 
   it('treats deleting a missing object as done, so purge can be repeated', async () => {
-    const key = LocalMaterialStorage.buildStorageKey(randomUUID(), 1);
+    const key = LocalMaterialStorage.buildStorageKey(randomUUID());
     await storage.put(key, Buffer.from('content'));
 
     await storage.delete(key);

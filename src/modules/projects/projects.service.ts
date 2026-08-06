@@ -325,6 +325,31 @@ export class ProjectsService {
     );
   }
 
+  /**
+   * Ownership and publication facts a Material command needs. A sibling of the
+   * proposal context rather than a reuse of it, so Materials errors do not
+   * speak in proposals vocabulary.
+   */
+  async getMaterialProjectContext(
+    projectId: string,
+  ): Promise<ProposalProjectContextDto> {
+    const project = await this.database.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, owner_id: true, status: true },
+    });
+    if (!project) {
+      throw new NotFoundApplicationError(
+        'Project was not found',
+        'MATERIAL_PROJECT_NOT_FOUND',
+      );
+    }
+    return {
+      id: project.id,
+      ownerId: project.owner_id,
+      status: project.status,
+    };
+  }
+
   async getProposalProjectContext(
     projectId: string,
   ): Promise<ProposalProjectContextDto> {

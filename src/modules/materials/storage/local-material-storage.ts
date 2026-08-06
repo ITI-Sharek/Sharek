@@ -32,9 +32,15 @@ export class LocalMaterialStorage extends MaterialStorage {
    * Keys are generated, never derived from user input. A filename-derived key
    * would let `../` escape the root, and a content-derived key would leak the
    * fact that two Projects hold the same file.
+   *
+   * The version number is deliberately absent. Bytes are written before the
+   * write transaction opens, so that a failed transaction can delete them --
+   * but the version is only resolved inside that transaction, under the
+   * per-Material lock. Encoding it here would mean guessing, and a key that
+   * says `2-` for version 5 is worse than a key that says nothing.
    */
-  static buildStorageKey(materialId: string, version: number): string {
-    return join(materialId, `${version}-${randomUUID()}`);
+  static buildStorageKey(materialId: string): string {
+    return join(materialId, randomUUID());
   }
 
   async put(storageKey: string, content: Buffer): Promise<StoredObject> {
