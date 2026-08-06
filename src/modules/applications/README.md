@@ -172,9 +172,11 @@ retry linked to the prior attempt, after which `ASSESSMENT_RETRY_LIMIT_REACHED`
 is returned. Assessment projections expose `retryAvailable`, so clients do not
 duplicate the bounded-attempt policy or offer an exhausted retry. No assessment
 result changes Application state, visibility, owner
-decisions, Assignments, or contributor eligibility. The first authorized owner
-presentation is protected by a unique durable marker and is audited exactly
-once, including when concurrent reads race.
+decisions, Assignments, or contributor eligibility. Reading an assessment
+performs no writes, so it is safe to prefetch, retry, or poll while a request is
+still being processed. The first authorized owner presentation is recorded only
+by the explicit presentations command, protected by a unique durable marker, and
+audited exactly once including when concurrent calls race.
 
 Focused verification:
 

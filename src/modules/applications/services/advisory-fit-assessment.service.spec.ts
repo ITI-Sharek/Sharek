@@ -581,10 +581,10 @@ describe('AdvisoryFitAssessmentService', () => {
     expect(advisoryFitClient.requestAdvisoryFit).not.toHaveBeenCalled();
   });
 
-  it('records first owner presentation in the assessment transaction', async () => {
+  it('records first owner presentation only when the owner presents it', async () => {
     database.assessmentRequest.findFirst.mockResolvedValueOnce(completedRequest());
 
-    await service.getAssessment(owner, applicationId);
+    await service.presentAssessment(owner, applicationId);
 
     expect(database.assessmentPresentation.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -604,7 +604,18 @@ describe('AdvisoryFitAssessmentService', () => {
     );
   });
 
-  it('returns the persisted first presentation when a concurrent read loses the uniqueness race', async () => {
+  it('leaves no trace when the owner merely reads a completed assessment', async () => {
+    database.assessmentRequest.findFirst.mockResolvedValueOnce(completedRequest());
+
+    const result = await service.getAssessment(owner, applicationId);
+
+    expect(result.requestStatus).toBe('COMPLETED');
+    expect(database.assessmentPresentation.create).not.toHaveBeenCalled();
+    expect(database.assessmentRequestAudit.create).not.toHaveBeenCalled();
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns the persisted first presentation when a concurrent presentation loses the uniqueness race', async () => {
     database.assessmentRequest.findFirst.mockResolvedValueOnce(completedRequest());
     database.assessmentPresentation.create.mockRejectedValueOnce(
       new Prisma.PrismaClientKnownRequestError('presentation already exists', {
@@ -620,7 +631,9 @@ describe('AdvisoryFitAssessmentService', () => {
       presented_at: persistedPresentationAt,
     });
 
-    await expect(service.getAssessment(owner, applicationId)).resolves.toMatchObject({
+    await expect(
+      service.presentAssessment(owner, applicationId),
+    ).resolves.toMatchObject({
       requestStatus: 'COMPLETED',
       presentedAt: persistedPresentationAt,
     });

@@ -1307,7 +1307,8 @@ after the single provider retry has been consumed. Clients must use this value
 instead of duplicating the backend retry limit.
 
 ```http
-GET /applications/:applicationId/assessment
+GET  /applications/:applicationId/assessment
+POST /applications/:applicationId/assessment/presentations
 Authorization: Bearer <owner-access-token>
 ```
 
@@ -1318,8 +1319,10 @@ validated finding per Requirement and a NestJS-derived `STRONG`, `PARTIAL`,
 `LIMITED`, or `UNKNOWN` fit band. Preferred Requirements never affect the band.
 Provider citations must be drawn from the supplied Evidence Snapshot; invalid
 coverage, citations, or vocabulary are stored as `UNAVAILABLE` rather than
-being shown as a valid assessment. First owner presentation is append-only and
-idempotent under concurrent reads.
+being shown as a valid assessment. The read is pure: it never writes, so it is
+safe to prefetch, retry, or poll. Presentation is recorded only by an explicit
+`POST /applications/:applicationId/assessment/presentations`, which is
+append-only and idempotent under concurrent calls.
 The assessment is advisory only and never hides, ranks, accepts, declines, or
 transitions an Application.
 
