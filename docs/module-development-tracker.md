@@ -2208,3 +2208,27 @@ This keeps the system strong without making it heavy:
   clean AI prerequisite's pytest/compile gates, and the dated real-process HTTP
   evidence under `docs/release-gates/`. B11 is ready to merge once final PR #69
   CI passes; Materials remains gated until #57 closes through that merge.
+
+### 2026-08-07 - Materials: safe foundation (S4-B12, part 1)
+
+- Scope: introduced the `materials` module with the data model, private
+  storage port, and configurable format and size limits. No routes yet; upload
+  and versioning follow in the second part.
+- Data model: `Material` carries identity, ownership scope, and one of three
+  fixed visibility classes; `MaterialVersion` is immutable, so a replacement is
+  a new version rather than an edit; `MaterialGrant` is an explicit revocable
+  grant retained after revocation; `MaterialAudit` is append-only and outlives
+  content purge, because deletion removes bytes rather than the record that
+  bytes existed. Migration `20260807090000_materials_foundation`.
+- Invariant: a Material belongs to exactly one of a Project or a Contribution
+  Request, enforced by a raw check constraint because Prisma cannot express it
+  and visibility resolution is undefined for a row attached to both or neither.
+- Storage: raw bytes go through a `MaterialStorage` port rather than a client,
+  so the domain rules are written against a contract and S3 or MinIO is an
+  adapter swap. Keys are generated rather than derived from filenames, and the
+  local adapter asserts containment within its root regardless.
+- Consent boundary: nothing in this module extracts, embeds, retrieves, or
+  calls a provider. Upload is storage consent only.
+- Focused verification: storage adapter specs run against real temporary files
+  covering digest, immutability, idempotent delete, and three path-traversal
+  shapes; environment specs pin the configurable limit bounds.
