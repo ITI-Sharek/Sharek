@@ -9,8 +9,15 @@ if (!password) {
   throw new Error('SHAREK_DEMO_PASSWORD is required');
 }
 
+// Opt out of teardown when a failed run needs inspecting. Kept as an opt-out so
+// the default is to leave the database as the run found it; note that preserved
+// runs still count toward the proposer's daily submission limit.
+const keepData =
+  process.argv.includes('--keep-data') || process.env.SHAREK_DEMO_KEEP_DATA === '1';
+
 const prisma = new PrismaClient();
 const transcript = [];
+let fixtureProjectId = null;
 
 function record(step, status, assertions) {
   transcript.push({ step, httpStatus: status, assertions });
@@ -126,12 +133,16 @@ async function main() {
   const owner = await prisma.user.findUniqueOrThrow({
     where: { email: 'owner@sharek.local' },
   });
+  // Every publication path keeps slug_normalized === slug.toLowerCase(), and
+  // public project lookups resolve a slug against that column, so the fixture
+  // has to hold the same invariant rather than roll a second identifier.
+  const projectSlug = `s4-runtime-${randomUUID().replace(/-/g, '')}`;
   const project = await prisma.project.create({
     data: {
       owner_id: owner.id,
       title: 'Sprint 4 Runtime Gate Fixture',
-      slug: `s4-runtime-${randomUUID().slice(0, 8)}`,
-      slug_normalized: `s4-runtime-${randomUUID()}`,
+      slug: projectSlug,
+      slug_normalized: projectSlug.toLowerCase(),
       description: 'Fixture project for the Sprint 4 sequential runtime gate.',
       github_repo_url: 'https://github.com/ITI-Sharek/Sharek',
       technologies: ['NestJS', 'PostgreSQL'],
@@ -139,6 +150,7 @@ async function main() {
       published_at: new Date(),
     },
   });
+  fixtureProjectId = project.id;
   record('fixture-created', 0, ['published-project', 'direct-database-fixture', 'identifier-redacted']);
 
   const ownerToken = await login('owner@sharek.local', 'owner');
@@ -336,8 +348,107 @@ async function main() {
   console.log(JSON.stringify({ result: 'PASS', transcript }, null, 2));
 }
 
+/**
+ * Removes everything the run created, so the runner is idempotent and repeated
+ * same-day runs cannot trip the proposer's daily submission limit.
+ *
+ * Every filter is derived from the fixture Project, so seeded users and any
+ * pre-existing rows are structurally unreachable. Audit tables are all
+ * onDelete: Restrict and have to go by hand; requirements, proposal versions
+ * and project operations/transitions cascade. AssessmentRequest holds Restrict
+ * references onto both snapshot tables, so it must be deleted before them.
+ *
+ * AuthSession rows are deliberately left alone: deleting them by user_id would
+ * sign out anyone else sharing the seeded accounts on the same database.
+ */
+async function cleanupFixture(projectId) {
+  const requests = await prisma.contributionRequest.findMany({
+    where: { project_id: projectId },
+    select: { id: true },
+  });
+  const requestIds = requests.map((request) => request.id);
+
+  const applications = await prisma.application.findMany({
+    where: { contribution_request_id: { in: requestIds } },
+    select: { id: true, requirement_snapshot_id: true, evidence_snapshot_id: true },
+  });
+  const applicationIds = applications.map((application) => application.id);
+  const requirementSnapshotIds = applications
+    .map((application) => application.requirement_snapshot_id)
+    .filter(Boolean);
+  const evidenceSnapshotIds = applications
+    .map((application) => application.evidence_snapshot_id)
+    .filter(Boolean);
+
+  const assessmentRequests = await prisma.assessmentRequest.findMany({
+    where: { application_id: { in: applicationIds } },
+    select: { id: true },
+  });
+  const assessmentRequestIds = assessmentRequests.map((request) => request.id);
+
+  const proposals = await prisma.contributionProposal.findMany({
+    where: { project_id: projectId },
+    select: { id: true },
+  });
+  const proposalIds = proposals.map((proposal) => proposal.id);
+
+  const notificationFilters = [
+    ...applicationIds.map((id) => ({
+      deduplication_key: { startsWith: `application:${id}:` },
+    })),
+    ...proposalIds.map((id) => ({
+      deduplication_key: { startsWith: `proposal:${id}:` },
+    })),
+  ];
+
+  await prisma.$transaction([
+    prisma.assessmentRequestAudit.deleteMany({
+      where: { assessment_request_id: { in: assessmentRequestIds } },
+    }),
+    prisma.assessmentAttempt.deleteMany({
+      where: { assessment_request_id: { in: assessmentRequestIds } },
+    }),
+    prisma.assessmentRequest.deleteMany({ where: { id: { in: assessmentRequestIds } } }),
+    prisma.assignment.deleteMany({ where: { application_id: { in: applicationIds } } }),
+    prisma.ownerDecision.deleteMany({ where: { application_id: { in: applicationIds } } }),
+    prisma.applicationAudit.deleteMany({ where: { application_id: { in: applicationIds } } }),
+    prisma.application.deleteMany({ where: { id: { in: applicationIds } } }),
+    prisma.applicationRequirementSnapshot.deleteMany({
+      where: { id: { in: requirementSnapshotIds } },
+    }),
+    prisma.applicationEvidenceSnapshot.deleteMany({
+      where: { id: { in: evidenceSnapshotIds } },
+    }),
+    prisma.contributionRequestAudit.deleteMany({
+      where: { contribution_request_id: { in: requestIds } },
+    }),
+    prisma.contributionRequest.deleteMany({ where: { project_id: projectId } }),
+    prisma.contributionProposalMisuseReport.deleteMany({
+      where: { proposal_id: { in: proposalIds } },
+    }),
+    prisma.contributionProposalAudit.deleteMany({
+      where: { proposal_id: { in: proposalIds } },
+    }),
+    prisma.contributionProposal.deleteMany({ where: { project_id: projectId } }),
+    ...(notificationFilters.length > 0
+      ? [prisma.notification.deleteMany({ where: { OR: notificationFilters } })]
+      : []),
+    prisma.project.deleteMany({ where: { id: projectId } }),
+  ]);
+}
+
 try {
   await main();
 } finally {
+  if (fixtureProjectId && !keepData) {
+    try {
+      await cleanupFixture(fixtureProjectId);
+    } catch (cleanupError) {
+      // Never mask the original failure; leave a breadcrumb for manual cleanup.
+      console.error(
+        `Cleanup failed for fixture project ${fixtureProjectId}: ${cleanupError.message}`,
+      );
+    }
+  }
   await prisma.$disconnect();
 }
