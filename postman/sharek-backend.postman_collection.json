@@ -1584,6 +1584,79 @@
           "response": []
         },
         {
+          "name": "M12 - Read upload constraints",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/material-upload-constraints",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "material-upload-constraints"
+              ]
+            },
+            "description": "The supported formats and size ceiling the upload form must state before a file is chosen. Served from the same configuration the validator reads, so the form and the rejection can never disagree; any number a client hardcodes instead drifts the first time an operator raises the ceiling. The path sits outside /materials/ because /materials/upload-constraints would be matched by /materials/:materialId first, whose UUID pipe rejects it."
+          },
+          "response": []
+        },
+        {
+          "name": "M13 - List Project Materials",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/materials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}",
+                "materials"
+              ]
+            },
+            "description": "Access-filtered in the query, not after fetching: a contributor sees public Materials on a published Project, restricted ones only where they hold a live grant AND a live Assignment, and nothing else. The owner additionally sees their own deleted Materials, so a deletion is visibly done rather than a row that silently vanished."
+          },
+          "response": []
+        },
+        {
+          "name": "M14 - List Contribution Request Materials",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ownerAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contribution-requests/{{contributionRequestId}}/materials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contribution-requests",
+                "{{contributionRequestId}}",
+                "materials"
+              ]
+            },
+            "description": "The same filtering for a Request, plus ASSIGNMENT-visibility Materials for the current active assignee. The Project behind the Request is resolved through the owning module rather than by reading its tables."
+          },
+          "response": []
+        },
+        {
           "name": "06b - Read Project Intake",
           "request": {
             "method": "GET",
