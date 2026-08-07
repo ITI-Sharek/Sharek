@@ -21,6 +21,7 @@ describe('MaterialScanWorker', () => {
   const queue = { scheduleReaper: jest.fn(), enqueueReapCatchUp: jest.fn() };
   const processor = { process: jest.fn() };
   const reaper = { reapStale: jest.fn() };
+  const purge = { purgePending: jest.fn() };
 
   const config = (enabledValue: boolean) =>
     ({
@@ -36,6 +37,7 @@ describe('MaterialScanWorker', () => {
     queue.enqueueReapCatchUp.mockResolvedValue(undefined);
     processor.process.mockResolvedValue({ outcome: 'ready' });
     reaper.reapStale.mockResolvedValue({ requeued: 0, abandoned: 0, skipped: 0 });
+    purge.purgePending.mockResolvedValue({ purged: 0, skipped: 0 });
   });
 
   async function bootstrap() {
@@ -44,6 +46,7 @@ describe('MaterialScanWorker', () => {
       queue as never,
       processor as never,
       reaper as never,
+      purge as never,
     );
     await worker.onApplicationBootstrap();
     return worker;
@@ -61,6 +64,9 @@ describe('MaterialScanWorker', () => {
 
     await handler({ name: 'reap', data: {} } as Job);
     expect(reaper.reapStale).toHaveBeenCalledTimes(1);
+    // One tick drives both sweeps; a second repeating job would double the
+    // Redis chatter for no gain.
+    expect(purge.purgePending).toHaveBeenCalledTimes(1);
   });
 
   it('lets a scan failure reach BullMQ so it is retried', async () => {
@@ -91,6 +97,7 @@ describe('MaterialScanWorker', () => {
       queue as never,
       processor as never,
       reaper as never,
+      purge as never,
     );
 
     await worker.onApplicationBootstrap();
@@ -108,5 +115,6 @@ describe('MaterialScanWorker', () => {
     ).resolves.toBeUndefined();
     expect(processor.process).not.toHaveBeenCalled();
     expect(reaper.reapStale).not.toHaveBeenCalled();
+    expect(purge.purgePending).not.toHaveBeenCalled();
   });
 });

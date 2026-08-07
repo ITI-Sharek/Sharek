@@ -6,6 +6,7 @@ const validEnvironment = {
   REDIS_URL: 'redis://localhost:6379',
   JWT_ACCESS_SECRET: 'access-secret-at-least-16',
   JWT_REFRESH_SECRET: 'refresh-secret-at-least-16',
+  MATERIAL_DOWNLOAD_TOKEN_SECRET: 'material-download-secret-at-least-32-chars',
 };
 
 describe('environment validation', () => {
@@ -26,7 +27,23 @@ describe('environment validation', () => {
       ADVISORY_FIT_STALE_AFTER_MS: 600_000,
       MATERIAL_MAX_BYTES: 26_214_400,
       MATERIAL_STORAGE_ROOT: './.material-storage',
+      MATERIAL_DOWNLOAD_TOKEN_TTL_SECONDS: 300,
     });
+  });
+
+  it('requires a download-token secret long enough to be worth signing with', () => {
+    // Required rather than defaulted: a shipped default secret would let anyone
+    // holding the source mint a download link for any Material.
+    const withoutSecret = { ...validEnvironment };
+    delete (withoutSecret as Record<string, unknown>)
+      .MATERIAL_DOWNLOAD_TOKEN_SECRET;
+    expect(envValidationSchema.validate(withoutSecret).error).toBeDefined();
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        MATERIAL_DOWNLOAD_TOKEN_SECRET: 'too-short',
+      }).error,
+    ).toBeDefined();
   });
 
   it('rejects unsafe Application review sweep controls', () => {

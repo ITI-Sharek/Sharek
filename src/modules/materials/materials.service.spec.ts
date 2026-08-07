@@ -61,8 +61,10 @@ describe('MaterialsService', () => {
       findUniqueOrThrow: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     materialVersion: { create: jest.fn() },
+    materialGrant: { updateMany: jest.fn() },
     materialAudit: { create: jest.fn() },
     $queryRaw: jest.fn(),
   };
@@ -75,8 +77,14 @@ describe('MaterialsService', () => {
   };
   const projects = { getMaterialProjectContext: jest.fn() };
   const contributionTasks = { getOwnedRequest: jest.fn() };
-  const storage = { put: jest.fn(), delete: jest.fn() };
+  const storage = { put: jest.fn(), delete: jest.fn(), getStream: jest.fn() };
   const scanQueue = { enqueueScan: jest.fn() };
+  const access = {
+    requireReadAccess: jest.fn(),
+    requireDownloadableVersion: jest.fn(),
+  };
+  const downloadTokens = { issue: jest.fn(), verify: jest.fn() };
+  const purge = { purgeMaterial: jest.fn() };
   const service = new MaterialsService(
     database as never,
     config as never,
@@ -84,6 +92,9 @@ describe('MaterialsService', () => {
     contributionTasks as never,
     storage as never,
     scanQueue as never,
+    access as never,
+    downloadTokens as never,
+    purge as never,
   );
 
   beforeEach(() => {
@@ -113,7 +124,34 @@ describe('MaterialsService', () => {
       }),
     );
     storage.delete.mockResolvedValue(undefined);
+    storage.getStream.mockResolvedValue(undefined);
     scanQueue.enqueueScan.mockResolvedValue(undefined);
+    access.requireReadAccess.mockResolvedValue({
+      materialId,
+      ownerId: owner.id,
+      visibility: 'public',
+      projectId,
+      contributionRequestId: null,
+      isOwner: true,
+    });
+    access.requireDownloadableVersion.mockResolvedValue({
+      storageKey: `${materialId}/object`,
+      mimeType: 'application/pdf',
+      originalFilename: 'brief.pdf',
+    });
+    downloadTokens.issue.mockReturnValue({
+      token: 'body.signature',
+      expiresAt: new Date('2026-08-07T12:05:00.000Z'),
+    });
+    downloadTokens.verify.mockReturnValue({
+      materialId,
+      version: 1,
+      subjectId: owner.id,
+      expiresAt: new Date('2026-08-07T12:05:00.000Z'),
+    });
+    purge.purgeMaterial.mockResolvedValue(1);
+    database.material.updateMany.mockResolvedValue({ count: 1 });
+    database.materialGrant.updateMany.mockResolvedValue({ count: 0 });
   });
 
   const create = () =>
@@ -347,13 +385,107 @@ describe('MaterialsService', () => {
     ).rejects.toMatchObject({ code: 'MATERIAL_IDEMPOTENCY_KEY_REQUIRED' });
   });
 
-  it('hides a deleted Material from its own owner', async () => {
-    database.material.findUnique.mockResolvedValue(
-      materialRow({ deleted_at: new Date() }),
+  it('issues no download link for a version that could not be served', async () => {
+    access.requireDownloadableVersion.mockRejectedValue(
+      Object.assign(new Error('nope'), { code: 'MATERIAL_VERSION_NOT_DOWNLOADABLE' }),
     );
 
-    await expect(service.getForOwner(owner, materialId)).rejects.toMatchObject({
-      code: 'MATERIAL_NOT_FOUND',
+    await expect(
+      service.issueDownloadToken({ actor: owner, materialId, version: 1 }),
+    ).rejects.toMatchObject({ code: 'MATERIAL_VERSION_NOT_DOWNLOADABLE' });
+    expect(downloadTokens.issue).not.toHaveBeenCalled();
+  });
+
+  it('re-checks access at redemption instead of trusting the token', async () => {
+    // This is what makes a revocation bite against a link already in someone's
+    // hands: the token proves what was asked for, never that it is still
+    // allowed.
+    access.requireReadAccess.mockRejectedValue(
+      Object.assign(new Error('gone'), { code: 'MATERIAL_NOT_FOUND' }),
+    );
+
+    await expect(service.openDownload(owner, 'body.signature')).rejects.toMatchObject(
+      { code: 'MATERIAL_NOT_FOUND' },
+    );
+    expect(storage.getStream).not.toHaveBeenCalled();
+  });
+
+  it('re-checks the version at redemption, so a purge closes an open link', async () => {
+    access.requireDownloadableVersion.mockRejectedValue(
+      Object.assign(new Error('gone'), { code: 'MATERIAL_VERSION_NOT_FOUND' }),
+    );
+
+    await expect(service.openDownload(owner, 'body.signature')).rejects.toMatchObject(
+      { code: 'MATERIAL_VERSION_NOT_FOUND' },
+    );
+    expect(storage.getStream).not.toHaveBeenCalled();
+  });
+
+  it('refuses a link redeemed by someone other than its subject', async () => {
+    // Otherwise a shared URL is a copy of the document, which the short expiry
+    // alone does not prevent.
+    await expect(
+      service.openDownload(contributor, 'body.signature'),
+    ).rejects.toMatchObject({
+      code: 'MATERIAL_DOWNLOAD_TOKEN_SUBJECT_MISMATCH',
     });
+    expect(access.requireReadAccess).not.toHaveBeenCalled();
+  });
+
+  it('revokes every live grant in the same transaction that deletes', async () => {
+    await service.remove({ actor: owner, materialId, idempotencyKey });
+
+    // Access must end atomically with the deletion; revoking afterwards would
+    // leave a window in which the Material is deleted but still readable.
+    expect(database.materialGrant.updateMany).toHaveBeenCalledWith({
+      where: { material_id: materialId, revoked_at: null },
+      data: { revoked_at: expect.any(Date), revoked_by: owner.id },
+    });
+    expect(database.materialAudit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'deleted' }),
+      }),
+    );
+  });
+
+  it('does not let a lagging purge report the deletion as failed', async () => {
+    // The Material is already inaccessible. Failing here would tell the owner
+    // their file is still readable when it is not.
+    purge.purgeMaterial.mockResolvedValue(0);
+
+    await expect(
+      service.remove({ actor: owner, materialId, idempotencyKey }),
+    ).resolves.toEqual({ materialId, purgedVersions: 0 });
+  });
+
+  it('lets only one of two concurrent deletes claim the deletion', async () => {
+    database.material.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      service.remove({ actor: owner, materialId, idempotencyKey }),
+    ).rejects.toMatchObject({ code: 'MATERIAL_ALREADY_DELETED' });
+  });
+
+  it('refuses assignment visibility on a Project Material at upload', async () => {
+    await expect(
+      service.createForProject({
+        actor: owner,
+        projectId,
+        title: 'Project brief',
+        visibility: 'assignment',
+        idempotencyKey,
+        file: pdf(),
+      }),
+    ).rejects.toMatchObject({ code: 'MATERIAL_VISIBILITY_SCOPE_MISMATCH' });
+    expect(storage.put).not.toHaveBeenCalled();
+  });
+
+  it('leaves the read decision to the access service rather than owner identity', async () => {
+    // getForReader must not re-implement authorization: a grantee and an
+    // assignee reach the same projection, and duplicating the rule here is how
+    // the two copies drift.
+    await service.getForReader(contributor, materialId);
+
+    expect(access.requireReadAccess).toHaveBeenCalledWith(contributor, materialId);
   });
 });

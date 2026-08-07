@@ -74,6 +74,17 @@ export const envValidationSchema = Joi.object({
   MATERIAL_SCANNER_STUB_MODE: Joi.string()
     .valid('content', 'clean', 'infected', 'error')
     .default('content'),
+  // Its own secret, never the access-token one. Sharing would make a download
+  // link and a session token interchangeable inputs to the same verifier, and
+  // the download link is deliberately the far weaker of the two.
+  MATERIAL_DOWNLOAD_TOKEN_SECRET: Joi.string().min(32).required(),
+  // Minutes, not hours. The link is re-authorized at redemption, so this bounds
+  // how long a *leaked* link stays useful, not how long access lasts.
+  MATERIAL_DOWNLOAD_TOKEN_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(30)
+    .max(3_600)
+    .default(300),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://localhost:3001'),
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),

@@ -377,6 +377,76 @@ export class ContributionTasksService {
     return toContributionRequestDto(request);
   }
 
+  /**
+   * Assignment facts the Materials module needs to resolve visibility.
+   *
+   * Exported rather than queried there, because Assignment belongs to this
+   * module and Materials must never read another module's tables.
+   *
+   * "Active" means the Contribution Request is still `assigned`. There is no
+   * status column on Assignment itself, so the Request's terminal states --
+   * completed, cancelled, discarded -- are what end an assignee's access, which
+   * is why a delivered Request stops opening `assignment` Materials.
+   *
+   * Note what `activeProjectAssigneeIds` means: Assignment is per Contribution
+   * Request, not per Project, so a "Project assignee" is anyone holding a live
+   * Assignment on *any* Request in that Project. A contributor finishing one
+   * Request therefore keeps Project-level access while another of theirs is
+   * still open, which is the reading that makes a grant survive the ordinary
+   * course of work rather than lapsing mid-collaboration.
+   */
+  async getMaterialAssignmentAccess(input: {
+    projectId: string | null;
+    contributionRequestId: string | null;
+  }): Promise<{
+    projectId: string | null;
+    activeProjectAssigneeIds: string[];
+    activeRequestAssigneeId: string | null;
+  }> {
+    let projectId = input.projectId;
+    let activeRequestAssigneeId: string | null = null;
+
+    if (input.contributionRequestId) {
+      const request = await this.database.contributionRequest.findUnique({
+        where: { id: input.contributionRequestId },
+        select: {
+          project_id: true,
+          status: true,
+          // Declared as a list on the relation, but Assignment's
+          // contribution_request_id is unique, so there is at most one.
+          assignments: { select: { contributor_id: true }, take: 1 },
+        },
+      });
+      projectId = request?.project_id ?? null;
+      activeRequestAssigneeId =
+        request?.status === ContributionRequestStatus.assigned
+          ? (request.assignments[0]?.contributor_id ?? null)
+          : null;
+    }
+
+    if (!projectId) {
+      return { projectId: null, activeProjectAssigneeIds: [], activeRequestAssigneeId };
+    }
+
+    const assignments = await this.database.assignment.findMany({
+      where: {
+        contributionRequest: {
+          project_id: projectId,
+          status: ContributionRequestStatus.assigned,
+        },
+      },
+      select: { contributor_id: true },
+    });
+
+    return {
+      projectId,
+      activeProjectAssigneeIds: [
+        ...new Set(assignments.map((assignment) => assignment.contributor_id)),
+      ],
+      activeRequestAssigneeId,
+    };
+  }
+
   async getOwnedRequest(
     user: AuthenticatedUser,
     requestId: string,
