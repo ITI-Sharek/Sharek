@@ -161,11 +161,66 @@ describe('MaterialGrantsService', () => {
         granted_at: new Date('2026-08-01T10:00:00.000Z'),
         revoked_at: revokedAt,
         revoked_by: owner.id,
+        grantee: {
+          id: granteeId,
+          username: 'nour',
+          first_name: 'Nour',
+          last_name: 'Hassan',
+        },
       },
     ]);
 
     await expect(service.listGrants(owner, materialId)).resolves.toEqual([
       expect.objectContaining({ granteeId, revokedAt }),
+    ]);
+  });
+
+  it('names the grantee rather than listing a bare identifier', async () => {
+    // A UUID tells the owner nothing about who they handed a document to,
+    // which is the one thing this list exists to say.
+    database.materialGrant.findMany.mockResolvedValue([
+      {
+        grantee_id: granteeId,
+        granted_by: owner.id,
+        granted_at: new Date(),
+        revoked_at: null,
+        revoked_by: null,
+        grantee: {
+          id: granteeId,
+          username: 'nour',
+          first_name: 'Nour',
+          last_name: 'Hassan',
+        },
+      },
+    ]);
+
+    await expect(service.listGrants(owner, materialId)).resolves.toEqual([
+      expect.objectContaining({
+        granteeName: 'Nour Hassan',
+        granteeUsername: 'nour',
+      }),
+    ]);
+  });
+
+  it('reports a null username rather than inventing one', async () => {
+    database.materialGrant.findMany.mockResolvedValue([
+      {
+        grantee_id: granteeId,
+        granted_by: owner.id,
+        granted_at: new Date(),
+        revoked_at: null,
+        revoked_by: null,
+        grantee: {
+          id: granteeId,
+          username: null,
+          first_name: 'Nour',
+          last_name: 'Hassan',
+        },
+      },
+    ]);
+
+    await expect(service.listGrants(owner, materialId)).resolves.toEqual([
+      expect.objectContaining({ granteeUsername: null, granteeName: 'Nour Hassan' }),
     ]);
   });
 

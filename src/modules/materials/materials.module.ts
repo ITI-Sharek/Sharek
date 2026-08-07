@@ -11,6 +11,7 @@ import { StubMalwareScanner } from './scanning/stub-malware-scanner';
 import { MaterialAccessService } from './services/material-access.service';
 import { MaterialDownloadTokenService } from './services/material-download-token.service';
 import { MaterialGrantsService } from './services/material-grants.service';
+import { MaterialListingService } from './services/material-listing.service';
 import { MaterialPurgeService } from './services/material-purge.service';
 import { MaterialScanProcessorService } from './services/material-scan-processor.service';
 import { MaterialScanReaperService } from './services/material-scan-reaper.service';
@@ -33,6 +34,7 @@ import { LocalMaterialStorage } from './storage/local-material-storage';
     MaterialsService,
     MaterialAccessService,
     MaterialGrantsService,
+    MaterialListingService,
     MaterialDownloadTokenService,
     MaterialPurgeService,
     MaterialScanQueue,

@@ -83,6 +83,27 @@ Giving up leaves the version `quarantined` with `scan_error_code` set to
 undownloadable either way; but `rejected` would tell the owner their file is
 malware, when what actually happened is that we failed to check it.
 
+## Listing
+
+`GET /projects/:id/materials` and `GET /contribution-requests/:id/materials`
+are filtered **in the query**, not by fetching everything and discarding rows
+afterwards. A list that briefly holds Materials the caller cannot see is one
+refactor away from returning them, and the count alone already leaks how many
+private documents a Project holds. Each disjunct in that query mirrors one
+visibility class; the access service stays the authority for any single
+Material.
+
+An owner's own listing includes their **deleted** Materials, carrying
+`deletedAt` and per-version `purgedAt`. The content is gone either way -- but
+hiding the record too makes a successful deletion look like a failed request,
+with nothing to confirm it happened. Every other read path refuses a deleted
+Material outright.
+
+`GET /material-upload-constraints` serves the allowlist and size ceiling from
+the same configuration the validator reads. Without it a client can only learn
+the limits by being rejected, and any number the frontend hardcodes instead
+drifts the first time an operator raises the ceiling.
+
 ## Downloads
 
 Bytes never leave through the route that decides access. Reading a Material and
