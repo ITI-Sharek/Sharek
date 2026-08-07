@@ -16,7 +16,12 @@ import {
 } from '../../../shared/errors/application.error';
 import { ContributionTasksService } from '../../contribution-tasks/services/contribution-tasks.service';
 import { MaterialDto, MaterialGrantDto } from '../dto/material-response.dto';
-import { MATERIAL_INCLUDE, toMaterialDto } from '../mappers/material.mapper';
+import {
+  MATERIAL_INCLUDE,
+  MATERIAL_PARTY_IDENTITY_SELECT,
+  toMaterialDto,
+  toPartyName,
+} from '../mappers/material.mapper';
 
 const UUID4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -266,10 +271,15 @@ export class MaterialGrantsService {
         granted_at: true,
         revoked_at: true,
         revoked_by: true,
+        grantee: MATERIAL_PARTY_IDENTITY_SELECT,
       },
     });
     return grants.map((grant) => ({
       granteeId: grant.grantee_id,
+      // A bare UUID tells the owner nothing about who they just handed a
+      // document to, which is the one thing this list exists to say.
+      granteeName: toPartyName(grant.grantee),
+      granteeUsername: grant.grantee.username,
       grantedBy: grant.granted_by,
       grantedAt: grant.granted_at,
       revokedAt: grant.revoked_at,

@@ -2327,3 +2327,31 @@ This keeps the system strong without making it heavy:
 - Focused verification: live grant and revocation against a real Assignment, a
   download link invalidated mid-flight by a revocation, a terminal Assignment
   closing access, and a repeated purge leaving audit rows intact both times.
+
+### 2026-08-07 - Materials: listing, constraints, and grant identity (S4-B12 follow-up)
+
+- Scope: the read surface Frontend #10 needs and #58 did not provide. Four
+  gaps, all found by surveying the frontend against the shipped API rather
+  than by a failing test.
+- There was no listing endpoint at all -- only `GET /materials/:id` -- so
+  nothing could render a Materials section without already knowing an id.
+  Added for both Project and Contribution Request scopes.
+- Listing filters in the query. Fetching everything and discarding afterwards
+  is one refactor away from returning it, and the count alone leaks how many
+  private documents a Project holds.
+- An owner's listing includes deleted Materials with `deletedAt` and per
+  version `purgedAt`. #10 requires honest `deleted` and `purge-pending`
+  states, and until now a deleted Material 404'd for everyone, so the row
+  simply vanished and the owner could not tell a completed deletion from a
+  failed request.
+- Limits were reachable only by being rejected: `MATERIAL_TOO_LARGE` and
+  `MATERIAL_TYPE_UNSUPPORTED` carry them as error metadata. #10 must state
+  them up front, so they are now served from the same config the validator
+  reads rather than hardcoded in the client, where they would drift.
+- Grants returned bare UUIDs. The grant list exists to tell an owner who they
+  handed a document to, so it now carries the same identity fields used for
+  proposers and Contribution Request attribution.
+- Both new static routes sit outside `/materials/` -- `material-downloads` and
+  `material-upload-constraints` -- because the parameterised
+  `/materials/:materialId` matches first and its UUID pipe rejects them.
+  Declaration order also works, until someone reorders the methods.

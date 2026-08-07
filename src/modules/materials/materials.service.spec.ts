@@ -480,6 +480,23 @@ describe('MaterialsService', () => {
     expect(storage.put).not.toHaveBeenCalled();
   });
 
+  it('reports the configured limits so a client need not learn them by failing', async () => {
+    config.get.mockImplementation((key: string, fallback: unknown) =>
+      key === 'MATERIAL_MAX_BYTES'
+        ? 1_048_576
+        : key === 'MATERIAL_ALLOWED_MIME_TYPES'
+          ? 'application/pdf,text/plain'
+          : fallback,
+    );
+
+    // Read from the same config the validator reads, so the form and the
+    // rejection can never disagree about what is allowed.
+    expect(service.getUploadConstraints()).toEqual({
+      maxBytes: 1_048_576,
+      allowedMimeTypes: ['application/pdf', 'text/plain'],
+    });
+  });
+
   it('leaves the read decision to the access service rather than owner identity', async () => {
     // getForReader must not re-implement authorization: a grantee and an
     // assignee reach the same projection, and duplicating the rule here is how

@@ -26,9 +26,35 @@ export function toMaterialDto(material: MaterialWithVersions): MaterialDto {
     visibility: material.visibility.toUpperCase() as MaterialVisibilityDto,
     currentVersion: material.current_version,
     versions: material.versions.map(toMaterialVersionDto),
+    // Present so the owner's listing can say "deleted -- removing content"
+    // rather than having the row silently vanish, which leaves them unsure
+    // whether the deletion worked. Every read path still refuses a deleted
+    // Material; this only describes one the caller was already shown.
+    deletedAt: material.deleted_at,
     createdAt: material.created_at,
     updatedAt: material.updated_at,
   };
+}
+
+/**
+ * Identity fields, matching the select used for proposers and for published
+ * Contribution Request attribution, so a contributor is described the same way
+ * wherever they are surfaced. A bare UUID in a grant list tells an owner
+ * nothing about who they just gave a document to.
+ */
+export const MATERIAL_PARTY_IDENTITY_SELECT = {
+  select: { id: true, username: true, first_name: true, last_name: true },
+} as const;
+
+export type MaterialPartyIdentity = {
+  id: string;
+  username: string | null;
+  first_name: string;
+  last_name: string;
+};
+
+export function toPartyName(party: MaterialPartyIdentity): string {
+  return `${party.first_name} ${party.last_name}`.trim();
 }
 
 function toMaterialVersionDto(
