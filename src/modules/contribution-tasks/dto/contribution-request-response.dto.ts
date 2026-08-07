@@ -14,6 +14,15 @@ export interface ContributionRequestRequirementDto {
 export interface ContributionRequestAttributionDto {
   proposalId: string;
   contributorId: string;
+  /**
+   * Named, not just identified. The public request DTO already carries these;
+   * the owner-facing one did not, so the draft produced by accepting a proposal
+   * credited a raw UUID -- and that draft is the artefact the owner edits and
+   * publishes, which is exactly where the credit needs to survive.
+   */
+  contributorName: string;
+  /** Null until the contributor has chosen a username. */
+  contributorUsername: string | null;
 }
 
 export interface ContributionRequestDto {

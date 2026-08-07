@@ -130,7 +130,12 @@ describe('Contribution Request public lifecycle HTTP integration', () => {
       .expect(({ body }) => {
         expect(body.totalCount).toBe(1);
         expect(body.items[0]).toMatchObject({ id: requestId });
-        expect(body.technologyFacets).toEqual(['NestJS', 'PostgreSQL']);
+        // Counted across every actionable Request, so a reader can see how far
+        // each filter narrows the list before clicking it.
+        expect(body.technologyFacets).toEqual([
+          { technology: 'NestJS', count: 1 },
+          { technology: 'PostgreSQL', count: 1 },
+        ]);
       });
 
     expect(database.contributionRequest.count).toHaveBeenCalledWith({

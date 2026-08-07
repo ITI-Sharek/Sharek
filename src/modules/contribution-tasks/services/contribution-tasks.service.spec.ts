@@ -24,6 +24,8 @@ const owner: AuthenticatedUser = {
 const projectId = '22222222-2222-4222-8222-222222222222';
 const requestId = '33333333-3333-4333-8333-333333333333';
 
+import { CONTRIBUTION_REQUEST_INCLUDE } from '../mappers/contribution-request.mapper';
+
 describe('ContributionTasksService', () => {
   const database = {
     contributionRequest: {
@@ -169,6 +171,12 @@ describe('ContributionTasksService', () => {
         status: ContributionRequestStatus.draft,
         origin_proposal_id: proposalId,
         attributed_contributor_id: contributorId,
+        attributedContributor: {
+          id: contributorId,
+          username: 'nour',
+          first_name: 'Nour',
+          last_name: 'Hassan',
+        },
         requirements: [],
       }),
     );
@@ -204,9 +212,14 @@ describe('ContributionTasksService', () => {
         }),
       }),
     });
+    // Named, not just identified. This draft is what the owner edits and
+    // publishes, so a bare UUID here is where the contributor's credit
+    // disappears at the moment the work becomes public.
     expect(result.attribution).toEqual({
       proposalId,
       contributorId,
+      contributorName: 'Nour Hassan',
+      contributorUsername: 'nour',
     });
   });
 
@@ -271,7 +284,7 @@ describe('ContributionTasksService', () => {
             ],
           },
         }),
-        include: { requirements: true },
+        include: CONTRIBUTION_REQUEST_INCLUDE,
       }),
     );
     expect(database.contributionRequestAudit.create).toHaveBeenCalledWith({
@@ -421,7 +434,12 @@ describe('ContributionTasksService', () => {
     });
     expect(result).toMatchObject({
       totalCount: 1,
-      technologyFacets: ['NestJS', 'PostgreSQL'],
+      // Counted, so the filter can say how far it narrows the list before the
+      // reader clicks it.
+      technologyFacets: [
+        { technology: 'NestJS', count: 1 },
+        { technology: 'PostgreSQL', count: 1 },
+      ],
       items: [
         {
           id: requestId,
@@ -1109,7 +1127,7 @@ describe('ContributionTasksService', () => {
     ).toHaveBeenCalledWith(projectId, owner.id);
     expect(database.contributionRequest.findMany).toHaveBeenCalledWith({
       where: { project_id: projectId, owner_id: owner.id },
-      include: { requirements: true },
+      include: CONTRIBUTION_REQUEST_INCLUDE,
       orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
     });
     expect(result).toMatchObject({
@@ -1298,6 +1316,12 @@ function baseRequest() {
       makeRequirement('required', 0, 'Build a tested NestJS endpoint'),
       makeRequirement('preferred', 0, 'Document the API examples'),
     ],
+    attributedContributor: null as {
+      id: string;
+      username: string | null;
+      first_name: string;
+      last_name: string;
+    } | null,
   };
 }
 

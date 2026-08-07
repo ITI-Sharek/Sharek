@@ -86,13 +86,23 @@ export interface PublicContributionRequestListItemDto {
 export interface ContributionRequestFeedResponseDto {
   items: PublicContributionRequestListItemDto[];
   totalCount: number;
-  technologyFacets: string[];
+  technologyFacets: ContributionRequestTechnologyFacetDto[];
 }
 
 export interface PublicContributionRequestRequirementDto {
   id: string;
   text: string;
   classification: 'required' | 'preferred';
+}
+
+export interface ContributionRequestTechnologyFacetDto {
+  technology: string;
+  /**
+   * How many actionable Requests carry this tag. A filter that cannot say how
+   * much it will narrow the list makes the reader click to find out, and an
+   * empty result then reads as a broken filter rather than an honest zero.
+   */
+  count: number;
 }
 
 export interface PublicContributionRequestAttributionDto {
