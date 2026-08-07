@@ -20,7 +20,10 @@ import {
 } from '../../shared/errors/application.error';
 import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
 import { ProjectsService } from '../projects/projects.service';
-import { MaterialDto } from './dto/material-response.dto';
+import {
+  MaterialDto,
+  MaterialUploadConstraintsDto,
+} from './dto/material-response.dto';
 import { MaterialScanQueue } from './jobs/material-scan.queue';
 import { MATERIAL_INCLUDE, toMaterialDto } from './mappers/material.mapper';
 import { MaterialAccessService } from './services/material-access.service';
@@ -180,6 +183,23 @@ export class MaterialsService {
 
     await this.enqueueScan(material.id, appended.version);
     return appended.dto;
+  }
+
+  /**
+   * The limits the upload form must state before the user picks a file.
+   *
+   * Read from the same config the validator reads, deliberately: the only
+   * other way for a client to learn them is to be rejected, and any number the
+   * frontend hardcodes instead is a number that drifts the first time an
+   * operator raises the ceiling.
+   */
+  getUploadConstraints(): MaterialUploadConstraintsDto {
+    return {
+      maxBytes: this.config.get<number>('MATERIAL_MAX_BYTES', 26_214_400),
+      allowedMimeTypes: parseAllowedMimeTypes(
+        this.config.get<string>('MATERIAL_ALLOWED_MIME_TYPES', ''),
+      ),
+    };
   }
 
   /**

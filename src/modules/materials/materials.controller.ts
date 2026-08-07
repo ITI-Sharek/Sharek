@@ -31,6 +31,7 @@ import {
 import { toMaterialVisibility } from './mappers/material.mapper';
 import { MaterialsService, UploadedFile as MaterialFile } from './materials.service';
 import { MaterialGrantsService } from './services/material-grants.service';
+import { MaterialListingService } from './services/material-listing.service';
 
 /**
  * Material commands. Upload is storage consent only -- no route here starts
@@ -46,7 +47,36 @@ export class MaterialsController {
   constructor(
     private readonly materials: MaterialsService,
     private readonly grants: MaterialGrantsService,
+    private readonly listing: MaterialListingService,
   ) {}
+
+  /**
+   * Outside `/materials/` for the same reason as the download route:
+   * `materials/upload-constraints` is matched by `materials/:materialId`
+   * first, whose UUID pipe rejects it before this handler runs. Declaring it
+   * above the parameterised route also works, right up until someone reorders
+   * these methods and the failure comes back silently.
+   */
+  @Get('material-upload-constraints')
+  getUploadConstraints() {
+    return this.materials.getUploadConstraints();
+  }
+
+  @Get('projects/:projectId/materials')
+  listForProject(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
+  ) {
+    return this.listing.listForProject(actor, projectId);
+  }
+
+  @Get('contribution-requests/:requestId/materials')
+  listForContributionRequest(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('requestId', new ParseUUIDPipe({ version: '4' })) requestId: string,
+  ) {
+    return this.listing.listForContributionRequest(actor, requestId);
+  }
 
   @Post('projects/:projectId/materials')
   @UseInterceptors(FileInterceptor('file'))
