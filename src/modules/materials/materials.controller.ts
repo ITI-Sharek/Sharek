@@ -3,13 +3,19 @@ import {
   Controller,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
+  Patch,
   Post,
+  Query,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 
 import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
 import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
@@ -17,10 +23,14 @@ import { CurrentUser } from '../../shared/auth/current-user.decorator';
 import { BadRequestApplicationError } from '../../shared/errors/application.error';
 import {
   AddMaterialVersionDto,
+  ChangeMaterialVisibilityDto,
   CreateMaterialDto,
+  GrantMaterialAccessDto,
+  MaterialCommandDto,
 } from './dto/material-input.dto';
 import { toMaterialVisibility } from './mappers/material.mapper';
 import { MaterialsService, UploadedFile as MaterialFile } from './materials.service';
+import { MaterialGrantsService } from './services/material-grants.service';
 
 /**
  * Material commands. Upload is storage consent only -- no route here starts
@@ -33,7 +43,10 @@ import { MaterialsService, UploadedFile as MaterialFile } from './materials.serv
 @UseGuards(AccessTokenGuard)
 @Controller()
 export class MaterialsController {
-  constructor(private readonly materials: MaterialsService) {}
+  constructor(
+    private readonly materials: MaterialsService,
+    private readonly grants: MaterialGrantsService,
+  ) {}
 
   @Post('projects/:projectId/materials')
   @UseInterceptors(FileInterceptor('file'))
@@ -88,11 +101,122 @@ export class MaterialsController {
   }
 
   @Get('materials/:materialId')
-  getForOwner(
+  getForReader(
     @CurrentUser() actor: AuthenticatedUser,
     @Param('materialId', new ParseUUIDPipe({ version: '4' })) materialId: string,
   ) {
-    return this.materials.getForOwner(actor, materialId);
+    return this.materials.getForReader(actor, materialId);
+  }
+
+  @Post('materials/:materialId/grants')
+  grant(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' })) materialId: string,
+    @Body() body: GrantMaterialAccessDto,
+  ) {
+    return this.grants.grant({
+      actor,
+      materialId,
+      granteeId: body.granteeId,
+      idempotencyKey: body.idempotencyKey,
+    });
+  }
+
+  @Get('materials/:materialId/grants')
+  listGrants(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' })) materialId: string,
+  ) {
+    return this.grants.listGrants(actor, materialId);
+  }
+
+  /**
+   * POST rather than DELETE: revocation carries an idempotency key in the
+   * body, and DELETE bodies are not reliably transmitted.
+   */
+  @Post('materials/:materialId/grants/:granteeId/revocations')
+  revoke(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' })) materialId: string,
+    @Param('granteeId', new ParseUUIDPipe({ version: '4' })) granteeId: string,
+    @Body() body: MaterialCommandDto,
+  ) {
+    return this.grants.revoke({
+      actor,
+      materialId,
+      granteeId,
+      idempotencyKey: body.idempotencyKey,
+    });
+  }
+
+  @Patch('materials/:materialId/visibility')
+  changeVisibility(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' })) materialId: string,
+    @Body() body: ChangeMaterialVisibilityDto,
+  ) {
+    return this.grants.changeVisibility({
+      actor,
+      materialId,
+      visibility: toMaterialVisibility(body.visibility),
+      idempotencyKey: body.idempotencyKey,
+    });
+  }
+
+  /**
+   * Issues the link rather than streaming here, so the authorization decision
+   * and the byte transfer are separate events -- and so the decision can be
+   * made again, against live state, when the link is redeemed.
+   */
+  @Post('materials/:materialId/versions/:version/download-token')
+  issueDownloadToken(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' })) materialId: string,
+    @Param('version', ParseIntPipe) version: number,
+  ) {
+    return this.materials.issueDownloadToken({ actor, materialId, version });
+  }
+
+  /**
+   * Still behind the access guard. The token proves which version was asked
+   * for and by whom; the guard proves the caller is that person, so a leaked
+   * link is not a copy of the document.
+   *
+   * Deliberately not `materials/downloads`: that path is matched by
+   * `materials/:materialId` first, and its UUID pipe rejects the request with a
+   * validation error before this handler is ever reached. Declaration order
+   * would fix it today and break silently the next time someone reorders these
+   * methods, so the collision is removed rather than avoided.
+   */
+  @Get('material-downloads')
+  async download(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Query('token') token: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const opened = await this.materials.openDownload(actor, token ?? '');
+    response.setHeader('Content-Type', opened.mimeType);
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${encodeURIComponent(opened.originalFilename)}"`,
+    );
+    // A download URL carries a credential in the query string; caching it
+    // anywhere shared would outlive the expiry it depends on.
+    response.setHeader('Cache-Control', 'no-store');
+    return new StreamableFile(opened.stream);
+  }
+
+  @Post('materials/:materialId/deletions')
+  remove(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('materialId', new ParseUUIDPipe({ version: '4' })) materialId: string,
+    @Body() body: MaterialCommandDto,
+  ) {
+    return this.materials.remove({
+      actor,
+      materialId,
+      idempotencyKey: body.idempotencyKey,
+    });
   }
 
   private requireFile(file?: MaterialFile): MaterialFile {

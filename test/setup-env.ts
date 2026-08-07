@@ -18,6 +18,9 @@ process.env.ADVISORY_FIT_QUEUE_ENABLED =
 // the upload command fails.
 process.env.MATERIAL_SCAN_QUEUE_ENABLED =
   process.env.MATERIAL_SCAN_QUEUE_ENABLED ?? 'false';
+process.env.MATERIAL_DOWNLOAD_TOKEN_SECRET =
+  process.env.MATERIAL_DOWNLOAD_TOKEN_SECRET ??
+  'test-material-download-secret-change-me';
 process.env.JWT_ACCESS_SECRET =
   process.env.JWT_ACCESS_SECRET ?? 'test-access-secret-change-me';
 process.env.JWT_REFRESH_SECRET =

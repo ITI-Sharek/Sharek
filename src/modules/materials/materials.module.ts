@@ -8,6 +8,10 @@ import { MaterialsController } from './materials.controller';
 import { MaterialsService } from './materials.service';
 import { MalwareScanner } from './scanning/malware-scanner';
 import { StubMalwareScanner } from './scanning/stub-malware-scanner';
+import { MaterialAccessService } from './services/material-access.service';
+import { MaterialDownloadTokenService } from './services/material-download-token.service';
+import { MaterialGrantsService } from './services/material-grants.service';
+import { MaterialPurgeService } from './services/material-purge.service';
 import { MaterialScanProcessorService } from './services/material-scan-processor.service';
 import { MaterialScanReaperService } from './services/material-scan-reaper.service';
 import { MaterialStorage } from './storage/material-storage';
@@ -27,6 +31,10 @@ import { LocalMaterialStorage } from './storage/local-material-storage';
   controllers: [MaterialsController],
   providers: [
     MaterialsService,
+    MaterialAccessService,
+    MaterialGrantsService,
+    MaterialDownloadTokenService,
+    MaterialPurgeService,
     MaterialScanQueue,
     MaterialScanProcessorService,
     MaterialScanReaperService,
