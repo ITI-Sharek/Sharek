@@ -11,6 +11,7 @@ import { NotFoundApplicationError } from '../../../shared/errors/application.err
 import { ContributionRequestProjectReferenceDto } from '../../projects/dto/contribution-request-project-reference.dto';
 import { ProjectsService } from '../../projects/projects.service';
 import {
+  ContributionRequestTechnologyFacetDto,
   ContributionRequestFeedQueryDto,
   ContributionRequestFeedResponseDto,
   PublicContributionRequestDetailDto,
@@ -74,13 +75,7 @@ export class PublicContributionRequestsService {
         return this.toListItem(request, project);
       }),
       totalCount,
-      technologyFacets: Array.from(
-        new Set(
-          facetRows.flatMap((request) =>
-            this.readStringArray(request.technology_tags),
-          ),
-        ),
-      ).sort((left, right) => left.localeCompare(right)),
+      technologyFacets: this.countTechnologyFacets(facetRows),
     };
   }
 
@@ -140,6 +135,27 @@ export class PublicContributionRequestsService {
           }
         : null,
     };
+  }
+
+  /**
+   * Counted over every actionable Request, not over the current page: the
+   * numbers describe what each filter would return, so they must not shrink as
+   * the reader pages through results.
+   */
+  private countTechnologyFacets(
+    rows: { technology_tags: Prisma.JsonValue }[],
+  ): ContributionRequestTechnologyFacetDto[] {
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      // Deduplicated per Request, so a tag repeated in one row still counts
+      // once -- the number means "Requests", not "tag occurrences".
+      for (const technology of new Set(this.readStringArray(row.technology_tags))) {
+        counts.set(technology, (counts.get(technology) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .map(([technology, count]) => ({ technology, count }))
+      .sort((left, right) => left.technology.localeCompare(right.technology));
   }
 
   private actionableWhere(

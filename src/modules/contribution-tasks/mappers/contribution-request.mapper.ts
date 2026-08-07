@@ -2,9 +2,22 @@ import { Prisma } from '@prisma/client';
 
 import { ContributionRequestDto } from '../dto/contribution-request-response.dto';
 
+/**
+ * Mirrors the select used for the public request DTO and for proposers, so a
+ * contributor is described the same way wherever they are surfaced.
+ */
+export const ATTRIBUTED_CONTRIBUTOR_SELECT = {
+  select: { id: true, username: true, first_name: true, last_name: true },
+} as const;
+
+export const CONTRIBUTION_REQUEST_INCLUDE = {
+  requirements: true,
+  attributedContributor: ATTRIBUTED_CONTRIBUTOR_SELECT,
+} satisfies Prisma.ContributionRequestInclude;
+
 export type ContributionRequestWithRequirements =
   Prisma.ContributionRequestGetPayload<{
-    include: { requirements: true };
+    include: typeof CONTRIBUTION_REQUEST_INCLUDE;
   }>;
 
 export function toContributionRequestDto(
@@ -35,10 +48,13 @@ export function toContributionRequestDto(
     rewardCurrency: request.reward_currency,
     status: request.status,
     attribution:
-      request.origin_proposal_id && request.attributed_contributor_id
+      request.origin_proposal_id && request.attributedContributor
         ? {
             proposalId: request.origin_proposal_id,
-            contributorId: request.attributed_contributor_id,
+            contributorId: request.attributedContributor.id,
+            contributorName:
+              `${request.attributedContributor.first_name} ${request.attributedContributor.last_name}`.trim(),
+            contributorUsername: request.attributedContributor.username,
           }
         : null,
     publishedAt: request.published_at,
