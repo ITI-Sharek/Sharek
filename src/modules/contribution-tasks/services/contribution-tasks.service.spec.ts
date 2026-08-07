@@ -434,7 +434,12 @@ describe('ContributionTasksService', () => {
     });
     expect(result).toMatchObject({
       totalCount: 1,
-      technologyFacets: ['NestJS', 'PostgreSQL'],
+      // Counted, so the filter can say how far it narrows the list before the
+      // reader clicks it.
+      technologyFacets: [
+        { technology: 'NestJS', count: 1 },
+        { technology: 'PostgreSQL', count: 1 },
+      ],
       items: [
         {
           id: requestId,
