@@ -83,6 +83,53 @@ Giving up leaves the version `quarantined` with `scan_error_code` set to
 undownloadable either way; but `rejected` would tell the owner their file is
 malware, when what actually happened is that we failed to check it.
 
+## Downloads
+
+Bytes never leave through the route that decides access. Reading a Material and
+downloading a version are separate calls:
+
+1. `POST /materials/:id/versions/:version/download-token` -- checks that the
+   reader may see the Material *and* that the version reached `ready`, then
+   mints a short-lived signed token.
+2. `GET /material-downloads?token=...` -- verifies the signature and expiry,
+   then **resolves access again** from live grants and live Assignments.
+
+That second path is not under `/materials/` on purpose: `/materials/downloads`
+is matched by `/materials/:materialId` first, whose UUID pipe rejects the
+request before the download handler is reached. Declaration order would paper
+over it until someone reordered the methods.
+
+The token names a subject and a target. It never carries the authorization
+decision, because a token that said "allowed" would keep working after a
+revocation -- and that window is the whole reason revocation exists. The
+redemption route also stays behind the access guard and requires the caller to
+*be* the token's subject, so a link pasted into a shared channel is not a copy
+of the document.
+
+The token is signed with its own secret, never the JWT access secret. Sharing
+one would make a download link and a session token interchangeable inputs to
+the same verifier, and the link is deliberately the far weaker of the two.
+
+## Deletion
+
+Two phases, because they fail differently:
+
+1. **Access ends inside one transaction** -- `deleted_at` is stamped and every
+   live grant is revoked. From that moment the Material is invisible to
+   everyone, its owner included, and no already-issued link can redeem.
+2. **Content is purged afterwards**, best-effort, with a sweep finishing
+   whatever storage refused. A purge that half-fails leaves `purged_at` NULL,
+   so the next sweep retries rather than stranding a version that is neither
+   downloadable nor purgeable.
+
+Bytes are deleted before the row is stamped. The reverse order can strand
+content: a crash in between would mark a version purged while its bytes are
+still on disk, and nothing would look at it again.
+
+Audit rows survive. Deletion removes content, not the record that content
+existed -- otherwise deleting a Material would also delete the evidence of who
+uploaded it, who could read it, and when that ended.
+
 ## Cross-module boundary
 
 Project and Assignment facts are read through exported `ProjectsService`

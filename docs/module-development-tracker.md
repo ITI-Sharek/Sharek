@@ -2289,3 +2289,41 @@ This keeps the system strong without making it heavy:
 - Focused verification: live upload of a clean PDF reaching READY, an EICAR
   upload reaching REJECTED, a forced scanner outage leaving the version
   unscanned, and a reaper sweep releasing a version stranded in `scanning`.
+
+### 2026-08-07 - Materials: visibility, grants, downloads, deletion (S4-B12, parts 4-5)
+
+- Scope: the three visibility classes, revocable grants, short-lived download
+  links, and two-phase deletion with an idempotent purge. This completes the
+  backend half of #58.
+- Visibility is resolved by a dedicated access service and never inferred from
+  role. A contributor is not granted access by being a contributor; they hold
+  something -- a live grant, or a live Assignment.
+- `restricted_project` requires both a live grant and a live Assignment in the
+  Project. A grant alone would outlive every reason it was issued for, and
+  nobody would remember to revoke it.
+- Assignment is per Contribution Request, not per Project, so "Project
+  assignee" reads as anyone holding a live Assignment on any Request in that
+  Project. That keeps a grant alive while one of a contributor's Requests
+  finishes and another is still open. Flagged for the team to confirm.
+- `assignment` visibility on a Project-scoped Material is refused rather than
+  accepted, at upload and at visibility change: a Project has no Assignment, so
+  the class could never open the Material to anyone but the owner.
+- Access denials return the same not-found as absence. "Exists but is not for
+  you" confirms that a named Project holds a document by that title.
+- Downloads are two calls. The token names a subject and a target and carries
+  no authorization decision, which is resolved again at redemption against live
+  state -- that is what makes revocation bite against a link already issued.
+  The redemption route stays behind the access guard and requires the caller to
+  be the token's subject, so a shared link is not a copy of the document.
+- The token has its own secret, required with no default. A shipped default
+  would let anyone holding the source mint a link for any Material.
+- Deletion ends access inside the transaction that stamps deleted_at, revoking
+  every live grant with it. Purging content follows and is not allowed to fail
+  the command: reporting deletion as failed because cleanup lagged would tell
+  the owner their file is still readable when it is not.
+- Purge deletes bytes before stamping the row, so the only possible partial
+  failure is the harmless one. Repeating a purge is a no-op, and audit rows
+  survive it.
+- Focused verification: live grant and revocation against a real Assignment, a
+  download link invalidated mid-flight by a revocation, a terminal Assignment
+  closing access, and a repeated purge leaving audit rows intact both times.

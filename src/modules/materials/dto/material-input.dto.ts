@@ -23,3 +23,24 @@ export class AddMaterialVersionDto {
   @IsUUID('4')
   idempotencyKey!: string;
 }
+
+export class GrantMaterialAccessDto {
+  @IsUUID('4')
+  granteeId!: string;
+
+  @IsUUID('4')
+  idempotencyKey!: string;
+}
+
+export class ChangeMaterialVisibilityDto {
+  @IsIn(MATERIAL_VISIBILITY_INPUTS)
+  visibility!: (typeof MATERIAL_VISIBILITY_INPUTS)[number];
+
+  @IsUUID('4')
+  idempotencyKey!: string;
+}
+
+export class MaterialCommandDto {
+  @IsUUID('4')
+  idempotencyKey!: string;
+}
