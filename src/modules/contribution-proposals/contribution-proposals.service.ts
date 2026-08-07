@@ -1195,10 +1195,14 @@ export class ContributionProposalsService {
     proposed_outcome: string;
     project_benefit: string;
   }): string {
+    // Arabic headings, because this text becomes the description of a draft
+    // Contribution Request that an owner reads and publishes in an Arabic,
+    // right-to-left interface. English labels here surfaced verbatim in the
+    // product, mixed into the contributor's own Arabic prose.
     return [
-      `Problem or opportunity:\n${version.problem_or_opportunity}`,
-      `Proposed outcome:\n${version.proposed_outcome}`,
-      `Project benefit:\n${version.project_benefit}`,
+      `المشكلة أو الفرصة:\n${version.problem_or_opportunity}`,
+      `النتيجة المقترحة:\n${version.proposed_outcome}`,
+      `الفائدة للمشروع:\n${version.project_benefit}`,
     ].join('\n\n');
   }
 
