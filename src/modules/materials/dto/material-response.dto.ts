@@ -29,6 +29,31 @@ export interface MaterialVersionDto {
   purgedAt: Date | null;
 }
 
+export interface MaterialGrantDto {
+  granteeId: string;
+  grantedBy: string;
+  grantedAt: Date;
+  /** Retained, not deleted: who once had access is the point of the record. */
+  revokedAt: Date | null;
+  revokedBy: string | null;
+}
+
+export interface MaterialDownloadTokenDto {
+  token: string;
+  version: number;
+  expiresAt: Date;
+}
+
+export interface MaterialDeletionDto {
+  materialId: string;
+  /**
+   * How many versions had their content destroyed before the response. The
+   * rest are left to the purge sweep, so this can legitimately be lower than
+   * the version count without the deletion having failed.
+   */
+  purgedVersions: number;
+}
+
 export interface MaterialDto {
   id: string;
   projectId: string | null;

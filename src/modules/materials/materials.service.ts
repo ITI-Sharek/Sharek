@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -22,6 +23,10 @@ import { ProjectsService } from '../projects/projects.service';
 import { MaterialDto } from './dto/material-response.dto';
 import { MaterialScanQueue } from './jobs/material-scan.queue';
 import { MATERIAL_INCLUDE, toMaterialDto } from './mappers/material.mapper';
+import { MaterialAccessService } from './services/material-access.service';
+import { MaterialDownloadTokenService } from './services/material-download-token.service';
+import { assertVisibilityFitsScope } from './services/material-grants.service';
+import { MaterialPurgeService } from './services/material-purge.service';
 import { MaterialStorage } from './storage/material-storage';
 import { LocalMaterialStorage } from './storage/local-material-storage';
 import {
@@ -54,6 +59,9 @@ export class MaterialsService {
     private readonly contributionTasks: ContributionTasksService,
     private readonly storage: MaterialStorage,
     private readonly scanQueue: MaterialScanQueue,
+    private readonly access: MaterialAccessService,
+    private readonly downloadTokens: MaterialDownloadTokenService,
+    private readonly purge: MaterialPurgeService,
   ) {}
 
   async createForProject(input: {
@@ -174,18 +182,154 @@ export class MaterialsService {
     return appended.dto;
   }
 
-  async getForOwner(
+  /**
+   * Reads a Material as anyone entitled to it, not only its owner. The access
+   * service decides; this method only projects what it allowed through.
+   */
+  async getForReader(
     actor: AuthenticatedUser,
     materialId: string,
   ): Promise<MaterialDto> {
-    this.assertActiveOwner(actor);
+    await this.access.requireReadAccess(actor, materialId);
+    return toMaterialDto(
+      await this.database.material.findUniqueOrThrow({
+        where: { id: materialId },
+        include: MATERIAL_INCLUDE,
+      }),
+    );
+  }
+
+  /**
+   * Mints a short-lived download link for one version.
+   *
+   * Both checks run here -- may this reader see the Material, and is this
+   * version servable at all -- so a link is never issued for bytes that could
+   * not be served. They run again at redemption, because both answers can
+   * change in between.
+   */
+  async issueDownloadToken(input: {
+    actor: AuthenticatedUser;
+    materialId: string;
+    version: number;
+  }): Promise<{ token: string; expiresAt: Date; version: number }> {
+    await this.access.requireReadAccess(input.actor, input.materialId);
+    await this.access.requireDownloadableVersion(
+      input.materialId,
+      input.version,
+    );
+    const issued = this.downloadTokens.issue({
+      materialId: input.materialId,
+      version: input.version,
+      subjectId: input.actor.id,
+    });
+    return { ...issued, version: input.version };
+  }
+
+  /**
+   * Redeems a download link.
+   *
+   * The token establishes *what* was asked for and *by whom*; it never
+   * establishes that the request is still allowed. Access is resolved again
+   * from live grants and live Assignments, which is what makes a revocation
+   * take effect against a link already in someone's hands.
+   *
+   * The bearer must also be the authenticated caller. A link that worked for
+   * whoever held it would turn a shared browser URL into a copy of the
+   * document, which is the failure the short expiry alone does not prevent.
+   */
+  async openDownload(
+    actor: AuthenticatedUser,
+    token: string,
+  ): Promise<{
+    stream: Readable;
+    mimeType: string;
+    originalFilename: string;
+    version: number;
+  }> {
+    const claims = this.downloadTokens.verify(token);
+    if (claims.subjectId !== actor.id) {
+      throw new ForbiddenApplicationError(
+        'Material download link was issued to another user',
+        'MATERIAL_DOWNLOAD_TOKEN_SUBJECT_MISMATCH',
+      );
+    }
+    await this.access.requireReadAccess(actor, claims.materialId);
+    const version = await this.access.requireDownloadableVersion(
+      claims.materialId,
+      claims.version,
+    );
+    return {
+      stream: await this.storage.getStream(version.storageKey),
+      mimeType: version.mimeType,
+      originalFilename: version.originalFilename,
+      version: claims.version,
+    };
+  }
+
+  /**
+   * Deletes a Material: access ends now, content goes shortly after.
+   *
+   * The transaction revokes every live grant and stamps deleted_at, so no
+   * reader and no already-issued token survives it. Purging bytes is attempted
+   * immediately afterwards but is not allowed to fail the command -- storage
+   * being briefly unavailable must not leave the caller believing their
+   * Material is still readable. The sweep finishes whatever is left.
+   */
+  async remove(input: {
+    actor: AuthenticatedUser;
+    materialId: string;
+    idempotencyKey: string;
+  }): Promise<{ materialId: string; purgedVersions: number }> {
+    this.assertActiveOwner(input.actor);
+    const idempotencyKey = this.normalizeIdempotencyKey(input.idempotencyKey);
     const material = await this.database.material.findUnique({
-      where: { id: materialId },
-      include: MATERIAL_INCLUDE,
+      where: { id: input.materialId },
+      select: { id: true, owner_id: true, deleted_at: true },
     });
     if (!material || material.deleted_at) throw this.materialNotFound();
-    if (material.owner_id !== actor.id) throw this.materialNotFound();
-    return toMaterialDto(material);
+    if (material.owner_id !== input.actor.id) throw this.materialNotFound();
+
+    const now = new Date();
+    try {
+      await this.database.$transaction(async (transaction) => {
+        const deleted = await transaction.material.updateMany({
+          where: { id: material.id, deleted_at: null },
+          data: { deleted_at: now },
+        });
+        // Conditional, so two concurrent deletes cannot both claim to have
+        // been the one that ended access.
+        if (deleted.count !== 1) {
+          throw new ConflictApplicationError(
+            'The Material was already deleted',
+            'MATERIAL_ALREADY_DELETED',
+          );
+        }
+        await transaction.materialGrant.updateMany({
+          where: { material_id: material.id, revoked_at: null },
+          data: { revoked_at: now, revoked_by: input.actor.id },
+        });
+        await transaction.materialAudit.create({
+          data: {
+            material_id: material.id,
+            actor_id: input.actor.id,
+            action: MaterialAuditAction.deleted,
+            idempotency_key: idempotencyKey,
+            command_fingerprint: this.fingerprint({
+              action: MaterialAuditAction.deleted,
+              materialId: material.id,
+            }),
+            metadata: { payloadVersion: 1 },
+          },
+        });
+      });
+    } catch (error) {
+      throw this.mapIdempotencyConflict(error);
+    }
+
+    return {
+      materialId: material.id,
+      purgedVersions: await this.purge.purgeMaterial(material.id, now),
+    };
   }
 
   private async create(input: {
@@ -197,6 +341,12 @@ export class MaterialsService {
     scope: { project_id: string } | { contribution_request_id: string };
   }): Promise<MaterialDto> {
     const idempotencyKey = this.normalizeIdempotencyKey(input.idempotencyKey);
+    assertVisibilityFitsScope(
+      input.visibility,
+      'contribution_request_id' in input.scope
+        ? input.scope.contribution_request_id
+        : null,
+    );
     const content = this.validateContent(input.file);
     const materialId = randomUUID();
     const storageKey = LocalMaterialStorage.buildStorageKey(materialId);

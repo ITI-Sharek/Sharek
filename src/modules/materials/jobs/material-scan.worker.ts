@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Job, Worker } from 'bullmq';
 
 import { getRedisConnection } from '../../../shared/queue/redis-connection';
+import { MaterialPurgeService } from '../services/material-purge.service';
 import { MaterialScanProcessorService } from '../services/material-scan-processor.service';
 import { MaterialScanReaperService } from '../services/material-scan-reaper.service';
 import { isMaterialScanQueueEnabled } from './material-scan.config';
@@ -31,6 +32,7 @@ export class MaterialScanWorker
     private readonly queue: MaterialScanQueue,
     private readonly processor: MaterialScanProcessorService,
     private readonly reaper: MaterialScanReaperService,
+    private readonly purge: MaterialPurgeService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -62,7 +64,12 @@ export class MaterialScanWorker
    */
   private async handle(job: Job): Promise<void> {
     if (job.name === MATERIAL_SCAN_REAP_JOB) {
-      await this.reaper.reapStale(new Date());
+      // Two sweeps on one tick. Both are maintenance of versions nobody is
+      // waiting on interactively, and giving each its own repeating job would
+      // double the Redis chatter for no gain.
+      const now = new Date();
+      await this.reaper.reapStale(now);
+      await this.purge.purgePending(now);
       return;
     }
     if (job.name === MATERIAL_SCAN_JOB) {
