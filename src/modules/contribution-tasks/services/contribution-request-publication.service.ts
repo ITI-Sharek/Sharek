@@ -20,6 +20,7 @@ import { ApplicationsService } from '../../applications/applications.service';
 import { ProjectsService } from '../../projects/projects.service';
 import { ContributionRequestDto } from '../dto/contribution-request-response.dto';
 import {
+  CONTRIBUTION_REQUEST_INCLUDE,
   ContributionRequestWithRequirements,
   toContributionRequestDto,
 } from '../mappers/contribution-request.mapper';
@@ -90,7 +91,7 @@ export class ContributionRequestPublicationService {
 
         const locked = await transaction.contributionRequest.findFirst({
           where: { id: input.requestId, owner_id: input.user.id },
-          include: { requirements: true },
+          include: CONTRIBUTION_REQUEST_INCLUDE,
         });
         if (!locked) throw this.requestNotFound();
         if (locked.status === ContributionRequestStatus.published) {
@@ -158,7 +159,7 @@ export class ContributionRequestPublicationService {
         const published =
           await transaction.contributionRequest.findUniqueOrThrow({
             where: { id: locked.id },
-            include: { requirements: true },
+            include: CONTRIBUTION_REQUEST_INCLUDE,
           });
         return toContributionRequestDto(published);
       });
@@ -230,7 +231,7 @@ export class ContributionRequestPublicationService {
         if (transactionReplay) return transactionReplay;
         const locked = await transaction.contributionRequest.findFirst({
           where: { id: input.requestId, owner_id: input.user.id },
-          include: { requirements: true },
+          include: CONTRIBUTION_REQUEST_INCLUDE,
         });
         if (!locked) throw this.requestNotFound();
         if (locked.status === ContributionRequestStatus.cancelled) {
@@ -285,7 +286,7 @@ export class ContributionRequestPublicationService {
         const cancelled =
           await transaction.contributionRequest.findUniqueOrThrow({
             where: { id: locked.id },
-            include: { requirements: true },
+            include: CONTRIBUTION_REQUEST_INCLUDE,
           });
         return toContributionRequestDto(cancelled);
       });
@@ -396,7 +397,7 @@ export class ContributionRequestPublicationService {
   ): Promise<ContributionRequestWithRequirements> {
     const request = await this.database.contributionRequest.findFirst({
       where: { id: requestId, owner_id: ownerId },
-      include: { requirements: true },
+      include: CONTRIBUTION_REQUEST_INCLUDE,
     });
     if (!request) throw this.requestNotFound();
     return request;
@@ -442,7 +443,7 @@ export class ContributionRequestPublicationService {
         idempotency_key: input.idempotencyKey,
       },
       include: {
-        contributionRequest: { include: { requirements: true } },
+        contributionRequest: { include: CONTRIBUTION_REQUEST_INCLUDE },
       },
     });
     return this.presentReplay(audit, input.fingerprint);
@@ -463,7 +464,7 @@ export class ContributionRequestPublicationService {
         idempotency_key: input.idempotencyKey,
       },
       include: {
-        contributionRequest: { include: { requirements: true } },
+        contributionRequest: { include: CONTRIBUTION_REQUEST_INCLUDE },
       },
     });
     return this.presentReplay(audit, input.fingerprint);
@@ -472,7 +473,7 @@ export class ContributionRequestPublicationService {
   private presentReplay(
     audit: Prisma.ContributionRequestAuditGetPayload<{
       include: {
-        contributionRequest: { include: { requirements: true } };
+        contributionRequest: { include: typeof CONTRIBUTION_REQUEST_INCLUDE };
       };
     }> | null,
     fingerprint: string,

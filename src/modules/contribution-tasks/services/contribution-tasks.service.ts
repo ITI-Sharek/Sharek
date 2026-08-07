@@ -29,6 +29,7 @@ import {
   OwnerProjectContributionRequestsDto,
 } from '../dto/contribution-request-response.dto';
 import {
+  CONTRIBUTION_REQUEST_INCLUDE,
   ContributionRequestWithRequirements,
   toContributionRequestDto,
 } from '../mappers/contribution-request.mapper';
@@ -61,7 +62,7 @@ export class ContributionTasksService {
   ): Promise<ApplicationRequestContextDto | null> {
     const request = await this.database.contributionRequest.findUnique({
       where: { id: requestId },
-      include: { requirements: true },
+      include: CONTRIBUTION_REQUEST_INCLUDE,
     });
     if (
       !request ||
@@ -296,7 +297,7 @@ export class ContributionTasksService {
               create: this.buildRequirementRows(contract),
             },
           },
-          include: { requirements: true },
+          include: CONTRIBUTION_REQUEST_INCLUDE,
         });
 
         await transaction.contributionRequestAudit.create({
@@ -356,7 +357,7 @@ export class ContributionTasksService {
         origin_proposal_id: input.proposalId,
         attributed_contributor_id: input.attributedContributorId,
       },
-      include: { requirements: true },
+      include: CONTRIBUTION_REQUEST_INCLUDE,
     });
 
     await input.transaction.contributionRequestAudit.create({
@@ -454,7 +455,7 @@ export class ContributionTasksService {
     this.assertActiveOwner(user);
     const request = await this.database.contributionRequest.findFirst({
       where: { id: requestId, owner_id: user.id },
-      include: { requirements: true },
+      include: CONTRIBUTION_REQUEST_INCLUDE,
     });
 
     if (!request) throw this.requestNotFound();
@@ -476,7 +477,7 @@ export class ContributionTasksService {
     );
     const requests = await this.database.contributionRequest.findMany({
       where: { project_id: projectId, owner_id: user.id },
-      include: { requirements: true },
+      include: CONTRIBUTION_REQUEST_INCLUDE,
       orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
     });
     const byStatus: ContributionRequestsByStatusDto = {
@@ -544,7 +545,7 @@ export class ContributionTasksService {
 
         const locked = await transaction.contributionRequest.findFirst({
           where: { id: input.requestId, owner_id: input.user.id },
-          include: { requirements: true },
+          include: CONTRIBUTION_REQUEST_INCLUDE,
         });
         if (!locked) throw this.requestNotFound();
         this.assertEditableDraft(locked.status);
@@ -605,7 +606,7 @@ export class ContributionTasksService {
 
         const updated = await transaction.contributionRequest.findUniqueOrThrow({
           where: { id: locked.id },
-          include: { requirements: true },
+          include: CONTRIBUTION_REQUEST_INCLUDE,
         });
         return toContributionRequestDto(updated);
       });
@@ -674,7 +675,7 @@ export class ContributionTasksService {
 
         const locked = await transaction.contributionRequest.findFirst({
           where: { id: input.requestId, owner_id: input.user.id },
-          include: { requirements: true },
+          include: CONTRIBUTION_REQUEST_INCLUDE,
         });
         if (!locked) throw this.requestNotFound();
         if (locked.status === ContributionRequestStatus.discarded) {
@@ -709,7 +710,7 @@ export class ContributionTasksService {
 
         const discarded = await transaction.contributionRequest.findUniqueOrThrow({
           where: { id: locked.id },
-          include: { requirements: true },
+          include: CONTRIBUTION_REQUEST_INCLUDE,
         });
         return toContributionRequestDto(discarded);
       });
@@ -978,7 +979,7 @@ export class ContributionTasksService {
   ): Promise<ContributionRequestWithRequirements> {
     const request = await this.database.contributionRequest.findFirst({
       where: { id: requestId, owner_id: ownerId },
-      include: { requirements: true },
+      include: CONTRIBUTION_REQUEST_INCLUDE,
     });
     if (!request) throw this.requestNotFound();
     return request;
@@ -1024,7 +1025,7 @@ export class ContributionTasksService {
         idempotency_key: input.idempotencyKey,
       },
       include: {
-        contributionRequest: { include: { requirements: true } },
+        contributionRequest: { include: CONTRIBUTION_REQUEST_INCLUDE },
       },
     });
     return this.presentReplay(audit, input.fingerprint);
@@ -1045,7 +1046,7 @@ export class ContributionTasksService {
         idempotency_key: input.idempotencyKey,
       },
       include: {
-        contributionRequest: { include: { requirements: true } },
+        contributionRequest: { include: CONTRIBUTION_REQUEST_INCLUDE },
       },
     });
     return this.presentReplay(audit, input.fingerprint);
@@ -1055,7 +1056,7 @@ export class ContributionTasksService {
     audit:
       | (Prisma.ContributionRequestAuditGetPayload<{
           include: {
-            contributionRequest: { include: { requirements: true } };
+            contributionRequest: { include: typeof CONTRIBUTION_REQUEST_INCLUDE };
           };
         }> | null),
     fingerprint: string,
