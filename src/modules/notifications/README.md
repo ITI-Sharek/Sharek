@@ -4,7 +4,14 @@ Owns in-app notification records and notification-write workflows.
 
 ## Current API
 
-No public HTTP routes are exposed yet.
+Authenticated users can use the durable inbox routes:
+
+- `GET /notifications?limit=50` returns the newest notifications and the full
+  unread count (the limit is bounded to 1-100).
+- `PATCH /notifications/:notificationId/read` marks one of the caller's rows
+  as read; another user's notification cannot be changed.
+- `PATCH /notifications/read-all` marks all of the caller's unread rows as
+  read.
 
 ## Current WebSocket Surface
 
@@ -51,6 +58,11 @@ Current supported workflow:
 - idempotent Contribution Proposal revision-request, accepted, and declined
   notifications for the proposer, with the resulting draft Request ID attached
   to accepted notifications.
+- idempotent skill-profile generation notifications for ready-for-review,
+  needs-more-evidence, and failed outcomes. Each generation/status pair is
+  deduplicated and includes the generation ID plus bounded counts in metadata.
+  The additive migration also backfills existing `pending_review` generations
+  once, so users do not lose a completed result created before this workflow.
 
 Owner Decision and Application review-window workflows pass their Prisma
 transaction into the notification service so durable rows commit atomically
@@ -59,5 +71,8 @@ after the transaction commits.
 Contribution Proposal response workflows use the same transaction-aware
 notification contract.
 
-Future notification inbox, read-state, delivery channels, task-match alerts, and
-premium-tier notification rules should stay in this module.
+The frontend loads this inbox after authentication and merges it with the
+Socket.IO stream. Read actions update the database and optimistically update the
+UI; a failed request refreshes the durable inbox. Future delivery channels,
+task-match alerts, and premium-tier notification rules should stay in this
+module.

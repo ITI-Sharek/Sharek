@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import {
@@ -17,15 +17,19 @@ import { GitHubEvidenceService } from '../../github/services/github-evidence.ser
 import { SkillProfileGenerationRepository } from '../repositories/skill-profile-generation.repository';
 import { canonicalizeSkillName } from '../utils/skill-name.util';
 import { DatabaseService } from '../../../shared/database/database.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 @Injectable()
 export class SkillProfileGenerationService {
+  private readonly logger = new Logger(SkillProfileGenerationService.name);
+
   constructor(
     private readonly generations: SkillProfileGenerationRepository,
     private readonly gitHubEvidenceService: GitHubEvidenceService,
     private readonly aiService: AiService,
     private readonly config: ConfigService,
     @Optional() private readonly database?: DatabaseService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async process(generationId: string): Promise<void> {
@@ -47,6 +51,11 @@ export class SkillProfileGenerationService {
         generationId,
         'GitHub App installation authorization is required.',
       );
+      await this.notifyGeneration({
+        userId: generation.user_id,
+        generationId,
+        status: 'failed',
+      });
       return;
     }
     await this.generations.updateStatus(
@@ -95,6 +104,12 @@ export class SkillProfileGenerationService {
         serviceVersion: 'not-run',
         evidenceSnapshot,
       });
+      await this.notifyGeneration({
+        userId: generation.user_id,
+        generationId,
+        status: 'needs_more_evidence',
+        selectedRepositoryCount: selectedRepositories.length,
+      });
       return;
     }
 
@@ -107,7 +122,7 @@ export class SkillProfileGenerationService {
       selectedRepositories: evidenceCapsules,
       requestedAt: generation.created_at.toISOString(),
     });
-    const pendingSkills = this.toPendingSkills(aiResult);
+    const pendingSkills = this.toPendingSkills(aiResult, evidenceCapsules);
 
     if (
       aiResult.recommendation === 'needs_more_evidence' ||
@@ -125,6 +140,12 @@ export class SkillProfileGenerationService {
         serviceVersion: aiResult.serviceVersion,
         evidenceSnapshot,
       });
+      await this.notifyGeneration({
+        userId: generation.user_id,
+        generationId,
+        status: 'needs_more_evidence',
+        selectedRepositoryCount: evidenceCapsules.length,
+      });
       return;
     }
 
@@ -140,6 +161,34 @@ export class SkillProfileGenerationService {
         serviceVersion: aiResult.serviceVersion,
         evidenceSnapshot,
       });
+    await this.notifyGeneration({
+      userId: generation.user_id,
+      generationId,
+      status: 'ready_for_review',
+      skillCount: pendingSkills.length,
+      selectedRepositoryCount: evidenceCapsules.length,
+    });
+  }
+
+  private async notifyGeneration(input: {
+    userId: string;
+    generationId: string;
+    status: 'ready_for_review' | 'needs_more_evidence' | 'failed';
+    skillCount?: number;
+    selectedRepositoryCount?: number;
+  }): Promise<void> {
+    if (!this.notifications) return;
+
+    try {
+      await this.notifications.createSkillProfileGenerationNotification(input);
+    } catch (error) {
+      // Notification delivery must not turn a committed generation into a
+      // failed generation. The generation state is already durable.
+      this.logger.warn(
+        `Could not create notification for skill generation ${input.generationId}`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   async transitionUnresolvedLegacyCandidates(now = new Date()): Promise<number> {
@@ -200,11 +249,15 @@ export class SkillProfileGenerationService {
         matchedRecentCommitShas: [],
       },
       evidenceFailures: snapshot.evidenceFailures,
+      ...(snapshot.frameworkDetection
+        ? { frameworkDetection: snapshot.frameworkDetection }
+        : {}),
     };
   }
 
   private toPendingSkills(
     aiResult: SkillProfileResult,
+    evidenceCapsules: RepositoryEvidenceCapsule[],
   ): Array<{
     name: string;
     key: string;
@@ -213,7 +266,14 @@ export class SkillProfileGenerationService {
     evidenceSummary: string | null;
     evidenceSources: unknown;
   }> {
-    const threshold = this.config.get<number>('AI_LOW_CONFIDENCE_THRESHOLD', 0.7);
+    const configuredThreshold = this.config.get<number>(
+      'AI_LOW_CONFIDENCE_THRESHOLD',
+      0.7,
+    );
+    const threshold =
+      Number.isFinite(configuredThreshold) && configuredThreshold >= 0 && configuredThreshold <= 1
+        ? configuredThreshold
+        : 0.7;
     const bestBySkill = new Map<string, GeneratedSkillCandidate>();
 
     for (const skill of aiResult.skills) {
@@ -234,6 +294,19 @@ export class SkillProfileGenerationService {
       }
     }
 
+    // The model may summarize only the strongest signals and omit a detected
+    // framework or a repository's dominant language. These candidates are
+    // deterministic evidence, not a claim of proficiency: they stay pending
+    // for admin review and are deliberately capped at beginner.
+    for (const detectedSkill of this.collectDeterministicSkillCandidates(
+      evidenceCapsules,
+      threshold,
+    )) {
+      if (!bestBySkill.has(detectedSkill.key)) {
+        bestBySkill.set(detectedSkill.key, detectedSkill.candidate);
+      }
+    }
+
     return Array.from(bestBySkill.entries()).map(([key, skill]) => ({
       name: skill.name,
       key,
@@ -245,6 +318,108 @@ export class SkillProfileGenerationService {
         limitations: skill.limitations ?? [],
       },
     }));
+  }
+
+  private collectDeterministicSkillCandidates(
+    evidenceCapsules: RepositoryEvidenceCapsule[],
+    confidence: number,
+  ): Array<{
+    key: string;
+    candidate: GeneratedSkillCandidate;
+  }> {
+    const candidates = new Map<
+      string,
+      {
+        name: string;
+        evidenceIds: string[];
+        signals: string[];
+      }
+    >();
+
+    const addCandidate = (
+      name: string,
+      evidenceId: string,
+      signal: string,
+    ): void => {
+      const canonicalName = canonicalizeSkillName(name);
+      if (!canonicalName) return;
+
+      const existing = candidates.get(canonicalName.key);
+      if (existing) {
+        if (!existing.evidenceIds.includes(evidenceId)) {
+          existing.evidenceIds.push(evidenceId);
+        }
+        if (!existing.signals.includes(signal)) {
+          existing.signals.push(signal);
+        }
+        return;
+      }
+
+      candidates.set(canonicalName.key, {
+        name: canonicalName.name,
+        evidenceIds: [evidenceId],
+        signals: [signal],
+      });
+    };
+
+    for (const capsule of evidenceCapsules) {
+      const frameworkDetection = capsule.frameworkDetection;
+      if (frameworkDetection?.status === 'success') {
+        for (const [framework, references] of Object.entries(
+          frameworkDetection.frameworksDetected,
+        )) {
+          addCandidate(
+            framework,
+            capsule.evidenceId,
+            `${framework} detected in ${references.join(', ')}`,
+          );
+        }
+      }
+
+      const language = this.dominantLanguageForSkill(capsule);
+      if (language) {
+        addCandidate(
+          language,
+          capsule.evidenceId,
+          `${language} identified by repository language evidence`,
+        );
+      }
+    }
+
+    return Array.from(candidates.entries()).map(([key, value]) => ({
+      key,
+      candidate: {
+        name: value.name,
+        proficiency: 'beginner',
+        confidence,
+        evidenceIds: value.evidenceIds,
+        evidenceSummary:
+          `${value.name} is present in the selected repository evidence. ` +
+          'This confirms a declared dependency or language signal, not implementation depth.',
+        limitations: [
+          value.signals.join('; '),
+          'Static analysis and authored usage must be reviewed before assigning higher proficiency.',
+        ],
+      },
+    }));
+  }
+
+  private dominantLanguageForSkill(
+    capsule: RepositoryEvidenceCapsule,
+  ): string | null {
+    const primaryLanguage = capsule.primaryLanguage?.trim();
+    if (primaryLanguage && !this.isNotebookLanguage(primaryLanguage)) {
+      return primaryLanguage;
+    }
+
+    const languages = Object.entries(capsule.languages)
+      .filter(([language]) => !this.isNotebookLanguage(language))
+      .sort((left, right) => right[1] - left[1]);
+    return languages[0]?.[0] ?? null;
+  }
+
+  private isNotebookLanguage(language: string): boolean {
+    return language.trim().toLowerCase() === 'jupyter notebook';
   }
 
   private readSelectedRepositories(

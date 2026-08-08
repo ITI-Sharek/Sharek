@@ -51,6 +51,13 @@ describe('GitHubEvidenceService GitHub App boundary', () => {
         data: [],
         unavailableReason: null,
       }),
+      getRepositoryFile: jest.fn().mockImplementation((_token, _fullName, path) =>
+        Promise.resolve(
+          path === 'package.json'
+            ? JSON.stringify({ dependencies: { next: '^16.1.6' } })
+            : null,
+        ),
+      ),
     };
     return {
       service: new GitHubEvidenceService(
@@ -70,7 +77,16 @@ describe('GitHubEvidenceService GitHub App boundary', () => {
     await expect(
       service.getGitHubAppSkillProfilingEvidence('user-1', 'link-1', ['1', '2']),
     ).resolves.toMatchObject({
-      snapshots: [{ repository: { githubRepoId: '1', fullName: 'org/selected' } }],
+      snapshots: [
+        {
+          repository: { githubRepoId: '1', fullName: 'org/selected' },
+          frameworkDetection: {
+            frameworksDetected: {
+              'Next.js': ['package.json:next@^16.1.6'],
+            },
+          },
+        },
+      ],
       failures: [
         {
           fullName: 'org/partial',

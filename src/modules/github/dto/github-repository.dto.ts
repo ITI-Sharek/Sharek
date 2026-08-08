@@ -79,6 +79,16 @@ export interface GitHubRepositoryAuthorshipDto {
   matchedRecentCommitShas: string[];
 }
 
+export interface GitHubFrameworkDetectionEvidence {
+  frameworksDetected: Record<string, string[]>;
+  dependencyFilesIdentified: Array<{
+    filename: string;
+    parserUsed: string | null;
+  }>;
+  frameworksCount: number;
+  status: 'success' | 'no_dependency_files' | 'parse_error' | 'unavailable';
+}
+
 export interface GitHubRepositoryImportSnapshot {
   repository: GitHubRepositoryDto;
   technologies: string[];
@@ -88,6 +98,7 @@ export interface GitHubRepositoryImportSnapshot {
   commitSignals: GitHubRepositoryCommitSignalsDto;
   authorship: GitHubRepositoryAuthorshipDto | null;
   evidenceFailures: string[];
+  frameworkDetection?: GitHubFrameworkDetectionEvidence;
 }
 
 export interface GitHubSelectedRepositoryEvidenceFailureDto {
