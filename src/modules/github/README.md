@@ -45,6 +45,12 @@ App repository. Publication control is reverified through the exported service;
 Projects never receives an installation token, installation ID, permission set,
 or credential.
 
+Skill-generation snapshots also perform bounded dependency-file detection inside
+this module while the ephemeral installation token is available. The resulting
+framework names and parser/file references are stored in the snapshot and sent
+to the AI service as evidence; no token or raw dependency content crosses the
+AI boundary. The AI service consumes this evidence and does not call GitHub.
+
 The GitHub App uses authorization during installation and no setup URL. The
 backend hashes expiring single-use state, exchanges callback codes immediately,
 stores only an opaque attempt ID in the frontend redirect, and independently
@@ -61,6 +67,12 @@ repository validation, then use the installation token. Webhooks verify the
 exact raw-body HMAC, deduplicate delivery IDs, reconcile installation and
 repository lifecycle, and revoke only the matching provider member on
 `github_app_authorization.revoked`.
+
+Installation verification requires GitHub's selected-repository mode and
+`Metadata` plus `Contents` at `read`. GitHub may return additional read
+permissions in its installation payload; these do not bypass the required
+permission or selected-repository checks. App settings should still grant only
+the least privilege required for Share-k's evidence operations.
 
 Security/projection review (2026-07-27): HTTP DTOs expose no tokens, secrets,
 private keys, state hashes, or raw provider payloads; callback redirects expose

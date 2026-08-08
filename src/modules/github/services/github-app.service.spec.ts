@@ -278,7 +278,7 @@ describe('GitHubAppService', () => {
     expect(apiClient.getInstallation).not.toHaveBeenCalled();
   });
 
-  it('creates an isolated member link to an existing shared organization installation', async () => {
+  it('accepts GitHub read permissions in addition to the required repository permissions', async () => {
     const { service, database, transaction, apiClient } = createService();
     database.gitHubAppLinkState.findFirst.mockResolvedValue({
       id: 'attempt-2',
@@ -303,7 +303,12 @@ describe('GitHubAppService', () => {
       app_id: 123456,
       account: { id: 77, login: 'sharek-org', type: 'Organization' },
       repository_selection: 'selected',
-      permissions: { metadata: 'read', contents: 'read' },
+      permissions: {
+        metadata: 'read',
+        contents: 'read',
+        statuses: 'read',
+        pull_requests: 'read',
+      },
       created_at: '2026-07-01T00:00:00Z',
       suspended_at: null,
     });

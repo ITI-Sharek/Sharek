@@ -2355,3 +2355,69 @@ This keeps the system strong without making it heavy:
   `material-upload-constraints` -- because the parameterised
   `/materials/:materialId` matches first and its UUID pipe rejects them.
   Declaration order also works, until someone reorders the methods.
+
+### 2026-08-07 - GitHub App installation verification accepts provider read scopes
+
+- Scope: corrected GitHub App connection completion for installations whose
+  GitHub payload includes additional read-only permissions.
+- Root cause: completion incorrectly required `Metadata` and `Contents` to be
+  the only permission entries, although GitHub legitimately returned
+  `statuses: read` and `pull_requests: read` for the deployed App.
+- Safety: verification still requires the configured App ID, selected-repository
+  mode, and `Metadata` plus `Contents` at `read`; member access and selected
+  repository revalidation are unchanged.
+- Verification: focused GitHub App service regression test covers the production
+  permission shape; broader checks are recorded with the deployment handoff.
+
+### 2026-08-08 - GitHub evidence request timeout increased
+
+- Scope: pass the validated GitHub API URL and timeout settings into the Docker
+  API container and raise the local request budget from 4 seconds to 8 seconds.
+- Reason: skill generation returned `GITHUB_PROVIDER_TIMEOUT` for both selected
+  repositories before the AI service was called, while direct GitHub App reads
+  succeeded; the larger bounded request budget gives repository evidence reads
+  room for provider latency without changing permissions or credentials.
+- Verification: recreated the API container, confirmed the health endpoint,
+  inspected the effective timeout environment, and replayed GitHub App reads
+  without printing tokens.
+
+### 2026-08-08 - Private repository framework evidence stays inside GitHub module
+
+- Scope: dependency/framework detection now runs in `GitHubEvidenceService`
+  with the ephemeral installation token and is persisted in each evidence
+  snapshot before the AI request.
+- Security: FastAPI receives only bounded framework/file references; the
+  skill-profile contract no longer accepts or forwards a GitHub PAT to the
+  AI/analysis service. Private `package.json` data therefore remains behind
+  the GitHub module boundary.
+- Verification: focused detector/API/service tests cover `Next.js` from a
+  private-style `package.json`, base64 content decoding, and preservation of
+  pre-populated framework evidence in FastAPI.
+
+### 2026-08-08 - Preserve detected skills across all selected repositories
+
+- Scope: the owning `skill-profiles` service now merges bounded framework and
+  dominant-language evidence into pending candidates when Alibaba omits a
+  repository signal from its response.
+- Safety: fallback candidates are beginner-level, confidence-thresholded,
+  explicitly limited to dependency/language evidence, and remain pending for
+  human review; the model can still provide stronger evidence when available.
+- Verification: a regression test covers a two-repository generation where the
+  model returns only TypeScript while Python, LangChain, and Pydantic are still
+  retained from the second repository's evidence.
+
+### 2026-08-08 - Persist skill-generation notifications and expose the inbox
+
+- Scope: terminal skill-profile generation outcomes now create idempotent
+  durable notifications for ready-for-review, needs-more-evidence, and failed
+  states. The authenticated notifications controller exposes list, mark-one,
+  and mark-all-read routes; the frontend hydrates the inbox after login and
+  continues to receive Socket.IO events.
+- Safety: notification creation happens after the generation state is durable,
+  is deduplicated by generation/status, and cannot turn a successful generation
+  into a failure. Read routes are scoped to the authenticated user. The Prisma
+  enum migration is additive, and a one-time idempotent backfill covers existing
+  pending-review generations.
+- Verification: migration deployment, TypeScript compilation, focused service
+  tests, full backend tests, and frontend lint/build/test are required before
+  release handoff.

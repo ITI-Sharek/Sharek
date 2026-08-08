@@ -85,6 +85,12 @@ export interface GitHubRepositoryPagePayload {
   hasNextPage: boolean;
 }
 
+export interface GitHubRepositoryFilePayload {
+  type?: string;
+  encoding?: string;
+  content?: string;
+}
+
 @Injectable()
 export class GitHubApiClient {
   private readonly apiUrl: string;
@@ -94,9 +100,13 @@ export class GitHubApiClient {
     this.apiUrl = (
       config?.get<string>('GITHUB_API_URL') ?? DEFAULT_GITHUB_API_URL
     ).replace(/\/$/, '');
-    this.requestTimeoutMs =
-      config?.get<number>('GITHUB_API_REQUEST_TIMEOUT_MS') ??
-      DEFAULT_GITHUB_REQUEST_TIMEOUT_MS;
+    const configuredTimeout = config?.get<number | string>(
+      'GITHUB_API_REQUEST_TIMEOUT_MS',
+    );
+    const parsedTimeout = Number(configuredTimeout);
+    this.requestTimeoutMs = Number.isFinite(parsedTimeout) && parsedTimeout > 0
+      ? parsedTimeout
+      : DEFAULT_GITHUB_REQUEST_TIMEOUT_MS;
   }
   async listRepositories(accessToken: string): Promise<GitHubRepositoryPayload[]> {
     const repositories: GitHubRepositoryPayload[] = [];
@@ -235,6 +245,47 @@ export class GitHubApiClient {
     }
 
     return response.text();
+  }
+
+  async getRepositoryFile(
+    accessToken: string | null,
+    fullName: string,
+    path: string,
+    branch?: string,
+  ): Promise<string | null> {
+    const query = branch ? `?ref=${encodeURIComponent(branch)}` : '';
+    const encodedPath = path
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    const response = await this.fetchWithTimeout(
+      `${this.apiUrl}/repos/${this.encodeFullName(fullName)}/contents/${encodedPath}${query}`,
+      {
+        headers: this.getGitHubHeaders(accessToken),
+      },
+    );
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new ApplicationError(
+        'GitHub repository file fetch failed',
+        'GITHUB_REPOSITORY_FILE_FETCH_FAILED',
+        502,
+      );
+    }
+
+    const payload = (await response.json()) as GitHubRepositoryFilePayload;
+    if (payload.type !== 'file' || typeof payload.content !== 'string') {
+      return null;
+    }
+
+    if (payload.encoding === 'base64') {
+      return Buffer.from(payload.content.replace(/\s/g, ''), 'base64').toString(
+        'utf8',
+      );
+    }
+
+    return payload.content;
   }
 
   getRepositoryContributionStats(
