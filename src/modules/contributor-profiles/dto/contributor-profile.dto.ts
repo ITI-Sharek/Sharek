@@ -41,6 +41,14 @@ export interface ContributorProfileGitHubInstallationDto {
   status: 'active' | 'disconnected' | 'reauthorization_required' | 'revoked';
   verifiedAt: Date | null;
   manageUrl: string | null;
+  repositories: ContributorProfileGitHubRepositoryDto[];
+}
+
+export interface ContributorProfileGitHubRepositoryDto {
+  repositoryId: string;
+  fullName: string;
+  visibility: string;
+  defaultBranch: string | null;
 }
 
 export interface ContributorProfileReputationSummaryDto {

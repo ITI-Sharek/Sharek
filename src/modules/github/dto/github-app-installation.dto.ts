@@ -75,6 +75,7 @@ export interface GitHubAppInstallationLinkDto {
   installedAt: Date;
   verifiedAt: Date | null;
   manageUrl: string | null;
+  repositories: GitHubAppRepositoryDto[];
 }
 
 export interface GitHubAppRepositoryDto {

@@ -18,8 +18,18 @@ services:
       SKILL_PROFILE_QUEUE_CONCURRENCY: ${SKILL_PROFILE_QUEUE_CONCURRENCY:-2}
       APPLICATION_REVIEW_QUEUE_ENABLED: ${APPLICATION_REVIEW_QUEUE_ENABLED:-true}
       ADVISORY_FIT_QUEUE_ENABLED: ${ADVISORY_FIT_QUEUE_ENABLED:-true}
-      MATERIAL_STORAGE_ROOT: ${MATERIAL_STORAGE_ROOT:-/app/.material-storage}
+      ADVISORY_FIT_REAP_INTERVAL_MS: ${ADVISORY_FIT_REAP_INTERVAL_MS:-60000}
+      ADVISORY_FIT_STALE_AFTER_MS: ${ADVISORY_FIT_STALE_AFTER_MS:-600000}
+      MATERIAL_STORAGE_ROOT: ${MATERIAL_STORAGE_ROOT:-/usr/src/app/.material-storage}
       MATERIAL_MAX_BYTES: ${MATERIAL_MAX_BYTES:-26214400}
+      MATERIAL_ALLOWED_MIME_TYPES: ${MATERIAL_ALLOWED_MIME_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/plain}
+      MATERIAL_SCAN_QUEUE_ENABLED: ${MATERIAL_SCAN_QUEUE_ENABLED:-true}
+      MATERIAL_SCAN_REAP_INTERVAL_MS: ${MATERIAL_SCAN_REAP_INTERVAL_MS:-60000}
+      MATERIAL_SCAN_STALE_AFTER_MS: ${MATERIAL_SCAN_STALE_AFTER_MS:-600000}
+      MATERIAL_SCAN_MAX_ATTEMPTS: ${MATERIAL_SCAN_MAX_ATTEMPTS:-3}
+      MATERIAL_SCANNER_STUB_MODE: ${MATERIAL_SCANNER_STUB_MODE:-content}
+      MATERIAL_DOWNLOAD_TOKEN_SECRET: ${MATERIAL_DOWNLOAD_TOKEN_SECRET:?Set MATERIAL_DOWNLOAD_TOKEN_SECRET in .env or the shell environment}
+      MATERIAL_DOWNLOAD_TOKEN_TTL_SECONDS: ${MATERIAL_DOWNLOAD_TOKEN_TTL_SECONDS:-300}
       APPLICATION_REVIEW_SWEEP_INTERVAL_MS: ${APPLICATION_REVIEW_SWEEP_INTERVAL_MS:-60000}
       APPLICATION_REVIEW_SWEEP_BATCH_SIZE: ${APPLICATION_REVIEW_SWEEP_BATCH_SIZE:-100}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-this-access-secret}
@@ -71,6 +81,7 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
+      - material_storage:/usr/src/app/.material-storage
       - api_build:/usr/src/app/.docker-build
     depends_on:
       postgres:
@@ -110,6 +121,7 @@ services:
 volumes:
   postgres_data:
   api_build:
+  material_storage:
 
 networks:
   sha-rek-network:

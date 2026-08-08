@@ -299,7 +299,16 @@ export class GitHubAppService {
   async listInstallationLinks(userId: string): Promise<GitHubAppInstallationLinkDto[]> {
     const links = await this.database.gitHubAppInstallationLink.findMany({
       where: { user_id: userId },
-      include: { installation: true },
+      include: {
+        installation: {
+          include: {
+            repositories: {
+              where: { removed_at: null },
+              orderBy: { full_name: 'asc' },
+            },
+          },
+        },
+      },
       orderBy: { linked_at: 'desc' },
     });
     return links.map((link) => this.presentLink(link));
