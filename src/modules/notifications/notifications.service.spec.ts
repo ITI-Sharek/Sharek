@@ -95,6 +95,177 @@ describe('NotificationsService', () => {
     });
   });
 
+  it('creates one persisted skill-profile generation notification per status', async () => {
+    const createdAt = new Date('2026-08-08T10:00:00.000Z');
+    const persisted = {
+      id: 'notification-generation-1',
+      user_id: 'user-1',
+      type: NotificationType.skill_profile_generation,
+      title: 'Skill analysis ready for review',
+      message:
+        'Your skill analysis is complete. 3 skills are waiting for admin review.',
+      metadata: {
+        generationId: 'generation-1',
+        status: 'ready_for_review',
+        skillCount: 3,
+        selectedRepositoryCount: 2,
+      },
+      deduplication_key:
+        'skill-profile-generation:generation-1:ready_for_review',
+      is_read: false,
+      read_at: null,
+      created_at: createdAt,
+    };
+    const database = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(persisted),
+        create: jest.fn().mockResolvedValue(persisted),
+      },
+    };
+    const gateway = { emitNotification: jest.fn().mockReturnValue(true) };
+    const service = new NotificationsService(database as never, gateway as never);
+    const input = {
+      userId: 'user-1',
+      generationId: 'generation-1',
+      status: 'ready_for_review' as const,
+      skillCount: 3,
+      selectedRepositoryCount: 2,
+    };
+
+    await expect(service.createSkillProfileGenerationNotification(input)).resolves.toMatchObject({
+      notificationId: persisted.id,
+      created: true,
+      deliveredRealtime: true,
+    });
+    await expect(service.createSkillProfileGenerationNotification(input)).resolves.toMatchObject({
+      notificationId: persisted.id,
+      created: false,
+      deliveredRealtime: false,
+    });
+    expect(database.notification.create).toHaveBeenCalledTimes(1);
+    expect(gateway.emitNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists a ready-for-review inbox item for every active admin', async () => {
+    const createdAt = new Date('2026-08-08T10:00:00.000Z');
+    const contributorNotification = {
+      id: 'notification-contributor-1',
+      user_id: 'user-1',
+      type: NotificationType.skill_profile_generation,
+      title: 'Skill analysis ready for review',
+      message: 'Your skill analysis is complete.',
+      metadata: { generationId: 'generation-2', status: 'ready_for_review' },
+      is_read: false,
+      read_at: null,
+      created_at: createdAt,
+    };
+    const adminNotification = {
+      ...contributorNotification,
+      id: 'notification-admin-1',
+      user_id: 'admin-1',
+      title: 'Skill analysis awaiting admin review',
+      message: 'A contributor has a completed skill analysis with 2 skills waiting for your review.',
+      metadata: {
+        generationId: 'generation-2',
+        status: 'ready_for_review',
+        skillCount: 2,
+        audience: 'admin',
+      },
+    };
+    const database = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'admin-1' }]),
+      },
+      notification: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(null),
+        create: jest
+          .fn()
+          .mockResolvedValueOnce(contributorNotification)
+          .mockResolvedValueOnce(adminNotification),
+      },
+    };
+    const gateway = { emitNotification: jest.fn().mockReturnValue(true) };
+    const service = new NotificationsService(database as never, gateway as never);
+
+    await expect(
+      service.createSkillProfileGenerationNotification({
+        userId: 'user-1',
+        generationId: 'generation-2',
+        status: 'ready_for_review',
+        skillCount: 2,
+      }),
+    ).resolves.toMatchObject({
+      notificationId: contributorNotification.id,
+      created: true,
+    });
+
+    expect(database.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'admin', status: 'active' },
+      select: { id: true },
+    });
+    expect(database.notification.create).toHaveBeenCalledTimes(2);
+    expect(database.notification.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        user_id: 'admin-1',
+        title: 'Skill analysis awaiting admin review',
+        metadata: expect.objectContaining({ audience: 'admin' }),
+        deduplication_key:
+          'skill-profile-generation:generation-2:ready_for_review:admin:admin-1',
+      }),
+    });
+    expect(gateway.emitNotification).toHaveBeenCalledTimes(2);
+  });
+
+  it('lists only the user inbox and marks notifications read', async () => {
+    const createdAt = new Date('2026-08-08T10:00:00.000Z');
+    const notification = {
+      id: 'notification-1',
+      user_id: 'user-1',
+      type: NotificationType.skill_profile_generation,
+      title: 'More evidence is needed',
+      message: 'Select more repositories or try again.',
+      metadata: { generationId: 'generation-1', status: 'needs_more_evidence' },
+      is_read: false,
+      read_at: null,
+      created_at: createdAt,
+    };
+    const database = {
+      notification: {
+        findMany: jest.fn().mockResolvedValue([notification]),
+        count: jest.fn().mockResolvedValue(1),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const gateway = { emitNotification: jest.fn() };
+    const service = new NotificationsService(database as never, gateway as never);
+
+    await expect(service.listForUser('user-1', 200)).resolves.toEqual({
+      items: [
+        expect.objectContaining({
+          notificationId: 'notification-1',
+          userId: 'user-1',
+        }),
+      ],
+      unreadCount: 1,
+    });
+    expect(database.notification.findMany).toHaveBeenCalledWith({
+      where: { user_id: 'user-1' },
+      orderBy: { created_at: 'desc' },
+      take: 100,
+    });
+    await expect(service.markRead('user-1', 'notification-1')).resolves.toEqual({
+      success: true,
+      updatedCount: 1,
+    });
+    await expect(service.markAllRead('user-1')).resolves.toEqual({
+      success: true,
+      updatedCount: 1,
+    });
+  });
+
   it('deduplicates Application notifications by Application and action', async () => {
     const createdAt = new Date('2026-07-28T12:00:00.000Z');
     const persisted = {

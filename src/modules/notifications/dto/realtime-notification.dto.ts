@@ -5,6 +5,7 @@ export interface RealtimeNotificationDto {
     | 'application_status'
     | 'proposal_status'
     | 'skill_review'
+    | 'skill_profile_generation'
     | 'delivery_update'
     | 'match_found'
     | 'task_recommendation'
