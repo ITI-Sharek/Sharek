@@ -460,7 +460,22 @@ export class ContributorProfilesService {
     }
 
     try {
-      return await this.githubAppService.listInstallationLinks(userId);
+      const installations =
+        await this.githubAppService.listInstallationLinks(userId);
+      return installations.map((installation) => ({
+        installationLinkId: installation.installationLinkId,
+        accountLogin: installation.accountLogin,
+        accountType: installation.accountType,
+        status: installation.status,
+        verifiedAt: installation.verifiedAt,
+        manageUrl: installation.manageUrl,
+        repositories: installation.repositories.map((repository) => ({
+          repositoryId: repository.repositoryId,
+          fullName: repository.fullName,
+          visibility: repository.visibility,
+          defaultBranch: repository.defaultBranch,
+        })),
+      }));
     } catch (error) {
       this.logger.error(
         `Failed to read GitHub App installations for user ${userId}`,

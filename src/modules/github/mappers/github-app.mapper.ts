@@ -46,7 +46,11 @@ export interface GitHubAppInstallationTokenPayload {
 }
 
 export function toGitHubAppInstallationLinkDto(
-  link: GitHubAppInstallationLink & { installation: GitHubAppInstallation },
+  link: GitHubAppInstallationLink & {
+    installation: GitHubAppInstallation & {
+      repositories?: GitHubAppRepository[];
+    };
+  },
   appSlug?: string,
 ): GitHubAppInstallationLinkDto {
   return {
@@ -61,6 +65,9 @@ export function toGitHubAppInstallationLinkDto(
     manageUrl: appSlug
       ? `https://github.com/settings/installations/${encodeURIComponent(link.installation.installation_id)}`
       : null,
+    repositories: (link.installation.repositories ?? []).map(
+      toGitHubAppRepositoryDto,
+    ),
   };
 }
 

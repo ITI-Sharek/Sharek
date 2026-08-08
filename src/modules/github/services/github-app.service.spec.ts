@@ -342,6 +342,33 @@ describe('GitHubAppService', () => {
     );
   });
 
+  it('includes the currently persisted selected repositories in installation summaries', async () => {
+    const { service, database, repository } = createService();
+    database.gitHubAppInstallationLink.findMany.mockResolvedValue([
+      {
+        ...activeLink('user-1'),
+        installation: {
+          ...installation,
+          repositories: [repository],
+        },
+      },
+    ]);
+
+    await expect(
+      service.listInstallationLinks('user-1'),
+    ).resolves.toMatchObject([
+      {
+        installationLinkId: 'link-user-1',
+        repositories: [
+          {
+            repositoryId: '123',
+            fullName: 'sharek-org/selected',
+          },
+        ],
+      },
+    ]);
+  });
+
   it('returns only safe candidates for the authenticated callback attempt owner', async () => {
     const { service, database } = createService();
     const expiresAt = new Date(Date.now() + 60_000);
