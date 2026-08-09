@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MaterialVisibility, ProjectStatus } from '@prisma/client';
+import { MaterialVisibility, Prisma, ProjectStatus } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
 import { DatabaseService } from '../../../shared/database/database.service';
@@ -56,7 +56,16 @@ export class MaterialListingService {
     return this.list(actor, {
       isOwner: project?.ownerId === actor.id,
       projectPublished: project?.status === ProjectStatus.published,
-      scope: { contribution_request_id: requestId },
+      // A Request view is a composed view: it includes documents attached to
+      // the Request itself and documents inherited from its Project. The
+      // Material row still has exactly one scope; this query only composes
+      // the two scopes for readers of the Request.
+      scope: {
+        OR: [
+          { project_id: access.projectId },
+          { contribution_request_id: requestId },
+        ],
+      },
       projectId: access.projectId,
       contributionRequestId: requestId,
     });
@@ -67,7 +76,7 @@ export class MaterialListingService {
     context: {
       isOwner: boolean;
       projectPublished: boolean | undefined;
-      scope: { project_id: string } | { contribution_request_id: string };
+      scope: Prisma.MaterialWhereInput;
       projectId: string | null;
       contributionRequestId: string | null;
     },
@@ -113,7 +122,12 @@ export class MaterialListingService {
     if (readable.length === 0) return [];
 
     const materials = await this.database.material.findMany({
-      where: { ...context.scope, deleted_at: null, OR: readable },
+      // Keep the scope predicate separate from the visibility predicate. A
+      // Request listing has an OR scope of its own, so spreading both would
+      // silently overwrite one OR with the other and leak the wrong rows.
+      where: {
+        AND: [context.scope, { deleted_at: null }, { OR: readable }],
+      },
       include: MATERIAL_INCLUDE,
       orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
     });

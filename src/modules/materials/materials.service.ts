@@ -328,6 +328,21 @@ export class MaterialsService {
           where: { material_id: material.id, revoked_at: null },
           data: { revoked_at: now, revoked_by: input.actor.id },
         });
+        // Analysis output is audit-safe, but its raw chunks and vectors are
+        // source content and must disappear with the deleted Material.
+        await transaction.materialAnalysisChunk.deleteMany({
+          where: { material_id: material.id },
+        });
+        await transaction.materialDraftSuggestion.updateMany({
+          where: {
+            run: {
+              analysisSet: {
+                versions: { some: { material_id: material.id } },
+              },
+            },
+          },
+          data: { source_removed_at: now },
+        });
         await transaction.materialAudit.create({
           data: {
             material_id: material.id,

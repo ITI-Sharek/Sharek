@@ -5,10 +5,11 @@ Request, stored privately and released only to authorized readers.
 
 ## The rule that shapes everything here
 
-**Upload is storage consent, not AI-processing consent.** Nothing in this
-module extracts, embeds, retrieves, or calls a provider. AI processing is a
-separate, entitlement-checked action over an explicit Analysis Set of exact
-Material Versions, and it lives outside this module by design.
+**Upload is storage consent, not AI-processing consent.** Upload and version
+reads never extract, embed, retrieve, or call a provider. The separate
+Material-analysis routes in this module own Analysis Set/Run authorization and
+persistence, and call the structured AI service only after an owner explicitly
+starts a Run.
 
 ## Model
 
@@ -23,6 +24,12 @@ Material Versions, and it lives outside this module by design.
   auditable.
 - **MaterialAudit** — append-only, and deliberately survives version purge:
   deletion removes content, not the record that content existed.
+- **MaterialAnalysisSet/Version** — an owner-selected, version-fixed scope;
+  creating it stores metadata only.
+- **MaterialAnalysisRun** — one explicit execution over one Set. Raw bytes are
+  read only while the Run is starting and are never persisted in analysis rows.
+- **MaterialDraftSuggestion** — private, provenance-carrying output. It is not
+  a Project or Contribution Request mutation and remains pending owner review.
 
 ## Visibility
 
@@ -89,7 +96,9 @@ malware, when what actually happened is that we failed to check it.
 are filtered **in the query**, not by fetching everything and discarding rows
 afterwards. A list that briefly holds Materials the caller cannot see is one
 refactor away from returning them, and the count alone already leaks how many
-private documents a Project holds. Each disjunct in that query mirrors one
+private documents a Project holds. A Contribution Request listing is a
+composed view: it returns both Materials attached to that Request and
+Materials attached to its Project. Each disjunct in that query mirrors one
 visibility class; the access service stays the authority for any single
 Material.
 
@@ -155,3 +164,27 @@ uploaded it, who could read it, and when that ended.
 
 Project and Assignment facts are read through exported `ProjectsService`
 capabilities. This module never reads another module's tables directly.
+
+## Material analysis
+
+The owner creates a version-fixed Analysis Set from ready Project Material
+Versions through `POST /projects/:projectId/material-analysis/sets`, then
+explicitly starts `POST /material-analysis/sets/:analysisSetId/runs`. Limits,
+supported MIME types, and the optional minimum subscription plan are exposed by
+`GET /projects/:projectId/material-analysis/constraints` and are enforced by
+the backend. The Run is queued; a worker performs the only byte read and calls
+the bearer-authenticated FastAPI `/material-analysis/analyze` contract.
+
+The AI service supports Markdown, DOCX, and text-based PDF extraction, treats
+document text as untrusted data, chunks and retrieves only within the selected
+Analysis Set, and returns allowlisted draft fields with exact source-version
+provenance. Completed suggestions and pgvector-backed chunks are persisted
+atomically. A stale Run is failed by the reaper.
+
+Suggestions are private until an explicit owner command. Owners can reject a
+suggestion, adopt a Project field through `ProjectPublicationService` with an
+expected revision, or create a Contribution Request draft through
+`ContributionTasksService` with owner-supplied dates. Deleting a source
+Material removes its raw analysis chunks and marks retained suggestions as
+source-removed. No upload, analysis, or AI response performs automatic business
+mutation.

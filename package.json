@@ -15,6 +15,8 @@
     "test:api-clients": "node scripts/validate-api-clients.mjs",
     "test:release-gate:s4-core": "node scripts/verify-sprint4-core-release-gate.mjs",
     "test:release-gate:s4-core:cross-repo": "node scripts/verify-sprint4-core-release-gate.mjs --cross-repo",
+    "test:release-gate:s4-materials": "node scripts/run-sprint4-materials-runtime-demo.mjs",
+    "test:release-gate:s4-material-analysis": "node scripts/run-sprint4-material-analysis-runtime-demo.mjs",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "check:architecture": "node scripts/check-architecture.mjs",

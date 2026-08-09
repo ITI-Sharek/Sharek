@@ -65,6 +65,8 @@ describe('MaterialsService', () => {
     },
     materialVersion: { create: jest.fn() },
     materialGrant: { updateMany: jest.fn() },
+    materialAnalysisChunk: { deleteMany: jest.fn() },
+    materialDraftSuggestion: { updateMany: jest.fn() },
     materialAudit: { create: jest.fn() },
     $queryRaw: jest.fn(),
   };
