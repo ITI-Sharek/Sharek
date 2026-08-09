@@ -413,14 +413,16 @@ model User {
   contributionProposalAudits        ContributionProposalAudit[]        @relation("ContributionProposalAuditActor")
   contributionProposalMisuseReports ContributionProposalMisuseReport[] @relation("ContributionProposalMisuseReporter")
   attributedContributionRequests    ContributionRequest[]              @relation("ContributionRequestAttributedContributor")
-  assessmentRequestsOwned            AssessmentRequest[]                 @relation("AssessmentRequestOwner")
-  assessmentPresentations            AssessmentPresentation[]            @relation("AssessmentPresentationOwner")
-  assessmentAuditEvents              AssessmentRequestAudit[]             @relation("AssessmentRequestAuditActor")
-  materialsOwned                     Material[]                          @relation("MaterialOwner")
-  materialVersionsUploaded           MaterialVersion[]                   @relation("MaterialVersionUploader")
-  materialGrantsReceived             MaterialGrant[]                     @relation("MaterialGrantGrantee")
-  materialGrantsIssued               MaterialGrant[]                     @relation("MaterialGrantGranter")
-  materialAuditEvents                MaterialAudit[]                     @relation("MaterialAuditActor")
+  assessmentRequestsOwned           AssessmentRequest[]                @relation("AssessmentRequestOwner")
+  assessmentPresentations           AssessmentPresentation[]           @relation("AssessmentPresentationOwner")
+  assessmentAuditEvents             AssessmentRequestAudit[]           @relation("AssessmentRequestAuditActor")
+  materialsOwned                    Material[]                         @relation("MaterialOwner")
+  materialAnalysisSets              MaterialAnalysisSet[]               @relation("MaterialAnalysisSetOwner")
+  materialDraftSuggestionReviews   MaterialDraftSuggestion[]             @relation("MaterialDraftSuggestionReviewer")
+  materialVersionsUploaded          MaterialVersion[]                  @relation("MaterialVersionUploader")
+  materialGrantsReceived            MaterialGrant[]                    @relation("MaterialGrantGrantee")
+  materialGrantsIssued              MaterialGrant[]                    @relation("MaterialGrantGranter")
+  materialAuditEvents               MaterialAudit[]                    @relation("MaterialAuditActor")
 }
 
 model AuthProviderAccount {
@@ -636,6 +638,7 @@ model Project {
   contributionProposals ContributionProposal[]   @relation("ProjectContributionProposals")
   proposalIntake        ProjectProposalIntake?   @relation("ProjectProposalIntake")
   materials             Material[]               @relation("ProjectMaterials")
+  materialAnalysisSets  MaterialAnalysisSet[]
 
   @@unique([slug_normalized], map: "projects_slug_normalized_unique")
   @@index([github_repo_url])
@@ -1538,6 +1541,35 @@ enum MaterialAuditAction {
   purged
 }
 
+enum MaterialAnalysisPurpose {
+  project_material_drafting
+}
+
+enum MaterialAnalysisSetStatus {
+  draft
+  running
+  completed
+  failed
+}
+
+enum MaterialAnalysisRunStatus {
+  requested
+  running
+  completed
+  failed
+}
+
+enum MaterialDraftSuggestionType {
+  project_update
+  contribution_request
+}
+
+enum MaterialDraftSuggestionStatus {
+  pending
+  accepted
+  rejected
+}
+
 /// A Material belongs to exactly one of a Project or a Contribution Request.
 /// Content lives in immutable MaterialVersions; this row carries identity,
 /// ownership scope, and the server-enforced visibility class.
@@ -1557,12 +1589,128 @@ model Material {
   contributionRequest ContributionRequest? @relation("ContributionRequestMaterials", fields: [contribution_request_id], references: [id], onDelete: Restrict)
   owner               User                 @relation("MaterialOwner", fields: [owner_id], references: [id], onDelete: Restrict)
   versions            MaterialVersion[]
+  analysisSetVersions MaterialAnalysisSetVersion[]
   grants              MaterialGrant[]
   auditEvents         MaterialAudit[]
 
   @@index([project_id, deleted_at])
   @@index([contribution_request_id, deleted_at])
   @@index([owner_id])
+}
+
+/// An owner-created, version-fixed scope for one explicit Material analysis.
+/// Creating the set stores no document bytes and does not call the AI service.
+model MaterialAnalysisSet {
+  id         String                    @id @default(uuid()) @db.Uuid
+  project_id String                    @db.Uuid
+  owner_id   String                    @db.Uuid
+  purpose    MaterialAnalysisPurpose
+  status     MaterialAnalysisSetStatus @default(draft)
+  created_at DateTime                  @default(now())
+  updated_at DateTime                  @updatedAt
+
+  project  Project                         @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  owner    User                            @relation("MaterialAnalysisSetOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  versions MaterialAnalysisSetVersion[]
+  runs     MaterialAnalysisRun[]
+  chunks   MaterialAnalysisChunk[]
+
+  @@index([project_id, created_at])
+  @@index([owner_id, created_at])
+}
+
+/// Exact version snapshot. The filename, MIME type, and content hash are
+/// retained so a later Material replacement cannot change what a Run meant.
+model MaterialAnalysisSetVersion {
+  id              String   @id @default(uuid()) @db.Uuid
+  analysis_set_id String   @db.Uuid
+  material_id     String   @db.Uuid
+  material_version Int
+  original_filename String  @db.VarChar(255)
+  mime_type       String   @db.VarChar(150)
+  content_hash    String   @db.Char(64)
+  created_at      DateTime @default(now())
+
+  analysisSet MaterialAnalysisSet @relation(fields: [analysis_set_id], references: [id], onDelete: Cascade)
+  material    Material            @relation(fields: [material_id], references: [id], onDelete: Restrict)
+
+  @@unique([analysis_set_id, material_id, material_version])
+  @@index([material_id, material_version])
+}
+
+/// One explicit execution over one Analysis Set. AI metadata is technical
+/// audit data; suggestions remain private until the owner reviews them.
+model MaterialAnalysisRun {
+  id                   String                    @id @default(uuid()) @db.Uuid
+  analysis_set_id      String                    @db.Uuid
+  contract_version     String                    @db.VarChar(100)
+  status               MaterialAnalysisRunStatus @default(requested)
+  provider             String?                   @db.VarChar(100)
+  model                String?                   @db.VarChar(150)
+  prompt_version       String?                   @db.VarChar(100)
+  schema_version       String?                   @db.VarChar(100)
+  service_version      String?                   @db.VarChar(100)
+  document_count       Int?
+  extracted_characters Int?
+  error_code           String?                   @db.VarChar(100)
+  started_at           DateTime?
+  completed_at         DateTime?
+  created_at           DateTime                  @default(now())
+  updated_at           DateTime                  @updatedAt
+
+  analysisSet MaterialAnalysisSet       @relation(fields: [analysis_set_id], references: [id], onDelete: Cascade)
+  suggestions MaterialDraftSuggestion[]
+  chunks      MaterialAnalysisChunk[]
+
+  @@index([analysis_set_id, created_at])
+  @@index([status, updated_at])
+}
+
+/// A typed, provenance-carrying draft. `payload` is deliberately not a
+/// Project or ContributionRequest row: review/adoption is a separate command.
+model MaterialDraftSuggestion {
+  id               String                       @id @default(uuid()) @db.Uuid
+  run_id           String                       @db.Uuid
+  suggestion_type  MaterialDraftSuggestionType
+  target_field     String?                      @db.VarChar(50)
+  payload          Json
+  rationale        String                       @db.VarChar(2000)
+  source_versions  Json
+  status           MaterialDraftSuggestionStatus @default(pending)
+  reviewed_by      String?                      @db.Uuid
+  reviewed_at      DateTime?
+  source_removed_at DateTime?
+  adopted_entity_type String?                   @db.VarChar(50)
+  adopted_entity_id   String?                   @db.Uuid
+  created_at       DateTime                     @default(now())
+  updated_at       DateTime                     @updatedAt
+
+  run       MaterialAnalysisRun @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  reviewedBy User?             @relation("MaterialDraftSuggestionReviewer", fields: [reviewed_by], references: [id], onDelete: SetNull)
+
+  @@index([run_id, status, created_at])
+}
+
+/// Request-scoped retrieval chunks. The text and vector are deleted when the
+/// source Material is deleted; the Run and suggestion audit remain.
+model MaterialAnalysisChunk {
+  id              String   @id @default(uuid()) @db.Uuid
+  run_id          String   @db.Uuid
+  analysis_set_id String   @db.Uuid
+  material_id     String   @db.Uuid
+  material_version Int
+  chunk_index     Int
+  text            String
+  character_start Int?
+  character_end   Int?
+  embedding       Unsupported("vector")
+  created_at      DateTime @default(now())
+
+  run         MaterialAnalysisRun @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  analysisSet MaterialAnalysisSet @relation(fields: [analysis_set_id], references: [id], onDelete: Cascade)
+
+  @@unique([run_id, material_id, material_version, chunk_index])
+  @@index([analysis_set_id, material_id, material_version])
 }
 
 /// Immutable. A replacement is a new version, never an edit. Content is

@@ -139,6 +139,47 @@ export const envValidationSchema = Joi.object({
     .min(100)
     .max(120_000)
     .default(75_000),
+  AI_MATERIAL_ANALYSIS_PATH: Joi.string()
+    .pattern(/^\/[a-zA-Z0-9/_-]+$/)
+    .default('/material-analysis/analyze'),
+  AI_MATERIAL_ANALYSIS_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(180_000)
+    .default(135_000),
+  MATERIAL_ANALYSIS_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  MATERIAL_ANALYSIS_REQUIRE_SUBSCRIPTION: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
+  MATERIAL_ANALYSIS_MIN_PLAN: Joi.string()
+    .valid('bronze', 'silver', 'gold')
+    .default('gold'),
+  MATERIAL_ANALYSIS_MAX_DOCUMENTS: Joi.number()
+    .integer()
+    .min(1)
+    .max(20)
+    .default(5),
+  MATERIAL_ANALYSIS_MAX_EXTRACTED_CHARACTERS: Joi.number()
+    .integer()
+    .min(1)
+    .max(1_000_000)
+    .default(250_000),
+  MATERIAL_ANALYSIS_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  MATERIAL_ANALYSIS_REAP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(1_000)
+    .default(60_000),
+  MATERIAL_ANALYSIS_STALE_AFTER_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .default(600_000),
   AI_SERVICE_AUTH_TOKEN: Joi.string()
     .min(32)
     .when('NODE_ENV', {

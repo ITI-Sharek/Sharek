@@ -48,8 +48,9 @@ describe('MaterialListingService', () => {
     // many private documents a Project holds.
     await service.listForProject(user(contributorId), projectId);
 
-    expect(whereOf()).toMatchObject({ project_id: projectId, deleted_at: null });
-    expect(whereOf().OR).toEqual([{ visibility: 'public' }]);
+    expect(whereOf().AND).toContainEqual({ project_id: projectId });
+    expect(whereOf().AND).toContainEqual({ deleted_at: null });
+    expect(whereOf().AND).toContainEqual({ OR: [{ visibility: 'public' }] });
   });
 
   it('shows an owner their deleted Materials, so a deletion is visible', async () => {
@@ -64,13 +65,13 @@ describe('MaterialListingService', () => {
   it('never shows a non-owner a deleted Material', async () => {
     await service.listForProject(user(contributorId), projectId);
 
-    expect(whereOf().deleted_at).toBeNull();
+    expect(whereOf().AND).toContainEqual({ deleted_at: null });
   });
 
   it('offers a non-assignee nothing beyond public Materials', async () => {
     await service.listForProject(user(contributorId), projectId);
 
-    expect(whereOf().OR).toEqual([{ visibility: 'public' }]);
+    expect(whereOf().AND).toContainEqual({ OR: [{ visibility: 'public' }] });
   });
 
   it('adds restricted Materials only for a granted active assignee', async () => {
@@ -84,13 +85,15 @@ describe('MaterialListingService', () => {
 
     // The grant predicate travels with the visibility class: being an assignee
     // is not on its own a reason to see a restricted document.
-    expect(whereOf().OR).toEqual([
+    expect(whereOf().AND).toContainEqual({
+      OR: [
       { visibility: 'public' },
       {
         visibility: 'restricted_project',
         grants: { some: { grantee_id: contributorId, revoked_at: null } },
       },
-    ]);
+      ],
+    });
   });
 
   it('adds assignment Materials only for the current Request assignee', async () => {
@@ -102,7 +105,9 @@ describe('MaterialListingService', () => {
 
     await service.listForContributionRequest(user(contributorId), requestId);
 
-    expect(whereOf().OR).toContainEqual({ visibility: 'assignment' });
+    expect(whereOf().AND).toContainEqual({
+      OR: expect.arrayContaining([{ visibility: 'assignment' }]),
+    });
   });
 
   it('hides public Materials on an unpublished Project', async () => {
@@ -146,6 +151,12 @@ describe('MaterialListingService', () => {
     expect(contributionTasks.getMaterialAssignmentAccess).toHaveBeenCalledWith({
       projectId: null,
       contributionRequestId: requestId,
+    });
+    expect(whereOf().AND).toContainEqual({
+      OR: [
+        { project_id: projectId },
+        { contribution_request_id: requestId },
+      ],
     });
   });
 });

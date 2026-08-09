@@ -17,6 +17,6 @@ import { PublicProjectsService } from './services/public-projects.service';
     ProjectPublicationService,
     PublicProjectsService,
   ],
-  exports: [ProjectsService],
+  exports: [ProjectsService, ProjectPublicationService],
 })
 export class ProjectsModule {}

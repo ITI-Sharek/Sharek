@@ -12,12 +12,18 @@ import {
 } from './dto/advisory-fit-assessment.dto';
 import { AdvisoryFitClient } from './integrations/advisory-fit.client';
 import { FastApiSkillProfileClient } from './integrations/fastapi-skill-profile.client';
+import { MaterialAnalysisClient } from './integrations/material-analysis.client';
+import {
+  MaterialAnalysisInput,
+  MaterialAnalysisResult,
+} from './dto/material-analysis.dto';
 
 @Injectable()
 export class AiService {
   constructor(
     private readonly skillProfileClient: FastApiSkillProfileClient,
     @Optional() private readonly advisoryFitClient?: AdvisoryFitClient,
+    @Optional() private readonly materialAnalysisClient?: MaterialAnalysisClient,
   ) {}
 
   generateSkillProfile(input: SkillProfileInput): Promise<SkillProfileResult> {
@@ -38,5 +44,18 @@ export class AiService {
       );
     }
     return this.advisoryFitClient.assess(input);
+  }
+
+  requestMaterialAnalysis(
+    input: MaterialAnalysisInput,
+  ): Promise<MaterialAnalysisResult> {
+    if (!this.materialAnalysisClient) {
+      throw new ApplicationError(
+        'Material analysis client is not configured',
+        'AI_MATERIAL_ANALYSIS_CLIENT_NOT_CONFIGURED',
+        503,
+      );
+    }
+    return this.materialAnalysisClient.analyze(input);
   }
 }
