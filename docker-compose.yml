@@ -19,7 +19,6 @@ services:
       NOTIFICATION_EVENT_RECOVERY_INTERVAL_MS: ${NOTIFICATION_EVENT_RECOVERY_INTERVAL_MS:-60000}
       NOTIFICATION_EVENT_RECOVERY_BATCH_SIZE: ${NOTIFICATION_EVENT_RECOVERY_BATCH_SIZE:-100}
       NOTIFICATION_EVENT_MAX_PUBLISH_ATTEMPTS: ${NOTIFICATION_EVENT_MAX_PUBLISH_ATTEMPTS:-5}
-      MATERIAL_DOWNLOAD_TOKEN_SECRET: ${MATERIAL_DOWNLOAD_TOKEN_SECRET:?MATERIAL_DOWNLOAD_TOKEN_SECRET is required}
       SKILL_PROFILE_QUEUE_ENABLED: ${SKILL_PROFILE_QUEUE_ENABLED:-true}
       SKILL_PROFILE_QUEUE_CONCURRENCY: ${SKILL_PROFILE_QUEUE_CONCURRENCY:-2}
       APPLICATION_REVIEW_QUEUE_ENABLED: ${APPLICATION_REVIEW_QUEUE_ENABLED:-true}
@@ -89,13 +88,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:4000/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));",
-        ]
+      test: [ "CMD", "node", "-e", "fetch('http://localhost:4000/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));" ]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -125,7 +118,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 5
