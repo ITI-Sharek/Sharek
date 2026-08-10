@@ -53,6 +53,15 @@ POSTGRES_DB=sharek
 POSTGRES_PORT=5433
 REDIS_URL=redis://redis:6379
 REDIS_PORT=6379
+# Enable only when testing the coordinated client /realtime cutover.
+REALTIME_NOTIFICATIONS_ENABLED=false
+NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED=true
+NOTIFICATION_EVENT_RECOVERY_INTERVAL_MS=60000
+NOTIFICATION_EVENT_RECOVERY_BATCH_SIZE=100
+NOTIFICATION_EVENT_MAX_PUBLISH_ATTEMPTS=5
+NOTIFICATION_RETENTION_QUEUE_ENABLED=true
+NOTIFICATION_RETENTION_INTERVAL_MS=60000
+NOTIFICATION_RETENTION_BATCH_SIZE=100
 SKILL_PROFILE_QUEUE_ENABLED=true
 SKILL_PROFILE_QUEUE_CONCURRENCY=2
 APPLICATION_REVIEW_QUEUE_ENABLED=true
@@ -153,6 +162,16 @@ service URLs. The local command reads `POSTGRES_PORT` and `REDIS_PORT` from
 `localhost`. The same URL resolver is used by `npm run
 prisma:migrate` and `npm run prisma:studio`; do not manually replace Docker
 service names in the shared `.env` file.
+
+When dependencies change, the API's anonymous `node_modules` volume can retain
+the previous image's dependency tree. Rebuild the image and renew only that
+anonymous volume with:
+
+```bash
+docker compose up --build --renew-anon-volumes -d api
+```
+
+This preserves the named PostgreSQL and Redis data volumes.
 
 The FastAPI service must use the same `AI_SERVICE_AUTH_TOKEN`. Its `/health`
 route remains unauthenticated, while skill generation routes reject missing or

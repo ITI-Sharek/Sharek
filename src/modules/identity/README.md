@@ -13,7 +13,8 @@ codes, and social identity linkage.
 
 - Manual auth: registration, username availability, email verification, login,
   forgot/reset password.
-- Sessions: refresh, logout, current user, admin role assignment.
+- Sessions: refresh, logout, current user, current-user language preferences,
+  admin role assignment.
 - Social auth: GitHub and Google start/callback routes.
 
 ## Structure
@@ -69,3 +70,9 @@ and an allowlisted immutable GitHub identity lookup used by project publication
 control checks. The lookup exposes only provider account ID and username; it
 does not expose provider tokens or raw profile data.
 Password hashing, token generation, and provider clients remain private.
+
+`PATCH /auth/me/preferences` accepts only `preferredLanguage: ar | en`, updates
+the authenticated user's existing `preferred_language` field, and returns the
+same allowlisted public auth-user DTO as `GET /auth/me`. Notification
+presentation reads this identity-owned value; Identity does not duplicate
+language state in Notification preferences.

@@ -8,10 +8,8 @@ import { GitHubApiClient } from './integrations/github-api.client';
 import { GitHubAppApiClient } from './integrations/github-app-api.client';
 import { GitHubAppCredentialsService } from './security/github-app-credentials.service';
 import { GitHubTokenEncryptionService } from './security/github-token-encryption.service';
-import {
-  GitHubOAuthBrowserCallbackController,
-  GitHubOAuthController,
-} from './controllers/github-oauth.controller';
+import { GitHubOAuthBrowserCallbackController } from './controllers/github-oauth-browser-callback.controller';
+import { GitHubOAuthController } from './controllers/github-oauth.controller';
 import { GitHubAppController } from './controllers/github-app.controller';
 import { GitHubAppCallbackController } from './controllers/github-app-callback.controller';
 import { GitHubAppService } from './services/github-app.service';

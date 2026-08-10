@@ -2355,3 +2355,397 @@ This keeps the system strong without making it heavy:
   `material-upload-constraints` -- because the parameterised
   `/materials/:materialId` matches first and its UUID pipe rejects them.
   Declaration order also works, until someone reorders the methods.
+
+### 2026-08-08 - Notifications: semantic persistence foundation (Sprint 9 Slice 1, part 1)
+
+- Scope: the first implementation slice of TASK-9-02: migration-safe semantic
+  Notification persistence and bilingual presentation. HTTP inbox/read APIs,
+  the event outbox write path, retention, and `/realtime` remain follow-up work.
+- New Notification writes keep the existing exported skill-review,
+  Application, and Proposal service methods and deduplication keys, but persist
+  versioned template identity, audience-safe parameters, trusted relative deep
+  links, priority, and aggregate version instead of rendered copy.
+- The additive migration keeps legacy title/message/metadata nullable for the
+  coordinated client cutover, deterministically backfills known workflow rows,
+  and gives malformed history the `system.legacy` fallback. It also creates the
+  event and preference tables needed by later Slice 1 phases.
+- Presentation is an explicit allowlisted DTO. Arabic and English catalogs live
+  in backend code, and an unknown key/version returns generic localized copy
+  without exposing stored parameters.
+- Migration verification creates an isolated PostgreSQL database, applies all
+  prior migrations, loads representative legacy rows, applies the new
+  migration, checks mapping/preservation/constraints, and removes the test
+  database. Existing Materials working-tree changes were not edited.
+- Verification: focused Notifications tests, Prisma validate/generate, exact
+  TypeScript, isolated semantic migration fixture, and architecture check.
+
+### 2026-08-08 - Notifications: atomic created-event outbox (Sprint 9 Slice 1, part 2)
+
+- Scope: TASK-9-02 semantic-creation completion. Every current skill-review,
+  Application, and Proposal Notification now appends exactly one stable
+  `NotificationEvent(created)` on the same transaction as the Notification.
+- Direct creation methods open their own transaction. Owner Decision,
+  Application review-window, and Proposal workflows continue passing their
+  existing Prisma transaction, so rollback removes both records together.
+- Existing workflow deduplication remains authoritative. An already-present
+  Notification creates no second event; a direct unique-key race is recovered
+  only after the failed transaction returns, avoiding queries on an aborted
+  PostgreSQL transaction.
+- The legacy `/notifications` emission remains a post-commit compatibility
+  surface. A disconnected client or emission failure cannot roll back durable
+  state; unpublished stable-envelope recovery remains the Phase 4/5 follow-up.
+- Verification: 102 focused workflow tests, 94 full suites/678 tests, lint,
+  exact TypeScript, build, architecture, and isolated migration fixtures.
+
+### 2026-08-08 - Notifications: durable inbox, read state, preferences, and identity language (Sprint 9 Slice 1, part 3)
+
+- Scope: TASK-9-02 T011–T018 plus the identity language command. Added
+  recipient-owned cursor list/count APIs, current-retention filtering,
+  conditional read/unread transitions, snapshot-bounded mark-all, and one
+  durable read-state event per changed Notification.
+- Preferences are revisioned and sparse by category. Retention is limited to
+  30/90/180/365 days; quiet hours require a complete non-equal range and valid
+  IANA time zone; required in-app categories cannot be disabled. Browser flags
+  are stored only as preference data; no push delivery was added.
+- Authorization: all Notification routes use the existing access-token guard
+  and authenticated user ID; item reads/mutations apply the same not-found
+  boundary to missing, expired, and other-user rows. `PATCH
+  /auth/me/preferences` updates only the current identity's language and
+  returns the public auth-user DTO.
+- Verification: focused TDD service/controller/identity tests and all existing
+  Notifications/Identity tests pass; Prisma client regenerated from the
+  existing additive migration. Realtime adapter/recovery and retention worker
+  remain later Slice 1 tasks.
+
+### 2026-08-09 - Materials: final Sprint 4 runtime verification (TASK-4-10)
+
+- Scope: close the safe Materials upload/access foundation after a real HTTP
+  run through NestJS, PostgreSQL/pgvector, Redis, and the enabled scan worker.
+- Evidence: the runner covered quarantined upload, clean scan release, public
+  Project visibility and download, immutable version replacement, restricted
+  Project grants, live revocation against an already-issued token, Assignment
+  visibility, EICAR rejection, and deletion/purge with retained non-content
+  history. The disposable Project, Request, Assignment, Materials, and related
+  rows were cleaned after the run.
+- Reproducible evidence: `docs/release-gates/sprint4-materials-runtime-demo-2026-08-09.md`
+  and `scripts/run-sprint4-materials-runtime-demo.mjs`.
+- Verification: `npx jest --runInBand` over the 14 Materials suites (146/146),
+  Frontend Materials Vitest coverage (83/83), Prisma-backed runtime gate
+  (26 sanitized entries, PASS), and `git diff --check`.
+- Scope boundary: TASK-4-11 document extraction, embeddings, retrieval, and AI
+  Draft Suggestions remain deferred; upload is still storage consent only.
+
+### 2026-08-09 - Material analysis: safe owner-authorized v1 slice (TASK-4-11 follow-up)
+
+- Scope: implement the smallest safe continuation after the Sprint 4 closeout:
+  owner-only, exact-version Analysis Sets; explicit Analysis Runs; bounded
+  Markdown/DOCX/text-PDF extraction; strict draft-only AI output; source-version
+  provenance; and private transactional Draft Suggestion persistence.
+- Backend contract: `POST /projects/:projectId/material-analysis/sets` snapshots
+  at most five ready Project Material Versions without reading bytes. The owner
+  explicitly starts `POST /material-analysis/sets/:analysisSetId/runs`; only
+  then does NestJS read the selected bytes and call the authenticated FastAPI
+  `/material-analysis/analyze` endpoint.
+- Safety: Request Materials cannot enter the Set; quarantined, purged, deleted,
+  replaced-with-different-hash, archived-Project, non-owner, duplicate, and
+  over-limit paths fail closed. AI output is restricted to approved draft fields
+  and exact selected-version provenance; no business row is mutated automatically.
+- Verification: Prisma validate/generate, exact TypeScript, six focused backend
+  tests, four focused AI tests, Python compilation, and `git diff --check`.
+- Known follow-up: persistent pgvector retrieval, subscription-backed
+  entitlement resolution, and explicit per-suggestion adoption/review commands
+  remain before TASK-4-11 can be marked complete. `MATERIAL_ANALYSIS_ENABLED`
+  is the current environment gate and defaults on for demo/local operation.
+
+### 2026-08-09 - Material analysis: final TASK-4-11 completion gate
+
+- Scope completed: configurable owner entitlement and input limits, queued Run
+  lifecycle with stale-run recovery, request-scoped chunking/retrieval and
+  PostgreSQL/pgvector persistence, explicit rejection and adoption commands,
+  owner-facing selection/review UI, and source cleanup that deletes raw vector
+  content while retaining non-content suggestion audit.
+- Backend routes now include analysis constraints plus explicit reject,
+  Project-adopt, and Contribution Request-adopt commands. Adoption delegates to
+  `ProjectPublicationService` and `ContributionTasksService`; no AI response
+  mutates authoritative business rows automatically.
+- Verification: backend `npx jest --runInBand` passed 100 suites / 698 tests;
+  backend lint/build/architecture passed; client Vitest passed 97 files / 511
+  tests and client typecheck passed; AI pytest passed 29 tests; Prisma
+  validate/generate passed; the additive pgvector migration applied cleanly;
+  the live analysis runner returned `{"result":"PASS"}` with eight sanitized
+  entries. Core Materials runtime evidence remains in the companion release
+  gate; TASK-4-11 evidence is in
+  `docs/release-gates/sprint4-material-analysis-runtime-demo-2026-08-09.md`.
+
+### 2026-08-09 - Notifications: shared `/realtime` transport (TASK-9-02)
+
+- Scope: add the generic authenticated `/realtime` Socket.IO namespace,
+  version-one envelopes, per-user publisher, Redis publisher/subscriber
+  adapter, feature flag, and post-commit semantic Notification publication for
+  created/read-state events.
+- Ownership: `shared/realtime` owns transport only; `notifications` owns
+  Notification presentation, event selection, and outbox bookkeeping. The
+  existing `/notifications` gateway remains a temporary compatibility surface
+  until deployment verification retires it.
+- Reliability: Redis connection failure does not block HTTP startup; durable
+  Notification rows/events remain authoritative and publication metadata is
+  best effort. Bounded pending-event recovery and two-instance proof remain
+  open tasks T021/T022/T029.
+- Verification: shared realtime, notification publication, inbox, service,
+  gateway, and authenticated controller tests; architecture, lint, and exact
+  TypeScript checks passed. Client socket/provider focused tests passed after
+  switching to `/realtime` and removing the legacy client payload branch.
+
+### 2026-08-09 - Notifications: bounded unpublished-event recovery (TASK-9-02 T021-T022)
+
+- Scope: add a bounded pending-event recovery service plus BullMQ queue/worker.
+  Recovery selects unpublished events by `(occurred_at,id)`, hands off the
+  original event record and stable event ID, and uses capped publication
+  attempts with exponential job retries.
+- Reliability: Redis/adapter handoff remains best effort. Durable Notification
+  HTTP writes do not wait for queue or Redis success; duplicate handoff after a
+  bookkeeping failure is safe because the event ID is unchanged and the client
+  reconciliation contract is event-gap tolerant. Final metadata is limited to
+  `REALTIME_RETRY_EXHAUSTED` or `REALTIME_RECOVERY_ERROR`.
+- Configuration: `NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED`, interval, batch
+  size, and maximum publication attempts are validated and documented. Jest
+  disables the worker queue by default to avoid opening Redis sockets.
+- Verification: recovery service/queue/worker and Notification focused tests,
+  exact TypeScript, lint, architecture, build, Prisma validation/generation,
+  migration fixtures, API-client validation, and full backend Jest are release
+  gates; retention T019-T020 and two-instance T029 evidence remain open.
+
+### 2026-08-09 - Notifications: retention cleanup (TASK-9-02 T019-T020)
+
+- Scope: add controlled-clock retention tests and a concrete bounded BullMQ
+  cleanup worker. Candidate selection joins each Notification to its current
+  recipient preference, defaults missing preferences to 90 days, and orders
+  deletion by `(created_at,id)` with a configured batch limit.
+- Safety: each candidate is rechecked inside a transaction against the latest
+  retention preference before deletion. NotificationEvent rows are removed by
+  the existing Notification foreign-key cascade; workflow and audit tables are
+  not queried or changed. Boundary timestamps are retained because cleanup is
+  strictly older-than the cutoff.
+- Configuration: `NOTIFICATION_RETENTION_QUEUE_ENABLED`, interval, and batch
+  size are validated and documented. Jest disables the worker queue by default
+  to avoid opening Redis sockets.
+- Verification: controlled-clock 30/90/180/365-day tests, changed-preference,
+  bounded-batch, cascade-boundary, and untouched-workflow tests; full backend
+  Jest passed 114 suites / 751 tests; exact TypeScript, lint, build, and
+  architecture checks passed.
+
+### 2026-08-09 - Contribution Requests: development publication-limit bypass
+
+- Scope: keep Bronze/Silver/Gold monthly Contribution Request publication
+  limits enforced in test and production while allowing over-limit Owner
+  publication only when `NODE_ENV=development`. This supports local website QA
+  using an existing Owner Project without changing plan entitlement data or
+  production behavior.
+- Authorization and ownership remain unchanged: the caller must still be an
+  active Owner, own the Request, and publish a complete draft under a published
+  Project. No schema, migration, or public DTO changes were needed.
+- Verification: focused Contribution Tasks tests cover development bypass,
+  test/default enforcement, and explicit production enforcement.
+
+### 2026-08-09 - Notifications: `/realtime` cutover and Redis proof (TASK-9-02 T027-T029)
+
+- Scope: removed Notification creation/read-state delivery through the
+  process-local `/notifications` gateway. Committed `NotificationEvent` rows
+  now publish version-one `notification.created` and
+  `notification.read_state_changed` envelopes through the shared publisher to
+  `user:<id>` on `/realtime`; the legacy gateway source and provider
+  registration were retired after the client cutover.
+- Authorization and isolation: the shared gateway accepts active users and
+  pending contributors, rejects expired/revoked/suspended sessions, normalizes
+  bearer credentials, joins only the authenticated user's room, and has no
+  process-local delivery map. Notification ownership remains derived from the
+  authenticated session and persisted `user_id`.
+- Reliability: an opt-in two-instance Socket.IO integration suite uses the
+  production Redis adapter to prove cross-instance fan-out, allowed duplicate
+  stable-envelope delivery, publisher outage containment, and delivery after
+  reconnect. Existing client convergence coverage provides duplicate,
+  out-of-order, offline-gap, and HTTP reconciliation evidence.
+- Verification: focused realtime/Notification tests passed 34 tests; full
+  backend Jest passed 113 suites / 757 tests with the opt-in integration suite
+  skipped by default; the two Redis integration tests passed explicitly;
+  Prisma format/validate/generate, notification and application migration
+  fixtures, exact TypeScript, lint, build, and architecture checks passed.
+
+### 2026-08-09 - Notifications: documentation and release-gate handoff (TASK-9-02 T030-T034)
+
+- Scope: synchronized the environment examples, Docker/local-development
+  guidance, Notification and shared-realtime READMEs, API/database contracts,
+  REST Client requests, and Postman collection/environment with the durable
+  inbox, preferences, identity-language, event-outbox, retention, recovery,
+  and shared `/realtime` contracts. The legacy `/notifications` namespace is
+  documented as retired.
+- Migration/API evidence: Prisma format/validate/generate and both notification
+  and application migration fixtures passed. The documented HTTP surface is
+  session-owned (`GET /notifications`, unread count, read-state, mark-all,
+  Notification preferences, and `PATCH /auth/me/preferences`); response
+  examples keep recipient identity, parameters, deduplication keys, and
+  publication metadata private.
+- Authorization/reliability evidence: the client cutover is
+  `io(`${API_BASE_URL}/realtime`, { auth: { token: accessToken }, transports:
+  ['websocket'] })` and consumes only version-one `notification.created` and
+  `notification.read_state_changed` envelopes. User rooms are derived from the
+  authenticated session; PostgreSQL remains authoritative when Redis is
+  unavailable, and duplicate/out-of-order delivery is reconciled by event ID,
+  aggregate version, and HTTP list/count reads. Review covered DEC-044,
+  DEC-054, DEC-064, DEC-068, and DEC-074.
+- Verification: Postman JSON parsing and server/client `git diff --check`
+  passed. Backend full Jest passed 113 suites / 757 tests, including the two
+  explicit Redis integration tests; client full Vitest passed 99 files / 516
+  tests; exact TypeScript, lint, build, architecture, Prisma, migration, and
+  API-client gates passed. The Postman inventory now covers all 134 controller
+  routes; the Materials additions are inventory-only and no Materials source
+  was changed.
+- Follow-up: the initial documentation handoff left T033 open because no
+  performance harness existed at that point. The subsequent T033 entry below
+  records the added profile, live measurements, and disposable fixture cleanup.
+
+### 2026-08-09 - Notifications: realtime profile and isolation gate (TASK-9-02 T033)
+
+- Scope: added `scripts/profile-realtime.mjs` and the
+  `test:realtime:profile` package command. The profile uses explicit test
+  tokens and a caller-supplied authenticated trigger, opens 500 WebSocket-only
+  `/realtime` clients in bounded batches, measures connection/publication
+  latency, fetches the first 100 retained inbox items after reconnect, and
+  checks a second user's room for leakage.
+- Verification: against the local API/PostgreSQL/Redis stack, 500/500 sockets
+  connected; connection p95 was 72 ms; one persisted read-state event reached
+  all 500 clients with 39 ms publication p95, 73 ms trigger-to-first
+  presentation, and 40 ms maximum observed event latency. Reconnect HTTP
+  reconciliation returned 100 items in 177 ms. The secondary user received
+  zero events.
+- Fixture safety: the local profile used exactly 100 temporary Notification
+  rows tagged with the unique `T033` run ID to satisfy the first-100 dataset;
+  all 100 were deleted by that exact tag after the run, with NotificationEvent
+  cascade cleanup. No workflow, audit, Materials, or client Contribution
+  Request data was changed.
+- Handoff: the quickstart now documents the command and required variables;
+  the website notification scenario was confirmed by the user. No commit or
+  push was made.
+
+### 2026-08-09 - Notifications: semantic migration and template contracts (TASK-9-02 T002-T006)
+
+- Scope: completed the remaining Slice 1 baseline and semantic-authority
+  evidence. Temporary PostgreSQL fixtures now cover all seven Application
+  actions, all three Proposal actions, all three skill-review outcomes, and a
+  malformed legacy metadata fallback. Assertions verify no row loss, known
+  template/deep-link mappings, preserved read state, safe generic fallback,
+  read-state consistency, and both inbox indexes.
+- Policy and authorization: added a typed version-one template-key map,
+  parameter contracts, central category/priority policy, bilingual Arabic/
+  English catalog definitions, and trusted relative deep-link builders. The
+  Application, Proposal, and skill-review write paths validate parameters and
+  links before opening a transaction and derive category/priority from the
+  catalog; malformed retained parameters render safe generic localized copy.
+  Notification ownership and public DTO redaction remain unchanged.
+- Verification: red-to-green focused template/presenter/service tests passed
+  23 tests; all Notification tests passed 15 suites / 63 tests after the
+  authenticated controller suite ran with local listener permission; the
+  temporary PostgreSQL semantic migration harness passed; full backend Jest
+  passed 114 suites / 764 tests with two skipped tests; exact TypeScript,
+  lint, and existing migration checks passed. Materials source and client
+  Contribution Request changes were not edited. No commit or push was made.
+
+### 2026-08-09 - `assignment-conversations`: first chat vertical slice (TASK-9-04)
+
+- Scope: added the durable `AssignmentConversation` and `Message` records and
+  the `20260809170000_assignment_conversations` migration. Acceptance now
+  creates or reuses exactly one conversation inside the Assignment transaction;
+  no public conversation-creation command exists.
+- Authorization and reliability: conversation reads and sends are scoped to
+  the current Assignment owner or assigned contributor. Message writes enforce
+  4,000 Unicode characters, durable sequence ordering, read-only status, and
+  sender/conversation idempotency replay. HTTP exposes conversation listing,
+  authorized conversation/history reads, text search, and message send.
+- Verification: focused service, controller, and Application acceptance tests
+  passed (52 tests); Prisma generated successfully, schema validation and
+  formatting passed, and the migration applied to the local PostgreSQL stack.
+  Materials and client Contribution Request files were not edited. No commit
+  or push was made.
+
+### 2026-08-09 - Assignment Message realtime convergence (TASK-9-04/TASK-9-05)
+
+- Scope: added the version-one `conversation.message.created` family to the
+  existing authenticated `/realtime` connection. Every newly created Message
+  appends one stable `MessageEvent` in the same PostgreSQL transaction; only
+  after commit does the Assignment Conversations module publish the envelope
+  to both the Project owner and assigned contributor user rooms.
+- Reliability and authorization: idempotent Message replay creates and
+  publishes no second event. Partial/failed room handoff leaves the outbox row
+  unpublished with safe attempt metadata and never changes the successful HTTP
+  response. The web client validates the complete envelope, deduplicates event
+  and Message IDs, patches only contiguous unfiltered history, and reconciles
+  sequence gaps/search/reconnect/focus/online state through authorized HTTP.
+- Migration/API impact: additive migrations
+  `20260809193000_conversation_message_events` and
+  `20260809194000_assignment_conversation_updated_at_default` applied to local
+  PostgreSQL. No HTTP route or response shape changed. `MessageEvent` is owned
+  by `assignment-conversations`; `shared/realtime` remains transport-only.
+- Verification: focused backend realtime/service tests passed 13 tests; focused
+  client Assignment/socket/provider tests passed 15 tests. Full backend Jest
+  passed 117 suites / 774 tests with one suite and two tests skipped; full
+  client Vitest passed 103 files / 524 tests. Backend/client exact TypeScript,
+  lint, production builds, backend architecture, Prisma validate/generate,
+  route generation, migration deploy, and both diff checks passed. Materials
+  and client Contribution Request source files were preserved. No commit or
+  push was made.
+- Follow-up: bounded scheduled recovery for pending `MessageEvent` rows remains
+  a later reliability slice; current reconnect convergence remains
+  PostgreSQL-authoritative during realtime outage.
+
+### 2026-08-10 - Chat identity, activity notifications, and unread badge (TASK-9-04/TASK-9-05)
+
+- Scope: conversation list/header and Message responses now expose owner,
+  contributor, and sender display names. The client renders both participant
+  names and labels/alignment for own versus other messages using the resolved
+  authenticated user ID.
+- Notification contract: each newly committed Message creates or updates one
+  grouped unread `conversation.activity` semantic Notification for the other
+  participant in the Message transaction, increments its count/latest preview,
+  appends its durable event, and publishes it only after commit. Reading the
+  burst closes it; the next message starts a new group. The recipient's
+  filtered unread count powers the Messages shell badge while the shared
+  Notification badge receives the same event.
+- Convergence: realtime Message envelopes carry `senderName`; the client
+  validates and deduplicates the event, patches authorized history, and
+  invalidates conversation unread-count queries so transport and HTTP state
+  converge after reconnect.
+- Verification: focused backend conversation/Notification tests and focused
+  client conversation/provider/badge tests pass; exact backend/client
+  TypeScript and lint pass. Materials and client Contribution Request source
+  files remain untouched. No commit or push was made.
+
+### 2026-08-10 - Backend controller clarity and canonical Postman coverage
+
+- Scope: audited all backend feature modules and extracted every NestJS HTTP
+  route directly from controller metadata. Split the provider-facing GitHub
+  repository callback from the authenticated evidence controller and replaced
+  repeated `fullName` checks with a feature-local validated query DTO while
+  preserving the stable error code, paths, statuses, response shapes, and
+  valid query values.
+- API tooling: rebuilt the Postman v2.1 collection as one canonical request for
+  each controller method/path pair, added a deterministic normalized inventory,
+  safe environment placeholders, realistic DTO-backed bodies, role-aware auth,
+  response assertions/captures, and a generated endpoint guide. Local coverage
+  now rejects missing, obsolete, duplicate, malformed, stale, or unsafe
+  artifacts without starting infrastructure or using the network.
+- Upload safety: replaced developer-specific paths and local credential-file
+  scraping with repository-relative validation. Postman upload is now an
+  explicit `--upload` operation requiring `POSTMAN_API_KEY` and
+  `POSTMAN_COLLECTION_ID`; validation never uploads.
+- Architecture decision: the audit found no controller-to-Prisma/client access
+  or private cross-module imports. Large workflow services were left intact
+  where their transaction boundaries and companion services already form the
+  documented owning-module seam; broad service splitting was deliberately
+  deferred to avoid behavior-changing churn.
+- Verification: architecture, lint, exact TypeScript, build, Prisma schema,
+  Postman JSON/coverage, and diff checks passed. Full Jest passed 119 suites /
+  786 tests with one suite and two tests skipped; focused GitHub compatibility
+  tests passed 7 tests. Controller and Postman inventories both contain 138
+  unique method/path pairs with zero missing, obsolete, or duplicate routes.
+- Database/client impact: no migration or schema change was introduced, and no
+  `client/` file was edited. No commit or push was made.

@@ -131,6 +131,11 @@ describe('ApplicationsService submission and withdrawal', () => {
     emitApplicationNotifications: jest.fn(),
   };
   const contributorProfiles = { getApplicationProfileContext: jest.fn() };
+  const assignmentConversations = {
+    ensureForAssignment: jest.fn().mockResolvedValue({
+      conversationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    }),
+  };
   const service = new ApplicationsService(
     database as never,
     contributionTasks as never,
@@ -138,6 +143,7 @@ describe('ApplicationsService submission and withdrawal', () => {
     identity as never,
     notifications as never,
     contributorProfiles as never,
+    assignmentConversations as never,
   );
 
   beforeEach(() => {
@@ -901,6 +907,10 @@ describe('ApplicationsService submission and withdrawal', () => {
           agreed_delivery_duration_days: 5,
           agreed_delivery_due_at: new Date('2026-08-03T12:00:00.000Z'),
         }),
+      });
+      expect(assignmentConversations.ensureForAssignment).toHaveBeenCalledWith({
+        assignmentId: expect.any(String),
+        transaction: database,
       });
       expect(database.application.updateMany).toHaveBeenNthCalledWith(2, {
         where: {

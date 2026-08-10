@@ -1,15 +1,9 @@
+import { NotificationType } from '@prisma/client';
+
 export interface RealtimeNotificationDto {
   notificationId: string;
   userId: string;
-  type:
-    | 'application_status'
-    | 'proposal_status'
-    | 'skill_review'
-    | 'delivery_update'
-    | 'match_found'
-    | 'task_recommendation'
-    | 'plan_limit'
-    | 'system';
+  type: NotificationType;
   title: string;
   message: string;
   metadata: unknown;

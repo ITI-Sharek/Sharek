@@ -1,120 +1,86 @@
-const fs = require('fs');
-const https = require('https');
+const fs = require('node:fs');
+const https = require('node:https');
+const path = require('node:path');
 
-const collectionPath = '/home/abdullah/sha-rek/Backend/postman/sharek-backend.postman_collection.json';
-const collectionData = JSON.parse(fs.readFileSync(collectionPath, 'utf8'));
+const repositoryRoot = __dirname;
+const uploadRequested = process.argv.includes('--upload');
 
-// Check if Google already exists
-let googleGroup = collectionData.item.find(i => i.name === 'Google');
-if (!googleGroup) {
-  googleGroup = {
-    name: 'Google',
-    item: [
-      {
-        name: 'Start Google OAuth',
-        request: {
-          method: 'GET',
-          header: [],
-          url: {
-            raw: '{{baseUrl}}/auth/google/start?role=contributor',
-            host: ['{{baseUrl}}'],
-            path: ['auth', 'google', 'start'],
-            query: [
-              { key: 'role', value: 'contributor' }
-            ]
-          }
-        }
-      },
-      {
-        name: 'Google OAuth Callback Redirect',
-        request: {
-          method: 'GET',
-          header: [],
-          url: {
-            raw: '{{baseUrl}}/auth/google/callback?code={{googleCode}}&state={{googleState}}',
-            host: ['{{baseUrl}}'],
-            path: ['auth', 'google', 'callback'],
-            query: [
-              { key: 'code', value: '{{googleCode}}' },
-              { key: 'state', value: '{{googleState}}' }
-            ]
-          }
-        }
-      },
-      {
-        name: 'Google OAuth Callback from Frontend',
-        request: {
-          method: 'POST',
-          header: [{ key: 'Content-Type', value: 'application/json' }],
-          body: {
-            mode: 'raw',
-            raw: '{\n  "code": "{{googleCode}}",\n  "state": "{{googleState}}"\n}'
-          },
-          url: {
-            raw: '{{baseUrl}}/auth/google/callback',
-            host: ['{{baseUrl}}'],
-            path: ['auth', 'google', 'callback']
-          }
-        }
-      }
-    ]
-  };
+async function main() {
+  await import('./scripts/validate-postman-coverage.mjs');
 
-  // Add Google variables if they don't exist
-  const vars = collectionData.variable;
-  if (!vars.find(v => v.key === 'googleCode')) {
-    vars.push({ key: 'googleCode', value: 'replace-with-google-code' });
-    vars.push({ key: 'googleState', value: 'replace-with-oauth-state' });
+  if (!uploadRequested) {
+    console.log(
+      'Local Postman validation complete. Nothing was uploaded; pass --upload explicitly to enable remote updates.',
+    );
+    return;
   }
 
-  collectionData.item.push(googleGroup);
-  fs.writeFileSync(collectionPath, JSON.stringify(collectionData, null, 4));
-}
-
-// Read API Key
-const apiKeyFile = '/home/abdullah/sha-rek/Backend/API-Key.txt';
-const apiKeyContent = fs.readFileSync(apiKeyFile, 'utf8');
-const apiKeyMatch = apiKeyContent.match(/PMAK-[a-zA-Z0-9\-]+/);
-const collectionIdMatch = apiKeyContent.match(/collections\/([a-zA-Z0-9\-]+)/);
-
-if (!apiKeyMatch || !collectionIdMatch) {
-  console.error("Could not find API key or collection ID");
-  process.exit(1);
-}
-
-const apiKey = apiKeyMatch[0];
-const collectionId = collectionIdMatch[1];
-
-// Upload to Postman
-const payload = JSON.stringify({ collection: collectionData });
-
-const options = {
-  hostname: 'api.postman.com',
-  path: `/collections/${collectionId}`,
-  method: 'PUT',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Api-Key': apiKey,
-    'Content-Length': Buffer.byteLength(payload)
+  const apiKey = process.env.POSTMAN_API_KEY;
+  const collectionId = process.env.POSTMAN_COLLECTION_ID;
+  const environmentId = process.env.POSTMAN_ENVIRONMENT_ID;
+  if (!apiKey || !collectionId) {
+    throw new Error(
+      'POSTMAN_API_KEY and POSTMAN_COLLECTION_ID are required for explicit upload.',
+    );
   }
-};
 
-const req = https.request(options, res => {
-  let data = '';
-  res.on('data', chunk => data += chunk);
-  res.on('end', () => {
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      console.log("Successfully updated Postman collection!");
-    } else {
-      console.error(`Error updating collection: ${res.statusCode}`);
-      console.error(data);
-    }
+  await upload(
+    'collection',
+    collectionId,
+    path.join(repositoryRoot, 'postman/sharek-backend.postman_collection.json'),
+    apiKey,
+  );
+  if (environmentId) {
+    await upload(
+      'environment',
+      environmentId,
+      path.join(repositoryRoot, 'postman/sharek-backend.postman_environment.json'),
+      apiKey,
+    );
+  }
+}
+
+function upload(type, id, filePath, apiKey) {
+  const payload = JSON.stringify({
+    [type]: JSON.parse(fs.readFileSync(filePath, 'utf8')),
   });
-});
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      {
+        hostname: 'api.postman.com',
+        path: `/${type}s/${encodeURIComponent(id)}`,
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Api-Key': apiKey,
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      },
+      (response) => {
+        let body = '';
+        response.on('data', (chunk) => {
+          body += chunk;
+        });
+        response.on('end', () => {
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            console.log(`Uploaded Postman ${type} ${id}.`);
+            resolve();
+            return;
+          }
+          reject(
+            new Error(
+              `Postman ${type} upload failed (${response.statusCode}): ${body}`,
+            ),
+          );
+        });
+      },
+    );
+    request.on('error', reject);
+    request.end(payload);
+  });
+}
 
-req.on('error', e => {
-  console.error(`Request error: ${e.message}`);
+main().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
 });
-
-req.write(payload);
-req.end();

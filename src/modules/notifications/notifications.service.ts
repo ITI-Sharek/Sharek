@@ -1,9 +1,23 @@
-import { Injectable } from '@nestjs/common';
-import { Notification, NotificationType, Prisma } from '@prisma/client';
+import { Injectable, Optional } from '@nestjs/common';
+import {
+  Notification,
+  Prisma,
+} from '@prisma/client';
 
 import { DatabaseService } from '../../shared/database/database.service';
 import { RealtimeNotificationDto } from './dto/realtime-notification.dto';
-import { NotificationsGateway } from './notifications.gateway';
+import { NotificationEventsService } from './notification-events.service';
+import { NotificationPresenterService } from './notification-presenter.service';
+import { NotificationRealtimeService } from './notification-realtime.service';
+import {
+  buildApplicationNotificationDeepLink,
+  buildConversationActivityNotificationDeepLink,
+  buildProposalNotificationDeepLink,
+  buildSkillReviewNotificationDeepLink,
+  getNotificationTemplatePolicy,
+  validateNotificationTemplateParameters,
+} from './templates/notification-template.catalog';
+import { NotificationTemplateKey } from './templates/notification-template.types';
 
 export interface SkillReviewNotificationInput {
   userId: string;
@@ -16,6 +30,7 @@ export interface SkillReviewNotificationInput {
 export interface NotificationCreateResultDto {
   notificationId: string;
   created: boolean;
+  updated?: boolean;
   deliveredRealtime: boolean;
   notification: RealtimeNotificationDto;
 }
@@ -50,95 +65,55 @@ export interface ProposalNotificationInput {
   resultingContributionRequestId?: string;
 }
 
-const APPLICATION_NOTIFICATION_COPY: Record<
-  ApplicationNotificationAction,
-  { title: string; message: string }
-> = {
-  submitted: {
-    title: 'New Application received',
-    message:
-      'A contributor submitted an Application for your Contribution Request.',
-  },
-  withdrawn: {
-    title: 'Application withdrawn',
-    message:
-      'A contributor withdrew an Application from your Contribution Request.',
-  },
-  accepted: {
-    title: 'Application accepted',
-    message: 'Your Application was accepted and an Assignment was created.',
-  },
-  declined_by_owner: {
-    title: 'Application declined by owner',
-    message:
-      'The Project owner declined your Application. This decision affects only this Application.',
-  },
-  not_selected: {
-    title: 'Another contributor was selected',
-    message:
-      'Another contributor was selected for this Contribution Request. This does not affect your eligibility or reputation.',
-  },
-  owner_review_reminder: {
-    title: 'Application awaiting review',
-    message:
-      'An Application for your Contribution Request has been waiting for review for 3 days.',
-  },
-  expired: {
-    title: 'Application review window expired',
-    message:
-      'Your Application expired because it was not reviewed within 7 days. This is not an owner rejection and does not affect your eligibility or reputation.',
-  },
-};
-
-const PROPOSAL_NOTIFICATION_COPY: Record<
-  ProposalNotificationAction,
-  { title: string; message: string }
-> = {
-  revision_requested: {
-    title: 'Proposal revision requested',
-    message:
-      'The Project owner requested a revision to your Contribution Proposal.',
-  },
-  accepted: {
-    title: 'Proposal accepted',
-    message:
-      'The Project owner accepted your Contribution Proposal and created an attributed draft Contribution Request.',
-  },
-  declined: {
-    title: 'Proposal declined',
-    message:
-      'The Project owner declined your Contribution Proposal. Review the proposal for the owner’s reason.',
-  },
-};
+export interface ConversationActivityNotificationInput {
+  userId: string;
+  conversationId: string;
+  messageId: string;
+  senderName: string;
+  messagePreview: string;
+}
 
 @Injectable()
 export class NotificationsService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly notificationsGateway: NotificationsGateway,
+    private readonly notificationPresenter: NotificationPresenterService =
+      new NotificationPresenterService(),
+    private readonly notificationEvents: NotificationEventsService =
+      new NotificationEventsService(),
+    @Optional()
+    private readonly notificationRealtime?: NotificationRealtimeService,
   ) {}
 
   async createSkillReviewNotification(
     input: SkillReviewNotificationInput,
   ): Promise<NotificationCreateResultDto> {
-    const notification = await this.database.notification.create({
-      data: {
-        user_id: input.userId,
-        type: NotificationType.skill_review,
-        title: this.getSkillReviewTitle(input),
-        message: this.getSkillReviewMessage(input),
-        metadata: {
-          skillProfileId: input.skillProfileId,
-          skillName: input.skillName,
-          approved: input.approved,
-          activated: input.activated,
-        },
+    const templateKey = this.getSkillReviewTemplateKey(input);
+    const parameters = {
+      skillProfileId: input.skillProfileId,
+      skillName: input.skillName,
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
+    const notification = await this.database.$transaction(
+      async (transaction) => {
+        const created = await transaction.notification.create({
+          data: {
+            user_id: input.userId,
+            type: policy.category,
+            template_key: templateKey,
+            template_version: 1,
+            parameters,
+            deep_link: buildSkillReviewNotificationDeepLink(),
+            priority: policy.priority,
+          },
+        });
+        await this.notificationEvents.appendCreated(transaction, created);
+        return created;
       },
-    });
-    const realtimeNotification = this.presentRealtimeNotification(notification);
-    const deliveredRealtime = this.notificationsGateway.emitNotification(
-      realtimeNotification,
     );
+    const realtimeNotification = this.presentRealtimeNotification(notification);
+    const deliveredRealtime = await this.publishCreated(notification.id);
 
     return {
       notificationId: notification.id,
@@ -155,48 +130,77 @@ export class NotificationsService {
       emitRealtime?: boolean;
     },
   ): Promise<NotificationCreateResultDto> {
-    const notifications =
-      options?.transaction?.notification ?? this.database.notification;
+    const templateKey = `application.${input.action}` as NotificationTemplateKey;
+    const parameters = {
+      applicationId: input.applicationId,
+      contributionRequestId: input.contributionRequestId,
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const deepLink = buildApplicationNotificationDeepLink(input.action, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
     const deduplicationKey = `application:${input.applicationId}:${input.action}`;
-    const copy = APPLICATION_NOTIFICATION_COPY[input.action];
+    if (!options?.transaction) {
+      let persisted: NotificationCreateResultDto;
+      try {
+        persisted = await this.database.$transaction((transaction) =>
+          this.createApplicationNotification(input, {
+            transaction,
+            emitRealtime: false,
+          }),
+        );
+      } catch (error) {
+        if (!this.isUniqueConstraintError(error)) throw error;
+        const notification = await this.database.notification.findUniqueOrThrow({
+          where: { deduplication_key: deduplicationKey },
+        });
+        const realtimeNotification =
+          this.presentRealtimeNotification(notification);
+        return {
+          notificationId: notification.id,
+          created: false,
+          deliveredRealtime: false,
+          notification: realtimeNotification,
+        };
+      }
+      const deliveredRealtime =
+        (persisted.created || persisted.updated === true) &&
+        options?.emitRealtime !== false
+          ? await this.publishCreated(persisted.notificationId)
+          : false;
+
+      return { ...persisted, deliveredRealtime };
+    }
+
+    const notifications = options.transaction.notification;
     const existing = await notifications.findUnique({
       where: { deduplication_key: deduplicationKey },
     });
     let notification = existing;
     let created = false;
     if (!notification) {
-      try {
-        notification = await notifications.create({
-          data: {
-            user_id: input.userId,
-            type: NotificationType.application_status,
-            title: copy.title,
-            message: copy.message,
-            metadata: {
-              applicationId: input.applicationId,
-              contributionRequestId: input.contributionRequestId,
-              action: input.action,
-            },
-            deduplication_key: deduplicationKey,
-          },
-        });
-        created = true;
-      } catch (error) {
-        if (
-          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-          error.code !== 'P2002'
-        ) {
-          throw error;
-        }
-        notification = await notifications.findUniqueOrThrow({
-          where: { deduplication_key: deduplicationKey },
-        });
-      }
+      notification = await notifications.create({
+        data: {
+          user_id: input.userId,
+          type: policy.category,
+          template_key: templateKey,
+          template_version: 1,
+          parameters,
+          deep_link: deepLink,
+          priority: policy.priority,
+          deduplication_key: deduplicationKey,
+        },
+      });
+      created = true;
+      await this.notificationEvents.appendCreated(
+        options.transaction,
+        notification,
+      );
     }
     const realtimeNotification = this.presentRealtimeNotification(notification);
-    const deliveredRealtime = created && options?.emitRealtime !== false
-      ? this.notificationsGateway.emitNotification(realtimeNotification)
-      : false;
+    const deliveredRealtime =
+      created && options?.emitRealtime !== false
+        ? await this.publishCreated(notification.id)
+        : false;
 
     return {
       notificationId: notification.id,
@@ -213,65 +217,86 @@ export class NotificationsService {
       emitRealtime?: boolean;
     },
   ): Promise<NotificationCreateResultDto> {
-    const notifications =
-      options?.transaction?.notification ?? this.database.notification;
+    const templateKey = `proposal.${input.action}` as NotificationTemplateKey;
+    const parameters = {
+      proposalId: input.proposalId,
+      projectId: input.projectId,
+      ...(input.revisionRequestSequence === undefined
+        ? {}
+        : { revisionRequestSequence: input.revisionRequestSequence }),
+      ...(input.resultingContributionRequestId === undefined
+        ? {}
+        : { resultingContributionRequestId: input.resultingContributionRequestId }),
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const deepLink = buildProposalNotificationDeepLink(parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
     const sequence =
       input.action === 'revision_requested'
         ? `:${input.revisionRequestSequence ?? 0}`
         : '';
     const deduplicationKey =
       `proposal:${input.proposalId}:${input.action}${sequence}`;
-    const copy = PROPOSAL_NOTIFICATION_COPY[input.action];
+    if (!options?.transaction) {
+      let persisted: NotificationCreateResultDto;
+      try {
+        persisted = await this.database.$transaction((transaction) =>
+          this.createProposalNotification(input, {
+            transaction,
+            emitRealtime: false,
+          }),
+        );
+      } catch (error) {
+        if (!this.isUniqueConstraintError(error)) throw error;
+        const notification = await this.database.notification.findUniqueOrThrow({
+          where: { deduplication_key: deduplicationKey },
+        });
+        const realtimeNotification =
+          this.presentRealtimeNotification(notification);
+        return {
+          notificationId: notification.id,
+          created: false,
+          deliveredRealtime: false,
+          notification: realtimeNotification,
+        };
+      }
+      const deliveredRealtime =
+        persisted.created && options?.emitRealtime !== false
+          ? await this.publishCreated(persisted.notificationId)
+          : false;
+
+      return { ...persisted, deliveredRealtime };
+    }
+
+    const notifications = options.transaction.notification;
     const existing = await notifications.findUnique({
       where: { deduplication_key: deduplicationKey },
     });
     let notification = existing;
     let created = false;
     if (!notification) {
-      try {
-        notification = await notifications.create({
-          data: {
-            user_id: input.userId,
-            type: NotificationType.proposal_status,
-            title: copy.title,
-            message: copy.message,
-            metadata: {
-              proposalId: input.proposalId,
-              projectId: input.projectId,
-              action: input.action,
-              ...(input.revisionRequestSequence === undefined
-                ? {}
-                : {
-                    revisionRequestSequence:
-                      input.revisionRequestSequence,
-                  }),
-              ...(input.resultingContributionRequestId === undefined
-                ? {}
-                : {
-                    resultingContributionRequestId:
-                      input.resultingContributionRequestId,
-                  }),
-            },
-            deduplication_key: deduplicationKey,
-          },
-        });
-        created = true;
-      } catch (error) {
-        if (
-          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-          error.code !== 'P2002'
-        ) {
-          throw error;
-        }
-        notification = await notifications.findUniqueOrThrow({
-          where: { deduplication_key: deduplicationKey },
-        });
-      }
+      notification = await notifications.create({
+        data: {
+          user_id: input.userId,
+          type: policy.category,
+          template_key: templateKey,
+          template_version: 1,
+          parameters,
+          deep_link: deepLink,
+          priority: policy.priority,
+          deduplication_key: deduplicationKey,
+        },
+      });
+      created = true;
+      await this.notificationEvents.appendCreated(
+        options.transaction,
+        notification,
+      );
     }
     const realtimeNotification = this.presentRealtimeNotification(notification);
     const deliveredRealtime =
       created && options?.emitRealtime !== false
-        ? this.notificationsGateway.emitNotification(realtimeNotification)
+        ? await this.publishCreated(notification.id)
         : false;
 
     return {
@@ -282,11 +307,140 @@ export class NotificationsService {
     };
   }
 
+  async createConversationActivityNotification(
+    input: ConversationActivityNotificationInput,
+    options?: {
+      transaction?: Prisma.TransactionClient;
+      emitRealtime?: boolean;
+    },
+  ): Promise<NotificationCreateResultDto> {
+    const templateKey: NotificationTemplateKey = 'conversation.activity';
+    const parameters = {
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      senderName: input.senderName,
+      messagePreview: input.messagePreview,
+      messageCount: 1,
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
+    const deepLink = buildConversationActivityNotificationDeepLink(parameters);
+    const deduplicationKey =
+      `conversation:${input.conversationId}:${input.messageId}`;
+
+    if (!options?.transaction) {
+      let persisted: NotificationCreateResultDto;
+      try {
+        persisted = await this.database.$transaction((transaction) =>
+          this.createConversationActivityNotification(input, {
+            transaction,
+            emitRealtime: false,
+          }),
+        );
+      } catch (error) {
+        if (!this.isUniqueConstraintError(error)) throw error;
+        const notification = await this.database.notification.findUniqueOrThrow({
+          where: { deduplication_key: deduplicationKey },
+        });
+        return {
+          notificationId: notification.id,
+          created: false,
+          deliveredRealtime: false,
+          notification: this.presentRealtimeNotification(notification),
+        };
+      }
+
+      const deliveredRealtime =
+        (persisted.created || persisted.updated === true) &&
+        options?.emitRealtime !== false
+          ? await this.publishCreated(persisted.notificationId)
+          : false;
+      return { ...persisted, deliveredRealtime };
+    }
+
+    const notifications = options.transaction.notification;
+    const existing = await notifications.findFirst({
+      where: {
+        user_id: input.userId,
+        type: policy.category,
+        template_key: templateKey,
+        is_read: false,
+        parameters: {
+          path: ['conversationId'],
+          equals: input.conversationId,
+        },
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    });
+    if (existing) {
+      const currentParameters =
+        validateNotificationTemplateParameters(
+          templateKey,
+          existing.parameters,
+        );
+      if (currentParameters.messageId === input.messageId) {
+        return {
+          notificationId: existing.id,
+          created: false,
+          deliveredRealtime: false,
+          notification: this.presentRealtimeNotification(existing),
+        };
+      }
+
+      const updated = await notifications.update({
+        where: { id: existing.id },
+        data: {
+          parameters: {
+            ...currentParameters,
+            messageId: input.messageId,
+            senderName: input.senderName,
+            messagePreview: input.messagePreview,
+            messageCount: currentParameters.messageCount + 1,
+          },
+          aggregate_version: { increment: 1 },
+        },
+      });
+      await this.notificationEvents.appendCreated(options.transaction, updated);
+      return {
+        notificationId: updated.id,
+        created: false,
+        updated: true,
+        deliveredRealtime: false,
+        notification: this.presentRealtimeNotification(updated),
+      };
+    }
+
+    const notification = await notifications.create({
+      data: {
+        user_id: input.userId,
+        type: policy.category,
+        template_key: templateKey,
+        template_version: 1,
+        parameters,
+        deep_link: deepLink,
+        priority: policy.priority,
+        deduplication_key: deduplicationKey,
+      },
+    });
+    await this.notificationEvents.appendCreated(options.transaction, notification);
+
+    return {
+      notificationId: notification.id,
+      created: true,
+      deliveredRealtime: false,
+      notification: this.presentRealtimeNotification(notification),
+    };
+  }
+
+  async emitNotificationCreated(notificationId: string): Promise<boolean> {
+    return this.publishCreated(notificationId);
+  }
+
   emitApplicationNotifications(
     notifications: RealtimeNotificationDto[],
   ): void {
     for (const notification of notifications) {
-      this.notificationsGateway.emitNotification(notification);
+      void this.publishCreated(notification.notificationId);
     }
   }
 
@@ -294,19 +448,42 @@ export class NotificationsService {
     notifications: RealtimeNotificationDto[],
   ): void {
     for (const notification of notifications) {
-      this.notificationsGateway.emitNotification(notification);
+      void this.publishCreated(notification.notificationId);
     }
+  }
+
+  private async publishCreated(notificationId: string): Promise<boolean> {
+    return (await this.notificationRealtime?.publishCreated(notificationId)) ?? false;
   }
 
   private presentRealtimeNotification(
     notification: Notification,
   ): RealtimeNotificationDto {
+    if (notification.template_key) {
+      const presentation = this.notificationPresenter.present(
+        notification,
+        'en',
+      );
+
+      return {
+        notificationId: notification.id,
+        userId: notification.user_id,
+        type: notification.type,
+        title: presentation.title,
+        message: presentation.body,
+        metadata: notification.parameters as Prisma.JsonValue,
+        isRead: notification.is_read,
+        readAt: notification.read_at,
+        createdAt: notification.created_at,
+      };
+    }
+
     return {
       notificationId: notification.id,
       userId: notification.user_id,
       type: notification.type,
-      title: notification.title,
-      message: notification.message,
+      title: notification.title ?? 'New notification',
+      message: notification.message ?? 'You have a new update in Share-k.',
       metadata: notification.metadata as Prisma.JsonValue,
       isRead: notification.is_read,
       readAt: notification.read_at,
@@ -314,25 +491,24 @@ export class NotificationsService {
     };
   }
 
-  private getSkillReviewTitle(input: SkillReviewNotificationInput): string {
+  private getSkillReviewTemplateKey(
+    input: SkillReviewNotificationInput,
+  ): 'skill_review.activated' | 'skill_review.approved' | 'skill_review.not_approved' {
     if (input.approved) {
       return input.activated
-        ? 'Skill profile approved'
-        : 'Skill approved';
+        ? 'skill_review.activated'
+        : 'skill_review.approved';
     }
 
-    return 'Skill review update';
+    return 'skill_review.not_approved';
   }
 
-  private getSkillReviewMessage(input: SkillReviewNotificationInput): string {
-    if (input.approved && input.activated) {
-      return `Your ${input.skillName} skill was approved. Your contributor account is now active.`;
-    }
-
-    if (input.approved) {
-      return `Your ${input.skillName} skill was approved.`;
-    }
-
-    return `Your ${input.skillName} skill was reviewed and was not approved.`;
+  private isUniqueConstraintError(
+    error: unknown,
+  ): error is Prisma.PrismaClientKnownRequestError {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    );
   }
 }

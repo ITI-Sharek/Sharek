@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { AdminModule } from './modules/admin/admin.module';
+import { AssignmentConversationsModule } from './modules/assignment-conversations/assignment-conversations.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { MaterialsModule } from './modules/materials/materials.module';
@@ -21,6 +22,7 @@ import { envValidationSchema } from './shared/config/env.validation';
 import { DatabaseModule } from './shared/database/database.module';
 import { EventsModule } from './shared/events/events.module';
 import { ObservabilityModule } from './shared/observability/observability.module';
+import { RealtimeModule } from './shared/realtime/realtime.module';
 
 @Module({
   imports: [
@@ -34,6 +36,7 @@ import { ObservabilityModule } from './shared/observability/observability.module
       },
     }),
     ObservabilityModule,
+    RealtimeModule,
     DatabaseModule,
     AuthModule,
     EventsModule,
@@ -52,6 +55,7 @@ import { ObservabilityModule } from './shared/observability/observability.module
     ReputationModule,
     AdminModule,
     AiModule,
+    AssignmentConversationsModule,
   ],
 })
 export class AppModule { }

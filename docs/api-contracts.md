@@ -679,6 +679,9 @@ work contract and Applications Close Time, then enforces the current owner plan
 against publications in the current UTC calendar month. Owners without a
 current plan assignment use Bronze. Limits are Bronze 10, Silver 20, and Gold
 30. Cancelled Requests still count in the month in which they were published.
+For local QA only, `NODE_ENV=development` bypasses the enforcement check while
+leaving the entitlement and usage data unchanged; test and production retain
+the limits.
 
 Cancellation accepts optional `{ "reason": "..." }`, preserves the Request,
 and atomically changes every `PENDING_OWNER_REVIEW` Application to
@@ -950,72 +953,138 @@ Approve and reject outcomes also coordinate post-review side effects:
   activation or final-outcome notification side effects.
 
 Review action responses include `notification.deliveredRealtime`. `true` means
-at least one authenticated socket for that recipient was connected when the row
-was created. `false` does not mean notification failure; the notification row is
-still stored and can be read by a future inbox endpoint.
+the shared `/realtime` publisher accepted the envelope handoff after the
+Notification row/event committed. `false` does not mean notification failure;
+the durable row and event remain available to the inbox and recovery worker.
 
-## Real-Time Notification Socket Contract
+## Durable Notification HTTP Contract
 
-The notifications module exposes a Socket.IO namespace:
+All Notification routes require the existing access token and derive the
+recipient from the authenticated session. Responses use the current identity
+language and never expose recipient IDs, raw parameters, deduplication keys, or
+publication metadata.
 
 ```text
-/notifications
+GET   /notifications?cursor=<opaque>&limit=20&readState=unread&type=application_status
+GET   /notifications/unread-count[?type=conversation_activity]
+PATCH /notifications/:notificationId/read-state       { "state": "read" }
+POST  /notifications/mark-all-read                   {}
+GET   /me/notification-preferences
+PATCH /me/notification-preferences
+PATCH /auth/me/preferences                            { "preferredLanguage": "ar" }
 ```
 
-Clients authenticate during connection with the same opaque access token used by
-HTTP APIs:
+List pagination uses a stable opaque `(created_at,id)` cursor and supports
+`readState=read|unread` plus the known Notification type filter. Read-state
+commands are idempotent and conceal malformed, missing, expired, and
+other-user Notification IDs with `NOTIFICATION_NOT_FOUND`. Mark-all-read uses
+a caller-scoped timestamp snapshot and emits one durable read-state event per
+changed Notification.
+
+Notification preferences own retention, overnight quiet hours, sparse category
+overrides, and optimistic `revision` checks. Required in-app categories cannot
+be disabled. Language remains identity-owned, accepts only `ar|en`, and is
+idempotent when the requested value already matches the current user.
+
+## Assignment Conversation HTTP Contract
+
+Assignment acceptance creates the private conversation atomically with the
+Assignment. There is no public create-conversation route. Every route below
+rechecks that the authenticated user is the Assignment's Project owner or
+assigned contributor:
+
+```text
+GET  /assignment-conversations?cursor=<opaque>&limit=20
+GET  /assignment-conversations/:conversationId
+GET  /assignment-conversations/:conversationId/messages?cursor=<opaque>&limit=20&query=<text>
+POST /assignment-conversations/:conversationId/messages
+     { "idempotencyKey": "message-command-001", "body": "plain text" }
+```
+
+Message sends are durable before any realtime publication, replay the original
+result for the same sender/conversation/idempotency key, and reject blank or
+over-4,000-Unicode-character bodies. Unauthorized or missing conversations
+are concealed as `ASSIGNMENT_CONVERSATION_NOT_FOUND`; a future terminal state
+uses `ASSIGNMENT_CONVERSATION_READ_ONLY`.
+
+Conversation responses include `ownerName` and `contributorName`; Message
+responses and realtime payloads include the persisted `senderName`. Clients
+must use these names, together with the authenticated sender ID, to render the
+participant header and own/other message treatment rather than deriving names
+from Assignment or conversation identifiers.
+
+Every newly committed Message also appends one stable outbox event in the same
+transaction. After commit, both authorized participants receive:
+
+```json
+{
+  "eventId": "uuid",
+  "type": "conversation.message.created",
+  "version": 1,
+  "occurredAt": "2026-08-09T12:03:00.000Z",
+  "aggregateId": "conversation-uuid",
+  "aggregateVersion": 2,
+  "payload": {
+    "message": {
+      "messageId": "message-uuid",
+      "conversationId": "conversation-uuid",
+      "sequence": 2,
+      "senderId": "user-uuid",
+      "senderName": "Contributor Name",
+      "body": "plain text",
+      "replyToMessageId": null,
+      "createdAt": "2026-08-09T12:03:00.000Z",
+      "editedAt": null,
+      "retractedAt": null
+    }
+  }
+}
+```
+
+Events may repeat. Clients deduplicate by `eventId` and `messageId`; a Message
+sequence gap triggers an authorized HTTP history reconciliation.
+
+The recipient (the other Assignment participant) also receives a durable
+`conversation_activity` Notification for the unread Message burst. Later
+messages update that same unread conversation notification's count/latest
+preview; once it is read, a later message starts a new burst. Its deep link is
+`/messages?conversation=<conversationId>`, and its unread count is available
+through `GET /notifications/unread-count?type=conversation_activity` for the
+Messages shell badge. Notification and message event publication are
+best-effort after the PostgreSQL commit; the durable rows/events remain the
+authority during reconnect or transport failure.
+
+## Real-Time Shared Socket Contract
+
+The shared transport exposes the authenticated Socket.IO namespace `/realtime`
+with WebSocket transport only:
 
 ```ts
-io(`${API_URL}/notifications`, {
-  auth: {
-    token: accessToken,
-  },
+io(`${API_URL}/realtime`, {
+  auth: { token: accessToken },
+  transports: ["websocket"],
 });
 ```
 
 `auth.token` may be either the raw access token or `Bearer <token>`. The gateway
 also accepts an `Authorization: Bearer <token>` header for non-browser clients.
 Active users and pending contributors may connect. Invalid, expired, revoked,
-suspended, and deactivated sessions receive:
+suspended, and deactivated sessions receive `realtime.error` before disconnect:
 
 ```json
 {
-  "code": "NOTIFICATIONS_SOCKET_UNAUTHORIZED",
+  "code": "REALTIME_UNAUTHORIZED",
   "message": "Invalid or expired session"
 }
 ```
 
-and the socket is disconnected.
-
-When a notification is persisted for the connected user, the socket receives:
-
-```text
-notification.created
-```
-
-Payload:
-
-```json
-{
-  "notificationId": "notification-uuid",
-  "userId": "user-uuid",
-  "type": "skill_review",
-  "title": "Skill profile approved",
-  "message": "Your TypeScript skill was approved. Your contributor account is now active.",
-  "metadata": {
-    "skillProfileId": "skill-profile-uuid",
-    "skillName": "TypeScript",
-    "approved": true,
-    "activated": true
-  },
-  "isRead": false,
-  "readAt": null,
-  "createdAt": "2026-07-19T00:00:00.000Z"
-}
-```
-
-The gateway joins each socket to a server-side room derived from its own user ID
-and emits only to that room.
+The gateway joins each socket only to `user:<authenticated-user-id>`. Persisted
+created/read-state events are emitted as their complete version-one envelope.
+Current durable types are `notification.created`,
+`notification.read_state_changed`, and `conversation.message.created`; clients
+deduplicate event IDs and reconcile aggregate gaps through HTTP.
+`REALTIME_NOTIFICATIONS_ENABLED` defaults to false during rollout. The legacy
+`/notifications` namespace has been retired; clients must use `/realtime`.
 
 ## AI Service Contracts
 

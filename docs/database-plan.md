@@ -45,7 +45,7 @@ identity              users, auth_sessions, auth_provider_accounts, auth_oauth_s
 github                github_accounts, github_oauth_states, github_repositories, github_evidence
 contributor-profiles  contributor_profiles, contributor_fields, contributor_profile_fields
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
-notifications         notifications
+notifications         notifications, notification_events, notification_preferences, notification_category_preferences
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
@@ -117,10 +117,33 @@ action stores reviewer, timestamp, before/after status, before/after
 proficiency, and notes where present. The latest review state remains on
 `SkillProfile` for fast reads, but the decision table preserves history.
 
-`Notification` stores contributor-facing skill review outcomes. The
-`notifications` module owns writes to that table. Review workflows in other
-modules must call the exported notification service instead of writing the
-table directly.
+`Notification` stores semantic, localized-in-reads Notification records. The
+`notifications` module owns writes to `Notification`, `NotificationEvent`,
+`NotificationPreference`, and `NotificationCategoryPreference`. Review and
+workflow modules must call the exported notification service instead of
+writing those tables directly.
+
+`Notification` keeps a versioned template key/parameters, trusted relative
+deep link, priority, read state, aggregate version, and nullable legacy
+rendered columns during the compatibility window. `NotificationEvent` is an
+append-only created/read-state outbox row with a stable event ID, recipient,
+aggregate version, publication attempts, and safe handoff metadata. Its
+foreign key cascades when the owning Notification is removed by retention.
+
+`assignment-conversations` owns `AssignmentConversation`, `Message`, and
+`MessageEvent`. `MessageEvent` is the append-only created-Message outbox: it
+stores the stable event ID, conversation aggregate version, occurrence time,
+publication attempts, and safe handoff status. The Message and its event append
+inside one transaction; shared `/realtime` publication starts only after that
+transaction commits. HTTP Message history remains authoritative during socket
+outage or duplicate delivery.
+
+`NotificationPreference` stores per-user retention, quiet hours, and revision;
+`NotificationCategoryPreference` stores sparse per-category in-app/browser
+overrides. Missing preferences use the documented 90-day retention and
+browser-disabled defaults. Cleanup deletes only expired Notification rows and
+lets the event cascade remove their corresponding outbox rows; workflow and
+audit tables are never part of retention cleanup.
 
 Application submission and withdrawal notifications use a nullable unique
 `deduplication_key` so a retried Application command cannot create or deliver

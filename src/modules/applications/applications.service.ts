@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import {
   ApplicationAuditAction,
   ApplicationStatus,
@@ -10,6 +10,7 @@ import {
 
 import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
 import { DatabaseService } from '../../shared/database/database.service';
+import { AssignmentConversationsService } from '../assignment-conversations/assignment-conversations.service';
 import {
   BadRequestApplicationError,
   ConflictApplicationError,
@@ -76,6 +77,8 @@ export class ApplicationsService {
     private readonly identity: IdentityUsernameService,
     private readonly notifications: NotificationsService,
     private readonly contributorProfiles: ContributorProfilesService,
+    @Optional()
+    private readonly assignmentConversations?: AssignmentConversationsService,
   ) {}
 
   async submit(input: {
@@ -493,6 +496,10 @@ export class ApplicationsService {
             ),
             assigned_at: now,
           },
+        });
+        await this.assignmentConversations?.ensureForAssignment({
+          assignmentId,
+          transaction,
         });
         await transaction.applicationAudit.create({
           data: {

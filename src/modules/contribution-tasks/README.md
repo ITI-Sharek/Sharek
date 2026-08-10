@@ -62,7 +62,9 @@ sections without reconstructing them from local state.
   plan in the transaction. Owners without a current assignment receive the
   default Bronze entitlement. Monthly publication limits are Bronze 10, Silver
   20, and Gold 30; prior publications continue to count for their UTC calendar
-  month after cancellation.
+  month after cancellation. The monthly enforcement gate is intentionally open
+  in `NODE_ENV=development` for local QA against existing Projects, while test
+  and production environments keep the plan limits enforced.
 - `GET /tasks` and `GET /tasks/:requestId` are public reads. Both query only
   `published` Requests with a publication time and an Applications Close Time
   strictly after the server clock whose parent Project is still published.

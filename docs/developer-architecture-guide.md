@@ -15,6 +15,7 @@ Choose the module that owns the final business state:
 | `contributor-profiles` | contributor profile records and profile assembly |
 | `skill-profiles` | skill generations, candidates, approval state, evidence snapshots |
 | `notifications` | in-app notification records and notification write workflows |
+| `assignment-conversations` | private Assignment conversations and durable Message history |
 | `contribution-tasks` | project task definitions and requirements |
 | `applications` | contributor Applications and owner-review lifecycle |
 | `contribution-proposals` | contributor-authored proposals, immutable versions, owner revision requests, intake |

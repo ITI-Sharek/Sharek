@@ -3,7 +3,9 @@ import { UserRole } from '@prisma/client';
 
 import { DatabaseService } from '../../../shared/database/database.service';
 import { ApplicationError } from '../../../shared/errors/application.error';
-import { AuthTokensDto } from '../dto/auth-session.dto';
+import { AuthTokensDto, AuthUserDto } from '../dto/auth-session.dto';
+import { UpdateUserPreferencesRequest } from '../dto/update-user-preferences.request';
+import { toAuthUserDto } from '../mappers/auth-user.mapper';
 import { SessionTokenService } from '../security/session-token.service';
 import { IdentityUsernameService } from './identity-username.service';
 
@@ -106,6 +108,30 @@ export class SessionService {
         revoked_at: new Date(),
       },
     });
+  }
+
+  async updateCurrentUserPreferences(
+    userId: string,
+    input: UpdateUserPreferencesRequest | 'ar' | 'en',
+  ): Promise<AuthUserDto> {
+    const preferredLanguage =
+      typeof input === 'string' ? input : input.preferredLanguage;
+    if (preferredLanguage !== 'ar' && preferredLanguage !== 'en') {
+      throw new ApplicationError(
+        'Preferred language must be ar or en',
+        'AUTH_PREFERRED_LANGUAGE_INVALID',
+        400,
+      );
+    }
+
+    const user = await this.database.user.update({
+      where: { id: userId },
+      data: { preferred_language: preferredLanguage },
+    });
+    const publicUser = await this.identityUsernameService.ensureContributorUsernameForUser(
+      user,
+    );
+    return toAuthUserDto(publicUser);
   }
 
   canAuthenticate(user: { role: UserRole; status: string }): boolean {

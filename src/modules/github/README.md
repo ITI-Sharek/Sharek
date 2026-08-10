@@ -19,6 +19,8 @@ owned by `identity`.
 
 ```text
 controllers/
+  github-oauth.controller.ts
+  github-oauth-browser-callback.controller.ts
 services/
   github-oauth.service.ts
   github-account.service.ts
@@ -33,6 +35,13 @@ integrations/github-app-api.client.ts
 github.module.ts
 README.md
 ```
+
+Repository evidence query parameters are validated through feature-local DTOs.
+The stable `GITHUB_REPOSITORY_FULL_NAME_REQUIRED` application error remains the
+contract for a missing or whitespace-only `fullName`; valid values are passed
+through unchanged. The provider-facing browser redirect is kept in its own
+controller so the authenticated repository-evidence controller remains focused
+on API orchestration.
 
 The module exports its workflow services only. Provider clients, private-key and
 HMAC handling, token encryption, and GitHub persistence remain private. Only

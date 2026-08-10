@@ -5,20 +5,20 @@ import {
   Get,
   Post,
   Query,
-  Res,
   UseGuards,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
 
 import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
 import { AccessTokenGuard } from '../../../shared/auth/guards/access-token.guard';
-import { ApplicationError } from '../../../shared/errors/application.error';
 import { GitHubOAuthService } from '../services/github-oauth.service';
 import { GitHubEvidenceService } from '../services/github-evidence.service';
 import { GitHubRepositoryService } from '../services/github-repository.service';
 import { GitHubOAuthCallbackRequest } from '../dto/github-oauth-callback.request';
+import {
+  GitHubCommitSignalsQueryRequest,
+  GitHubRepositoryQueryRequest,
+} from '../dto/github-repository-query.request';
 import { GitHubRepositoriesQueryRequest } from '../dto/github-repositories-query.request';
 
 @Controller('github')
@@ -70,15 +70,14 @@ export class GitHubOAuthController {
   @Get('readme')
   async getReadme(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('fullName') fullName: string,
+    @Query() query: GitHubRepositoryQueryRequest,
   ) {
-    this.assertFullName(fullName);
     const content = await this.gitHubEvidenceService.getRepositoryReadme(
       user.id,
-      fullName,
+      query.fullName,
     );
     return {
-      fullName,
+      fullName: query.fullName,
       content,
       hasReadme: content !== null,
     };
@@ -88,15 +87,14 @@ export class GitHubOAuthController {
   @Get('repository/description')
   async getRepositoryDescription(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('fullName') fullName: string,
+    @Query() query: GitHubRepositoryQueryRequest,
   ) {
-    this.assertFullName(fullName);
     const description = await this.gitHubEvidenceService.getRepositoryDescription(
       user.id,
-      fullName,
+      query.fullName,
     );
     return {
-      fullName,
+      fullName: query.fullName,
       description,
     };
   }
@@ -105,12 +103,11 @@ export class GitHubOAuthController {
   @Get('repository/statistics')
   async getRepositoryStatistics(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('fullName') fullName: string,
+    @Query() query: GitHubRepositoryQueryRequest,
   ) {
-    this.assertFullName(fullName);
     return this.gitHubEvidenceService.fetchRepositoryStatistics(
       user.id,
-      fullName,
+      query.fullName,
     );
   }
 
@@ -118,12 +115,11 @@ export class GitHubOAuthController {
   @Get('repository/contribution-activity')
   async getContributionActivity(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('fullName') fullName: string,
+    @Query() query: GitHubRepositoryQueryRequest,
   ) {
-    this.assertFullName(fullName);
     return this.gitHubEvidenceService.fetchContributionActivity(
       user.id,
-      fullName,
+      query.fullName,
     );
   }
 
@@ -131,14 +127,12 @@ export class GitHubOAuthController {
   @Get('repository/commit-signals')
   async getCommitSignals(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('fullName') fullName: string,
-    @Query('author') author?: string,
+    @Query() query: GitHubCommitSignalsQueryRequest,
   ) {
-    this.assertFullName(fullName);
     return this.gitHubEvidenceService.fetchCommitSignals(
       user.id,
-      fullName,
-      author,
+      query.fullName,
+      query.author,
     );
   }
 
@@ -151,46 +145,4 @@ export class GitHubOAuthController {
     };
   }
 
-  private assertFullName(fullName: string | undefined): void {
-    if (!fullName?.trim()) {
-      throw new ApplicationError(
-        'fullName query parameter is required',
-        'GITHUB_REPOSITORY_FULL_NAME_REQUIRED',
-        400,
-      );
-    }
-  }
-}
-
-@Controller('auth/github/callback')
-export class GitHubOAuthBrowserCallbackController {
-  constructor(private readonly config: ConfigService) {}
-
-  @Get('repository')
-  redirectRepositoryConnectCallback(
-    @Query('code') code: string | undefined,
-    @Query('state') state: string | undefined,
-    @Query('error') error: string | undefined,
-    @Query('error_description') errorDescription: string | undefined,
-    @Res() response: Response,
-  ): void {
-    const frontendUrl = this.config.get<string>(
-      'FRONTEND_URL',
-      'http://localhost:3001',
-    );
-    const callbackUrl = new URL('/auth/callback', frontendUrl);
-    callbackUrl.searchParams.set('provider', 'github');
-
-    if (error) {
-      callbackUrl.searchParams.set('error', error);
-      if (errorDescription) {
-        callbackUrl.searchParams.set('error_description', errorDescription);
-      }
-    } else {
-      if (code) callbackUrl.searchParams.set('code', code);
-      if (state) callbackUrl.searchParams.set('state', state);
-    }
-
-    response.redirect(callbackUrl.toString());
-  }
 }

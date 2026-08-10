@@ -4,6 +4,7 @@ import { AuthService } from '../services/auth.service';
 import { SessionService } from '../services/session.service';
 import { RefreshSessionRequest } from '../dto/refresh-session.request';
 import { AssignRoleRequest } from '../dto/assign-role.request';
+import { UpdateUserPreferencesRequest } from '../dto/update-user-preferences.request';
 import { AccessTokenGuard } from '../../../shared/auth/guards/access-token.guard';
 import { RolesGuard } from '../../../shared/auth/guards/roles.guard';
 import { Roles } from '../../../shared/auth/roles.decorator';
@@ -38,6 +39,15 @@ export class SessionController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.getCurrentUser(user.id);
+  }
+
+  @UseGuards(AccessTokenGuard)
+  @Patch('me/preferences')
+  updateMyPreferences(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateUserPreferencesRequest,
+  ) {
+    return this.sessionService.updateCurrentUserPreferences(user.id, body);
   }
 
   @UseGuards(AccessTokenGuard, RolesGuard)
