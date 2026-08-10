@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ContributionRequestAuditAction,
   ContributionRequestRequirementKind,
@@ -34,6 +35,7 @@ export class ContributionRequestPublicationService {
     private readonly projectsService: ProjectsService,
     @Inject(forwardRef(() => ApplicationsService))
     private readonly applicationsService: ApplicationsService,
+    @Optional() private readonly config: ConfigService = new ConfigService(),
   ) {}
 
   async publishRequest(input: {
@@ -118,7 +120,7 @@ export class ContributionRequestPublicationService {
             published_at: { gte: periodStart, lt: periodEnd },
           },
         });
-        if (monthlyUsage >= monthlyLimit) {
+        if (this.isPublicationLimitEnforced() && monthlyUsage >= monthlyLimit) {
           throw new ConflictApplicationError(
             'The monthly Contribution Request publication limit was reached',
             'CONTRIBUTION_REQUEST_LIMIT_REACHED',
@@ -389,6 +391,10 @@ export class ContributionRequestPublicationService {
         'CONTRIBUTION_REQUEST_OWNER_ACCESS_REQUIRED',
       );
     }
+  }
+
+  private isPublicationLimitEnforced(): boolean {
+    return this.config.get<string>('NODE_ENV', 'development') !== 'development';
   }
 
   private async requireOwnedRequest(

@@ -7,6 +7,43 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(4000),
   DATABASE_URL: Joi.string().required(),
   REDIS_URL: Joi.string().required(),
+  REALTIME_NOTIFICATIONS_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
+  NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  NOTIFICATION_EVENT_RECOVERY_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .max(86_400_000)
+    .default(60_000),
+  NOTIFICATION_EVENT_RECOVERY_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1_000)
+    .default(100),
+  NOTIFICATION_EVENT_MAX_PUBLISH_ATTEMPTS: Joi.number()
+    .integer()
+    .min(1)
+    .max(10)
+    .default(5),
+  NOTIFICATION_RETENTION_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  NOTIFICATION_RETENTION_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .max(86_400_000)
+    .default(60_000),
+  NOTIFICATION_RETENTION_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1_000)
+    .default(100),
   SKILL_PROFILE_QUEUE_ENABLED: Joi.boolean()
     .truthy('true')
     .falsy('false')

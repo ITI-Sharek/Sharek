@@ -1,0 +1,610 @@
+import { NotificationType } from '@prisma/client';
+
+import {
+  ApplicationNotificationParameters,
+  LegacyNotificationParameters,
+  NotificationLanguage,
+  NotificationParameterContract,
+  NotificationPriorityValue,
+  NotificationTemplateDefinition,
+  NotificationTemplateKey,
+  NotificationTemplateParameterMap,
+  NotificationTemplateParameters,
+  NotificationTemplatePolicy,
+  ProposalNotificationParameters,
+  SkillReviewNotificationParameters,
+  ConversationActivityNotificationParameters,
+} from './notification-template.types';
+
+export const NOTIFICATION_TEMPLATE_KEYS = [
+  'application.accepted',
+  'application.submitted',
+  'application.withdrawn',
+  'application.declined_by_owner',
+  'application.not_selected',
+  'application.owner_review_reminder',
+  'application.expired',
+  'proposal.revision_requested',
+  'proposal.accepted',
+  'proposal.declined',
+  'skill_review.activated',
+  'skill_review.approved',
+  'skill_review.not_approved',
+  'conversation.activity',
+  'system.legacy',
+] as const satisfies readonly NotificationTemplateKey[];
+
+const APPLICATION_ACTIONS = [
+  'submitted',
+  'withdrawn',
+  'owner_review_reminder',
+] as const;
+
+type ApplicationNotificationAction =
+  | 'submitted'
+  | 'withdrawn'
+  | 'accepted'
+  | 'declined_by_owner'
+  | 'not_selected'
+  | 'owner_review_reminder'
+  | 'expired';
+
+const POLICY: Readonly<Record<NotificationTemplateKey, NotificationTemplatePolicy>> = {
+  'application.accepted': {
+    category: NotificationType.application_status,
+    priority: 'attention',
+  },
+  'application.submitted': {
+    category: NotificationType.application_status,
+    priority: 'attention',
+  },
+  'application.withdrawn': {
+    category: NotificationType.application_status,
+    priority: 'attention',
+  },
+  'application.declined_by_owner': {
+    category: NotificationType.application_status,
+    priority: 'attention',
+  },
+  'application.not_selected': {
+    category: NotificationType.application_status,
+    priority: 'attention',
+  },
+  'application.owner_review_reminder': {
+    category: NotificationType.application_status,
+    priority: 'attention',
+  },
+  'application.expired': {
+    category: NotificationType.application_status,
+    priority: 'attention',
+  },
+  'proposal.revision_requested': {
+    category: NotificationType.proposal_status,
+    priority: 'attention',
+  },
+  'proposal.accepted': {
+    category: NotificationType.proposal_status,
+    priority: 'attention',
+  },
+  'proposal.declined': {
+    category: NotificationType.proposal_status,
+    priority: 'attention',
+  },
+  'skill_review.activated': {
+    category: NotificationType.skill_review,
+    priority: 'attention',
+  },
+  'skill_review.approved': {
+    category: NotificationType.skill_review,
+    priority: 'attention',
+  },
+  'skill_review.not_approved': {
+    category: NotificationType.skill_review,
+    priority: 'attention',
+  },
+  'conversation.activity': {
+    category: NotificationType.conversation_activity,
+    priority: 'attention',
+  },
+  'system.legacy': {
+    category: NotificationType.system,
+    priority: 'ambient',
+  },
+};
+
+const APPLICATION_COPY: Record<
+  ApplicationNotificationAction,
+  Record<NotificationLanguage, { title: string; body: string }>
+> = {
+  accepted: {
+    en: {
+      title: 'Application accepted',
+      body: 'Your Application was accepted and an Assignment was created.',
+    },
+    ar: {
+      title: 'تم قبول طلب المساهمة',
+      body: 'تم قبول طلب مساهمتك وإنشاء تكليف لك.',
+    },
+  },
+  submitted: {
+    en: {
+      title: 'New Application received',
+      body: 'A contributor submitted an Application for your Contribution Request.',
+    },
+    ar: {
+      title: 'تم استلام طلب مساهمة جديد',
+      body: 'قدّم مساهم طلبًا للمساهمة في طلب مشاركتك.',
+    },
+  },
+  withdrawn: {
+    en: {
+      title: 'Application withdrawn',
+      body: 'A contributor withdrew an Application from your Contribution Request.',
+    },
+    ar: {
+      title: 'تم سحب طلب المساهمة',
+      body: 'سحب مساهم طلبه من طلب مشاركتك.',
+    },
+  },
+  declined_by_owner: {
+    en: {
+      title: 'Application declined by owner',
+      body: 'The Project owner declined your Application. This decision affects only this Application.',
+    },
+    ar: {
+      title: 'رفض مالك المشروع طلب المساهمة',
+      body: 'رفض مالك المشروع طلبك. يؤثر هذا القرار في هذا الطلب فقط.',
+    },
+  },
+  not_selected: {
+    en: {
+      title: 'Another contributor was selected',
+      body: 'Another contributor was selected for this Contribution Request. This does not affect your eligibility or reputation.',
+    },
+    ar: {
+      title: 'تم اختيار مساهم آخر',
+      body: 'تم اختيار مساهم آخر لهذا الطلب. لا يؤثر ذلك في أهليتك أو سمعتك.',
+    },
+  },
+  owner_review_reminder: {
+    en: {
+      title: 'Application awaiting review',
+      body: 'An Application for your Contribution Request has been waiting for review for 3 days.',
+    },
+    ar: {
+      title: 'طلب مساهمة في انتظار المراجعة',
+      body: 'ينتظر طلب مساهمة في طلب مشاركتك المراجعة منذ 3 أيام.',
+    },
+  },
+  expired: {
+    en: {
+      title: 'Application review window expired',
+      body: 'Your Application expired because it was not reviewed within 7 days. This is not an owner rejection and does not affect your eligibility or reputation.',
+    },
+    ar: {
+      title: 'انتهت مهلة مراجعة طلب المساهمة',
+      body: 'انتهت صلاحية طلبك لأنه لم يُراجع خلال 7 أيام. لا يُعد ذلك رفضًا ولا يؤثر في أهليتك أو سمعتك.',
+    },
+  },
+};
+
+const APPLICATION_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['applicationId', 'contributionRequestId'],
+  validate: (parameters) =>
+    validateApplicationParameters(parameters) as NotificationTemplateParameters,
+};
+
+const PROPOSAL_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['proposalId', 'projectId'],
+  validate: (parameters) =>
+    validateProposalParameters(parameters) as NotificationTemplateParameters,
+};
+
+const SKILL_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['skillProfileId', 'skillName'],
+  validate: (parameters) =>
+    validateSkillParameters(parameters) as NotificationTemplateParameters,
+};
+
+const CONVERSATION_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: [
+    'conversationId',
+    'messageId',
+    'senderName',
+    'messagePreview',
+    'messageCount',
+  ],
+  validate: (parameters) =>
+    validateConversationParameters(parameters) as NotificationTemplateParameters,
+};
+
+const LEGACY_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['legacyTitle', 'legacyBody'],
+  validate: (parameters) =>
+    validateLegacyParameters(parameters) as NotificationTemplateParameters,
+};
+
+function validateApplicationParameters(
+  parameters: unknown,
+): ApplicationNotificationParameters {
+  const record = requireRecord(parameters);
+  return {
+    applicationId: requiredString(record, 'applicationId'),
+    contributionRequestId: requiredString(record, 'contributionRequestId'),
+  };
+}
+
+function validateProposalParameters(
+  parameters: unknown,
+): ProposalNotificationParameters {
+  const record = requireRecord(parameters);
+  const revisionRequestSequence = record.revisionRequestSequence;
+  if (
+    revisionRequestSequence !== undefined &&
+    (typeof revisionRequestSequence !== 'number' ||
+      !Number.isInteger(revisionRequestSequence) ||
+      revisionRequestSequence < 1)
+  ) {
+    throw invalidParameters();
+  }
+
+  return {
+    proposalId: requiredString(record, 'proposalId'),
+    projectId: requiredString(record, 'projectId'),
+    ...(revisionRequestSequence === undefined ? {} : { revisionRequestSequence }),
+    ...(record.resultingContributionRequestId === undefined
+      ? {}
+      : {
+          resultingContributionRequestId: requiredString(
+            record,
+            'resultingContributionRequestId',
+          ),
+        }),
+  };
+}
+
+function validateSkillParameters(
+  parameters: unknown,
+): SkillReviewNotificationParameters {
+  const record = requireRecord(parameters);
+  return {
+    skillProfileId: requiredString(record, 'skillProfileId'),
+    skillName: requiredString(record, 'skillName'),
+  };
+}
+
+function validateConversationParameters(
+  parameters: unknown,
+): ConversationActivityNotificationParameters {
+  const record = requireRecord(parameters);
+  return {
+    conversationId: requiredString(record, 'conversationId'),
+    messageId: requiredString(record, 'messageId'),
+    senderName: requiredString(record, 'senderName'),
+    messagePreview: requiredString(record, 'messagePreview'),
+    messageCount: requiredPositiveInteger(record, 'messageCount'),
+  };
+}
+
+function validateLegacyParameters(
+  parameters: unknown,
+): LegacyNotificationParameters {
+  const record = requireRecord(parameters);
+  return {
+    legacyTitle: requiredString(record, 'legacyTitle'),
+    legacyBody: requiredString(record, 'legacyBody'),
+  };
+}
+
+function requireRecord(parameters: unknown): Record<string, unknown> {
+  if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)) {
+    throw invalidParameters();
+  }
+  return parameters as Record<string, unknown>;
+}
+
+function requiredString(parameters: Record<string, unknown>, key: string): string {
+  const value = parameters[key];
+  if (typeof value !== 'string' || value.trim() === '') throw invalidParameters();
+  return value;
+}
+
+function requiredPositiveInteger(
+  parameters: Record<string, unknown>,
+  key: string,
+): number {
+  const value = parameters[key];
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw invalidParameters();
+  }
+  return value;
+}
+
+function invalidParameters(): Error {
+  return new Error('NOTIFICATION_PARAMETERS_INVALID');
+}
+
+function safeIdentifier(value: string): string {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw invalidParameters();
+  return encodeURIComponent(value);
+}
+
+export function buildApplicationNotificationDeepLink(
+  action: ApplicationNotificationAction,
+  parameters: ApplicationNotificationParameters,
+): string {
+  const validated = validateApplicationParameters(parameters);
+  const applicationId = safeIdentifier(validated.applicationId);
+  const contributionRequestId = safeIdentifier(
+    validated.contributionRequestId,
+  );
+  const usesRequest = APPLICATION_ACTIONS.includes(
+    action as (typeof APPLICATION_ACTIONS)[number],
+  );
+  return usesRequest
+    ? `/contribution-requests/${contributionRequestId}`
+    : `/applications/${applicationId}`;
+}
+
+export function buildProposalNotificationDeepLink(
+  parameters: ProposalNotificationParameters,
+): string {
+  const validated = validateProposalParameters(parameters);
+  safeIdentifier(validated.projectId);
+  return `/proposals/${safeIdentifier(validated.proposalId)}`;
+}
+
+export function buildSkillReviewNotificationDeepLink(): string {
+  return '/settings?section=github';
+}
+
+export function buildConversationActivityNotificationDeepLink(
+  parameters: ConversationActivityNotificationParameters,
+): string {
+  const validated = validateConversationParameters(parameters);
+  return `/messages?conversation=${safeIdentifier(validated.conversationId)}`;
+}
+
+function applicationTemplate(
+  action: ApplicationNotificationAction,
+): NotificationTemplateDefinition {
+  const key = `application.${action}` as NotificationTemplateKey;
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: APPLICATION_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) => {
+        validateApplicationParameters(parameters);
+        return APPLICATION_COPY[action].en;
+      },
+      ar: (parameters) => {
+        validateApplicationParameters(parameters);
+        return APPLICATION_COPY[action].ar;
+      },
+    },
+    buildDeepLink: (parameters) =>
+      buildApplicationNotificationDeepLink(
+        action,
+        validateApplicationParameters(parameters),
+      ),
+  };
+}
+
+function proposalTemplate(
+  action: 'revision_requested' | 'accepted' | 'declined',
+  copy: Record<NotificationLanguage, { title: string; body: string }>,
+): NotificationTemplateDefinition {
+  const key = `proposal.${action}` as NotificationTemplateKey;
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: PROPOSAL_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) => {
+        validateProposalParameters(parameters);
+        return copy.en;
+      },
+      ar: (parameters) => {
+        validateProposalParameters(parameters);
+        return copy.ar;
+      },
+    },
+    buildDeepLink: (parameters) =>
+      buildProposalNotificationDeepLink(validateProposalParameters(parameters)),
+  };
+}
+
+function skillTemplate(
+  key: 'skill_review.activated' | 'skill_review.approved' | 'skill_review.not_approved',
+  render: Record<NotificationLanguage, (skillName: string) => string>,
+  titles: Record<NotificationLanguage, string>,
+): NotificationTemplateDefinition {
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: SKILL_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) => {
+        const validated = validateSkillParameters(parameters);
+        return { title: titles.en, body: render.en(validated.skillName) };
+      },
+      ar: (parameters) => {
+        const validated = validateSkillParameters(parameters);
+        return { title: titles.ar, body: render.ar(validated.skillName) };
+      },
+    },
+    buildDeepLink: () => buildSkillReviewNotificationDeepLink(),
+  };
+}
+
+const LEGACY_TEMPLATE: NotificationTemplateDefinition = {
+  key: 'system.legacy',
+  version: 1,
+  ...POLICY['system.legacy'],
+  parameterContract: LEGACY_PARAMETER_CONTRACT,
+  render: {
+    en: (parameters) => {
+      const validated = validateLegacyParameters(parameters);
+      return { title: validated.legacyTitle, body: validated.legacyBody };
+    },
+    ar: (parameters) => {
+      const validated = validateLegacyParameters(parameters);
+      return { title: validated.legacyTitle, body: validated.legacyBody };
+    },
+  },
+  buildDeepLink: () => null,
+};
+
+const CONVERSATION_TEMPLATE: NotificationTemplateDefinition = {
+  key: 'conversation.activity',
+  version: 1,
+  ...POLICY['conversation.activity'],
+  parameterContract: CONVERSATION_PARAMETER_CONTRACT,
+  render: {
+    en: (parameters) => {
+      const validated = validateConversationParameters(parameters);
+      return {
+        title:
+          validated.messageCount === 1
+            ? `New message from ${validated.senderName}`
+            : `${validated.messageCount} new messages from ${validated.senderName}`,
+        body: validated.messagePreview,
+      };
+    },
+    ar: (parameters) => {
+      const validated = validateConversationParameters(parameters);
+      return {
+        title:
+          validated.messageCount === 1
+            ? `رسالة جديدة من ${validated.senderName}`
+            : `${validated.messageCount} رسائل جديدة من ${validated.senderName}`,
+        body: validated.messagePreview,
+      };
+    },
+  },
+  buildDeepLink: (parameters) =>
+    buildConversationActivityNotificationDeepLink(
+      validateConversationParameters(parameters),
+    ),
+};
+
+const definitions: NotificationTemplateDefinition[] = [
+  applicationTemplate('accepted'),
+  applicationTemplate('submitted'),
+  applicationTemplate('withdrawn'),
+  applicationTemplate('declined_by_owner'),
+  applicationTemplate('not_selected'),
+  applicationTemplate('owner_review_reminder'),
+  applicationTemplate('expired'),
+  proposalTemplate('revision_requested', {
+    en: {
+      title: 'Proposal revision requested',
+      body: 'The Project owner requested a revision to your Contribution Proposal.',
+    },
+    ar: {
+      title: 'طلب تعديل مقترح المساهمة',
+      body: 'طلب مالك المشروع تعديل مقترح مساهمتك.',
+    },
+  }),
+  proposalTemplate('accepted', {
+    en: {
+      title: 'Proposal accepted',
+      body: 'The Project owner accepted your Contribution Proposal and created an attributed draft Contribution Request.',
+    },
+    ar: {
+      title: 'تم قبول مقترح المساهمة',
+      body: 'قبل مالك المشروع مقترحك وأنشأ مسودة طلب مشاركة منسوبة إليك.',
+    },
+  }),
+  proposalTemplate('declined', {
+    en: {
+      title: 'Proposal declined',
+      body: 'The Project owner declined your Contribution Proposal. Review the proposal for the owner’s reason.',
+    },
+    ar: {
+      title: 'تم رفض مقترح المساهمة',
+      body: 'رفض مالك المشروع مقترحك. راجع المقترح لمعرفة سبب المالك.',
+    },
+  }),
+  skillTemplate(
+    'skill_review.activated',
+    {
+      en: (skillName) =>
+        `Your ${skillName} skill was approved. Your contributor account is now active.`,
+      ar: (skillName) =>
+        `تمت الموافقة على مهارة ${skillName}. حساب المساهم لديك نشط الآن.`,
+    },
+    { en: 'Skill profile approved', ar: 'تمت الموافقة على ملف المهارة' },
+  ),
+  skillTemplate(
+    'skill_review.approved',
+    {
+      en: (skillName) => `Your ${skillName} skill was approved.`,
+      ar: (skillName) => `تمت الموافقة على مهارة ${skillName}.`,
+    },
+    { en: 'Skill approved', ar: 'تمت الموافقة على المهارة' },
+  ),
+  skillTemplate(
+    'skill_review.not_approved',
+    {
+      en: (skillName) =>
+        `Your ${skillName} skill was reviewed and was not approved.`,
+      ar: (skillName) => `تمت مراجعة مهارة ${skillName} ولم تتم الموافقة عليها.`,
+    },
+    { en: 'Skill review update', ar: 'تحديث مراجعة المهارة' },
+  ),
+  CONVERSATION_TEMPLATE,
+  LEGACY_TEMPLATE,
+];
+
+const templates = new Map<string, NotificationTemplateDefinition>(
+  definitions.map((definition) => [
+    `${definition.key}:${definition.version}`,
+    definition,
+  ]),
+);
+
+export function getNotificationTemplateDefinitions(): readonly NotificationTemplateDefinition[] {
+  return definitions;
+}
+
+export function getNotificationTemplatePolicy(
+  key: NotificationTemplateKey,
+): { category: NotificationType; priority: NotificationPriorityValue } {
+  return POLICY[key];
+}
+
+export function validateNotificationTemplateParameters<
+  K extends NotificationTemplateKey,
+>(
+  key: K,
+  parameters: unknown,
+): NotificationTemplateParameterMap[K] {
+  switch (key) {
+    case 'system.legacy':
+      return validateLegacyParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'skill_review.activated':
+    case 'skill_review.approved':
+    case 'skill_review.not_approved':
+      return validateSkillParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'conversation.activity':
+      return validateConversationParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'proposal.revision_requested':
+    case 'proposal.accepted':
+    case 'proposal.declined':
+      return validateProposalParameters(parameters) as NotificationTemplateParameterMap[K];
+    default:
+      return validateApplicationParameters(parameters) as NotificationTemplateParameterMap[K];
+  }
+}
+
+export function findNotificationTemplate(
+  key: string,
+  version: number,
+): NotificationTemplateDefinition | undefined {
+  return templates.get(`${key}:${version}`);
+}

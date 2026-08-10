@@ -5,6 +5,7 @@ import {
   ContributionRequestStatus,
   Prisma,
 } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 
 import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
 import {
@@ -75,6 +76,13 @@ describe('ContributionTasksService', () => {
     projectsService as never,
     applicationsService as never,
   );
+  const developmentPublicationService =
+    new ContributionRequestPublicationService(
+      database as never,
+      projectsService as never,
+      applicationsService as never,
+      new ConfigService({ NODE_ENV: 'development' }),
+    );
   const publicService = new PublicContributionRequestsService(
     database as never,
     projectsService as never,
@@ -377,6 +385,51 @@ describe('ContributionTasksService', () => {
         monthlyLimit: 10,
         monthlyUsage: 10,
       },
+    } satisfies Partial<ApplicationError>);
+    expect(database.contributionRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('allows an over-limit publication in development for local testing', async () => {
+    const published = makeRequest({
+      status: ContributionRequestStatus.published,
+      published_at: new Date('2026-07-28T12:00:00.000Z'),
+    });
+    database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
+    database.subscription.findFirst.mockResolvedValue(null);
+    database.contributionRequest.count.mockResolvedValue(10);
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(published);
+
+    await expect(
+      developmentPublicationService.publishRequest({
+        user: owner,
+        requestId,
+      }),
+    ).resolves.toMatchObject({ status: ContributionRequestStatus.published });
+
+    expect(database.contributionRequest.updateMany).toHaveBeenCalled();
+  });
+
+  it('keeps the publication limit enforced in production', async () => {
+    const productionPublicationService =
+      new ContributionRequestPublicationService(
+        database as never,
+        projectsService as never,
+        applicationsService as never,
+        new ConfigService({ NODE_ENV: 'production' }),
+      );
+    database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
+    database.subscription.findFirst.mockResolvedValue(null);
+    database.contributionRequest.count.mockResolvedValue(10);
+
+    await expect(
+      productionPublicationService.publishRequest({
+        user: owner,
+        requestId,
+      }),
+    ).rejects.toMatchObject({
+      code: 'CONTRIBUTION_REQUEST_LIMIT_REACHED',
+      statusCode: 409,
     } satisfies Partial<ApplicationError>);
     expect(database.contributionRequest.updateMany).not.toHaveBeenCalled();
   });

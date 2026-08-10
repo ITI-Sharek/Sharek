@@ -118,7 +118,7 @@ migrations, README/tracker updates, and known risks.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/004-optional-github-skill-profile/plan.md
+at specs/006-realtime-notification-foundation/plan.md
 <!-- SPECKIT END -->
 
 Before finishing a code change, append a short record to

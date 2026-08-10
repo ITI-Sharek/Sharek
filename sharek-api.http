@@ -152,6 +152,7 @@
 @contributionProposalId = replace-with-contribution-proposal-uuid
 @proposalCursor = replace-with-next-cursor-or-remove-query
 @userIdToPromote = replace-with-real-user-id
+@notificationId = replace-with-recipient-notification-uuid
 
 
 ### 01 - DONE - Health check
@@ -1354,4 +1355,107 @@ Content-Type: application/json
 {
   "reason": "This proposal appears to reuse another contributor's private work.",
   "idempotencyKey": "00000000-0000-4000-8000-000000000009"
+}
+
+
+### 40 - List the authenticated user's Notifications
+# The recipient is derived from the access token. Use an opaque nextCursor from
+# this response for the next page; do not construct cursors manually.
+# @name ownerNotifications
+GET {{baseUrl}}/notifications?limit=20
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 41 - Read the authenticated user's unread Notification count
+GET {{baseUrl}}/notifications/unread-count
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 42 - Mark one Notification read
+# Replace notificationId with an item returned by the recipient's list call.
+PATCH {{baseUrl}}/notifications/{{notificationId}}/read-state
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "state": "read"
+}
+
+
+### 43 - Mark one Notification unread
+PATCH {{baseUrl}}/notifications/{{notificationId}}/read-state
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "state": "unread"
+}
+
+
+### 44 - Mark all retained Notifications read
+POST {{baseUrl}}/notifications/mark-all-read
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{}
+
+
+### 45 - Read Notification preferences
+GET {{baseUrl}}/me/notification-preferences
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 46 - Update Notification preferences with optimistic revision
+PATCH {{baseUrl}}/me/notification-preferences
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "expectedRevision": 1,
+  "retentionDays": 90,
+  "quietHours": {
+    "enabled": false,
+    "startLocal": null,
+    "endLocal": null,
+    "timeZone": null
+  }
+}
+
+
+### 47 - Change the authenticated user's Notification language
+# Language is identity-owned, not a Notification preference.
+PATCH {{baseUrl}}/auth/me/preferences
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "preferredLanguage": "ar"
+}
+
+
+### 48 - List the authenticated user's Assignment Conversations
+# Assignment Conversations are created by accepting an Application. The
+# response contains the conversationId needed by the following requests.
+GET {{baseUrl}}/assignment-conversations?limit=20
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 49 - Read one authorized Assignment Conversation
+GET {{baseUrl}}/assignment-conversations/{{assignmentConversationId}}
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 50 - Read Assignment Conversation messages
+GET {{baseUrl}}/assignment-conversations/{{assignmentConversationId}}/messages?limit=20
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 51 - Send an idempotent Assignment Conversation message
+POST {{baseUrl}}/assignment-conversations/{{assignmentConversationId}}/messages
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "idempotencyKey": "message-rest-001",
+  "body": "Hello from the Assignment conversation."
 }

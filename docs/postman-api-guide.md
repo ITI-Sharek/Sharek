@@ -1,580 +1,262 @@
 # Share-k Backend Postman API Guide
 
-This guide is the Postman test contract for the currently implemented NestJS
-backend routes. It is derived from the controllers under `src/modules`; keep it
-updated whenever a route, request DTO, authorization rule, or response contract
-changes.
+This guide and the collection are generated from the NestJS controllers and validated DTO-backed requests. The canonical local base URL is `http://localhost:4000`; backend routes are deliberately unprefixed.
 
-## 1. Start The Backend
+## Import and local validation
 
-The default Docker Compose URL is:
+Import `postman/sharek-backend.postman_collection.json` and `postman/sharek-backend.postman_environment.json`, select the environment, and fill only the credentials needed for your local test accounts. Committed email values use the reserved `.test` domain; passwords, tokens, OAuth values, and webhook signatures are empty.
 
-```text
-http://localhost:4000
-```
-
-Start the backend from the repository root:
+Run the deterministic offline coverage gate from `server/`:
 
 ```bash
-docker compose up -d
-curl http://localhost:4000/health
+npm run test:postman
 ```
 
-Expected health response:
+The gate discovers every file under `src` containing `@Controller`, compares normalized method/path pairs, rejects duplicates and obsolete routes, validates URL/base-variable use, compiles Postman scripts, and verifies environment/credential safety. It does not start NestJS or contact PostgreSQL, Redis, GitHub, email, AI, or Postman.
 
-```json
-{
-  "message": "Service is healthy",
-  "status": "ok"
-}
-```
+## Recommended workflow
 
-If you run NestJS directly on the host, use a free `PORT` and set `baseUrl` to
-that port. Do not run the host process on the same port already published by
-Docker.
+1. Start with Health, registration, email verification, and login.
+2. Save role-specific bearer tokens (`ownerAccessToken`, `contributorAccessToken`, `adminAccessToken`). The auth test scripts populate them from the confirmed response role.
+3. Use GitHub App/provider callback requests only after external setup; placeholders are intentionally nonfunctional.
+4. Create a Project, Contribution Request, Application, Proposal, Material, and Analysis Set in dependency order so response scripts capture the IDs used downstream.
+5. Multipart requests require selecting a local file in Postman; the collection never commits a local path.
 
-## 2. Postman Environment
+## Complete HTTP endpoint catalog
 
-Create a Postman environment named `Share-k Local` with these variables:
-
-| Variable | Initial value | Used for |
-| --- | --- | --- |
-| `baseUrl` | `http://localhost:4000` | Backend base URL |
-| `ownerEmail` | `owner@example.com` | Owner test account |
-| `contributorEmail` | `contributor@example.com` | Contributor test account |
-| `adminEmail` | `admin@example.com` | Existing admin account |
-| `password` | `Password123!` | Local test password |
-| `ownerUsername` | `sharek-owner` | Owner registration |
-| `contributorUsername` | `sharek-contributor` | Contributor registration |
-| `ownerOtp` | `replace-with-owner-otp` | Email verification code |
-| `contributorOtp` | `replace-with-contributor-otp` | Email verification code |
-| `passwordResetOtp` | `replace-with-password-reset-otp` | Password reset code |
-| `accessToken` | empty | Current bearer token |
-| `refreshToken` | empty | Current refresh token |
-| `generationId` | empty | Skill generation UUID |
-| `userId` | empty | User id for admin role assignment |
-| `githubRepoFullName` | `openai/openai-node` | GitHub `owner/repository` |
-| `githubRepoUrl` | `https://github.com/openai/openai-node` | Public project URL |
-| `contributionRequestId` | empty | Published Request used by the Application workflow |
-| `applicationId` | empty | Captured submitted Application |
-| `declineApplicationId` | empty | A different pending Application for decline testing |
-| `ownerAccessToken` | empty | Active current-Project-owner bearer token |
-| `contributorAccessToken` | empty | Active applying-contributor bearer token |
-
-Use the `Authorization` tab with type `Bearer Token` and value
-`{{accessToken}}` for protected requests. Do not put real secrets, OAuth codes,
-or provider tokens in this repository or in a shared Postman collection.
-
-## 3. Recommended Test Order
-
-1. `GET /health`
-2. Register an owner and a contributor.
-3. Read the OTP from the configured email inbox or local backend logs.
-4. Verify each email and save the returned access and refresh tokens.
-5. Use the contributor token for profile, GitHub, and skill-profile requests.
-6. Use the owner token for project import.
-7. Use an existing admin token for role assignment.
-8. Test refresh and logout last because logout revokes the session.
-
-Email/password registration creates a pending account and does not return
-session tokens until `POST /auth/verify-email` succeeds. Reusing an existing
-email returns an error; use login for an existing test user.
-
-## 4. Complete Endpoint Catalog
+Unique controller method/path pairs: **138**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `GET` | `/health` | Public | Check that the NestJS process is responding. |
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/health` | Public | 200 | Health Check |
 
-### Identity And Sessions
+### Identity and Sessions
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `POST` | `/auth/register` | Public | Create a pending owner or contributor account. |
-| `GET` | `/auth/username-availability` | Public | Validate a username and return a suggestion when taken. |
-| `POST` | `/auth/verify-email` | Public | Verify the six-digit email OTP and create a session. |
-| `POST` | `/auth/verify-email/resend` | Public | Send a new verification OTP for a pending account. |
-| `POST` | `/auth/login` | Public | Create a session for an active user. |
-| `POST` | `/auth/forgot-password` | Public | Create and send a password reset OTP. |
-| `POST` | `/auth/reset-password` | Public | Change the password using a valid reset OTP. |
-| `POST` | `/auth/refresh` | Public | Rotate a session using a refresh token. |
-| `POST` | `/auth/logout` | Bearer | Revoke the current session. |
-| `GET` | `/auth/me` | Bearer | Return the authenticated public user. |
-| `PATCH` | `/auth/users/:id/role` | Admin bearer | Assign `owner`, `contributor`, or `admin`. |
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `PATCH` | `/auth/users/:id/role` | admin | 200 | Assign Role |
+| `GET` | `/auth/username-availability` | Public | 200 | Check Username Availability |
+| `POST` | `/auth/forgot-password` | Public | 201 | Forgot Password |
+| `GET` | `/auth/me` | Bearer / resource-scoped | 200 | Get Current User |
+| `POST` | `/auth/login` | Public | 201 | Login |
+| `POST` | `/auth/logout` | Bearer / resource-scoped | 201 | Logout |
+| `POST` | `/auth/refresh` | Public | 201 | Refresh Token |
+| `POST` | `/auth/register` | Public | 201 | Register Account |
+| `POST` | `/auth/verify-email/resend` | Public | 201 | Resend Email Verification |
+| `POST` | `/auth/reset-password` | Public | 201 | Reset Password |
+| `PATCH` | `/auth/me/preferences` | Bearer / resource-scoped | 200 | Update Current User Language |
+| `POST` | `/auth/verify-email` | Public | 201 | Verify Email |
 
-### Social Authentication
+### OAuth
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `GET` | `/auth/google/start?role=owner\|contributor` | Public | Create a Google authorization URL and state. |
-| `GET` | `/auth/google/callback?code=...&state=...` | Public/browser | Forward the provider callback to the frontend. |
-| `POST` | `/auth/google/callback` | Public | Exchange a real Google code and state for a Share-k session. |
-| `GET` | `/auth/github/start?role=owner\|contributor` | Public | Create a GitHub identity authorization URL and state. |
-| `GET` | `/auth/github/callback?code=...&state=...` | Public/browser | Forward the provider callback to the frontend. |
-| `POST` | `/auth/github/callback` | Public | Exchange a real GitHub identity code and state. |
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/auth/github/app/callback` | Public | 302 | Browser Callback |
+| `POST` | `/auth/github/callback` | Public | 201 | Complete GitHub Social Sign-In |
+| `POST` | `/auth/github/account/callback` | Bearer / resource-scoped | 201 | Connect GitHub Sign-In Account |
+| `DELETE` | `/auth/github/account` | Bearer / resource-scoped | 200 | Disconnect GitHub Sign-In Account |
+| `GET` | `/auth/github/callback/repository` | Public | 302 | GitHub Repository OAuth Browser Callback |
+| `GET` | `/auth/github/callback` | Public | 302 | GitHub Social Browser Callback |
+| `POST` | `/auth/google/callback` | Public | 201 | Google OAuth Callback from Frontend |
+| `GET` | `/auth/google/callback` | Public | 302 | Google OAuth Callback Redirect |
+| `GET` | `/auth/github/start` | Public | 200 | Start GitHub Social Sign-In |
+| `GET` | `/auth/google/start` | Public | 200 | Start Google OAuth |
 
-### GitHub Connection And Evidence
+### GitHub Evidence
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `GET` | `/github/oauth/start` | Bearer | Start repository-access OAuth for the logged-in user. |
-| `GET` | `/github/oauth/callback?code=...&state=...` | Public/provider | Complete OAuth from a direct provider redirect. |
-| `POST` | `/github/oauth/callback` | Public | Complete OAuth after the frontend receives code and state. |
-| `GET` | `/auth/github/callback/repository?code=...&state=...` | Public/browser | Redirect repository OAuth to the frontend callback page. |
-| `GET` | `/github/account` | Bearer | Read the connected GitHub account summary. |
-| `GET` | `/github/repositories?page=1&perPage=12` | Bearer | List repositories available to the connected account. |
-| `GET` | `/github/readme?fullName=owner/repository` | Bearer | Read repository README content. |
-| `GET` | `/github/repository/description?fullName=owner/repository` | Bearer | Read repository description. |
-| `GET` | `/github/repository/statistics?fullName=owner/repository` | Bearer | Read normalized repository statistics. |
-| `GET` | `/github/repository/contribution-activity?fullName=owner/repository` | Bearer | Read contribution activity. |
-| `GET` | `/github/repository/commit-signals?fullName=owner/repository&author=login` | Bearer | Read recent commit signals, optionally filtered by author. |
-| `DELETE` | `/github/account` | Bearer | Disconnect the current user's GitHub account. |
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `DELETE` | `/github/account` | Bearer / resource-scoped | 200 | Disconnect GitHub Account |
+| `GET` | `/github/repository/commit-signals` | Bearer / resource-scoped | 200 | Get Commit Signals |
+| `GET` | `/github/account` | Bearer / resource-scoped | 200 | Get Connected GitHub Account |
+| `GET` | `/github/repository/contribution-activity` | Bearer / resource-scoped | 200 | Get Contribution Activity |
+| `GET` | `/github/repository/description` | Bearer / resource-scoped | 200 | Get Repository Description |
+| `GET` | `/github/readme` | Bearer / resource-scoped | 200 | Get Repository README |
+| `GET` | `/github/repository/statistics` | Bearer / resource-scoped | 200 | Get Repository Statistics |
+| `POST` | `/github/oauth/callback` | Public | 201 | GitHub OAuth Callback from Frontend |
+| `GET` | `/github/oauth/callback` | Public | 200 | GitHub OAuth Callback Redirect |
+| `GET` | `/github/repositories` | Bearer / resource-scoped | 200 | List GitHub Repositories |
+| `GET` | `/github/oauth/start` | Bearer / resource-scoped | 200 | Start GitHub OAuth |
+
+### GitHub App
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/github/app/installations/callback` | Bearer / resource-scoped | 201 | Complete Installation |
+| `DELETE` | `/github/app/installations/:installationLinkId` | Bearer / resource-scoped | 200 | Disconnect Installation |
+| `GET` | `/github/app/installations/attempts/:attemptId` | Bearer / resource-scoped | 200 | Get Installation Attempt |
+| `POST` | `/webhooks/github/app` | Public | 201 | GitHub App Webhook |
+| `GET` | `/github/app/installations` | Bearer / resource-scoped | 200 | List Installations |
+| `GET` | `/github/app/repositories` | Bearer / resource-scoped | 200 | List Selected Repositories |
+| `POST` | `/github/app/installations/start` | Bearer / resource-scoped | 201 | Start Installation |
 
 ### Projects
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `POST` | `/projects/github/preview` | Active owner/contributor bearer | Preview allowed GitHub metadata without persistence. |
-| `POST` | `/projects` | Active owner/contributor bearer + idempotency key | Confirm a preview into a private draft. |
-| `GET/PATCH` | `/projects/me/:projectId` | Persisted owner | Read or edit owner-controlled project fields. |
-| `POST` | `/projects/me/:projectId/source/refresh` | Persisted owner + idempotency key | Refresh source without replacing manual overrides. |
-| `POST` | `/projects/me/:projectId/publish` | Persisted owner + idempotency key | Explicitly publish a complete controlled draft. |
-| `POST` | `/projects/me/:projectId/archive` | Persisted owner + idempotency key | Explicitly archive a published project. |
-| `GET` | `/public/projects[/:projectSlug]` | Public | Published-only allowlisted list/detail. |
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/projects/me/:projectId/archive` | owner / contributor | 200 | Archive Project |
+| `POST` | `/projects` | owner / contributor | 201 | Create Project Draft |
+| `GET` | `/projects/discover` | contributor / owner / admin | 200 | Discover Published Projects |
+| `GET` | `/projects/me/:projectId` | owner / contributor | 200 | Get My Project |
+| `GET` | `/public/projects/:projectSlug` | Public | 200 | Get Public Project |
+| `GET` | `/projects/me` | owner / contributor | 200 | List My Projects |
+| `GET` | `/public/projects` | Public | 200 | List Public Projects |
+| `POST` | `/projects/github/preview` | owner / contributor | 200 | Preview GitHub Source |
+| `POST` | `/projects/me/:projectId/publish` | owner / contributor | 200 | Publish Project |
+| `POST` | `/projects/me/:projectId/source/refresh` | owner / contributor | 200 | Refresh Project Source |
+| `POST` | `/projects/import/github` | owner / contributor | 410 | Retired GitHub Import Compatibility Route |
+| `PATCH` | `/projects/me/:projectId` | owner / contributor | 200 | Update My Project |
 
-### Contribution Requests And Applications
+### Contribution Requests
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `POST` | `/tasks/:requestId/applications` | Active contributor bearer | Submit directly to owner review. |
-| `GET` | `/tasks/:requestId/applications` | Current Project owner bearer | List pending Applications with review-window presentation. |
-| `GET` | `/applications/:applicationId` | Applying contributor or current Project owner | Read authorized Application detail. |
-| `POST` | `/applications/:applicationId/withdraw` | Applying contributor + idempotency key | Withdraw a pending Application. |
-| `POST` | `/applications/:applicationId/accept` | Current Project owner + idempotency key | Accept and create an Assignment. |
-| `POST` | `/applications/:applicationId/decline` | Current Project owner + idempotency key | Decline with required feedback. |
-| `POST` | `/applications/:applicationId/assessment-requests` | Current Project owner + UUID body idempotency key | Request an advisory Fit Assessment from fixed Application snapshots. |
-| `GET` | `/applications/:applicationId/assessment` | Current Project owner | Read the advisory request, findings, fit band, and presentation time. |
-| `POST` | `/owner-decisions/:ownerDecisionId/reports` | Affected contributor bearer | Report explicit decline feedback. |
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/contribution-requests/:requestId/cancel` | Bearer / resource-scoped | 200 | Cancel Published Request |
+| `POST` | `/projects/:projectId/contribution-requests` | Bearer / resource-scoped | 201 | Create Draft |
+| `POST` | `/contribution-requests/:requestId/discard` | Bearer / resource-scoped | 200 | Discard Draft |
+| `GET` | `/tasks` | Public | 200 | Discover Open Requests |
+| `GET` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Get Owned Request |
+| `GET` | `/tasks/:requestId` | Public | 200 | Get Public Request Detail |
+| `GET` | `/projects/:projectId/contribution-requests` | Bearer / resource-scoped | 200 | List Owned Project Requests by Status |
+| `POST` | `/contribution-requests/:requestId/publish` | Bearer / resource-scoped | 200 | Publish Request |
+| `PATCH` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Update Draft |
+
+### Applications
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/applications/:applicationId/accept` | Bearer / resource-scoped | 200 | Accept Application |
+| `POST` | `/applications/:applicationId/decline` | Bearer / resource-scoped | 200 | Decline Application with Feedback |
+| `GET` | `/applications/:applicationId` | Bearer / resource-scoped | 200 | Get Application as Owner |
+| `GET` | `/tasks/:requestId/applications` | Bearer / resource-scoped | 200 | List Request Applications as Owner |
+| `GET` | `/applications/:applicationId/assessment` | Bearer / resource-scoped | 200 | Read Advisory Fit Assessment |
+| `POST` | `/applications/:applicationId/assessment/presentations` | Bearer / resource-scoped | 200 | Record Advisory Fit Presentation |
+| `POST` | `/owner-decisions/:ownerDecisionId/reports` | Bearer / resource-scoped | 201 | Report Decline Feedback |
+| `POST` | `/applications/:applicationId/assessment-requests` | Bearer / resource-scoped | 202 | Request Advisory Fit Assessment |
+| `POST` | `/tasks/:requestId/applications` | Bearer / resource-scoped | 201 | Submit Application |
+| `POST` | `/applications/:applicationId/withdraw` | Bearer / resource-scoped | 200 | Withdraw Application |
+
+### Contribution Proposals
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/contribution-proposals/:proposalId/accept` | Bearer / resource-scoped | 200 | Accept Proposal |
+| `POST` | `/contribution-proposals/:proposalId/decline` | Bearer / resource-scoped | 200 | Decline Proposal |
+| `GET` | `/contribution-proposals/:proposalId` | Bearer / resource-scoped | 200 | Get Proposal Detail |
+| `GET` | `/contribution-proposals/mine` | Bearer / resource-scoped | 200 | List My Proposals |
+| `GET` | `/contribution-proposals/for-project/:projectId` | Bearer / resource-scoped | 200 | List Project Proposals |
+| `GET` | `/contribution-proposals/for-project/:projectId/intake` | Bearer / resource-scoped | 200 | Read Project Intake |
+| `POST` | `/contribution-proposals/:proposalId/misuse-reports` | Bearer / resource-scoped | 201 | Report Proposal Misuse |
+| `POST` | `/contribution-proposals/:proposalId/revision-requests` | Bearer / resource-scoped | 201 | Request Revision |
+| `POST` | `/contribution-proposals` | Bearer / resource-scoped | 201 | Submit Proposal |
+| `POST` | `/contribution-proposals/:proposalId/versions` | Bearer / resource-scoped | 201 | Submit Revised Version |
+| `PUT` | `/contribution-proposals/for-project/:projectId/intake` | Bearer / resource-scoped | 200 | Toggle Project Intake |
+| `POST` | `/contribution-proposals/:proposalId/withdraw` | Bearer / resource-scoped | 200 | Withdraw Proposal |
+
+### Materials
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/materials/:materialId/versions` | Bearer / resource-scoped | 201 | Append a Material Version |
+| `PATCH` | `/materials/:materialId/visibility` | Bearer / resource-scoped | 200 | Change Material visibility |
+| `POST` | `/materials/:materialId/deletions` | Bearer / resource-scoped | 201 | Delete a Material |
+| `POST` | `/materials/:materialId/grants` | Bearer / resource-scoped | 201 | Grant a contributor access |
+| `POST` | `/materials/:materialId/versions/:version/download-token` | Bearer / resource-scoped | 201 | Issue a download link |
+| `GET` | `/contribution-requests/:requestId/materials` | Bearer / resource-scoped | 200 | List Contribution Request Materials |
+| `GET` | `/materials/:materialId/grants` | Bearer / resource-scoped | 200 | List Material grants |
+| `GET` | `/projects/:projectId/materials` | Bearer / resource-scoped | 200 | List Project Materials |
+| `GET` | `/materials/:materialId` | Bearer / resource-scoped | 200 | Read an owned Material |
+| `GET` | `/material-upload-constraints` | Bearer / resource-scoped | 200 | Read upload constraints |
+| `GET` | `/material-downloads` | Bearer / resource-scoped | 200 | Redeem a download link |
+| `POST` | `/materials/:materialId/grants/:granteeId/revocations` | Bearer / resource-scoped | 201 | Revoke a grant |
+| `POST` | `/contribution-requests/:requestId/materials` | Bearer / resource-scoped | 201 | Upload a Contribution Request Material |
+| `POST` | `/projects/:projectId/materials` | Bearer / resource-scoped | 201 | Upload a Project Material |
+
+### Material Analysis
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/material-analysis/suggestions/:suggestionId/adopt-contribution-request` | Bearer / resource-scoped | 201 | Adopt Material Analysis Contribution Request Suggestion |
+| `POST` | `/material-analysis/suggestions/:suggestionId/adopt-project` | Bearer / resource-scoped | 201 | Adopt Material Analysis Project Suggestion |
+| `POST` | `/projects/:projectId/material-analysis/sets` | Bearer / resource-scoped | 201 | Create Material Analysis Set |
+| `GET` | `/projects/:projectId/material-analysis/constraints` | Bearer / resource-scoped | 200 | Get Material Analysis Constraints |
+| `GET` | `/material-analysis/runs/:runId` | Bearer / resource-scoped | 200 | Get Material Analysis Run |
+| `GET` | `/projects/:projectId/material-analysis/sets` | Bearer / resource-scoped | 200 | List Material Analysis Sets |
+| `POST` | `/material-analysis/suggestions/:suggestionId/reject` | Bearer / resource-scoped | 201 | Reject Material Analysis Suggestion |
+| `POST` | `/material-analysis/sets/:analysisSetId/runs` | Bearer / resource-scoped | 201 | Start Material Analysis Set Run |
 
 ### Contributor Profiles
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `POST` | `/contributors/profiles/me/ensure` | Contributor bearer | Create or return the current contributor profile. |
-| `GET` | `/contributors/profiles/:username` | Bearer | Read an authenticated contributor profile. |
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/contributors/profiles/me/ensure` | Bearer / resource-scoped | 201 | Ensure My Profile |
+| `GET` | `/contributors/profiles/:username/avatar` | Public | 200 | Get Contributor Avatar |
+| `GET` | `/contributors/profiles/:username` | Bearer / resource-scoped | 200 | Get Contributor Profile |
+| `GET` | `/contributors/profile-fields` | Bearer / resource-scoped | 200 | List Contributor Fields |
+| `GET` | `/contributors/experience-levels` | Public | 200 | List Experience Levels |
+| `PATCH` | `/contributors/profiles/me` | Bearer / resource-scoped | 200 | Update My Profile |
+| `PUT` | `/contributors/profiles/me/avatar` | Bearer / resource-scoped | 200 | Upload My Avatar |
 
 ### Skill Profiles
 
-| Method | Path | Auth | Purpose |
-| --- | --- | --- | --- |
-| `POST` | `/skill-profiles/me/generations` | Contributor bearer | Queue AI profiling for one to ten selected repositories. |
-| `GET` | `/skill-profiles/me/generations/:generationId` | Contributor bearer | Poll a generation and its current skills/status. |
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/skill-profiles/me/generations/:generationId` | Bearer / resource-scoped | 200 | Get Generation |
+| `GET` | `/skill-profiles/me/generations/latest` | Bearer / resource-scoped | 200 | Get Latest Generation |
+| `POST` | `/skill-profiles/me/generations/:generationId/retry` | Bearer / resource-scoped | 201 | Retry Generation |
+| `POST` | `/skill-profiles/me/generations` | Bearer / resource-scoped | 201 | Start Generation |
 
-## 5. Request Recipes
+### Assignment Conversations
 
-### Register And Verify
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/assignment-conversations/:conversationId` | Bearer / resource-scoped | 200 | Get Assignment Conversation |
+| `GET` | `/assignment-conversations` | Bearer / resource-scoped | 200 | List Assignment Conversations |
+| `GET` | `/assignment-conversations/:conversationId/messages` | Bearer / resource-scoped | 200 | List Assignment Messages |
+| `POST` | `/assignment-conversations/:conversationId/messages` | Bearer / resource-scoped | 201 | Send Assignment Message |
 
-#### Register
+### Notifications
 
-```http
-POST {{baseUrl}}/auth/register
-Content-Type: application/json
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/me/notification-preferences` | Bearer / resource-scoped | 200 | Get Notification Preferences |
+| `GET` | `/notifications` | Bearer / resource-scoped | 200 | List Notifications |
+| `POST` | `/notifications/mark-all-read` | Bearer / resource-scoped | 200 | Mark All Notifications Read |
+| `PATCH` | `/notifications/:notificationId/read-state` | Bearer / resource-scoped | 200 | Set Notification Read State |
+| `GET` | `/notifications/unread-count` | Bearer / resource-scoped | 200 | Unread Notification Count |
+| `PATCH` | `/me/notification-preferences` | Bearer / resource-scoped | 200 | Update Notification Preferences |
 
-{
-  "email": "{{ownerEmail}}",
-  "password": "{{password}}",
-  "username": "{{ownerUsername}}",
-  "firstName": "Sharek",
-  "lastName": "Owner",
-  "role": "owner",
-  "preferredLanguage": "en"
-}
+### Admin
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `PATCH` | `/admin/skill-reviews/:skillProfileId/proficiency` | admin | 200 | Adjust Skill Proficiency |
+| `POST` | `/admin/skill-reviews/:skillProfileId/approve` | admin | 200 | Approve Skill |
+| `POST` | `/admin/contributor-fields` | admin | 201 | Create Contributor Field |
+| `POST` | `/admin/experience-levels` | admin | 201 | Create Experience Level |
+| `GET` | `/admin/contributor-fields` | admin | 200 | List Contributor Fields |
+| `GET` | `/admin/experience-levels` | admin | 200 | List Experience Levels |
+| `GET` | `/admin/skill-reviews/pending` | admin | 200 | List Pending Skill Reviews |
+| `GET` | `/admin/published-project-owners` | admin | 200 | List Published Project Owners |
+| `POST` | `/admin/skill-reviews/:skillProfileId/reject` | admin | 200 | Reject Skill |
+| `PATCH` | `/admin/contributor-fields/:fieldId` | admin | 200 | Update Contributor Field |
+| `PATCH` | `/admin/experience-levels/:levelId` | admin | 200 | Update Experience Level |
+
+## Realtime events (not HTTP endpoints)
+
+- Socket.IO namespace: `/realtime` with bearer authentication in `auth.token`.
+- Notification events: `notification.created`, `notification.read_state_changed`.
+- Assignment conversation event: `conversation.message.created`.
+- PostgreSQL HTTP reads remain authoritative; clients deduplicate stable event IDs and reconcile gaps through the HTTP endpoints above.
+
+## Explicit Postman upload
+
+Local validation is the default and never uploads. To update an existing Postman workspace, set `POSTMAN_API_KEY`, `POSTMAN_COLLECTION_ID`, and optionally `POSTMAN_ENVIRONMENT_ID`, then run:
+
+```bash
+npm run postman:upload
 ```
 
-Use `role: "contributor"` and the contributor variables for a contributor
-account. `username` must be lowercase URL-safe text, between 3 and 30
-characters, and unique.
-
-#### Check Username Availability
-
-```http
-GET {{baseUrl}}/auth/username-availability?username={{ownerUsername}}
-```
-
-Example response:
-
-```json
-{
-  "available": true,
-  "suggestion": null,
-  "reason": null
-}
-```
-
-#### Verify Email
-
-```http
-POST {{baseUrl}}/auth/verify-email
-Content-Type: application/json
-
-{
-  "email": "{{ownerEmail}}",
-  "code": "{{ownerOtp}}"
-}
-```
-
-Save `tokens.accessToken` to `accessToken` and `tokens.refreshToken` to
-`refreshToken` in Postman after a successful verification or login.
-
-#### Resend Email Verification
-
-```http
-POST {{baseUrl}}/auth/verify-email/resend
-Content-Type: application/json
-
-{
-  "email": "{{ownerEmail}}"
-}
-```
-
-### Login, Password Reset, And Sessions
-
-#### Login
-
-```http
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "email": "{{ownerEmail}}",
-  "password": "{{password}}"
-}
-```
-
-#### Forgot Password
-
-```http
-POST {{baseUrl}}/auth/forgot-password
-Content-Type: application/json
-
-{
-  "email": "{{ownerEmail}}"
-}
-```
-
-The reset OTP is delivered through the configured email sender. In local
-development without SMTP, inspect backend logs.
-
-#### Reset Password
-
-```http
-POST {{baseUrl}}/auth/reset-password
-Content-Type: application/json
-
-{
-  "email": "{{ownerEmail}}",
-  "code": "{{passwordResetOtp}}",
-  "newPassword": "NewPassword123!"
-}
-```
-
-#### Refresh
-
-```http
-POST {{baseUrl}}/auth/refresh
-Content-Type: application/json
-
-{
-  "refreshToken": "{{refreshToken}}"
-}
-```
-
-The response is an `AuthTokensDto` with `accessToken`, `refreshToken`,
-`expiresAt`, and `refreshExpiresAt`. Replace both saved token variables after a
-successful refresh.
-
-#### Current User
-
-```http
-GET {{baseUrl}}/auth/me
-Authorization: Bearer {{accessToken}}
-```
-
-#### Logout
-
-```http
-POST {{baseUrl}}/auth/logout
-Authorization: Bearer {{accessToken}}
-```
-
-Run logout last for that test account. The token must no longer be accepted
-after the session is revoked.
-
-#### Assign Role
-
-```http
-PATCH {{baseUrl}}/auth/users/{{userId}}/role
-Authorization: Bearer {{accessToken}}
-Content-Type: application/json
-
-{
-  "role": "admin"
-}
-```
-
-The bearer token must belong to an admin. The register endpoint cannot create
-an admin directly.
-
-### Social Authentication
-
-Start either provider with:
-
-```http
-GET {{baseUrl}}/auth/google/start?role=contributor
-```
-
-or:
-
-```http
-GET {{baseUrl}}/auth/github/start?role=contributor
-```
-
-Open the returned `authorizationUrl` in a browser. Provider callbacks are
-browser redirects and use one-time `code` and `state` values. Complete from
-the frontend callback with:
-
-```http
-POST {{baseUrl}}/auth/google/callback
-Content-Type: application/json
-
-{
-  "code": "real-google-code",
-  "state": "real-state-from-google-start"
-}
-```
-
-Use the same body for GitHub at `/auth/github/callback`. Placeholder values
-cannot complete OAuth. Provider credentials and callback URLs must be valid in
-the local `.env` file.
-
-The provider browser callback routes forward a real callback to the frontend:
-
-```http
-GET {{baseUrl}}/auth/google/callback?code=real-google-code&state=real-state
-GET {{baseUrl}}/auth/github/callback?code=real-github-code&state=real-state
-```
-
-These requests are manual browser-flow checks and normally return a redirect.
-
-### GitHub Repository Connection
-
-Start repository access with a logged-in contributor token:
-
-```http
-GET {{baseUrl}}/github/oauth/start
-Authorization: Bearer {{accessToken}}
-```
-
-Open `authorizationUrl` in a browser and let GitHub redirect to
-`/auth/github/callback/repository`. The frontend then posts the real values:
-
-```http
-POST {{baseUrl}}/github/oauth/callback
-Content-Type: application/json
-
-{
-  "code": "real-github-code",
-  "state": "real-state-from-github-oauth-start"
-}
-```
-
-The direct provider callback route is also available for integrations that do
-not use the frontend redirect page:
-
-```http
-GET {{baseUrl}}/github/oauth/callback?code=real-github-code&state=real-state-from-github-oauth-start
-```
-
-After a successful connection:
-
-```http
-GET {{baseUrl}}/github/account
-Authorization: Bearer {{accessToken}}
-```
-
-```http
-GET {{baseUrl}}/github/repositories?page=1&perPage=12
-Authorization: Bearer {{accessToken}}
-```
-
-The repository page defaults to `page=1`, `perPage=12`, and caps `perPage` at
-50. Evidence requests use the `fullName` returned by the repository list:
-
-```http
-GET {{baseUrl}}/github/readme?fullName={{githubRepoFullName}}
-Authorization: Bearer {{accessToken}}
-```
-
-```http
-GET {{baseUrl}}/github/repository/description?fullName={{githubRepoFullName}}
-Authorization: Bearer {{accessToken}}
-```
-
-```http
-GET {{baseUrl}}/github/repository/statistics?fullName={{githubRepoFullName}}
-Authorization: Bearer {{accessToken}}
-```
-
-```http
-GET {{baseUrl}}/github/repository/contribution-activity?fullName={{githubRepoFullName}}
-Authorization: Bearer {{accessToken}}
-```
-
-```http
-GET {{baseUrl}}/github/repository/commit-signals?fullName={{githubRepoFullName}}&author=github-login
-Authorization: Bearer {{accessToken}}
-```
-
-Disconnect only when the test is complete:
-
-```http
-DELETE {{baseUrl}}/github/account
-Authorization: Bearer {{accessToken}}
-```
-
-### Project Draft and Publication
-
-Use an active owner or contributor token. Preview first; this performs no
-Project write:
-
-```http
-POST {{baseUrl}}/projects/github/preview
-Authorization: Bearer {{accessToken}}
-Content-Type: application/json
-
-{
-  "repositoryReference": "{{githubRepoUrl}}"
-}
-```
-
-Then send the returned `previewFingerprint` to `POST /projects` with a unique
-`Idempotency-Key`. That interaction always creates a private draft. Use the
-owner detail/edit/refresh routes and explicitly publish with
-`POST /projects/me/:projectId/publish` and body
-`{ "expectedRevision": 1, "confirm": true }`. Organization/shared and private
-sources require a live GitHub App link with explicit repository selection.
-
-### Contributor Profile
-
-Ensure the logged-in contributor profile exists:
-
-```http
-POST {{baseUrl}}/contributors/profiles/me/ensure
-Authorization: Bearer {{accessToken}}
-```
-
-Read a profile by its canonical username:
-
-```http
-GET {{baseUrl}}/contributors/profiles/{{contributorUsername}}
-Authorization: Bearer {{accessToken}}
-```
-
-The response contains public profile data, approved skills for other viewers,
-and the viewer relationship. Passwords, tokens, OAuth credentials, and private
-session data are never returned.
-
-### Skill Profile Generation
-
-The contributor must have a connected GitHub account and must select names from
-the authenticated repository list:
-
-```http
-POST {{baseUrl}}/skill-profiles/me/generations
-Authorization: Bearer {{accessToken}}
-Content-Type: application/json
-
-{
-  "repositories": [
-    { "fullName": "{{githubRepoFullName}}" }
-  ]
-}
-```
-
-Save `generationId` from the response, then poll it:
-
-```http
-GET {{baseUrl}}/skill-profiles/me/generations/{{generationId}}
-Authorization: Bearer {{accessToken}}
-```
-
-The normal lifecycle is `queued`, `collecting_evidence`, `analyzing`, and then
-`pending_review`, `needs_more_evidence`, or `failed`. Generated skills remain
-pending until the backend admin review workflow approves them.
-
-### Application Review Window
-
-Submit with a contributor token, then save the returned `id`:
-
-```http
-POST {{baseUrl}}/tasks/{{contributionRequestId}}/applications
-Authorization: Bearer {{contributorAccessToken}}
-Content-Type: application/json
-
-{
-  "contributionApproach": "I will implement and test the requested workflow.",
-  "proposedDeliveryDurationDays": 5,
-  "idempotencyKey": "00000000-0000-4000-8000-000000000001"
-}
-```
-
-Submission and authorized reads include `reviewDueAt`, `expiresAt`, nullable
-`expiredAt`, and boolean `overdue`. A new Application has `expiredAt: null` and
-`overdue: false`. At day 5 inclusive, a still-pending Application is presented
-with `overdue: true`. At day 7 inclusive it becomes `EXPIRED`, receives
-`expiredAt`, and is no longer overdue.
-
-There is no public scheduler route to invoke from Postman. The backend worker
-uses PostgreSQL deadlines, so boundary testing requires the deterministic Jest
-suite or a controlled local database clock/fixture. The collection tests verify
-the response shape whenever submit, list, or detail succeeds.
-
-## 6. Useful Negative Tests
-
-These tests verify the shared HTTP behavior without changing database state:
-
-| Test | Request | Expected |
-| --- | --- | --- |
-| Missing bearer token | `GET /auth/me` without `Authorization` | `401 Unauthorized` |
-| Missing bearer token | `GET /github/account` without `Authorization` | `401 Unauthorized` |
-| Invalid login body | `POST /auth/login` with `{}` | `400 Bad Request` with validation messages |
-| Missing repository name | Protected evidence route without `fullName` | `400` with `GITHUB_REPOSITORY_FULL_NAME_REQUIRED` |
-| Contributor-only route as owner/admin | Skill generation or profile ensure | `403 Forbidden` |
-| Admin-only route as owner/contributor | `PATCH /auth/users/:id/role` | `403 Forbidden` |
-| Invalid page | `GET /github/repositories?page=0` | `400 Bad Request` |
-
-## 7. Runtime And Integration Limits
-
-- Real Google and GitHub OAuth requires valid provider applications and real,
-  one-time authorization codes. Postman cannot replace the browser consent
-  step.
-- Email verification and password-reset testing requires SMTP or the local OTP
-  logging fallback.
-- Skill generation requires the separate FastAPI AI service at `AI_SERVICE_URL`
-  and a running Redis worker.
-- Application review reminders and expiry require Redis while the worker is
-  running. PostgreSQL remains the deadline source, and startup catch-up handles
-  temporary worker downtime.
-- GitHub repository and evidence requests require a real connected account and
-  valid GitHub API access.
-- Prisma migrations run as part of the Docker API command. Do not edit the
-  database manually for schema changes.
-
-## 8. Related Files
-
-- REST Client requests: `sharek-api.http`
-- Stable API and AI contract rules: `docs/api-contracts.md`
-- Architecture decision: `../docs/archive/bmad/adr-002-standard-nestjs-module-architecture.md`
-- Local startup: `docs/local-development.md`
+The command refuses upload without the explicit `--upload` operation and environment variables. No API key is read from repository or developer-specific files.

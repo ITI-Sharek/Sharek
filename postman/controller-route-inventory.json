@@ -1,0 +1,4725 @@
+{
+  "generatedFrom": "src/**/*.ts files containing @Controller",
+  "routeCount": 138,
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/admin/contributor-fields",
+      "normalizedPath": "/admin/contributor-fields",
+      "key": "GET /admin/contributor-fields",
+      "controller": "AdminContributorFieldsController",
+      "handler": "list",
+      "source": "src/modules/admin/controllers/admin-contributor-fields.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/admin/contributor-fields",
+      "normalizedPath": "/admin/contributor-fields",
+      "key": "POST /admin/contributor-fields",
+      "controller": "AdminContributorFieldsController",
+      "handler": "create",
+      "source": "src/modules/admin/controllers/admin-contributor-fields.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateContributorFieldRequest",
+      "bodyFields": [
+        {
+          "name": "key",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "labelEn",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "labelAr",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "sortOrder",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/contributor-fields/:fieldId",
+      "normalizedPath": "/admin/contributor-fields/:parameter",
+      "key": "PATCH /admin/contributor-fields/:parameter",
+      "controller": "AdminContributorFieldsController",
+      "handler": "update",
+      "source": "src/modules/admin/controllers/admin-contributor-fields.controller.ts",
+      "pathParameters": [
+        "fieldId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdateContributorFieldRequest",
+      "bodyFields": [
+        {
+          "name": "labelEn",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "labelAr",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "active",
+          "optional": true,
+          "type": "boolean"
+        },
+        {
+          "name": "sortOrder",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/experience-levels",
+      "normalizedPath": "/admin/experience-levels",
+      "key": "GET /admin/experience-levels",
+      "controller": "AdminExperienceLevelsController",
+      "handler": "list",
+      "source": "src/modules/admin/controllers/admin-experience-levels.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/admin/experience-levels",
+      "normalizedPath": "/admin/experience-levels",
+      "key": "POST /admin/experience-levels",
+      "controller": "AdminExperienceLevelsController",
+      "handler": "create",
+      "source": "src/modules/admin/controllers/admin-experience-levels.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateExperienceLevelRequest",
+      "bodyFields": [
+        {
+          "name": "key",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "labelEn",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "labelAr",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "sortOrder",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/experience-levels/:levelId",
+      "normalizedPath": "/admin/experience-levels/:parameter",
+      "key": "PATCH /admin/experience-levels/:parameter",
+      "controller": "AdminExperienceLevelsController",
+      "handler": "update",
+      "source": "src/modules/admin/controllers/admin-experience-levels.controller.ts",
+      "pathParameters": [
+        "levelId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdateExperienceLevelRequest",
+      "bodyFields": [
+        {
+          "name": "labelEn",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "labelAr",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "active",
+          "optional": true,
+          "type": "boolean"
+        },
+        {
+          "name": "sortOrder",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/published-project-owners",
+      "normalizedPath": "/admin/published-project-owners",
+      "key": "GET /admin/published-project-owners",
+      "controller": "AdminPublishedProjectOwnersController",
+      "handler": "list",
+      "source": "src/modules/admin/controllers/admin-published-project-owners.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/admin/skill-reviews/:skillProfileId/approve",
+      "normalizedPath": "/admin/skill-reviews/:parameter/approve",
+      "key": "POST /admin/skill-reviews/:parameter/approve",
+      "controller": "AdminSkillReviewsController",
+      "handler": "approve",
+      "source": "src/modules/admin/controllers/admin-skill-reviews.controller.ts",
+      "pathParameters": [
+        "skillProfileId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ApproveSkillReviewRequest",
+      "bodyFields": [
+        {
+          "name": "proficiency",
+          "optional": true,
+          "type": "SkillProfileProficiencyLevel"
+        },
+        {
+          "name": "notes",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/skill-reviews/:skillProfileId/proficiency",
+      "normalizedPath": "/admin/skill-reviews/:parameter/proficiency",
+      "key": "PATCH /admin/skill-reviews/:parameter/proficiency",
+      "controller": "AdminSkillReviewsController",
+      "handler": "adjustProficiency",
+      "source": "src/modules/admin/controllers/admin-skill-reviews.controller.ts",
+      "pathParameters": [
+        "skillProfileId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AdjustSkillReviewProficiencyRequest",
+      "bodyFields": [
+        {
+          "name": "proficiency",
+          "optional": false,
+          "type": "SkillProfileProficiencyLevel"
+        },
+        {
+          "name": "notes",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/admin/skill-reviews/:skillProfileId/reject",
+      "normalizedPath": "/admin/skill-reviews/:parameter/reject",
+      "key": "POST /admin/skill-reviews/:parameter/reject",
+      "controller": "AdminSkillReviewsController",
+      "handler": "reject",
+      "source": "src/modules/admin/controllers/admin-skill-reviews.controller.ts",
+      "pathParameters": [
+        "skillProfileId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "RejectSkillReviewRequest",
+      "bodyFields": [
+        {
+          "name": "notes",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/skill-reviews/pending",
+      "normalizedPath": "/admin/skill-reviews/pending",
+      "key": "GET /admin/skill-reviews/pending",
+      "controller": "AdminSkillReviewsController",
+      "handler": "listPending",
+      "source": "src/modules/admin/controllers/admin-skill-reviews.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "page",
+          "optional": false,
+          "type": "unknown"
+        },
+        {
+          "name": "limit",
+          "optional": false,
+          "type": "unknown"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/applications/:applicationId",
+      "normalizedPath": "/applications/:parameter",
+      "key": "GET /applications/:parameter",
+      "controller": "ApplicationsController",
+      "handler": "getForActor",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "applicationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/applications/:applicationId/accept",
+      "normalizedPath": "/applications/:parameter/accept",
+      "key": "POST /applications/:parameter/accept",
+      "controller": "ApplicationsController",
+      "handler": "accept",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "applicationId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/applications/:applicationId/assessment",
+      "normalizedPath": "/applications/:parameter/assessment",
+      "key": "GET /applications/:parameter/assessment",
+      "controller": "ApplicationsController",
+      "handler": "getAssessment",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "applicationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/applications/:applicationId/assessment-requests",
+      "normalizedPath": "/applications/:parameter/assessment-requests",
+      "key": "POST /applications/:parameter/assessment-requests",
+      "controller": "ApplicationsController",
+      "handler": "requestAssessment",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "applicationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "RequestAssessmentDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 202
+    },
+    {
+      "method": "POST",
+      "path": "/applications/:applicationId/assessment/presentations",
+      "normalizedPath": "/applications/:parameter/assessment/presentations",
+      "key": "POST /applications/:parameter/assessment/presentations",
+      "controller": "ApplicationsController",
+      "handler": "presentAssessment",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "applicationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/applications/:applicationId/decline",
+      "normalizedPath": "/applications/:parameter/decline",
+      "key": "POST /applications/:parameter/decline",
+      "controller": "ApplicationsController",
+      "handler": "decline",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "applicationId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "DeclineApplicationDto",
+      "bodyFields": [
+        {
+          "name": "feedback",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/applications/:applicationId/withdraw",
+      "normalizedPath": "/applications/:parameter/withdraw",
+      "key": "POST /applications/:parameter/withdraw",
+      "controller": "ApplicationsController",
+      "handler": "withdraw",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "applicationId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assignment-conversations",
+      "normalizedPath": "/assignment-conversations",
+      "key": "GET /assignment-conversations",
+      "controller": "AssignmentConversationsController",
+      "handler": "list",
+      "source": "src/modules/assignment-conversations/assignment-conversations.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assignment-conversations/:conversationId",
+      "normalizedPath": "/assignment-conversations/:parameter",
+      "key": "GET /assignment-conversations/:parameter",
+      "controller": "AssignmentConversationsController",
+      "handler": "get",
+      "source": "src/modules/assignment-conversations/assignment-conversations.controller.ts",
+      "pathParameters": [
+        "conversationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assignment-conversations/:conversationId/messages",
+      "normalizedPath": "/assignment-conversations/:parameter/messages",
+      "key": "GET /assignment-conversations/:parameter/messages",
+      "controller": "AssignmentConversationsController",
+      "handler": "listMessages",
+      "source": "src/modules/assignment-conversations/assignment-conversations.controller.ts",
+      "pathParameters": [
+        "conversationId"
+      ],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "query",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/assignment-conversations/:conversationId/messages",
+      "normalizedPath": "/assignment-conversations/:parameter/messages",
+      "key": "POST /assignment-conversations/:parameter/messages",
+      "controller": "AssignmentConversationsController",
+      "handler": "sendMessage",
+      "source": "src/modules/assignment-conversations/assignment-conversations.controller.ts",
+      "pathParameters": [
+        "conversationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateMessageDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "body",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "replyToMessageId",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/auth/forgot-password",
+      "normalizedPath": "/auth/forgot-password",
+      "key": "POST /auth/forgot-password",
+      "controller": "ManualAuthController",
+      "handler": "forgotPassword",
+      "source": "src/modules/identity/controllers/manual-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ForgotPasswordRequest",
+      "bodyFields": [
+        {
+          "name": "email",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "DELETE",
+      "path": "/auth/github/account",
+      "normalizedPath": "/auth/github/account",
+      "key": "DELETE /auth/github/account",
+      "controller": "GitHubAuthController",
+      "handler": "disconnectGitHubAccount",
+      "source": "src/modules/identity/controllers/github-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/auth/github/account/callback",
+      "normalizedPath": "/auth/github/account/callback",
+      "key": "POST /auth/github/account/callback",
+      "controller": "GitHubAuthController",
+      "handler": "completeGitHubAccountConnection",
+      "source": "src/modules/identity/controllers/github-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SocialAuthCallbackRequest",
+      "bodyFields": [
+        {
+          "name": "code",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/auth/github/app/callback",
+      "normalizedPath": "/auth/github/app/callback",
+      "key": "GET /auth/github/app/callback",
+      "controller": "GitHubAppCallbackController",
+      "handler": "callback",
+      "source": "src/modules/github/controllers/github-app-callback.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "code",
+          "optional": true,
+          "type": "string | undefined"
+        },
+        {
+          "name": "state",
+          "optional": true,
+          "type": "string | undefined"
+        },
+        {
+          "name": "error",
+          "optional": true,
+          "type": "string | undefined"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 302
+    },
+    {
+      "method": "GET",
+      "path": "/auth/github/callback",
+      "normalizedPath": "/auth/github/callback",
+      "key": "GET /auth/github/callback",
+      "controller": "GitHubAuthController",
+      "handler": "completeGitHubGet",
+      "source": "src/modules/identity/controllers/github-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 302
+    },
+    {
+      "method": "POST",
+      "path": "/auth/github/callback",
+      "normalizedPath": "/auth/github/callback",
+      "key": "POST /auth/github/callback",
+      "controller": "GitHubAuthController",
+      "handler": "completeGitHubPost",
+      "source": "src/modules/identity/controllers/github-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SocialAuthCallbackRequest",
+      "bodyFields": [
+        {
+          "name": "code",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/auth/github/callback/repository",
+      "normalizedPath": "/auth/github/callback/repository",
+      "key": "GET /auth/github/callback/repository",
+      "controller": "GitHubOAuthBrowserCallbackController",
+      "handler": "redirectRepositoryConnectCallback",
+      "source": "src/modules/github/controllers/github-oauth-browser-callback.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "code",
+          "optional": true,
+          "type": "string | undefined"
+        },
+        {
+          "name": "state",
+          "optional": true,
+          "type": "string | undefined"
+        },
+        {
+          "name": "error",
+          "optional": true,
+          "type": "string | undefined"
+        },
+        {
+          "name": "error_description",
+          "optional": true,
+          "type": "string | undefined"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 302
+    },
+    {
+      "method": "GET",
+      "path": "/auth/github/start",
+      "normalizedPath": "/auth/github/start",
+      "key": "GET /auth/github/start",
+      "controller": "GitHubAuthController",
+      "handler": "startGitHub",
+      "source": "src/modules/identity/controllers/github-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "role",
+          "optional": false,
+          "type": "'owner' | 'contributor'"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/google/callback",
+      "normalizedPath": "/auth/google/callback",
+      "key": "GET /auth/google/callback",
+      "controller": "GoogleAuthController",
+      "handler": "completeGoogleGet",
+      "source": "src/modules/identity/controllers/google-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 302
+    },
+    {
+      "method": "POST",
+      "path": "/auth/google/callback",
+      "normalizedPath": "/auth/google/callback",
+      "key": "POST /auth/google/callback",
+      "controller": "GoogleAuthController",
+      "handler": "completeGooglePost",
+      "source": "src/modules/identity/controllers/google-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SocialAuthCallbackRequest",
+      "bodyFields": [
+        {
+          "name": "code",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/auth/google/start",
+      "normalizedPath": "/auth/google/start",
+      "key": "GET /auth/google/start",
+      "controller": "GoogleAuthController",
+      "handler": "startGoogle",
+      "source": "src/modules/identity/controllers/google-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "role",
+          "optional": false,
+          "type": "'owner' | 'contributor'"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "normalizedPath": "/auth/login",
+      "key": "POST /auth/login",
+      "controller": "ManualAuthController",
+      "handler": "login",
+      "source": "src/modules/identity/controllers/manual-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "LoginRequest",
+      "bodyFields": [
+        {
+          "name": "email",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "password",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "normalizedPath": "/auth/logout",
+      "key": "POST /auth/logout",
+      "controller": "SessionController",
+      "handler": "logout",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "normalizedPath": "/auth/me",
+      "key": "GET /auth/me",
+      "controller": "SessionController",
+      "handler": "me",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/me/preferences",
+      "normalizedPath": "/auth/me/preferences",
+      "key": "PATCH /auth/me/preferences",
+      "controller": "SessionController",
+      "handler": "updateMyPreferences",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdateUserPreferencesRequest",
+      "bodyFields": [
+        {
+          "name": "preferredLanguage",
+          "optional": false,
+          "type": "'ar' | 'en'"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/auth/refresh",
+      "normalizedPath": "/auth/refresh",
+      "key": "POST /auth/refresh",
+      "controller": "SessionController",
+      "handler": "refresh",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "RefreshSessionRequest",
+      "bodyFields": [
+        {
+          "name": "refreshToken",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "normalizedPath": "/auth/register",
+      "key": "POST /auth/register",
+      "controller": "ManualAuthController",
+      "handler": "register",
+      "source": "src/modules/identity/controllers/manual-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "RegisterRequest",
+      "bodyFields": [
+        {
+          "name": "email",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "password",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "username",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "firstName",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "lastName",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "optional": false,
+          "type": "'owner' | 'contributor'"
+        },
+        {
+          "name": "preferredLanguage",
+          "optional": true,
+          "type": "'ar' | 'en'"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/auth/reset-password",
+      "normalizedPath": "/auth/reset-password",
+      "key": "POST /auth/reset-password",
+      "controller": "ManualAuthController",
+      "handler": "resetPassword",
+      "source": "src/modules/identity/controllers/manual-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ResetPasswordRequest",
+      "bodyFields": [
+        {
+          "name": "email",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "code",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "newPassword",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/auth/username-availability",
+      "normalizedPath": "/auth/username-availability",
+      "key": "GET /auth/username-availability",
+      "controller": "ManualAuthController",
+      "handler": "checkUsernameAvailability",
+      "source": "src/modules/identity/controllers/manual-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "username",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/users/:id/role",
+      "normalizedPath": "/auth/users/:parameter/role",
+      "key": "PATCH /auth/users/:parameter/role",
+      "controller": "SessionController",
+      "handler": "assignRole",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [
+        "id"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AssignRoleRequest",
+      "bodyFields": [
+        {
+          "name": "role",
+          "optional": false,
+          "type": "UserRole"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/auth/verify-email",
+      "normalizedPath": "/auth/verify-email",
+      "key": "POST /auth/verify-email",
+      "controller": "ManualAuthController",
+      "handler": "verifyEmail",
+      "source": "src/modules/identity/controllers/manual-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "VerifyEmailRequest",
+      "bodyFields": [
+        {
+          "name": "email",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "code",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/auth/verify-email/resend",
+      "normalizedPath": "/auth/verify-email/resend",
+      "key": "POST /auth/verify-email/resend",
+      "controller": "ManualAuthController",
+      "handler": "resendEmailVerification",
+      "source": "src/modules/identity/controllers/manual-auth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ResendEmailVerificationRequest",
+      "bodyFields": [
+        {
+          "name": "email",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-proposals",
+      "normalizedPath": "/contribution-proposals",
+      "key": "POST /contribution-proposals",
+      "controller": "ContributionProposalsController",
+      "handler": "submit",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SubmitContributionProposalDto",
+      "bodyFields": [
+        {
+          "name": "projectId",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "title",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "problemOrOpportunity",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "proposedOutcome",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "projectBenefit",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "acknowledgesAttributionAndAssignmentDisclosure",
+          "optional": false,
+          "type": "true"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/contribution-proposals/:proposalId",
+      "normalizedPath": "/contribution-proposals/:parameter",
+      "key": "GET /contribution-proposals/:parameter",
+      "controller": "ContributionProposalsController",
+      "handler": "getForActor",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "proposalId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-proposals/:proposalId/accept",
+      "normalizedPath": "/contribution-proposals/:parameter/accept",
+      "key": "POST /contribution-proposals/:parameter/accept",
+      "controller": "ContributionProposalsController",
+      "handler": "accept",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "proposalId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AcceptContributionProposalDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-proposals/:proposalId/decline",
+      "normalizedPath": "/contribution-proposals/:parameter/decline",
+      "key": "POST /contribution-proposals/:parameter/decline",
+      "controller": "ContributionProposalsController",
+      "handler": "decline",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "proposalId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "DeclineContributionProposalDto",
+      "bodyFields": [
+        {
+          "name": "reason",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-proposals/:proposalId/misuse-reports",
+      "normalizedPath": "/contribution-proposals/:parameter/misuse-reports",
+      "key": "POST /contribution-proposals/:parameter/misuse-reports",
+      "controller": "ContributionProposalsController",
+      "handler": "reportMisuse",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "proposalId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ReportProposalMisuseDto",
+      "bodyFields": [
+        {
+          "name": "reason",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-proposals/:proposalId/revision-requests",
+      "normalizedPath": "/contribution-proposals/:parameter/revision-requests",
+      "key": "POST /contribution-proposals/:parameter/revision-requests",
+      "controller": "ContributionProposalsController",
+      "handler": "requestRevision",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "proposalId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "RequestProposalRevisionDto",
+      "bodyFields": [
+        {
+          "name": "reason",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-proposals/:proposalId/versions",
+      "normalizedPath": "/contribution-proposals/:parameter/versions",
+      "key": "POST /contribution-proposals/:parameter/versions",
+      "controller": "ContributionProposalsController",
+      "handler": "submitVersion",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "proposalId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SubmitProposalVersionDto",
+      "bodyFields": [
+        {
+          "name": "title",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "problemOrOpportunity",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "proposedOutcome",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "projectBenefit",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-proposals/:proposalId/withdraw",
+      "normalizedPath": "/contribution-proposals/:parameter/withdraw",
+      "key": "POST /contribution-proposals/:parameter/withdraw",
+      "controller": "ContributionProposalsController",
+      "handler": "withdraw",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "proposalId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contribution-proposals/for-project/:projectId",
+      "normalizedPath": "/contribution-proposals/for-project/:parameter",
+      "key": "GET /contribution-proposals/for-project/:parameter",
+      "controller": "ContributionProposalsController",
+      "handler": "listForProject",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contribution-proposals/for-project/:projectId/intake",
+      "normalizedPath": "/contribution-proposals/for-project/:parameter/intake",
+      "key": "GET /contribution-proposals/for-project/:parameter/intake",
+      "controller": "ContributionProposalsController",
+      "handler": "getIntake",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/contribution-proposals/for-project/:projectId/intake",
+      "normalizedPath": "/contribution-proposals/for-project/:parameter/intake",
+      "key": "PUT /contribution-proposals/for-project/:parameter/intake",
+      "controller": "ContributionProposalsController",
+      "handler": "setIntake",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SetProposalIntakeDto",
+      "bodyFields": [
+        {
+          "name": "enabled",
+          "optional": false,
+          "type": "boolean"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contribution-proposals/mine",
+      "normalizedPath": "/contribution-proposals/mine",
+      "key": "GET /contribution-proposals/mine",
+      "controller": "ContributionProposalsController",
+      "handler": "listMine",
+      "source": "src/modules/contribution-proposals/contribution-proposals.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contribution-requests/:requestId",
+      "normalizedPath": "/contribution-requests/:parameter",
+      "key": "GET /contribution-requests/:parameter",
+      "controller": "ContributionTasksController",
+      "handler": "getOwnedRequest",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/contribution-requests/:requestId",
+      "normalizedPath": "/contribution-requests/:parameter",
+      "key": "PATCH /contribution-requests/:parameter",
+      "controller": "ContributionTasksController",
+      "handler": "updateDraft",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "UpdateContributionRequestDto",
+      "bodyFields": [
+        {
+          "name": "title",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "requiredRequirements",
+          "optional": true,
+          "type": "ContributionRequestRequirementInputDto[]"
+        },
+        {
+          "name": "preferredRequirements",
+          "optional": true,
+          "type": "ContributionRequestRequirementInputDto[]"
+        },
+        {
+          "name": "technologyTags",
+          "optional": true,
+          "type": "string[]"
+        },
+        {
+          "name": "applicationsCloseTime",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "targetCompletionDate",
+          "optional": true,
+          "type": "string | null"
+        },
+        {
+          "name": "difficulty",
+          "optional": true,
+          "type": "ContributionRequestDifficulty | null"
+        },
+        {
+          "name": "reward",
+          "optional": true,
+          "type": "number | null"
+        },
+        {
+          "name": "rewardCurrency",
+          "optional": true,
+          "type": "string | null"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-requests/:requestId/cancel",
+      "normalizedPath": "/contribution-requests/:parameter/cancel",
+      "key": "POST /contribution-requests/:parameter/cancel",
+      "controller": "ContributionTasksController",
+      "handler": "cancelRequest",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "CancelContributionRequestDto",
+      "bodyFields": [
+        {
+          "name": "reason",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-requests/:requestId/discard",
+      "normalizedPath": "/contribution-requests/:parameter/discard",
+      "key": "POST /contribution-requests/:parameter/discard",
+      "controller": "ContributionTasksController",
+      "handler": "discardDraft",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "DiscardContributionRequestDto",
+      "bodyFields": [
+        {
+          "name": "reason",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contribution-requests/:requestId/materials",
+      "normalizedPath": "/contribution-requests/:parameter/materials",
+      "key": "GET /contribution-requests/:parameter/materials",
+      "controller": "MaterialsController",
+      "handler": "listForContributionRequest",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-requests/:requestId/materials",
+      "normalizedPath": "/contribution-requests/:parameter/materials",
+      "key": "POST /contribution-requests/:parameter/materials",
+      "controller": "MaterialsController",
+      "handler": "createForContributionRequest",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateMaterialDto",
+      "bodyFields": [
+        {
+          "name": "title",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "visibility",
+          "optional": false,
+          "type": "(typeof MATERIAL_VISIBILITY_INPUTS)[number]"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "multipart/form-data",
+      "multipartFields": [
+        "file"
+      ],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-requests/:requestId/publish",
+      "normalizedPath": "/contribution-requests/:parameter/publish",
+      "key": "POST /contribution-requests/:parameter/publish",
+      "controller": "ContributionTasksController",
+      "handler": "publishRequest",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/experience-levels",
+      "normalizedPath": "/contributors/experience-levels",
+      "key": "GET /contributors/experience-levels",
+      "controller": "ContributorExperienceLevelsController",
+      "handler": "list",
+      "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/profile-fields",
+      "normalizedPath": "/contributors/profile-fields",
+      "key": "GET /contributors/profile-fields",
+      "controller": "ContributorFieldsController",
+      "handler": "list",
+      "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/profiles/:username",
+      "normalizedPath": "/contributors/profiles/:parameter",
+      "key": "GET /contributors/profiles/:parameter",
+      "controller": "ContributorProfilesController",
+      "handler": "getByUsername",
+      "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
+      "pathParameters": [
+        "username"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/profiles/:username/avatar",
+      "normalizedPath": "/contributors/profiles/:parameter/avatar",
+      "key": "GET /contributors/profiles/:parameter/avatar",
+      "controller": "ContributorProfileAvatarsController",
+      "handler": "getAvatar",
+      "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
+      "pathParameters": [
+        "username"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/contributors/profiles/me",
+      "normalizedPath": "/contributors/profiles/me",
+      "key": "PATCH /contributors/profiles/me",
+      "controller": "ContributorProfilesController",
+      "handler": "update",
+      "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdateContributorProfileRequest",
+      "bodyFields": [
+        {
+          "name": "bio",
+          "optional": true,
+          "type": "string | null"
+        },
+        {
+          "name": "availability",
+          "optional": true,
+          "type": "string | null"
+        },
+        {
+          "name": "experienceLevelId",
+          "optional": true,
+          "type": "string | null"
+        },
+        {
+          "name": "fieldIds",
+          "optional": true,
+          "type": "string[]"
+        },
+        {
+          "name": "declaredSkills",
+          "optional": true,
+          "type": "string[]"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/contributors/profiles/me/avatar",
+      "normalizedPath": "/contributors/profiles/me/avatar",
+      "key": "PUT /contributors/profiles/me/avatar",
+      "controller": "ContributorProfilesController",
+      "handler": "updateAvatar",
+      "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": "multipart/form-data",
+      "multipartFields": [
+        "file"
+      ],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contributors/profiles/me/ensure",
+      "normalizedPath": "/contributors/profiles/me/ensure",
+      "key": "POST /contributors/profiles/me/ensure",
+      "controller": "ContributorProfilesController",
+      "handler": "ensure",
+      "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "DELETE",
+      "path": "/github/account",
+      "normalizedPath": "/github/account",
+      "key": "DELETE /github/account",
+      "controller": "GitHubOAuthController",
+      "handler": "disconnect",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/account",
+      "normalizedPath": "/github/account",
+      "key": "GET /github/account",
+      "controller": "GitHubOAuthController",
+      "handler": "getAccount",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/app/installations",
+      "normalizedPath": "/github/app/installations",
+      "key": "GET /github/app/installations",
+      "controller": "GitHubAppController",
+      "handler": "list",
+      "source": "src/modules/github/controllers/github-app.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "DELETE",
+      "path": "/github/app/installations/:installationLinkId",
+      "normalizedPath": "/github/app/installations/:parameter",
+      "key": "DELETE /github/app/installations/:parameter",
+      "controller": "GitHubAppController",
+      "handler": "disconnect",
+      "source": "src/modules/github/controllers/github-app.controller.ts",
+      "pathParameters": [
+        "installationLinkId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/app/installations/attempts/:attemptId",
+      "normalizedPath": "/github/app/installations/attempts/:parameter",
+      "key": "GET /github/app/installations/attempts/:parameter",
+      "controller": "GitHubAppController",
+      "handler": "getConnectionAttempt",
+      "source": "src/modules/github/controllers/github-app.controller.ts",
+      "pathParameters": [
+        "attemptId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/github/app/installations/callback",
+      "normalizedPath": "/github/app/installations/callback",
+      "key": "POST /github/app/installations/callback",
+      "controller": "GitHubAppController",
+      "handler": "complete",
+      "source": "src/modules/github/controllers/github-app.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CompleteGitHubAppInstallationRequest",
+      "bodyFields": [
+        {
+          "name": "attemptId",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "providerInstallationId",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/github/app/installations/start",
+      "normalizedPath": "/github/app/installations/start",
+      "key": "POST /github/app/installations/start",
+      "controller": "GitHubAppController",
+      "handler": "start",
+      "source": "src/modules/github/controllers/github-app.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "StartGitHubAppInstallationRequest",
+      "bodyFields": [
+        {
+          "name": "flowType",
+          "optional": false,
+          "type": "'install_and_authorize' | 'authorize_existing_installation'"
+        },
+        {
+          "name": "installationLinkId",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/github/app/repositories",
+      "normalizedPath": "/github/app/repositories",
+      "key": "GET /github/app/repositories",
+      "controller": "GitHubAppController",
+      "handler": "repositories",
+      "source": "src/modules/github/controllers/github-app.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "installationLinkId",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "page",
+          "optional": false,
+          "type": "unknown"
+        },
+        {
+          "name": "perPage",
+          "optional": false,
+          "type": "unknown"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/oauth/callback",
+      "normalizedPath": "/github/oauth/callback",
+      "key": "GET /github/oauth/callback",
+      "controller": "GitHubOAuthController",
+      "handler": "callbackFromRedirect",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "code",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/github/oauth/callback",
+      "normalizedPath": "/github/oauth/callback",
+      "key": "POST /github/oauth/callback",
+      "controller": "GitHubOAuthController",
+      "handler": "callbackFromFrontend",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "GitHubOAuthCallbackRequest",
+      "bodyFields": [
+        {
+          "name": "code",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "state",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/github/oauth/start",
+      "normalizedPath": "/github/oauth/start",
+      "key": "GET /github/oauth/start",
+      "controller": "GitHubOAuthController",
+      "handler": "startOAuth",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/readme",
+      "normalizedPath": "/github/readme",
+      "key": "GET /github/readme",
+      "controller": "GitHubOAuthController",
+      "handler": "getReadme",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "fullName",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/repositories",
+      "normalizedPath": "/github/repositories",
+      "key": "GET /github/repositories",
+      "controller": "GitHubOAuthController",
+      "handler": "listRepositories",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "page",
+          "optional": false,
+          "type": "unknown"
+        },
+        {
+          "name": "perPage",
+          "optional": false,
+          "type": "unknown"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/repository/commit-signals",
+      "normalizedPath": "/github/repository/commit-signals",
+      "key": "GET /github/repository/commit-signals",
+      "controller": "GitHubOAuthController",
+      "handler": "getCommitSignals",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "fullName",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "author",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/repository/contribution-activity",
+      "normalizedPath": "/github/repository/contribution-activity",
+      "key": "GET /github/repository/contribution-activity",
+      "controller": "GitHubOAuthController",
+      "handler": "getContributionActivity",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "fullName",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/repository/description",
+      "normalizedPath": "/github/repository/description",
+      "key": "GET /github/repository/description",
+      "controller": "GitHubOAuthController",
+      "handler": "getRepositoryDescription",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "fullName",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/github/repository/statistics",
+      "normalizedPath": "/github/repository/statistics",
+      "key": "GET /github/repository/statistics",
+      "controller": "GitHubOAuthController",
+      "handler": "getRepositoryStatistics",
+      "source": "src/modules/github/controllers/github-oauth.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "fullName",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "normalizedPath": "/health",
+      "key": "GET /health",
+      "controller": "HealthController",
+      "handler": "check",
+      "source": "src/modules/health/health.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/material-analysis/runs/:runId",
+      "normalizedPath": "/material-analysis/runs/:parameter",
+      "key": "GET /material-analysis/runs/:parameter",
+      "controller": "MaterialAnalysisController",
+      "handler": "getRun",
+      "source": "src/modules/materials/material-analysis.controller.ts",
+      "pathParameters": [
+        "runId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/material-analysis/sets/:analysisSetId/runs",
+      "normalizedPath": "/material-analysis/sets/:parameter/runs",
+      "key": "POST /material-analysis/sets/:parameter/runs",
+      "controller": "MaterialAnalysisController",
+      "handler": "startSet",
+      "source": "src/modules/materials/material-analysis.controller.ts",
+      "pathParameters": [
+        "analysisSetId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/material-analysis/suggestions/:suggestionId/adopt-contribution-request",
+      "normalizedPath": "/material-analysis/suggestions/:parameter/adopt-contribution-request",
+      "key": "POST /material-analysis/suggestions/:parameter/adopt-contribution-request",
+      "controller": "MaterialAnalysisController",
+      "handler": "adoptContributionRequestSuggestion",
+      "source": "src/modules/materials/material-analysis.controller.ts",
+      "pathParameters": [
+        "suggestionId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AdoptContributionRequestSuggestionDto",
+      "bodyFields": [
+        {
+          "name": "applicationsCloseTime",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "targetCompletionDate",
+          "optional": true,
+          "type": "string | null"
+        },
+        {
+          "name": "rewardCents",
+          "optional": true,
+          "type": "number | null"
+        },
+        {
+          "name": "rewardCurrency",
+          "optional": true,
+          "type": "string | null"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/material-analysis/suggestions/:suggestionId/adopt-project",
+      "normalizedPath": "/material-analysis/suggestions/:parameter/adopt-project",
+      "key": "POST /material-analysis/suggestions/:parameter/adopt-project",
+      "controller": "MaterialAnalysisController",
+      "handler": "adoptProjectSuggestion",
+      "source": "src/modules/materials/material-analysis.controller.ts",
+      "pathParameters": [
+        "suggestionId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AdoptProjectSuggestionDto",
+      "bodyFields": [
+        {
+          "name": "expectedRevision",
+          "optional": false,
+          "type": "number"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/material-analysis/suggestions/:suggestionId/reject",
+      "normalizedPath": "/material-analysis/suggestions/:parameter/reject",
+      "key": "POST /material-analysis/suggestions/:parameter/reject",
+      "controller": "MaterialAnalysisController",
+      "handler": "rejectSuggestion",
+      "source": "src/modules/materials/material-analysis.controller.ts",
+      "pathParameters": [
+        "suggestionId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/material-downloads",
+      "normalizedPath": "/material-downloads",
+      "key": "GET /material-downloads",
+      "controller": "MaterialsController",
+      "handler": "download",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "token",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/material-upload-constraints",
+      "normalizedPath": "/material-upload-constraints",
+      "key": "GET /material-upload-constraints",
+      "controller": "MaterialsController",
+      "handler": "getUploadConstraints",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/materials/:materialId",
+      "normalizedPath": "/materials/:parameter",
+      "key": "GET /materials/:parameter",
+      "controller": "MaterialsController",
+      "handler": "getForReader",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "materialId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/materials/:materialId/deletions",
+      "normalizedPath": "/materials/:parameter/deletions",
+      "key": "POST /materials/:parameter/deletions",
+      "controller": "MaterialsController",
+      "handler": "remove",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "materialId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "MaterialCommandDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/materials/:materialId/grants",
+      "normalizedPath": "/materials/:parameter/grants",
+      "key": "GET /materials/:parameter/grants",
+      "controller": "MaterialsController",
+      "handler": "listGrants",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "materialId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/materials/:materialId/grants",
+      "normalizedPath": "/materials/:parameter/grants",
+      "key": "POST /materials/:parameter/grants",
+      "controller": "MaterialsController",
+      "handler": "grant",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "materialId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "GrantMaterialAccessDto",
+      "bodyFields": [
+        {
+          "name": "granteeId",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/materials/:materialId/grants/:granteeId/revocations",
+      "normalizedPath": "/materials/:parameter/grants/:parameter/revocations",
+      "key": "POST /materials/:parameter/grants/:parameter/revocations",
+      "controller": "MaterialsController",
+      "handler": "revoke",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "materialId",
+        "granteeId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "MaterialCommandDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/materials/:materialId/versions",
+      "normalizedPath": "/materials/:parameter/versions",
+      "key": "POST /materials/:parameter/versions",
+      "controller": "MaterialsController",
+      "handler": "addVersion",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "materialId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AddMaterialVersionDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "multipart/form-data",
+      "multipartFields": [
+        "file"
+      ],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/materials/:materialId/versions/:version/download-token",
+      "normalizedPath": "/materials/:parameter/versions/:parameter/download-token",
+      "key": "POST /materials/:parameter/versions/:parameter/download-token",
+      "controller": "MaterialsController",
+      "handler": "issueDownloadToken",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "materialId",
+        "version"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "PATCH",
+      "path": "/materials/:materialId/visibility",
+      "normalizedPath": "/materials/:parameter/visibility",
+      "key": "PATCH /materials/:parameter/visibility",
+      "controller": "MaterialsController",
+      "handler": "changeVisibility",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "materialId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ChangeMaterialVisibilityDto",
+      "bodyFields": [
+        {
+          "name": "visibility",
+          "optional": false,
+          "type": "(typeof MATERIAL_VISIBILITY_INPUTS)[number]"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/me/notification-preferences",
+      "normalizedPath": "/me/notification-preferences",
+      "key": "GET /me/notification-preferences",
+      "controller": "NotificationsController",
+      "handler": "getPreferences",
+      "source": "src/modules/notifications/notifications.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/me/notification-preferences",
+      "normalizedPath": "/me/notification-preferences",
+      "key": "PATCH /me/notification-preferences",
+      "controller": "NotificationsController",
+      "handler": "updatePreferences",
+      "source": "src/modules/notifications/notifications.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdateNotificationPreferencesDto",
+      "bodyFields": [
+        {
+          "name": "expectedRevision",
+          "optional": false,
+          "type": "number"
+        },
+        {
+          "name": "retentionDays",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "quietHours",
+          "optional": true,
+          "type": "QuietHoursDto"
+        },
+        {
+          "name": "categories",
+          "optional": true,
+          "type": "NotificationCategoryPreferenceDto[]"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/notifications",
+      "normalizedPath": "/notifications",
+      "key": "GET /notifications",
+      "controller": "NotificationsController",
+      "handler": "list",
+      "source": "src/modules/notifications/notifications.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "readState",
+          "optional": true,
+          "type": "'read' | 'unread'"
+        },
+        {
+          "name": "type",
+          "optional": true,
+          "type": "NotificationType"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/notifications/:notificationId/read-state",
+      "normalizedPath": "/notifications/:parameter/read-state",
+      "key": "PATCH /notifications/:parameter/read-state",
+      "controller": "NotificationsController",
+      "handler": "setReadState",
+      "source": "src/modules/notifications/notifications.controller.ts",
+      "pathParameters": [
+        "notificationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SetNotificationReadStateDto",
+      "bodyFields": [
+        {
+          "name": "state",
+          "optional": false,
+          "type": "'read' | 'unread'"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/notifications/mark-all-read",
+      "normalizedPath": "/notifications/mark-all-read",
+      "key": "POST /notifications/mark-all-read",
+      "controller": "NotificationsController",
+      "handler": "markAllRead",
+      "source": "src/modules/notifications/notifications.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/notifications/unread-count",
+      "normalizedPath": "/notifications/unread-count",
+      "key": "GET /notifications/unread-count",
+      "controller": "NotificationsController",
+      "handler": "unreadCount",
+      "source": "src/modules/notifications/notifications.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "readState",
+          "optional": true,
+          "type": "'read' | 'unread'"
+        },
+        {
+          "name": "type",
+          "optional": true,
+          "type": "NotificationType"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/owner-decisions/:ownerDecisionId/reports",
+      "normalizedPath": "/owner-decisions/:parameter/reports",
+      "key": "POST /owner-decisions/:parameter/reports",
+      "controller": "DecisionFeedbackReportsController",
+      "handler": "create",
+      "source": "src/modules/admin/controllers/decision-feedback-reports.controller.ts",
+      "pathParameters": [
+        "ownerDecisionId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateDecisionFeedbackReportRequest",
+      "bodyFields": [
+        {
+          "name": "reason",
+          "optional": false,
+          "type": "ReportReason"
+        },
+        {
+          "name": "description",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/projects",
+      "normalizedPath": "/projects",
+      "key": "POST /projects",
+      "controller": "ProjectsController",
+      "handler": "createDraft",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": false
+        }
+      ],
+      "bodyDto": "CreateProjectDraftDto",
+      "bodyFields": [
+        {
+          "name": "source",
+          "optional": false,
+          "type": "ProjectDraftSourceDto"
+        },
+        {
+          "name": "project",
+          "optional": false,
+          "type": "ProjectPresentationDto"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/projects/:projectId/contribution-requests",
+      "normalizedPath": "/projects/:parameter/contribution-requests",
+      "key": "GET /projects/:parameter/contribution-requests",
+      "controller": "ContributionTasksController",
+      "handler": "listForOwnedProject",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/projects/:projectId/contribution-requests",
+      "normalizedPath": "/projects/:parameter/contribution-requests",
+      "key": "POST /projects/:parameter/contribution-requests",
+      "controller": "ContributionTasksController",
+      "handler": "createDraft",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "CreateContributionRequestDto",
+      "bodyFields": [
+        {
+          "name": "title",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "requiredRequirements",
+          "optional": false,
+          "type": "ContributionRequestRequirementInputDto[]"
+        },
+        {
+          "name": "preferredRequirements",
+          "optional": true,
+          "type": "ContributionRequestRequirementInputDto[]"
+        },
+        {
+          "name": "technologyTags",
+          "optional": true,
+          "type": "string[]"
+        },
+        {
+          "name": "applicationsCloseTime",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "targetCompletionDate",
+          "optional": true,
+          "type": "string | null"
+        },
+        {
+          "name": "difficulty",
+          "optional": true,
+          "type": "ContributionRequestDifficulty | null"
+        },
+        {
+          "name": "reward",
+          "optional": true,
+          "type": "number | null"
+        },
+        {
+          "name": "rewardCurrency",
+          "optional": true,
+          "type": "string | null"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/projects/:projectId/material-analysis/constraints",
+      "normalizedPath": "/projects/:parameter/material-analysis/constraints",
+      "key": "GET /projects/:parameter/material-analysis/constraints",
+      "controller": "MaterialAnalysisController",
+      "handler": "getConstraints",
+      "source": "src/modules/materials/material-analysis.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/projects/:projectId/material-analysis/sets",
+      "normalizedPath": "/projects/:parameter/material-analysis/sets",
+      "key": "GET /projects/:parameter/material-analysis/sets",
+      "controller": "MaterialAnalysisController",
+      "handler": "listSets",
+      "source": "src/modules/materials/material-analysis.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/projects/:projectId/material-analysis/sets",
+      "normalizedPath": "/projects/:parameter/material-analysis/sets",
+      "key": "POST /projects/:parameter/material-analysis/sets",
+      "controller": "MaterialAnalysisController",
+      "handler": "createSet",
+      "source": "src/modules/materials/material-analysis.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateMaterialAnalysisSetDto",
+      "bodyFields": [
+        {
+          "name": "materialVersions",
+          "optional": false,
+          "type": "MaterialAnalysisVersionSelectionDto[]"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/projects/:projectId/materials",
+      "normalizedPath": "/projects/:parameter/materials",
+      "key": "GET /projects/:parameter/materials",
+      "controller": "MaterialsController",
+      "handler": "listForProject",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/projects/:projectId/materials",
+      "normalizedPath": "/projects/:parameter/materials",
+      "key": "POST /projects/:parameter/materials",
+      "controller": "MaterialsController",
+      "handler": "createForProject",
+      "source": "src/modules/materials/materials.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateMaterialDto",
+      "bodyFields": [
+        {
+          "name": "title",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "visibility",
+          "optional": false,
+          "type": "(typeof MATERIAL_VISIBILITY_INPUTS)[number]"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "multipart/form-data",
+      "multipartFields": [
+        "file"
+      ],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/projects/discover",
+      "normalizedPath": "/projects/discover",
+      "key": "GET /projects/discover",
+      "controller": "ProjectsController",
+      "handler": "discoverProjects",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "page",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "technologies",
+          "optional": true,
+          "type": "string[]"
+        },
+        {
+          "name": "category",
+          "optional": true,
+          "type": "ProjectCategory"
+        },
+        {
+          "name": "difficulty",
+          "optional": true,
+          "type": "ProjectDifficulty"
+        },
+        {
+          "name": "search",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "contributor",
+        "owner",
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/projects/github/preview",
+      "normalizedPath": "/projects/github/preview",
+      "key": "POST /projects/github/preview",
+      "controller": "ProjectsController",
+      "handler": "preview",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "PreviewProjectSourceDto",
+      "bodyFields": [
+        {
+          "name": "repositoryReference",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/projects/import/github",
+      "normalizedPath": "/projects/import/github",
+      "key": "POST /projects/import/github",
+      "controller": "ProjectsController",
+      "handler": "importFromGitHub",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 410
+    },
+    {
+      "method": "GET",
+      "path": "/projects/me",
+      "normalizedPath": "/projects/me",
+      "key": "GET /projects/me",
+      "controller": "ProjectsController",
+      "handler": "getMyProjects",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/projects/me/:projectId",
+      "normalizedPath": "/projects/me/:parameter",
+      "key": "GET /projects/me/:parameter",
+      "controller": "ProjectsController",
+      "handler": "getOwnerProject",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/projects/me/:projectId",
+      "normalizedPath": "/projects/me/:parameter",
+      "key": "PATCH /projects/me/:parameter",
+      "controller": "ProjectsController",
+      "handler": "updateOwnerProject",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": false
+        }
+      ],
+      "bodyDto": "UpdateProjectDto",
+      "bodyFields": [
+        {
+          "name": "title",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "optional": true,
+          "type": "string | null"
+        },
+        {
+          "name": "tags",
+          "optional": true,
+          "type": "string[]"
+        },
+        {
+          "name": "technologies",
+          "optional": true,
+          "type": "string[]"
+        },
+        {
+          "name": "category",
+          "optional": true,
+          "type": "ProjectCategory | null"
+        },
+        {
+          "name": "difficulty",
+          "optional": true,
+          "type": "ProjectDifficulty | null"
+        },
+        {
+          "name": "expectedRevision",
+          "optional": false,
+          "type": "number"
+        },
+        {
+          "name": "restoreFromSource",
+          "optional": true,
+          "type": "Array<\n    'title' | 'description' | 'tags' | 'technologies'\n  >"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/projects/me/:projectId/archive",
+      "normalizedPath": "/projects/me/:parameter/archive",
+      "key": "POST /projects/me/:parameter/archive",
+      "controller": "ProjectsController",
+      "handler": "archive",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": false
+        }
+      ],
+      "bodyDto": "ConfirmProjectTransitionDto",
+      "bodyFields": [
+        {
+          "name": "expectedRevision",
+          "optional": false,
+          "type": "number"
+        },
+        {
+          "name": "confirm",
+          "optional": false,
+          "type": "true"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/projects/me/:projectId/publish",
+      "normalizedPath": "/projects/me/:parameter/publish",
+      "key": "POST /projects/me/:parameter/publish",
+      "controller": "ProjectsController",
+      "handler": "publish",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": false
+        }
+      ],
+      "bodyDto": "ConfirmProjectTransitionDto",
+      "bodyFields": [
+        {
+          "name": "expectedRevision",
+          "optional": false,
+          "type": "number"
+        },
+        {
+          "name": "confirm",
+          "optional": false,
+          "type": "true"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/projects/me/:projectId/source/refresh",
+      "normalizedPath": "/projects/me/:parameter/source/refresh",
+      "key": "POST /projects/me/:parameter/source/refresh",
+      "controller": "ProjectsController",
+      "handler": "refreshSource",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": false
+        }
+      ],
+      "bodyDto": "RefreshProjectSourceDto",
+      "bodyFields": [
+        {
+          "name": "expectedRevision",
+          "optional": false,
+          "type": "number"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/public/projects",
+      "normalizedPath": "/public/projects",
+      "key": "GET /public/projects",
+      "controller": "PublicProjectsController",
+      "handler": "list",
+      "source": "src/modules/projects/public-projects.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/public/projects/:projectSlug",
+      "normalizedPath": "/public/projects/:parameter",
+      "key": "GET /public/projects/:parameter",
+      "controller": "PublicProjectsController",
+      "handler": "getBySlug",
+      "source": "src/modules/projects/public-projects.controller.ts",
+      "pathParameters": [
+        "projectSlug"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/skill-profiles/me/generations",
+      "normalizedPath": "/skill-profiles/me/generations",
+      "key": "POST /skill-profiles/me/generations",
+      "controller": "SkillProfilesController",
+      "handler": "startGeneration",
+      "source": "src/modules/skill-profiles/controllers/skill-profiles.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "StartSkillProfileGenerationRequest",
+      "bodyFields": [
+        {
+          "name": "installationLinkId",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "repositoryIds",
+          "optional": false,
+          "type": "string[]"
+        },
+        {
+          "name": "consent",
+          "optional": false,
+          "type": "SkillProfileGenerationConsentRequest"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/skill-profiles/me/generations/:generationId",
+      "normalizedPath": "/skill-profiles/me/generations/:parameter",
+      "key": "GET /skill-profiles/me/generations/:parameter",
+      "controller": "SkillProfilesController",
+      "handler": "getGeneration",
+      "source": "src/modules/skill-profiles/controllers/skill-profiles.controller.ts",
+      "pathParameters": [
+        "generationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/skill-profiles/me/generations/:generationId/retry",
+      "normalizedPath": "/skill-profiles/me/generations/:parameter/retry",
+      "key": "POST /skill-profiles/me/generations/:parameter/retry",
+      "controller": "SkillProfilesController",
+      "handler": "retryGeneration",
+      "source": "src/modules/skill-profiles/controllers/skill-profiles.controller.ts",
+      "pathParameters": [
+        "generationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "RetrySkillProfileGenerationRequest",
+      "bodyFields": [
+        {
+          "name": "consent",
+          "optional": false,
+          "type": "SkillProfileGenerationConsentRequest"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/skill-profiles/me/generations/latest",
+      "normalizedPath": "/skill-profiles/me/generations/latest",
+      "key": "GET /skill-profiles/me/generations/latest",
+      "controller": "SkillProfilesController",
+      "handler": "getLatestGeneration",
+      "source": "src/modules/skill-profiles/controllers/skill-profiles.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "normalizedPath": "/tasks",
+      "key": "GET /tasks",
+      "controller": "PublicContributionRequestsController",
+      "handler": "list",
+      "source": "src/modules/contribution-tasks/controllers/public-contribution-requests.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "q",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "technologies",
+          "optional": true,
+          "type": "string[]"
+        },
+        {
+          "name": "[technologies[]]",
+          "optional": true,
+          "type": "string[]"
+        },
+        {
+          "name": "difficulty",
+          "optional": true,
+          "type": "ContributionRequestDifficulty"
+        },
+        {
+          "name": "hasReward",
+          "optional": true,
+          "type": "boolean"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks/:requestId",
+      "normalizedPath": "/tasks/:parameter",
+      "key": "GET /tasks/:parameter",
+      "controller": "PublicContributionRequestsController",
+      "handler": "getById",
+      "source": "src/modules/contribution-tasks/controllers/public-contribution-requests.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks/:requestId/applications",
+      "normalizedPath": "/tasks/:parameter/applications",
+      "key": "GET /tasks/:parameter/applications",
+      "controller": "ApplicationsController",
+      "handler": "listForOwner",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/tasks/:requestId/applications",
+      "normalizedPath": "/tasks/:parameter/applications",
+      "key": "POST /tasks/:parameter/applications",
+      "controller": "ApplicationsController",
+      "handler": "submit",
+      "source": "src/modules/applications/applications.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SubmitApplicationDto",
+      "bodyFields": [
+        {
+          "name": "contributionApproach",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "proposedDeliveryDurationDays",
+          "optional": false,
+          "type": "number"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/webhooks/github/app",
+      "normalizedPath": "/webhooks/github/app",
+      "key": "POST /webhooks/github/app",
+      "controller": "GitHubAppWebhookController",
+      "handler": "receive",
+      "source": "src/modules/github/controllers/github-app-webhook.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "x-hub-signature-256",
+          "optional": false
+        },
+        {
+          "name": "x-github-delivery",
+          "optional": false
+        },
+        {
+          "name": "x-github-event",
+          "optional": false
+        }
+      ],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": true,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 201
+    }
+  ]
+}

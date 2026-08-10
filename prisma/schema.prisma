@@ -265,12 +265,33 @@ enum GitHubWebhookDeliveryStatus {
 enum NotificationType {
   application_status
   proposal_status
+  assignment_status
+  material_status
   skill_review
   delivery_update
   match_found
   task_recommendation
   plan_limit
+  moderation
+  account_security
+  conversation_activity
+  assignment_call
   system
+}
+
+enum NotificationPriority {
+  urgent
+  attention
+  ambient
+}
+
+enum NotificationEventType {
+  created
+  read_state_changed
+}
+
+enum MessageEventType {
+  created
 }
 
 enum ReportReason {
@@ -358,6 +379,11 @@ enum UserActionType {
   application_submitted
 }
 
+enum AssignmentConversationStatus {
+  active
+  read_only
+}
+
 model User {
   id                 String       @id @default(uuid()) @db.Uuid
   email              String       @unique @db.VarChar(255)
@@ -378,6 +404,8 @@ model User {
   contributionRequests              ContributionRequest[]              @relation("ContributionRequestOwner")
   applications                      Application[]                      @relation("ApplicationContributor")
   notifications                     Notification[]
+  notificationEvents                NotificationEvent[]
+  notificationPreference            NotificationPreference?
   deliveryReviews                   DeliveryReview[]                   @relation("DeliveryReviewReviewer")
   disputesFiled                     Dispute[]                          @relation("UserDisputesFiled")
   disputesResolved                  Dispute[]                          @relation("UserDisputesResolved")
@@ -408,6 +436,7 @@ model User {
   applicationEvidenceSnapshots      ApplicationEvidenceSnapshot[]      @relation("ApplicationEvidenceSnapshotContributor")
   ownerDecisions                    OwnerDecision[]                    @relation("OwnerDecisionOwner")
   assignments                       Assignment[]                       @relation("AssignmentContributor")
+  conversationMessages              Message[]                          @relation("MessageSender")
   contributionProposals             ContributionProposal[]             @relation("ContributionProposalProposer")
   contributionProposalVersions      ContributionProposalVersion[]      @relation("ContributionProposalVersionAuthor")
   contributionProposalAudits        ContributionProposalAudit[]        @relation("ContributionProposalAuditActor")
@@ -417,8 +446,8 @@ model User {
   assessmentPresentations           AssessmentPresentation[]           @relation("AssessmentPresentationOwner")
   assessmentAuditEvents             AssessmentRequestAudit[]           @relation("AssessmentRequestAuditActor")
   materialsOwned                    Material[]                         @relation("MaterialOwner")
-  materialAnalysisSets              MaterialAnalysisSet[]               @relation("MaterialAnalysisSetOwner")
-  materialDraftSuggestionReviews   MaterialDraftSuggestion[]             @relation("MaterialDraftSuggestionReviewer")
+  materialAnalysisSets              MaterialAnalysisSet[]              @relation("MaterialAnalysisSetOwner")
+  materialDraftSuggestionReviews    MaterialDraftSuggestion[]          @relation("MaterialDraftSuggestionReviewer")
   materialVersionsUploaded          MaterialVersion[]                  @relation("MaterialVersionUploader")
   materialGrantsReceived            MaterialGrant[]                    @relation("MaterialGrantGrantee")
   materialGrantsIssued              MaterialGrant[]                    @relation("MaterialGrantGranter")
@@ -709,7 +738,7 @@ model ContributionRequest {
   ownerDecisions        OwnerDecision[]
   assignments           Assignment[]
   assessmentRequests    AssessmentRequest[]
-  materials             Material[]          @relation("ContributionRequestMaterials")
+  materials             Material[]                       @relation("ContributionRequestMaterials")
 
   @@index([project_id, status])
   @@index([owner_id, created_at])
@@ -799,7 +828,7 @@ model ApplicationRequirementSnapshot {
   requirements              Json
   created_at                DateTime @default(now())
 
-  application Application?
+  application        Application?
   assessmentRequests AssessmentRequest[]
 
   @@index([contribution_request_id])
@@ -812,8 +841,8 @@ model ApplicationEvidenceSnapshot {
   evidence            Json
   created_at          DateTime @default(now())
 
-  contributor User         @relation("ApplicationEvidenceSnapshotContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
-  application Application?
+  contributor        User                @relation("ApplicationEvidenceSnapshotContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+  application        Application?
   assessmentRequests AssessmentRequest[]
 
   @@index([contributor_id, created_at])
@@ -839,27 +868,27 @@ model ApplicationAudit {
 }
 
 model AssessmentRequest {
-  id                        String                  @id @default(uuid()) @db.Uuid
-  application_id            String                  @db.Uuid
-  contribution_request_id   String                  @db.Uuid
-  owner_id                  String                  @db.Uuid
-  requirement_snapshot_id   String                  @db.Uuid
-  evidence_snapshot_id      String                  @db.Uuid
-  status                    AssessmentRequestStatus @default(requested)
-  idempotency_key           String                  @db.VarChar(128)
-  command_fingerprint       String                  @db.Char(64)
-  requested_at              DateTime                @default(now())
-  completed_at              DateTime?
-  created_at                DateTime                @default(now())
-  updated_at                DateTime                @default(now()) @updatedAt
+  id                      String                  @id @default(uuid()) @db.Uuid
+  application_id          String                  @db.Uuid
+  contribution_request_id String                  @db.Uuid
+  owner_id                String                  @db.Uuid
+  requirement_snapshot_id String                  @db.Uuid
+  evidence_snapshot_id    String                  @db.Uuid
+  status                  AssessmentRequestStatus @default(requested)
+  idempotency_key         String                  @db.VarChar(128)
+  command_fingerprint     String                  @db.Char(64)
+  requested_at            DateTime                @default(now())
+  completed_at            DateTime?
+  created_at              DateTime                @default(now())
+  updated_at              DateTime                @default(now()) @updatedAt
 
-  application             Application                    @relation(fields: [application_id], references: [id], onDelete: Restrict)
-  contributionRequest     ContributionRequest            @relation(fields: [contribution_request_id], references: [id], onDelete: Restrict)
-  owner                   User                           @relation("AssessmentRequestOwner", fields: [owner_id], references: [id], onDelete: Restrict)
-  requirementSnapshot     ApplicationRequirementSnapshot @relation(fields: [requirement_snapshot_id], references: [id], onDelete: Restrict)
-  evidenceSnapshot        ApplicationEvidenceSnapshot    @relation(fields: [evidence_snapshot_id], references: [id], onDelete: Restrict)
-  attempts                AssessmentAttempt[]
-  auditEvents             AssessmentRequestAudit[]
+  application         Application                    @relation(fields: [application_id], references: [id], onDelete: Restrict)
+  contributionRequest ContributionRequest            @relation(fields: [contribution_request_id], references: [id], onDelete: Restrict)
+  owner               User                           @relation("AssessmentRequestOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  requirementSnapshot ApplicationRequirementSnapshot @relation(fields: [requirement_snapshot_id], references: [id], onDelete: Restrict)
+  evidenceSnapshot    ApplicationEvidenceSnapshot    @relation(fields: [evidence_snapshot_id], references: [id], onDelete: Restrict)
+  attempts            AssessmentAttempt[]
+  auditEvents         AssessmentRequestAudit[]
 
   @@unique([owner_id, idempotency_key])
   @@index([application_id, status, created_at])
@@ -885,9 +914,9 @@ model AssessmentAttempt {
   completed_at          DateTime?
   created_at            DateTime                @default(now())
 
-  assessmentRequest     AssessmentRequest       @relation(fields: [assessment_request_id], references: [id], onDelete: Restrict)
-  retryOfAttempt        AssessmentAttempt?      @relation("AssessmentAttemptRetry", fields: [retry_of_attempt_id], references: [id], onDelete: Restrict)
-  retries               AssessmentAttempt[]     @relation("AssessmentAttemptRetry")
+  assessmentRequest     AssessmentRequest      @relation(fields: [assessment_request_id], references: [id], onDelete: Restrict)
+  retryOfAttempt        AssessmentAttempt?     @relation("AssessmentAttemptRetry", fields: [retry_of_attempt_id], references: [id], onDelete: Restrict)
+  retries               AssessmentAttempt[]    @relation("AssessmentAttemptRetry")
   advisoryFitAssessment AdvisoryFitAssessment?
 
   @@unique([assessment_request_id, attempt_number])
@@ -896,27 +925,27 @@ model AssessmentAttempt {
 }
 
 model AdvisoryFitAssessment {
-  id                   String             @id @default(uuid()) @db.Uuid
-  assessment_attempt_id String            @unique @db.Uuid
-  fit_band             AdvisoryFitBand
-  created_at           DateTime           @default(now())
+  id                    String          @id @default(uuid()) @db.Uuid
+  assessment_attempt_id String          @unique @db.Uuid
+  fit_band              AdvisoryFitBand
+  created_at            DateTime        @default(now())
 
-  attempt       AssessmentAttempt       @relation(fields: [assessment_attempt_id], references: [id], onDelete: Restrict)
-  findings      AssessmentFinding[]
-  presentation  AssessmentPresentation?
+  attempt      AssessmentAttempt       @relation(fields: [assessment_attempt_id], references: [id], onDelete: Restrict)
+  findings     AssessmentFinding[]
+  presentation AssessmentPresentation?
 }
 
 model AssessmentFinding {
-  id                         String                         @id @default(uuid()) @db.Uuid
-  advisory_fit_assessment_id String                         @db.Uuid
-  requirement_id             String                         @db.Uuid
+  id                         String                             @id @default(uuid()) @db.Uuid
+  advisory_fit_assessment_id String                             @db.Uuid
+  requirement_id             String                             @db.Uuid
   requirement_kind           ContributionRequestRequirementKind
   finding                    AssessmentFindingKind
   confidence                 AssessmentConfidence
   citations                  Json
   uncertainty                Json
-  explanation                String                         @db.VarChar(2000)
-  created_at                 DateTime                       @default(now())
+  explanation                String                             @db.VarChar(2000)
+  created_at                 DateTime                           @default(now())
 
   assessment AdvisoryFitAssessment @relation(fields: [advisory_fit_assessment_id], references: [id], onDelete: Cascade)
 
@@ -931,21 +960,21 @@ model AssessmentPresentation {
   presented_at               DateTime @default(now())
 
   assessment AdvisoryFitAssessment @relation(fields: [advisory_fit_assessment_id], references: [id], onDelete: Restrict)
-  owner      User                 @relation("AssessmentPresentationOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  owner      User                  @relation("AssessmentPresentationOwner", fields: [owner_id], references: [id], onDelete: Restrict)
 }
 
 model AssessmentRequestAudit {
-  id                    String                  @id @default(uuid()) @db.Uuid
-  assessment_request_id String                  @db.Uuid
-  actor_id              String?                 @db.Uuid
+  id                    String                   @id @default(uuid()) @db.Uuid
+  assessment_request_id String                   @db.Uuid
+  actor_id              String?                  @db.Uuid
   action                AssessmentAuditAction
   from_status           AssessmentRequestStatus?
   to_status             AssessmentRequestStatus
   attempt_number        Int?
-  idempotency_key       String?                 @db.VarChar(128)
-  command_fingerprint   String?                 @db.Char(64)
+  idempotency_key       String?                  @db.VarChar(128)
+  command_fingerprint   String?                  @db.Char(64)
   metadata              Json?
-  created_at            DateTime                @default(now())
+  created_at            DateTime                 @default(now())
 
   assessmentRequest AssessmentRequest @relation(fields: [assessment_request_id], references: [id], onDelete: Restrict)
   actor             User?             @relation("AssessmentRequestAuditActor", fields: [actor_id], references: [id], onDelete: Restrict)
@@ -985,12 +1014,70 @@ model Assignment {
   agreed_delivery_due_at        DateTime
   assigned_at                   DateTime @default(now())
 
-  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id], onDelete: Restrict)
-  application         Application         @relation(fields: [application_id], references: [id], onDelete: Restrict)
-  ownerDecision       OwnerDecision       @relation(fields: [owner_decision_id], references: [id], onDelete: Restrict)
-  contributor         User                @relation("AssignmentContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+  contributionRequest ContributionRequest     @relation(fields: [contribution_request_id], references: [id], onDelete: Restrict)
+  application         Application             @relation(fields: [application_id], references: [id], onDelete: Restrict)
+  ownerDecision       OwnerDecision           @relation(fields: [owner_decision_id], references: [id], onDelete: Restrict)
+  contributor         User                    @relation("AssignmentContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+  conversation        AssignmentConversation?
 
   @@index([contributor_id, assigned_at])
+}
+
+model AssignmentConversation {
+  id                String                       @id @default(uuid()) @db.Uuid
+  assignment_id     String                       @unique @db.Uuid
+  status            AssignmentConversationStatus @default(active)
+  aggregate_version Int                          @default(1)
+  created_at        DateTime                     @default(now())
+  updated_at        DateTime                     @default(now()) @updatedAt
+
+  assignment Assignment     @relation(fields: [assignment_id], references: [id], onDelete: Restrict)
+  messages   Message[]
+  events     MessageEvent[]
+
+  @@index([status, updated_at])
+}
+
+model Message {
+  id                  String    @id @default(uuid()) @db.Uuid
+  conversation_id     String    @db.Uuid
+  sequence            Int
+  sender_id           String    @db.Uuid
+  body                String    @db.VarChar(4000)
+  reply_to_message_id String?   @db.Uuid
+  idempotency_key     String    @db.VarChar(128)
+  created_at          DateTime  @default(now())
+  edited_at           DateTime?
+  retracted_at        DateTime?
+
+  conversation AssignmentConversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  sender       User                   @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
+  replyTo      Message?               @relation("MessageReply", fields: [reply_to_message_id], references: [id], onDelete: SetNull)
+  replies      Message[]              @relation("MessageReply")
+  events       MessageEvent[]
+
+  @@unique([conversation_id, sequence])
+  @@unique([conversation_id, sender_id, idempotency_key])
+  @@index([conversation_id, sequence, id])
+}
+
+model MessageEvent {
+  id                      String           @id @default(uuid()) @db.Uuid
+  message_id              String           @db.Uuid
+  conversation_id         String           @db.Uuid
+  event_type              MessageEventType
+  aggregate_version       Int
+  occurred_at             DateTime         @default(now())
+  published_at            DateTime?
+  publish_attempts        Int              @default(0)
+  last_publish_error_code String?          @db.VarChar(100)
+
+  message      Message                @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  conversation AssignmentConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@unique([message_id, event_type])
+  @@index([published_at, occurred_at])
+  @@index([conversation_id, aggregate_version])
 }
 
 model ProjectProposalIntake {
@@ -1339,18 +1426,75 @@ model GitHubEvidenceCutover {
 }
 
 model Notification {
-  id                String           @id @default(uuid()) @db.Uuid
-  user_id           String           @db.Uuid
+  id                String               @id @default(uuid()) @db.Uuid
+  user_id           String               @db.Uuid
   type              NotificationType
-  title             String           @db.VarChar(255)
-  message           String
+  template_key      String               @db.VarChar(120)
+  template_version  Int                  @default(1)
+  parameters        Json
+  deep_link         String?              @db.VarChar(500)
+  priority          NotificationPriority @default(ambient)
+  title             String?              @db.VarChar(255)
+  message           String?
   metadata          Json?
-  deduplication_key String?          @unique @db.VarChar(160)
-  is_read           Boolean          @default(false)
+  deduplication_key String?              @unique @db.VarChar(160)
+  is_read           Boolean              @default(false)
   read_at           DateTime?
-  created_at        DateTime         @default(now())
+  aggregate_version Int                  @default(1)
+  created_at        DateTime             @default(now())
+  updated_at        DateTime             @default(now()) @updatedAt
 
-  user User @relation(fields: [user_id], references: [id])
+  user   User                @relation(fields: [user_id], references: [id])
+  events NotificationEvent[]
+
+  @@index([user_id, created_at(sort: Desc), id(sort: Desc)])
+  @@index([user_id, is_read, created_at])
+}
+
+model NotificationEvent {
+  id                      String                @id @default(uuid()) @db.Uuid
+  notification_id         String                @db.Uuid
+  user_id                 String                @db.Uuid
+  event_type              NotificationEventType
+  aggregate_version       Int
+  occurred_at             DateTime              @default(now())
+  published_at            DateTime?
+  publish_attempts        Int                   @default(0)
+  last_publish_error_code String?               @db.VarChar(100)
+
+  notification Notification @relation(fields: [notification_id], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [user_id], references: [id])
+
+  @@unique([notification_id, aggregate_version])
+  @@index([published_at, occurred_at])
+  @@index([user_id, occurred_at])
+}
+
+model NotificationPreference {
+  user_id             String    @id @db.Uuid
+  retention_days      Int       @default(90)
+  quiet_hours_enabled Boolean   @default(false)
+  quiet_start_local   DateTime? @db.Time(0)
+  quiet_end_local     DateTime? @db.Time(0)
+  quiet_timezone      String?   @db.VarChar(100)
+  revision            Int       @default(1)
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
+
+  user       User                             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  categories NotificationCategoryPreference[]
+}
+
+model NotificationCategoryPreference {
+  user_id         String           @db.Uuid
+  type            NotificationType
+  in_app_enabled  Boolean          @default(true)
+  browser_enabled Boolean          @default(false)
+  updated_at      DateTime         @default(now()) @updatedAt
+
+  preference NotificationPreference @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@id([user_id, type])
 }
 
 model Report {
@@ -1585,9 +1729,9 @@ model Material {
   created_at              DateTime           @default(now())
   updated_at              DateTime           @default(now()) @updatedAt
 
-  project             Project?             @relation("ProjectMaterials", fields: [project_id], references: [id], onDelete: Restrict)
-  contributionRequest ContributionRequest? @relation("ContributionRequestMaterials", fields: [contribution_request_id], references: [id], onDelete: Restrict)
-  owner               User                 @relation("MaterialOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  project             Project?                     @relation("ProjectMaterials", fields: [project_id], references: [id], onDelete: Restrict)
+  contributionRequest ContributionRequest?         @relation("ContributionRequestMaterials", fields: [contribution_request_id], references: [id], onDelete: Restrict)
+  owner               User                         @relation("MaterialOwner", fields: [owner_id], references: [id], onDelete: Restrict)
   versions            MaterialVersion[]
   analysisSetVersions MaterialAnalysisSetVersion[]
   grants              MaterialGrant[]
@@ -1609,8 +1753,8 @@ model MaterialAnalysisSet {
   created_at DateTime                  @default(now())
   updated_at DateTime                  @updatedAt
 
-  project  Project                         @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  owner    User                            @relation("MaterialAnalysisSetOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  project  Project                      @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  owner    User                         @relation("MaterialAnalysisSetOwner", fields: [owner_id], references: [id], onDelete: Restrict)
   versions MaterialAnalysisSetVersion[]
   runs     MaterialAnalysisRun[]
   chunks   MaterialAnalysisChunk[]
@@ -1622,14 +1766,14 @@ model MaterialAnalysisSet {
 /// Exact version snapshot. The filename, MIME type, and content hash are
 /// retained so a later Material replacement cannot change what a Run meant.
 model MaterialAnalysisSetVersion {
-  id              String   @id @default(uuid()) @db.Uuid
-  analysis_set_id String   @db.Uuid
-  material_id     String   @db.Uuid
-  material_version Int
-  original_filename String  @db.VarChar(255)
-  mime_type       String   @db.VarChar(150)
-  content_hash    String   @db.Char(64)
-  created_at      DateTime @default(now())
+  id                String   @id @default(uuid()) @db.Uuid
+  analysis_set_id   String   @db.Uuid
+  material_id       String   @db.Uuid
+  material_version  Int
+  original_filename String   @db.VarChar(255)
+  mime_type         String   @db.VarChar(150)
+  content_hash      String   @db.Char(64)
+  created_at        DateTime @default(now())
 
   analysisSet MaterialAnalysisSet @relation(fields: [analysis_set_id], references: [id], onDelete: Cascade)
   material    Material            @relation(fields: [material_id], references: [id], onDelete: Restrict)
@@ -1669,24 +1813,24 @@ model MaterialAnalysisRun {
 /// A typed, provenance-carrying draft. `payload` is deliberately not a
 /// Project or ContributionRequest row: review/adoption is a separate command.
 model MaterialDraftSuggestion {
-  id               String                       @id @default(uuid()) @db.Uuid
-  run_id           String                       @db.Uuid
-  suggestion_type  MaterialDraftSuggestionType
-  target_field     String?                      @db.VarChar(50)
-  payload          Json
-  rationale        String                       @db.VarChar(2000)
-  source_versions  Json
-  status           MaterialDraftSuggestionStatus @default(pending)
-  reviewed_by      String?                      @db.Uuid
-  reviewed_at      DateTime?
-  source_removed_at DateTime?
-  adopted_entity_type String?                   @db.VarChar(50)
-  adopted_entity_id   String?                   @db.Uuid
-  created_at       DateTime                     @default(now())
-  updated_at       DateTime                     @updatedAt
+  id                  String                        @id @default(uuid()) @db.Uuid
+  run_id              String                        @db.Uuid
+  suggestion_type     MaterialDraftSuggestionType
+  target_field        String?                       @db.VarChar(50)
+  payload             Json
+  rationale           String                        @db.VarChar(2000)
+  source_versions     Json
+  status              MaterialDraftSuggestionStatus @default(pending)
+  reviewed_by         String?                       @db.Uuid
+  reviewed_at         DateTime?
+  source_removed_at   DateTime?
+  adopted_entity_type String?                       @db.VarChar(50)
+  adopted_entity_id   String?                       @db.Uuid
+  created_at          DateTime                      @default(now())
+  updated_at          DateTime                      @updatedAt
 
-  run       MaterialAnalysisRun @relation(fields: [run_id], references: [id], onDelete: Cascade)
-  reviewedBy User?             @relation("MaterialDraftSuggestionReviewer", fields: [reviewed_by], references: [id], onDelete: SetNull)
+  run        MaterialAnalysisRun @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  reviewedBy User?               @relation("MaterialDraftSuggestionReviewer", fields: [reviewed_by], references: [id], onDelete: SetNull)
 
   @@index([run_id, status, created_at])
 }
@@ -1694,17 +1838,17 @@ model MaterialDraftSuggestion {
 /// Request-scoped retrieval chunks. The text and vector are deleted when the
 /// source Material is deleted; the Run and suggestion audit remain.
 model MaterialAnalysisChunk {
-  id              String   @id @default(uuid()) @db.Uuid
-  run_id          String   @db.Uuid
-  analysis_set_id String   @db.Uuid
-  material_id     String   @db.Uuid
+  id               String                @id @default(uuid()) @db.Uuid
+  run_id           String                @db.Uuid
+  analysis_set_id  String                @db.Uuid
+  material_id      String                @db.Uuid
   material_version Int
-  chunk_index     Int
-  text            String
-  character_start Int?
-  character_end   Int?
-  embedding       Unsupported("vector")
-  created_at      DateTime @default(now())
+  chunk_index      Int
+  text             String
+  character_start  Int?
+  character_end    Int?
+  embedding        Unsupported("vector")
+  created_at       DateTime              @default(now())
 
   run         MaterialAnalysisRun @relation(fields: [run_id], references: [id], onDelete: Cascade)
   analysisSet MaterialAnalysisSet @relation(fields: [analysis_set_id], references: [id], onDelete: Cascade)
@@ -1752,9 +1896,9 @@ model MaterialGrant {
   revoked_at  DateTime?
   revoked_by  String?   @db.Uuid
 
-  material Material @relation(fields: [material_id], references: [id], onDelete: Restrict)
-  grantee  User     @relation("MaterialGrantGrantee", fields: [grantee_id], references: [id], onDelete: Restrict)
-  grantedBy User    @relation("MaterialGrantGranter", fields: [granted_by], references: [id], onDelete: Restrict)
+  material  Material @relation(fields: [material_id], references: [id], onDelete: Restrict)
+  grantee   User     @relation("MaterialGrantGrantee", fields: [grantee_id], references: [id], onDelete: Restrict)
+  grantedBy User     @relation("MaterialGrantGranter", fields: [granted_by], references: [id], onDelete: Restrict)
 
   @@index([material_id, grantee_id, revoked_at])
   @@index([grantee_id, revoked_at])

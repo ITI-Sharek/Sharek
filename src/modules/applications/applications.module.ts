@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 
+import { AssignmentConversationsModule } from '../assignment-conversations/assignment-conversations.module';
 import { ContributionTasksModule } from '../contribution-tasks/contribution-tasks.module';
 import { ContributorProfilesModule } from '../contributor-profiles/contributor-profiles.module';
 import { AiModule } from '../ai/ai.module';
@@ -20,6 +21,7 @@ import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment
 @Module({
   imports: [
     forwardRef(() => ContributionTasksModule),
+    AssignmentConversationsModule,
     AiModule,
     ContributorProfilesModule,
     IdentityModule,

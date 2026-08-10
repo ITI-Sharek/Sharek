@@ -27,7 +27,7 @@ export class MaterialAnalysisController {
   createSet(
     @CurrentUser() actor: AuthenticatedUser,
     @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
-  @Body() body: CreateMaterialAnalysisSetDto,
+    @Body() body: CreateMaterialAnalysisSetDto,
   ) {
     return this.analysis.createSet(actor, projectId, body);
   }

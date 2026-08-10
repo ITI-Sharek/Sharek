@@ -29,6 +29,7 @@ shared/
   errors/
   events/
   observability/
+  realtime/
 ```
 
 Use them like this:
@@ -40,6 +41,8 @@ Use them like this:
 - `errors`: cross-cutting application error type and HTTP exception mapping.
 - `events`: shared event transport infrastructure.
 - `observability`: logging, tracing, metrics, and monitoring plumbing.
+- `realtime`: the generic authenticated `/realtime` Socket.IO transport,
+  versioned event envelopes, per-user rooms, and Redis fan-out adapter.
 
 ## What Does Not Belong Here
 
