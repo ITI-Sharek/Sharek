@@ -43,6 +43,11 @@ SET
       THEN 'skill_review.approved'
     WHEN "type" = 'skill_review'
       THEN 'skill_review.not_approved'
+    WHEN "type" = 'skill_profile_generation'
+      AND "metadata"->>'status' IN (
+        'ready_for_review', 'needs_more_evidence', 'failed'
+      )
+      THEN 'skill_profile_generation.' || ("metadata"->>'status')
     ELSE 'system.legacy'
   END,
   "template_version" = 1,
@@ -61,6 +66,17 @@ SET
       'skillProfileId', "metadata"->>'skillProfileId',
       'skillName', "metadata"->>'skillName'
     ))
+    WHEN "type" = 'skill_profile_generation'
+      AND "metadata"->>'status' IN (
+        'ready_for_review', 'needs_more_evidence', 'failed'
+      )
+      THEN jsonb_strip_nulls(jsonb_build_object(
+      'generationId', "metadata"->>'generationId',
+      'status', "metadata"->>'status',
+      'audience', COALESCE("metadata"->>'audience', 'contributor'),
+      'skillCount', "metadata"->'skillCount',
+      'selectedRepositoryCount', "metadata"->'selectedRepositoryCount'
+    ))
     ELSE jsonb_build_object(
       'legacyTitle', left(COALESCE("title", 'Notification'), 255),
       'legacyBody', left(COALESCE("message", 'You have a new update in Share-k.'), 2000)
@@ -77,7 +93,10 @@ SET
     ELSE NULL
   END,
   "priority" = CASE
-    WHEN "type" IN ('application_status', 'proposal_status', 'skill_review')
+    WHEN "type" IN (
+      'application_status', 'proposal_status', 'skill_review',
+      'skill_profile_generation'
+    )
       THEN 'attention'::"NotificationPriority"
     ELSE 'ambient'::"NotificationPriority"
   END,

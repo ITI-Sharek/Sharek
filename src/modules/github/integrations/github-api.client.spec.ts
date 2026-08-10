@@ -88,6 +88,39 @@ describe('GitHubApiClient', () => {
     ).resolves.toBeNull();
   });
 
+  it('decodes a dependency file with the caller-provided repository token', async () => {
+    jest.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          type: 'file',
+          encoding: 'base64',
+          content: Buffer.from('{"dependencies":{"next":"^16.1.6"}}').toString(
+            'base64',
+          ),
+        }),
+    } as Response);
+
+    await expect(
+      client.getRepositoryFile(
+        'installation-token',
+        'Root12335/EditedSinaiCore',
+        'package.json',
+        'main',
+      ),
+    ).resolves.toContain('next');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.github.com/repos/Root12335/EditedSinaiCore/contents/package.json?ref=main',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer installation-token',
+        }),
+      }),
+    );
+  });
+
   it('reports pending contribution stats without failing the caller', async () => {
     jest.mocked(global.fetch).mockResolvedValueOnce({
       ok: false,

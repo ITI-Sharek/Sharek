@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 138,
+  "routeCount": 140,
   "routes": [
     {
       "method": "GET",
@@ -3525,6 +3525,32 @@
     },
     {
       "method": "PATCH",
+      "path": "/notifications/:notificationId/read",
+      "normalizedPath": "/notifications/:parameter/read",
+      "key": "PATCH /notifications/:parameter/read",
+      "controller": "NotificationsController",
+      "handler": "markReadCompatibility",
+      "source": "src/modules/notifications/notifications.controller.ts",
+      "pathParameters": [
+        "notificationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
       "path": "/notifications/:notificationId/read-state",
       "normalizedPath": "/notifications/:parameter/read-state",
       "key": "PATCH /notifications/:parameter/read-state",
@@ -3562,6 +3588,30 @@
       "key": "POST /notifications/mark-all-read",
       "controller": "NotificationsController",
       "handler": "markAllRead",
+      "source": "src/modules/notifications/notifications.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/notifications/read-all",
+      "normalizedPath": "/notifications/read-all",
+      "key": "PATCH /notifications/read-all",
+      "controller": "NotificationsController",
+      "handler": "markAllReadCompatibility",
       "source": "src/modules/notifications/notifications.controller.ts",
       "pathParameters": [],
       "queryParameters": [],

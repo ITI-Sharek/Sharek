@@ -7,6 +7,16 @@ export interface SkillProfileInput {
   requestedAt: string;
 }
 
+export interface FrameworkDetectionEvidence {
+  frameworksDetected: Record<string, string[]>;
+  dependencyFilesIdentified: Array<{
+    filename: string;
+    parserUsed: string | null;
+  }>;
+  frameworksCount: number;
+  status: 'success' | 'no_dependency_files' | 'parse_error' | 'unavailable';
+}
+
 export interface GeneratedSkillCandidate {
   name: string;
   proficiency: 'beginner' | 'intermediate' | 'advanced';
@@ -34,6 +44,7 @@ export interface RepositoryEvidenceCapsule {
   readmeExcerpt: string | null;
   contributionActivity: Record<string, unknown>;
   commitSignals: Record<string, unknown>;
+  frameworkDetection?: FrameworkDetectionEvidence;
   authorship: {
     githubLogin: string;
     repositoryOwned: boolean;

@@ -4,6 +4,7 @@ import {
   GitHubRepositoryCommitSignalsDto,
   GitHubRepositoryContributionActivityDto,
   GitHubRepositoryDto,
+  GitHubFrameworkDetectionEvidence,
   GitHubRepositoryImportSnapshot,
   GitHubRepositoryRecentCommitDto,
   GitHubSelectedSkillProfilingEvidenceDto,
@@ -20,11 +21,30 @@ import {
 import { GitHubAccountService } from './github-account.service';
 import { GitHubAppService } from './github-app.service';
 import { GitHubAppApiClient } from '../integrations/github-app-api.client';
+import { detectGitHubFrameworks } from '../utils/github-framework-detector';
 
 const DEFAULT_SKILL_PROFILING_REPOSITORY_LIMIT = 10;
 const MAX_SKILL_PROFILING_REPOSITORY_LIMIT = 30;
 const GITHUB_FULL_NAME_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const MAX_SELECTED_SKILL_PROFILING_REPOSITORIES = 10;
+const FRAMEWORK_DEPENDENCY_FILES = [
+  'package.json',
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+  'requirements.txt',
+  'pyproject.toml',
+  'Pipfile',
+  'poetry.lock',
+  'composer.json',
+  'pom.xml',
+  'build.gradle',
+  'build.gradle.kts',
+  'go.mod',
+  'Cargo.toml',
+  'Gemfile',
+  'pubspec.yaml',
+];
 
 @Injectable()
 export class GitHubEvidenceService {
@@ -405,6 +425,13 @@ export class GitHubEvidenceService {
       commitActivity,
     );
     const commitSignals = this.toCommitSignals(recentCommits);
+    const frameworkDetection = await this.collectFrameworkDetection(
+      accessToken,
+      repository,
+    );
+    if (frameworkDetection.status === 'unavailable') {
+      evidenceFailures.push('framework_detection_unavailable');
+    }
 
     return {
       repository: repositoryDto,
@@ -426,7 +453,42 @@ export class GitHubEvidenceService {
           )
         : null,
       evidenceFailures,
+      frameworkDetection,
     };
+  }
+
+  private async collectFrameworkDetection(
+    accessToken: string | null,
+    repository: GitHubRepositoryPayload,
+  ): Promise<GitHubFrameworkDetectionEvidence> {
+    const getRepositoryFile = this.gitHubApiClient.getRepositoryFile;
+    if (typeof getRepositoryFile !== 'function') {
+      return detectGitHubFrameworks({}, 0);
+    }
+
+    const results = await Promise.allSettled(
+      FRAMEWORK_DEPENDENCY_FILES.map(async (path) => ({
+        path,
+        content: await getRepositoryFile.call(
+          this.gitHubApiClient,
+          accessToken,
+          repository.full_name,
+          path,
+          repository.default_branch,
+        ),
+      })),
+    );
+    const dependencyFiles: Record<string, string> = {};
+    let unavailableCount = 0;
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value.content !== null) {
+        dependencyFiles[result.value.path] = result.value.content;
+      } else if (result.status === 'rejected') {
+        unavailableCount += 1;
+      }
+    }
+
+    return detectGitHubFrameworks(dependencyFiles, unavailableCount);
   }
 
   private readSettledEvidence<T>(

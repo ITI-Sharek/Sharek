@@ -650,15 +650,13 @@ export class GitHubAppService {
 
   private assertInstallation(payload: GitHubAppInstallationPayload): void {
     const appId = this.required('GITHUB_APP_ID');
-    const permissionEntries = Object.entries(payload.permissions ?? {});
-    const permissionsAreExact =
-      permissionEntries.length === 2 &&
+    const hasRequiredReadPermissions =
       payload.permissions.metadata === 'read' &&
       payload.permissions.contents === 'read';
     if (
       String(payload.app_id) !== appId ||
       payload.repository_selection !== 'selected' ||
-      !permissionsAreExact ||
+      !hasRequiredReadPermissions ||
       !['User', 'Organization'].includes(payload.account.type)
     ) {
       throw new ApplicationError(
