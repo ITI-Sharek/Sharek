@@ -20,6 +20,11 @@ describe('Notification template catalog', () => {
       projectId: 'project-1',
       skillProfileId: 'skill-1',
       skillName: 'TypeScript',
+      generationId: 'generation-1',
+      status: 'ready_for_review',
+      audience: 'contributor',
+      skillCount: 3,
+      selectedRepositoryCount: 2,
       legacyTitle: 'Legacy title',
       legacyBody: 'Legacy body',
       conversationId: 'conversation-1',
@@ -32,7 +37,7 @@ describe('Notification template catalog', () => {
     expect(definitions.map((definition) => definition.key)).toEqual(
       NOTIFICATION_TEMPLATE_KEYS,
     );
-    expect(definitions).toHaveLength(15);
+    expect(definitions).toHaveLength(18);
 
     for (const definition of definitions) {
       expect(definition.version).toBe(1);

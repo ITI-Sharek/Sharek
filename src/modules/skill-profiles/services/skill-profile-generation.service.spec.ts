@@ -96,9 +96,16 @@ const snapshot: GitHubRepositoryImportSnapshot = {
   evidenceFailures: [],
 };
 
-function createProcessor() {
+function createProcessor(options?: {
+  snapshots?: GitHubRepositoryImportSnapshot[];
+  selectedRepositories?: Array<{ repositoryId: string; fullName: string }>;
+}) {
   const generations = {
-    findById: jest.fn().mockResolvedValue(generation),
+    findById: jest.fn().mockResolvedValue({
+      ...generation,
+      selected_repositories:
+        options?.selectedRepositories ?? generation.selected_repositories,
+    }),
     updateStatus: jest.fn().mockResolvedValue(undefined),
     completeWithPendingSkills: jest.fn().mockResolvedValue(undefined),
     completeNeedsMoreEvidence: jest.fn().mockResolvedValue(undefined),
@@ -107,7 +114,7 @@ function createProcessor() {
   };
   const gitHubRepositoryService = {
     getGitHubAppSkillProfilingEvidence: jest.fn().mockResolvedValue({
-      snapshots: [snapshot],
+      snapshots: options?.snapshots ?? [snapshot],
       failures: [],
     }),
     getConnectedUsername: jest.fn().mockResolvedValue('owner'),
@@ -158,6 +165,11 @@ function createProcessor() {
       }),
     },
   };
+  const notifications = {
+    createSkillProfileGenerationNotification: jest
+      .fn()
+      .mockResolvedValue({ created: true }),
+  };
 
   return {
     processor: new SkillProfileGenerationService(
@@ -166,11 +178,13 @@ function createProcessor() {
       aiService as unknown as AiService,
       config as unknown as ConfigService,
       database as never,
+      notifications as never,
     ),
     generations,
     gitHubRepositoryService,
     aiService,
     database,
+    notifications,
   };
 }
 
@@ -181,6 +195,7 @@ describe('SkillProfileGenerationService', () => {
       generations,
       gitHubRepositoryService,
       aiService,
+      notifications,
     } = createProcessor();
 
     await processor.process('generation-1');
@@ -213,6 +228,13 @@ describe('SkillProfileGenerationService', () => {
       }),
     );
     expect(generations.fail).not.toHaveBeenCalled();
+    expect(notifications.createSkillProfileGenerationNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generationId: 'generation-1',
+        status: 'ready_for_review',
+        skillCount: 1,
+      }),
+    );
   });
 
   it('transitions only unresolved legacy generations at or after the deadline', async () => {
@@ -273,5 +295,67 @@ describe('SkillProfileGenerationService', () => {
       }),
     );
     expect(generations.completeWithPendingSkills).not.toHaveBeenCalled();
+  });
+
+  it('keeps detected skills from every repository when the model omits them', async () => {
+    const pythonSnapshot: GitHubRepositoryImportSnapshot = {
+      ...snapshot,
+      repository: {
+        ...snapshot.repository,
+        fullName: 'owner/python-repo',
+        name: 'python-repo',
+        primaryLanguage: 'Jupyter Notebook',
+        languages: { Python: 1000 },
+      },
+      technologies: ['Jupyter Notebook', 'Python'],
+      frameworkDetection: {
+        frameworksDetected: {
+          LangChain: ['requirements.txt:langchain@declared'],
+          Pydantic: ['requirements.txt:pydantic@declared'],
+        },
+        dependencyFilesIdentified: [
+          { filename: 'requirements.txt', parserUsed: 'requirements' },
+        ],
+        frameworksCount: 2,
+        status: 'success',
+      },
+    };
+    const { processor, generations, aiService } = createProcessor({
+      snapshots: [snapshot, pythonSnapshot],
+      selectedRepositories: [
+        { repositoryId: '1', fullName: 'owner/repo' },
+        { repositoryId: '2', fullName: 'owner/python-repo' },
+      ],
+    });
+    aiService.generateSkillProfile.mockResolvedValueOnce({
+      skills: [
+        {
+          name: 'TypeScript',
+          proficiency: 'intermediate',
+          confidence: 0.9,
+          evidenceIds: ['github:owner/repo'],
+        },
+      ],
+      fraudSignals: [],
+      evidenceQuality: 'strong',
+      recommendation: 'pending_review',
+      provider: 'alibaba',
+      model: 'qwen3.7-plus',
+      promptVersion: 'v1',
+      schemaVersion: 'v1',
+      serviceVersion: 'v1',
+    });
+
+    await processor.process('generation-1');
+
+    const completion = generations.completeWithPendingSkills.mock.calls[0][0];
+    expect(completion.skills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Python', proficiency: 'beginner' }),
+        expect.objectContaining({ name: 'LangChain', proficiency: 'beginner' }),
+        expect.objectContaining({ name: 'Pydantic', proficiency: 'beginner' }),
+      ]),
+    );
+    expect(completion.skills).toHaveLength(4);
   });
 });

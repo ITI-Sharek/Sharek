@@ -47,10 +47,19 @@ README.md
 `SkillProfileGenerationService` collects evidence through the exported
 `GitHubEvidenceService`, reads the connected account through
 `GitHubAccountService`, calls `AiService`, applies confidence/evidence rules,
-and makes the final backend decision. The concrete repository contains the
-cohesive multi-write Prisma workflow. The BullMQ worker handles retries and
-recovery, then delegates to the generation service. Its FastAPI request marks
-this workflow explicitly with `role: "contributor"`.
+and makes the final backend decision. It also deterministically retains every
+framework/library detected in the bounded repository evidence and the
+repository's dominant language when the model omits it. Those fallback
+candidates are marked beginner with explicit dependency/language limitations
+and remain pending for admin review; they do not claim implementation depth.
+After each durable terminal outcome it asks the notifications module to create
+an idempotent inbox/realtime notification (`ready_for_review`,
+`needs_more_evidence`, or `failed`). Notification failure is isolated from the
+already-committed generation result.
+The concrete repository contains the cohesive multi-write Prisma workflow. The
+BullMQ worker handles retries and recovery, then delegates to the generation
+service. Its FastAPI request marks this workflow explicitly with
+`role: "contributor"`.
 
 `SkillProfilesReviewService` lists pending AI-generated skills and performs
 admin review transitions. Approve, reject, and proficiency-adjustment actions

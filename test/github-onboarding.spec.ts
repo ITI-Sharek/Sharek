@@ -790,6 +790,10 @@ class InMemoryDatabase {
   subscription = {
     findFirst: jest.fn(() => Promise.resolve(null)),
   };
+
+  skillProfileGeneration = {
+    findMany: jest.fn(() => Promise.resolve([])),
+  };
 }
 
 function mockFetchJson(payload: unknown): void {

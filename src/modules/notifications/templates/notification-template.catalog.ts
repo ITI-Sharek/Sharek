@@ -12,6 +12,8 @@ import {
   NotificationTemplateParameters,
   NotificationTemplatePolicy,
   ProposalNotificationParameters,
+  SkillProfileGenerationNotificationParameters,
+  SkillProfileGenerationNotificationStatus,
   SkillReviewNotificationParameters,
   ConversationActivityNotificationParameters,
 } from './notification-template.types';
@@ -30,6 +32,9 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'skill_review.activated',
   'skill_review.approved',
   'skill_review.not_approved',
+  'skill_profile_generation.ready_for_review',
+  'skill_profile_generation.needs_more_evidence',
+  'skill_profile_generation.failed',
   'conversation.activity',
   'system.legacy',
 ] as const satisfies readonly NotificationTemplateKey[];
@@ -100,6 +105,18 @@ const POLICY: Readonly<Record<NotificationTemplateKey, NotificationTemplatePolic
   },
   'skill_review.not_approved': {
     category: NotificationType.skill_review,
+    priority: 'attention',
+  },
+  'skill_profile_generation.ready_for_review': {
+    category: NotificationType.skill_profile_generation,
+    priority: 'attention',
+  },
+  'skill_profile_generation.needs_more_evidence': {
+    category: NotificationType.skill_profile_generation,
+    priority: 'attention',
+  },
+  'skill_profile_generation.failed': {
+    category: NotificationType.skill_profile_generation,
     priority: 'attention',
   },
   'conversation.activity': {
@@ -206,6 +223,14 @@ const SKILL_PARAMETER_CONTRACT: NotificationParameterContract = {
     validateSkillParameters(parameters) as NotificationTemplateParameters,
 };
 
+const SKILL_GENERATION_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['generationId', 'status', 'audience'],
+  validate: (parameters) =>
+    validateSkillGenerationParameters(
+      parameters,
+    ) as NotificationTemplateParameters,
+};
+
 const CONVERSATION_PARAMETER_CONTRACT: NotificationParameterContract = {
   required: [
     'conversationId',
@@ -273,6 +298,41 @@ function validateSkillParameters(
   };
 }
 
+function validateSkillGenerationParameters(
+  parameters: unknown,
+): SkillProfileGenerationNotificationParameters {
+  const record = requireRecord(parameters);
+  const status = record.status;
+  if (
+    status !== 'ready_for_review' &&
+    status !== 'needs_more_evidence' &&
+    status !== 'failed'
+  ) {
+    throw invalidParameters();
+  }
+  const audience = record.audience;
+  if (audience !== 'contributor' && audience !== 'admin') {
+    throw invalidParameters();
+  }
+
+  return {
+    generationId: requiredString(record, 'generationId'),
+    status,
+    audience,
+    ...(record.skillCount === undefined
+      ? {}
+      : { skillCount: optionalNonNegativeInteger(record, 'skillCount') }),
+    ...(record.selectedRepositoryCount === undefined
+      ? {}
+      : {
+          selectedRepositoryCount: optionalNonNegativeInteger(
+            record,
+            'selectedRepositoryCount',
+          ),
+        }),
+  };
+}
+
 function validateConversationParameters(
   parameters: unknown,
 ): ConversationActivityNotificationParameters {
@@ -315,6 +375,17 @@ function requiredPositiveInteger(
 ): number {
   const value = parameters[key];
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw invalidParameters();
+  }
+  return value;
+}
+
+function optionalNonNegativeInteger(
+  parameters: Record<string, unknown>,
+  key: string,
+): number {
+  const value = parameters[key];
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
     throw invalidParameters();
   }
   return value;
@@ -441,6 +512,82 @@ function skillTemplate(
   };
 }
 
+function skillGenerationTemplate(
+  status: SkillProfileGenerationNotificationStatus,
+): NotificationTemplateDefinition {
+  const key = `skill_profile_generation.${status}` as NotificationTemplateKey;
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: SKILL_GENERATION_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) =>
+        renderSkillGeneration(
+          validateSkillGenerationParameters(parameters),
+          'en',
+        ),
+      ar: (parameters) =>
+        renderSkillGeneration(
+          validateSkillGenerationParameters(parameters),
+          'ar',
+        ),
+    },
+    buildDeepLink: () => null,
+  };
+}
+
+function renderSkillGeneration(
+  parameters: SkillProfileGenerationNotificationParameters,
+  language: NotificationLanguage,
+): { title: string; body: string } {
+  if (parameters.status === 'ready_for_review') {
+    const count = parameters.skillCount ?? 0;
+    if (parameters.audience === 'admin') {
+      return language === 'ar'
+        ? {
+            title: 'تحليل مهارات بانتظار مراجعة المشرف',
+            body: `لدى مساهم تحليل مهارات مكتمل يتضمن ${count} مهارة بانتظار المراجعة.`,
+          }
+        : {
+            title: 'Skill analysis awaiting admin review',
+            body: `A contributor has a completed skill analysis with ${count} skill${count === 1 ? '' : 's'} waiting for your review.`,
+          };
+    }
+    return language === 'ar'
+      ? {
+          title: 'تحليل المهارات جاهز للمراجعة',
+          body: `اكتمل تحليل مهاراتك. توجد ${count} مهارة بانتظار مراجعة المشرف.`,
+        }
+      : {
+          title: 'Skill analysis ready for review',
+          body: `Your skill analysis is complete. ${count} skill${count === 1 ? '' : 's'} are waiting for admin review.`,
+        };
+  }
+
+  if (parameters.status === 'needs_more_evidence') {
+    return language === 'ar'
+      ? {
+          title: 'نحتاج إلى أدلة إضافية',
+          body: 'اكتمل التحليل، لكن الأدلة غير كافية. اختر مستودعات إضافية أو حاول مرة أخرى.',
+        }
+      : {
+          title: 'More evidence is needed',
+          body: 'Your skill analysis finished, but there was not enough evidence. Select more repositories or try again.',
+        };
+  }
+
+  return language === 'ar'
+    ? {
+        title: 'تعذر تحليل المهارات',
+        body: 'تعذر إكمال تحليل مهاراتك. يرجى المحاولة مرة أخرى.',
+      }
+    : {
+        title: 'Skill analysis failed',
+        body: 'Your skill analysis could not be completed. Please try again.',
+      };
+}
+
 const LEGACY_TEMPLATE: NotificationTemplateDefinition = {
   key: 'system.legacy',
   version: 1,
@@ -557,6 +704,9 @@ const definitions: NotificationTemplateDefinition[] = [
     },
     { en: 'Skill review update', ar: 'تحديث مراجعة المهارة' },
   ),
+  skillGenerationTemplate('ready_for_review'),
+  skillGenerationTemplate('needs_more_evidence'),
+  skillGenerationTemplate('failed'),
   CONVERSATION_TEMPLATE,
   LEGACY_TEMPLATE,
 ];
@@ -591,6 +741,10 @@ export function validateNotificationTemplateParameters<
     case 'skill_review.approved':
     case 'skill_review.not_approved':
       return validateSkillParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'skill_profile_generation.ready_for_review':
+    case 'skill_profile_generation.needs_more_evidence':
+    case 'skill_profile_generation.failed':
+      return validateSkillGenerationParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'conversation.activity':
       return validateConversationParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'proposal.revision_requested':

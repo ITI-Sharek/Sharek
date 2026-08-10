@@ -75,11 +75,18 @@ describe('NotificationsController', () => {
     await request(app.getHttpServer())
       .get('/notifications?limit=2&readState=unread&type=application_status')
       .set('Authorization', 'Bearer token')
-      .expect(200);
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual({ items: [], nextCursor: null, unreadCount: 0 });
+      });
 
     expect(inbox.list).toHaveBeenCalledWith(
       '11111111-1111-4111-8111-111111111111',
       expect.objectContaining({ limit: 2, readState: 'unread', type: 'application_status' }),
+    );
+    expect(inbox.unreadCount).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      { type: 'application_status' },
     );
   });
 
@@ -101,6 +108,14 @@ describe('NotificationsController', () => {
       .send({})
       .expect(200);
     await request(app.getHttpServer())
+      .patch('/notifications/22222222-2222-4222-8222-222222222222/read')
+      .set('Authorization', 'Bearer token')
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch('/notifications/read-all')
+      .set('Authorization', 'Bearer token')
+      .expect(200);
+    await request(app.getHttpServer())
       .patch('/me/notification-preferences')
       .set('Authorization', 'Bearer token')
       .send({ expectedRevision: 1, retentionDays: 180 })
@@ -111,6 +126,12 @@ describe('NotificationsController', () => {
       '22222222-2222-4222-8222-222222222222',
       'read',
     );
+    expect(inbox.setReadState).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      'read',
+    );
+    expect(inbox.markAllRead).toHaveBeenCalledTimes(2);
     expect(inbox.markAllRead).toHaveBeenCalledWith(
       '11111111-1111-4111-8111-111111111111',
     );

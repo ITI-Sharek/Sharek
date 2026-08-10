@@ -2,6 +2,8 @@ import { Injectable, Optional } from '@nestjs/common';
 import {
   Notification,
   Prisma,
+  UserRole,
+  UserStatus,
 } from '@prisma/client';
 
 import { DatabaseService } from '../../shared/database/database.service';
@@ -25,6 +27,19 @@ export interface SkillReviewNotificationInput {
   skillName: string;
   approved: boolean;
   activated: boolean;
+}
+
+export type SkillProfileGenerationNotificationStatus =
+  | 'ready_for_review'
+  | 'needs_more_evidence'
+  | 'failed';
+
+export interface SkillProfileGenerationNotificationInput {
+  userId: string;
+  generationId: string;
+  status: SkillProfileGenerationNotificationStatus;
+  skillCount?: number;
+  selectedRepositoryCount?: number;
 }
 
 export interface NotificationCreateResultDto {
@@ -121,6 +136,110 @@ export class NotificationsService {
       deliveredRealtime,
       notification: realtimeNotification,
     };
+  }
+
+  async createSkillProfileGenerationNotification(
+    input: SkillProfileGenerationNotificationInput,
+  ): Promise<NotificationCreateResultDto> {
+    const deduplicationKey =
+      `skill-profile-generation:${input.generationId}:${input.status}`;
+    const persisted = await this.persistSkillProfileGenerationNotification(
+      input,
+      input.userId,
+      deduplicationKey,
+      'contributor',
+    );
+    const { notification, created } = persisted;
+
+    const realtimeNotification = this.presentRealtimeNotification(notification);
+    const deliveredRealtime = created
+      ? await this.publishCreated(notification.id)
+      : false;
+
+    // A completed analysis is an actionable admin queue item. Persist one
+    // inbox row per active admin so the bell works after a fresh login as well
+    // as for already-connected admin sessions.
+    if (input.status === 'ready_for_review') {
+      const admins = await this.database.user.findMany({
+        where: { role: UserRole.admin, status: UserStatus.active },
+        select: { id: true },
+      });
+
+      for (const admin of admins) {
+        if (admin.id === input.userId) continue;
+
+        const adminPersisted =
+          await this.persistSkillProfileGenerationNotification(
+            input,
+            admin.id,
+            `${deduplicationKey}:admin:${admin.id}`,
+            'admin',
+        );
+        if (adminPersisted.created) {
+          await this.publishCreated(adminPersisted.notification.id);
+        }
+      }
+    }
+
+    return {
+      notificationId: notification.id,
+      created,
+      deliveredRealtime,
+      notification: realtimeNotification,
+    };
+  }
+
+  private async persistSkillProfileGenerationNotification(
+    input: SkillProfileGenerationNotificationInput,
+    recipientUserId: string,
+    deduplicationKey: string,
+    audience: 'contributor' | 'admin',
+  ): Promise<{ notification: Notification; created: boolean }> {
+    const templateKey =
+      `skill_profile_generation.${input.status}` as NotificationTemplateKey;
+    const parameters = {
+      generationId: input.generationId,
+      status: input.status,
+      audience,
+      ...(input.skillCount === undefined
+        ? {}
+        : { skillCount: input.skillCount }),
+      ...(input.selectedRepositoryCount === undefined
+        ? {}
+        : { selectedRepositoryCount: input.selectedRepositoryCount }),
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
+
+    try {
+      return await this.database.$transaction(async (transaction) => {
+        const existing = await transaction.notification.findUnique({
+          where: { deduplication_key: deduplicationKey },
+        });
+        if (existing) return { notification: existing, created: false };
+
+        const notification = await transaction.notification.create({
+          data: {
+            user_id: recipientUserId,
+            type: policy.category,
+            template_key: templateKey,
+            template_version: 1,
+            parameters,
+            deep_link: null,
+            priority: policy.priority,
+            deduplication_key: deduplicationKey,
+          },
+        });
+        await this.notificationEvents.appendCreated(transaction, notification);
+        return { notification, created: true };
+      });
+    } catch (error) {
+      if (!this.isUniqueConstraintError(error)) throw error;
+      const notification = await this.database.notification.findUniqueOrThrow({
+        where: { deduplication_key: deduplicationKey },
+      });
+      return { notification, created: false };
+    }
   }
 
   async createApplicationNotification(
@@ -511,4 +630,5 @@ export class NotificationsService {
       error.code === 'P2002'
     );
   }
+
 }

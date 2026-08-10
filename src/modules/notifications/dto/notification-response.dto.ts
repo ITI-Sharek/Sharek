@@ -18,6 +18,7 @@ export interface NotificationPresentationResponseDto {
 export interface NotificationListResponseDto {
   items: NotificationPresentationResponseDto[];
   nextCursor: string | null;
+  unreadCount?: number;
 }
 
 export interface NotificationUnreadCountResponseDto {

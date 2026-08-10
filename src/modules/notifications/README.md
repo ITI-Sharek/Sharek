@@ -8,12 +8,16 @@ notification-write workflows.
 All routes derive the recipient from the authenticated access-token session:
 
 - `GET /notifications` lists retained, localized presentations using an opaque
-  `(created_at,id)` cursor and optional read-state/category filters.
+  `(created_at,id)` cursor and optional read-state/category filters, together
+  with the retained unread count.
 - `GET /notifications/unread-count` returns the retained unread total.
 - `PATCH /notifications/:notificationId/read-state` is an idempotent read or
   unread command and conceals missing, expired, and other-user records.
 - `POST /notifications/mark-all-read` updates only the caller's committed
   snapshot and appends one read-state event per changed item.
+- `PATCH /notifications/:notificationId/read` and
+  `PATCH /notifications/read-all` retain the earlier inbox command paths while
+  delegating to the same durable read-state workflow.
 - `GET/PATCH /me/notification-preferences` owns retention, quiet hours, and
   sparse category overrides with optimistic revision checks.
 
@@ -120,6 +124,13 @@ Current supported workflow:
 - idempotent Contribution Proposal revision-request, accepted, and declined
   notifications for the proposer, with the resulting draft Request ID attached
   to accepted notifications.
+- idempotent semantic skill-profile generation notifications for
+  ready-for-review, needs-more-evidence, and failed outcomes. Each
+  generation/status pair is deduplicated, appends its durable event atomically,
+  and includes only the generation ID, audience, and bounded counts in private
+  template parameters. Ready-for-review also creates one recipient-scoped item
+  per active admin. Additive migrations backfill existing `pending_review`
+  generations once so users and admins do not lose completed results.
 
 Owner Decision and Application review-window workflows pass their Prisma
 transaction into the notification service so durable rows commit atomically
@@ -128,7 +139,9 @@ after the transaction commits.
 Contribution Proposal response workflows use the same transaction-aware
 notification contract.
 
-Future notification inbox, read-state, delivery channels, task-match alerts, and
-premium-tier notification rules should stay in this module. The technical
-cross-module socket adapter belongs under `src/shared/realtime`; it must not own
-Notification persistence or policy.
+The frontend loads this inbox after authentication and merges it with the
+Socket.IO stream. Read actions update the database and optimistically update the
+UI; a failed request refreshes the durable inbox. Future delivery channels,
+task-match alerts, and premium-tier notification rules should stay in this
+module. The technical cross-module socket adapter belongs under
+`src/shared/realtime`; it must not own Notification persistence or policy.

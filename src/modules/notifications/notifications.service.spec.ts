@@ -471,6 +471,186 @@ describe('NotificationsService', () => {
     expect(transaction.notificationEvent.create).toHaveBeenCalledTimes(1);
   });
 
+  it('creates one persisted skill-profile generation notification per status', async () => {
+    const createdAt = new Date('2026-08-08T10:00:00.000Z');
+    const persisted = {
+      id: 'notification-generation-1',
+      user_id: 'user-1',
+      type: NotificationType.skill_profile_generation,
+      template_key: 'skill_profile_generation.ready_for_review',
+      template_version: 1,
+      parameters: {
+        generationId: 'generation-1',
+        status: 'ready_for_review',
+        audience: 'contributor',
+        skillCount: 3,
+        selectedRepositoryCount: 2,
+      },
+      deep_link: null,
+      priority: 'attention',
+      title: null,
+      message: null,
+      metadata: null,
+      deduplication_key:
+        'skill-profile-generation:generation-1:ready_for_review',
+      is_read: false,
+      read_at: null,
+      aggregate_version: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+    };
+    const transaction = {
+      notification: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(persisted),
+        create: jest.fn().mockResolvedValue(persisted),
+      },
+      notificationEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'generation-event-1' }),
+      },
+    };
+    const database = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      notification: { findUniqueOrThrow: jest.fn() },
+      $transaction: jest.fn(
+        async (callback: (value: typeof transaction) => unknown) =>
+          callback(transaction),
+      ),
+    };
+    const realtime = { publishCreated: jest.fn().mockResolvedValue(true) };
+    const service = new NotificationsService(
+      database as never,
+      undefined,
+      undefined,
+      realtime as never,
+    );
+    const input = {
+      userId: 'user-1',
+      generationId: 'generation-1',
+      status: 'ready_for_review' as const,
+      skillCount: 3,
+      selectedRepositoryCount: 2,
+    };
+
+    await expect(service.createSkillProfileGenerationNotification(input)).resolves.toMatchObject({
+      notificationId: persisted.id,
+      created: true,
+      deliveredRealtime: true,
+    });
+    await expect(service.createSkillProfileGenerationNotification(input)).resolves.toMatchObject({
+      notificationId: persisted.id,
+      created: false,
+      deliveredRealtime: false,
+    });
+    expect(transaction.notification.create).toHaveBeenCalledTimes(1);
+    expect(transaction.notificationEvent.create).toHaveBeenCalledTimes(1);
+    expect(realtime.publishCreated).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists a ready-for-review inbox item for every active admin', async () => {
+    const createdAt = new Date('2026-08-08T10:00:00.000Z');
+    const contributorNotification = {
+      id: 'notification-contributor-1',
+      user_id: 'user-1',
+      type: NotificationType.skill_profile_generation,
+      template_key: 'skill_profile_generation.ready_for_review',
+      template_version: 1,
+      parameters: {
+        generationId: 'generation-2',
+        status: 'ready_for_review',
+        audience: 'contributor',
+        skillCount: 2,
+      },
+      deep_link: null,
+      priority: 'attention',
+      title: null,
+      message: null,
+      metadata: null,
+      deduplication_key:
+        'skill-profile-generation:generation-2:ready_for_review',
+      is_read: false,
+      read_at: null,
+      aggregate_version: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+    };
+    const adminNotification = {
+      ...contributorNotification,
+      id: 'notification-admin-1',
+      user_id: 'admin-1',
+      parameters: {
+        generationId: 'generation-2',
+        status: 'ready_for_review',
+        skillCount: 2,
+        audience: 'admin',
+      },
+      deduplication_key:
+        'skill-profile-generation:generation-2:ready_for_review:admin:admin-1',
+    };
+    const transaction = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest
+          .fn()
+          .mockResolvedValueOnce(contributorNotification)
+          .mockResolvedValueOnce(adminNotification),
+      },
+      notificationEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'generation-event' }),
+      },
+    };
+    const database = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'admin-1' }]),
+      },
+      notification: { findUniqueOrThrow: jest.fn() },
+      $transaction: jest.fn(
+        async (callback: (value: typeof transaction) => unknown) =>
+          callback(transaction),
+      ),
+    };
+    const realtime = { publishCreated: jest.fn().mockResolvedValue(true) };
+    const service = new NotificationsService(
+      database as never,
+      undefined,
+      undefined,
+      realtime as never,
+    );
+
+    await expect(
+      service.createSkillProfileGenerationNotification({
+        userId: 'user-1',
+        generationId: 'generation-2',
+        status: 'ready_for_review',
+        skillCount: 2,
+      }),
+    ).resolves.toMatchObject({
+      notificationId: contributorNotification.id,
+      created: true,
+    });
+
+    expect(database.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'admin', status: 'active' },
+      select: { id: true },
+    });
+    expect(transaction.notification.create).toHaveBeenCalledTimes(2);
+    expect(transaction.notification.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        user_id: 'admin-1',
+        template_key: 'skill_profile_generation.ready_for_review',
+        parameters: expect.objectContaining({ audience: 'admin' }),
+        deduplication_key:
+          'skill-profile-generation:generation-2:ready_for_review:admin:admin-1',
+      }),
+    });
+    expect(transaction.notificationEvent.create).toHaveBeenCalledTimes(2);
+    expect(realtime.publishCreated).toHaveBeenCalledTimes(2);
+  });
+
   it('deduplicates Application notifications by Application and action', async () => {
     const createdAt = new Date('2026-07-28T12:00:00.000Z');
     const persisted = {

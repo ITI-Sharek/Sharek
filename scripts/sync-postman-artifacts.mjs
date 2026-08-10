@@ -38,10 +38,10 @@ for (const candidate of candidates) {
 const folders = new Map();
 for (const route of inventory) {
   const candidatesForRoute = candidatesByKey.get(route.key) ?? [];
-  if (candidatesForRoute.length === 0) {
-    throw new Error(`Collection has no request to normalize for ${route.key}`);
-  }
-  const selected = selectCanonicalCandidate(route, candidatesForRoute);
+  const selected =
+    candidatesForRoute.length > 0
+      ? selectCanonicalCandidate(route, candidatesForRoute)
+      : syntheticCandidate(route);
   const item = normalizeItem(route, selected);
   const folderName = folderFor(route);
   const items = folders.get(folderName) ?? [];
@@ -185,6 +185,32 @@ function selectCanonicalCandidate(route, candidatesForRoute) {
     .sort((left, right) => right.score - left.score)[0];
   if (!preferred) throw new Error(`No Postman candidate for ${route.key}`);
   return preferred.candidate;
+}
+
+function syntheticCandidate(route) {
+  const pathname = route.path.replace(
+    /:([A-Za-z0-9_]+)/g,
+    (_match, parameter) => `{{${parameter}}}`,
+  );
+  const name = route.handler
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/^./, (value) => value.toUpperCase());
+  return {
+    item: {
+      name,
+      request: {
+        method: route.method,
+        header: [],
+        url: {
+          raw: `{{baseUrl}}${pathname}`,
+          host: ['{{baseUrl}}'],
+          path: pathname.split('/').filter(Boolean),
+        },
+      },
+    },
+    parents: [],
+    parsed: { pathname, query: [] },
+  };
 }
 
 function normalizeItem(route, selected) {

@@ -33,7 +33,10 @@ export class NotificationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: NotificationQueryDto,
   ) {
-    return this.inbox.list(user.id, query);
+    return Promise.all([
+      this.inbox.list(user.id, query),
+      this.inbox.unreadCount(user.id, { type: query.type }),
+    ]).then(([page, count]) => ({ ...page, ...count }));
   }
 
   @Get('notifications/unread-count')
@@ -58,6 +61,22 @@ export class NotificationsController {
   @HttpCode(200)
   markAllRead(@CurrentUser() user: AuthenticatedUser) {
     return this.inbox.markAllRead(user.id);
+  }
+
+  @Patch('notifications/read-all')
+  @HttpCode(200)
+  markAllReadCompatibility(@CurrentUser() user: AuthenticatedUser) {
+    return this.inbox.markAllRead(user.id);
+  }
+
+  @Patch('notifications/:notificationId/read')
+  @HttpCode(200)
+  markReadCompatibility(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('notificationId', new ParseUUIDPipe({ version: '4' }))
+    notificationId: string,
+  ) {
+    return this.inbox.setReadState(user.id, notificationId, 'read');
   }
 
   @Get('me/notification-preferences')

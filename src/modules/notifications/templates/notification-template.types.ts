@@ -21,6 +21,19 @@ export interface SkillReviewNotificationParameters {
   skillName: string;
 }
 
+export type SkillProfileGenerationNotificationStatus =
+  | 'ready_for_review'
+  | 'needs_more_evidence'
+  | 'failed';
+
+export interface SkillProfileGenerationNotificationParameters {
+  generationId: string;
+  status: SkillProfileGenerationNotificationStatus;
+  audience: 'contributor' | 'admin';
+  skillCount?: number;
+  selectedRepositoryCount?: number;
+}
+
 export interface ConversationActivityNotificationParameters {
   conversationId: string;
   messageId: string;
@@ -48,6 +61,9 @@ export interface NotificationTemplateParameterMap {
   'skill_review.activated': SkillReviewNotificationParameters;
   'skill_review.approved': SkillReviewNotificationParameters;
   'skill_review.not_approved': SkillReviewNotificationParameters;
+  'skill_profile_generation.ready_for_review': SkillProfileGenerationNotificationParameters;
+  'skill_profile_generation.needs_more_evidence': SkillProfileGenerationNotificationParameters;
+  'skill_profile_generation.failed': SkillProfileGenerationNotificationParameters;
   'conversation.activity': ConversationActivityNotificationParameters;
   'system.legacy': LegacyNotificationParameters;
 }
