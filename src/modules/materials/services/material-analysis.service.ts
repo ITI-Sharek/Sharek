@@ -26,6 +26,7 @@ import {
   NotFoundApplicationError,
 } from '../../../shared/errors/application.error';
 import { ProjectsService } from '../../projects/projects.service';
+import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import { MaterialAnalysisQueue } from '../jobs/material-analysis.queue';
 import {
   AdoptContributionRequestSuggestionDto,
@@ -66,6 +67,7 @@ export class MaterialAnalysisService {
     private readonly database: DatabaseService,
     private readonly config: ConfigService,
     private readonly projects: ProjectsService,
+    private readonly subscriptions: SubscriptionsService,
     private readonly storage: MaterialStorage,
     private readonly ai: AiService,
     @Optional() private readonly queue?: MaterialAnalysisQueue,
@@ -651,13 +653,8 @@ export class MaterialAnalysisService {
     if (!this.config.get<boolean>('MATERIAL_ANALYSIS_REQUIRE_SUBSCRIPTION', false)) {
       return;
     }
-    const minimumPlan = this.config.get<'bronze' | 'silver' | 'gold'>(
-      'MATERIAL_ANALYSIS_MIN_PLAN',
-      'gold',
-    );
-    const entitlement = await this.projects.getMaterialAnalysisEntitlement(
+    const entitlement = await this.subscriptions.getMaterialAnalysisEntitlement(
       actor.id,
-      minimumPlan,
     );
     if (!entitlement.entitled) {
       throw new ForbiddenApplicationError(

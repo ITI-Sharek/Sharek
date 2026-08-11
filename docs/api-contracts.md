@@ -226,7 +226,11 @@ Contributor profile response shape:
   },
   "reputationSummary": {
     "rating": null,
-    "reviewsCount": 0
+    "reviewsCount": 0,
+    "completedContributions": 0,
+    "totalAssignedTasks": 0,
+    "successRate": 0,
+    "topVerifiedSkills": []
   },
   "contributionHistory": [],
   "completionPrompts": ["add_bio", "add_experience", "add_fields", "generate_skills", "connect_github"],
@@ -237,6 +241,15 @@ Contributor profile response shape:
 Profile owners receive all generated skills, including pending or rejected
 skills. Other authenticated viewers receive approved skills only and an empty
 `completionPrompts` array.
+
+The reputation summary is a materialized projection of verified platform
+activity. `rating` is the two-decimal average of approval ratings,
+`reviewsCount` is its sample size, `completedContributions` counts approved
+deliveries, and `successRate` is `(approved deliveries / assigned tasks) × 100`
+rounded to two decimals. `topVerifiedSkills` contains at most five objects with
+`name` and `verifiedContributionCount`; each Contribution Request technology
+tag counts at most once per approved Delivery. A contributor without a stored
+projection receives the complete zero/null shape shown above.
 
 Protected error outcomes:
 
@@ -486,6 +499,101 @@ counts Contribution Requests whose `published_at` falls in the current UTC
 calendar month, including Requests later cancelled. `monthlyLimit` is the
 caller's current owner entitlement: Bronze 10, Silver 20, Gold 30; no active
 assignment defaults to Bronze.
+
+## Subscription and entitlement status (Sprint 6 TASK-6-02)
+
+Authenticated active owners and contributors can read the current role-context
+plan through:
+
+```text
+GET /me/subscription
+```
+
+The response is the shared plan-status seam consumed by future premium screens:
+
+```json
+{
+  "roleContext": "owner",
+  "plan": "silver",
+  "status": "active",
+  "source": "admin",
+  "usage": {
+    "used": 14,
+    "limit": 20,
+    "periodStart": "2026-08-01T00:00:00.000Z",
+    "periodEnd": "2026-09-01T00:00:00.000Z"
+  },
+  "benefits": [
+    { "key": "owner_contribution_request_limit", "state": "included" },
+    { "key": "ai_matching", "state": "included" }
+  ],
+  "entitlements": [
+    { "key": "PROJECT_MATERIAL_ANALYSIS", "state": "unavailable" }
+  ]
+}
+```
+
+Owner publication limits are Bronze 10, Silver 20, and Gold 30 per UTC
+calendar month. The server reserves the `order_created` Usage Tracker row in
+the same transaction as publication. Contributor Application submission has no
+plan quota or upgrade gate. `PROJECT_MATERIAL_ANALYSIS` is granted only by an
+explicit seeded, demo, or admin entitlement; no checkout or payment mutation is
+available in the MVP.
+
+## Contributor Matching Contracts (Sprint 6 TASK-6-03)
+
+Owner-only matching endpoints:
+
+```http
+GET  /contribution-requests/:requestId/matches
+POST /contribution-requests/:requestId/matches/generate
+```
+
+The request must be published and owned by the active caller. Silver owners
+receive at most five results and Gold owners at most ten; Bronze owners receive
+`403 CONTRIBUTOR_MATCHING_PLAN_REQUIRED`. Publishing enqueues matching after
+the publication transaction commits. The generate route provides an explicit
+retry/readiness path when a worker is unavailable.
+
+Each result contains the contributor identity, `matchScore`, categorical
+`confidence` (`HIGH`, `MEDIUM`, or `LOW`), an owner-facing `justification`,
+key approved `matchedSkills`, and exact source `evidenceIds`. The NestJS
+backend assembles the authorized candidate snapshot, validates every AI
+candidate/skill/citation, applies the plan result limit, breaks score ties
+deterministically, and persists the result. AI output is recommendation-only;
+it never creates an Application, selects a contributor, or changes eligibility.
+
+## Premium benefit contracts (Sprint 6 TASK-6-04)
+
+The matching module exposes the benefit actions behind the same authorization
+seam:
+
+```http
+POST /contribution-requests/:requestId/matches/:contributorId/invite
+GET  /contributors/me/recommended-tasks
+```
+
+The invitation route is available only to Silver/Gold owners and only for a
+currently stored match. It creates one deduplicated `match.found` notification
+for the contributor; it never creates an Application, Assignment, exemption,
+or selection priority. Gold owners automatically notify eligible best matches
+after matching generation. Silver/Gold contributors receive skill-matched task
+notifications; Bronze contributors do not receive that premium notification.
+
+Gold contributors can call the recommendation route. NestJS sends the same
+evidence-scoped Contributor Matching input in reverse (one contributor candidate
+against each published actionable Request) and returns the Request title,
+project, match score, confidence, justification, matched skills, close date,
+target date, difficulty, and reward. Bronze/Silver callers receive
+`403 CONTRIBUTOR_RECOMMENDATIONS_PLAN_REQUIRED`.
+
+Owner `GET /projects/discover` results expose `priorityVisibility` for
+Silver/Gold-owned published Projects. Owner Application review orders pending
+Applications by `isPriority` first and then stable submission time/id; only
+Gold contributor plans set that flag. Contributor Application submission stays
+available to every plan. `/me/subscription` exposes the corresponding
+`priority_application_visibility` and `commission` benefit flags, while owner
+Silver/Gold priority and owner Gold no-commission flags remain explicit.
 
 The canonical publication workflow separates source inspection, persistence,
 and public state:
@@ -741,6 +849,42 @@ CONTRIBUTION_REQUEST_DRAFT_NOT_PUBLISHABLE
 CONTRIBUTION_REQUEST_LIMIT_REACHED
 CONTRIBUTION_REQUEST_NOT_CANCELLABLE
 ```
+
+## Explicit Skill-Gap Guidance Contracts (Sprint 5 TASK-5-05)
+
+The re-scoped guidance workflow is explicit, contributor-initiated, and
+independent of Application outcomes, Advisory Fit, and subscription tiers.
+It accepts only a currently published Contribution Request and approved skill
+evidence assembled by NestJS:
+
+```text
+POST /contributors/me/skill-gap-guidance
+GET /contributors/me/skill-gap-guidance/stream?contributionRequestId=<uuid>
+```
+
+Both routes require an active contributor bearer session. The POST body is:
+
+```json
+{
+  "contributionRequestId": "00000000-0000-4000-8000-000000000001"
+}
+```
+
+NestJS reads the request requirements and approved skills through their owning
+services, then calls the internal FastAPI contract with fixed snapshots and
+bounded source IDs. The response contains missing or below-target skills,
+recommended technologies, source-backed learning resources, practice projects,
+optional source-backed improvement steps, source attribution, and technical
+metadata. Missing means not evidenced in the supplied snapshot; it is never an
+eligibility or capability verdict. No Application, tier, score, rank, or Owner
+Decision fields are accepted.
+
+The stream route emits one `guidance.completed` SSE event containing the same
+validated complete result. Empty source scope returns
+`NOT_STARTED_NO_ASSESSABLE_EVIDENCE`; provider limits return
+`NOT_STARTED_SYSTEM_LIMIT`; malformed, timed-out, or unavailable AI output
+fails closed. No Prisma migration or Application-linked guidance persistence
+is part of this slice. See ADR 0014.
 
 ## Skill Profile Contracts
 
@@ -1497,6 +1641,50 @@ contributorId }`, and once the Request is published `GET
 /contribution-requests/:id` public detail exposes `attribution: { contributorId,
 contributorName, contributorUsername }`; clients display the handle as
 `@contributorUsername` when present.
+
+## Delivery submission and owner review (Sprint 5 TASK-5-02)
+
+All routes require an active bearer session. Delivery writes also require a
+UUIDv4 `Idempotency-Key` header. Replaying the same command returns the current
+Delivery; reusing the key with different content returns
+`IDEMPOTENCY_KEY_REUSED`. `pullRequestUrl` must be a canonical GitHub pull
+request URL such as `https://github.com/octocat/Hello-World/pull/1`.
+
+```http
+POST  /applications/:applicationId/deliveries  # accepted contributor
+PATCH /deliveries/:deliveryId                  # assigned contributor
+GET   /deliveries/:deliveryId                  # contributor or current owner
+GET   /me/deliveries                           # contributor composed lifecycle
+GET   /owner/deliveries                        # current owner review queue
+GET   /owner/delivery-lifecycle                # owner composed lifecycle
+POST  /deliveries/:deliveryId/reviews          # current owner
+```
+
+Submit/update bodies contain `pullRequestUrl` and optional
+`contributorNotes`. Every command preserves an immutable submission version.
+Contributor and owner lifecycle responses span Application states through
+`AWAITING_DELIVERY`, `DELIVERY_SUBMITTED`, `CHANGES_REQUESTED`,
+`DELIVERY_REJECTED`, and `COMPLETED`. The nested `deliveryStatus` remains
+separate and emits `NOT_STARTED` for an accepted Assignment with no Delivery.
+
+The owner review body is one of:
+
+```json
+{ "outcome": "APPROVED", "rating": 5, "feedback": "Optional note" }
+{ "outcome": "CHANGES_REQUESTED", "feedback": "Required changes" }
+{ "outcome": "REJECTED", "feedback": "Required reason" }
+```
+
+Approval alone completes the Contribution Request, includes the 1–5 rating in
+the contributor Notification, and atomically appends a
+durable `DeliveryApprovedEvent` fact for the later Reputation reaction.
+Changes requested returns the Delivery to the contributor; a subsequent update
+becomes `RESUBMITTED` and notifies the owner. Detail responses include the
+contributor identity plus immutable submission and review history. Stable
+workflow errors include `DELIVERY_NOT_AUTHORIZED`, `DELIVERY_NOT_FOUND`,
+`DELIVERY_ALREADY_SUBMITTED`, `DELIVERY_NOT_EDITABLE`,
+`DELIVERY_NOT_REVIEWABLE`, `DELIVERY_RATING_REQUIRED`,
+`DELIVERY_FEEDBACK_REQUIRED`, and `DELIVERY_CONCURRENT_MODIFICATION`.
 
 ## Contract Change Rules
 

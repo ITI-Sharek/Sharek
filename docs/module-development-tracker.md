@@ -160,15 +160,16 @@ needs workflow code.
 | `identity` | Implemented auth/session endpoints | controllers, DTOs, auth/session/password-reset/social-auth services, mappers, security | account management and security hardening | Update when auth endpoints, user/session rules, roles, or account status change |
 | `github` | Implemented OAuth/account/repository listing and contributor-attributed evidence snapshots | GitHub controller, OAuth service, repository service, DTOs, GitHub API client, token encryption | webhook/sync handling and normalized persistent evidence tables if JSON snapshots no longer scale | Update when GitHub scopes, token handling, repo evidence, or import behavior changes |
 | `projects` | Implemented GitHub project import | root controller/service, DTOs, mapper | update draft, publish/archive, project discovery | Update when project lifecycle, visibility, metadata, or project APIs change |
-| `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, and dynamic admin-managed contributor fields and experience levels | root controller/service, DTOs, presenter, validator, field/experience-level catalogs | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
+| `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, dynamic admin-managed contributor fields/experience levels, and verified reputation summary presentation | root controller/service, DTOs, presenter, validator, field/experience-level catalogs | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
 | `contribution-tasks` | Implemented private drafts plus explicit publication, actionable public discovery/detail, owner-plan limits, cancellation, and immutable lifecycle audits | grouped protected/public controllers, focused draft/publication/discovery services, DTOs, mapper, tests, module README | owner decisions/assignment integration and later Proposal-created draft attribution | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
 | `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, and bounded advisory Fit Assessment attempts/presentation auditing | controller, services, DTOs, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
-| `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
-| `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
+| `delivery-reviews` | Implemented Delivery submission/owner review plus durable reputation projection coordination | authenticated HTTP interface, immutable submission/review history, approval outbox, reputation fact reader/coordinator, BullMQ worker, README, migrations, focused tests | additional review reporting and frontend profile consumption (TASK-5-06) | Update when reputation events, additional review reporting, or lifecycle policy changes |
+| `reputation` | Implemented verified reputation materialized projection and contributor-profile summary | module README, projection calculator/writer, deterministic skill ranking, focused tests | score history, individual public reviews, and future matching consumers | Update when scoring rules, history, public reputation APIs, or events are added |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
-| `ai` | Implemented FastAPI skill-profile facade | `AiService`, DTOs, strict FastAPI client, response validation tests | eligibility/guidance/embedding clients and broader contract tests | Update when AI schemas, clients, audit metadata, or service behavior changes |
+| `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader AI contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
+| `skill-guidance` | Implemented explicit contributor-requested source-scoped guidance | controller, service, DTO, published-request context adapter, README, focused tests | saved learning plans or richer resource catalogs require a new decision | Update when guidance authorization, source policy, public routes, or persistence changes |
 | `health` | Implemented health endpoint | health controller, response, module, test | readiness checks for database/Redis/external dependencies if needed | Update when health response shape or readiness checks change |
 
 ## Per-Task Checklist
@@ -2839,3 +2840,185 @@ This keeps the system strong without making it heavy:
   build, Prisma validation/generation, diff checks, and deterministic Postman
   coverage passed at 140 controller routes / 140 canonical requests with zero
   missing, obsolete, or duplicate routes.
+
+### 2026-08-10 - Notification backfill ordering repair (TASK-9-02)
+
+- Modules: `notifications`, Prisma migrations, and migration regression tests.
+- Root cause: environments that applied the semantic Notification migration
+  before the earlier-timestamped skill-generation backfills could execute
+  those legacy inserts against `template_key`/`parameters` `NOT NULL`
+  constraints, producing the reported `E23502` failure.
+- Change: added forward-only compatibility and repair migrations. The first
+  conditionally relaxes only the two affected semantic constraints when those
+  columns already exist; the second maps late legacy rows to semantic
+  templates/parameters and restores both constraints. Existing migration files
+  and checksums remain unchanged.
+- Database/API impact: no route or DTO change; Notification rows retain their
+  durable semantic authority and existing deduplication keys.
+- Tests/checks: added `test/migrations/notification-backfill-order.spec.ts`;
+  focused regression passed. The PostgreSQL migration harness now passes both
+  the fresh deployment and semantic-first/late-backfill deployment sequences.
+- Risks/follow-up: inspect `prisma migrate status` in the affected environment;
+  if the failed legacy backfill is recorded as rolled back/unfinished, resolve
+  that failed migration as rolled back according to the deployment runbook,
+  then rerun `prisma migrate deploy` so the compatibility and repair migrations
+  execute in order.
+
+### 2026-08-11 - Sprint 5 contribution Delivery and owner review (TASK-5-02)
+
+- Modules: `delivery-reviews`, `applications`, `contribution-tasks`, `projects`,
+  `notifications`, and Prisma migrations.
+- HTTP/API: added authenticated Delivery submit, update/resubmit, participant
+  detail, contributor/owner composed lifecycle, owner review queue, and owner
+  review commands. GitHub PR format,
+  UUIDv4 idempotency, role/state authorization, approval rating, and required
+  changes/rejection feedback are enforced at the owning seams.
+- Persistence: aligned Delivery states with the canonical Sprint 5 machine,
+  added immutable submission versions and per-version review history, and made
+  approval atomically complete and audit the owning Contribution Request.
+- Notifications: added bilingual semantic Delivery templates and durable
+  persistence-first alerts for submission, resubmission, and every owner
+  outcome; required owner feedback and approval ratings are retained in
+  contributor notifications.
+- Scope boundary: approval transactionally appends a durable
+  `DeliveryApprovedEvent` outbox fact but does not update Reputation-owned
+  records; TASK-5-04 owns polling/acknowledgement and calculation.
+- Verification: focused Delivery HTTP and Notification catalog/service suites,
+  architecture check, lint, exact TypeScript, build, Prisma validate/generate,
+  and diff checks passed before final full-suite review.
+
+### 2026-08-11 - Sprint 5 verified reputation projection (TASK-5-04)
+
+- Modules: `reputation`, `delivery-reviews`, `applications`,
+  `contribution-tasks`, `contributor-profiles`, and shared environment config.
+- Calculation: Reputation owns a replaceable, idempotent projection. Overall
+  rating averages approved-Delivery owner ratings; completed count is approved
+  Deliveries; success rate is approved Deliveries divided by all Assignments;
+  and the top five verified skills are owner-authored Request technology tags
+  ranked by approved-Delivery frequency with deterministic ties.
+- Reaction: the Delivery coordinator consumes the durable approval outbox,
+  groups events by contributor, rebuilds from authoritative module fact
+  readers, and acknowledges only after the Reputation write succeeds. A
+  bounded reconciliation pass keeps assignment and rejected-Delivery effects
+  current even when no approval event is pending.
+- HTTP/API: the existing contributor profile summary now exposes rating sample
+  size, completed/assigned counts, percentage success rate, and verified skill
+  frequencies. Contributors without a projection receive a stable zero/null
+  response. No new route or Prisma migration was needed.
+- Runtime: a repeatable BullMQ sweep plus startup catch-up is controlled by
+  `DELIVERY_REPUTATION_QUEUE_ENABLED` and
+  `DELIVERY_REPUTATION_SWEEP_INTERVAL_MS`; PostgreSQL remains authoritative.
+- Verification: the focused calculation, fact-reader, outbox failure/replay,
+  reconciliation, worker, profile-presentation, HTTP, and environment run
+  passed 13 suites / 61 tests. The queue-disabled full test run passed 130
+  suites / 846 tests with one suite and two tests skipped; architecture, lint,
+  exact TypeScript, build, Prisma validation, deterministic API-client/Postman
+  coverage, and diff checks also passed.
+
+### 2026-08-11 - Sprint 5 explicit skill-gap guidance (TASK-5-05)
+
+- Modules: `skill-guidance`, `ai`, `contribution-tasks`, and `skill-profiles`.
+- Contract: active contributors explicitly request guidance for a currently
+  published Contribution Request. NestJS assembles fixed Requirement and
+  approved-skill snapshots plus bounded source IDs; FastAPI returns structured
+  recommendations only. No Application rejection, Advisory Fit result,
+  subscription tier, or legacy Application-linked `SkillGapGuidance` record
+  triggers or stores the result.
+- HTTP/API: added authenticated `POST
+  /contributors/me/skill-gap-guidance` and final-result SSE
+  `GET /contributors/me/skill-gap-guidance/stream`.
+- AI safety: missing means not evidenced or below target proficiency; resource
+  URLs, improvement durations, and source attribution are source-scoped. Empty
+  evidence and provider limits have distinct safe outcomes. No eligibility,
+  score, rank, Application status, or Owner Decision is emitted.
+- Persistence: no Prisma schema or migration change; the retired
+  Application-linked model remains unused.
+- Verification: AI contract tests passed 36 tests in the repository virtual
+  environment; backend guidance/AI adapter tests passed 5 focused tests;
+  architecture, lint, exact TypeScript, build, Prisma validation, API-client
+  and Postman coverage, and diff checks passed. The backend full suite passed
+  131 suites / 846 tests when excluding the pre-existing Redis-dependent
+  GitHub onboarding suite; the unfiltered run had 4 failures in that suite
+  because Redis was unavailable, with no TASK-5-05 failures.
+
+### 2026-08-11 - Sprint 5 workflow verification (TASK-5-07)
+
+- Scope: added public-seam coverage for Delivery submission/review lifecycle,
+  owner rejection feedback, completion gating, verified reputation projection,
+  and explicit skill-gap guidance transports.
+- Guidance coverage: the authenticated POST contract and final-result SSE
+  contract now assert structured missing skills, learning resources, practice
+  projects, improvement path, source attribution, malformed-ID rejection, and
+  authentication requirements.
+- Safety coverage: non-approval Delivery outcomes remain outside completed
+  Contribution Request state; reputation projections keep unapproved
+  assignments out of completed/rating/verified-skill metrics; the client
+  reputation view excludes self-declared skills from reputation output while
+  preserving their separate profile section.
+- Verification: six focused backend suites / 40 tests and three focused client
+  files / 21 tests passed. The backend full suite passed 133 suites / 855 tests
+  with one suite and two tests skipped; architecture, lint, exact TypeScript,
+  build, Prisma validation, frontend lint/type-check/test/build, and diff checks
+  passed. No schema or migration change was needed.
+
+### 2026-08-11 - Sprint 6 subscription and owner usage seam (TASK-6-02)
+
+- Modules: new `subscriptions`, plus `projects`, `contribution-tasks`, and
+  `materials` consumers.
+- Public interface: added `GET /me/subscription` and exported plan-status,
+  owner publication reservation, and explicit Material Analysis entitlement
+  capabilities. Bronze/Silver/Gold limits remain 10/20/30 per UTC month.
+- Persistence: added source-tagged subscriptions, explicit
+  `PROJECT_MATERIAL_ANALYSIS` entitlements, active-context protection, unique
+  owner `order_created` usage rows, and a published-Request history backfill.
+- Policy: contributor Application submission and source-scoped skill-gap
+  guidance remain independent of plan. Material Analysis no longer infers
+  access from plan rank; seeded/demo/admin assignment is explicit and no
+  payment or checkout flow was added.
+- Verification: focused subscription, project, material, and Contribution
+  Request publication suites; full backend suite (135 suites / 861 tests, one
+  suite and two tests skipped); architecture, lint, exact TypeScript, build,
+  Prisma validation/generation, API-client, Postman coverage, and diff checks
+  passed.
+
+### 2026-08-11 - Sprint 6 contributor matching seam (TASK-6-03)
+
+- Modules: new `matching`, plus the `ai`, `contribution-tasks`,
+  `skill-profiles`, `reputation`, and `subscriptions` service seams.
+- Public interface: owner-only stored-result and explicit-generation routes at
+  `GET/POST /contribution-requests/:requestId/matches`; publication enqueues a
+  bounded matching worker after commit.
+- Policy: only active contributors with approved skills enter the snapshot;
+  Silver receives at most five recommendations, Gold at most ten, and Bronze
+  is rejected before AI execution. The AI output is recommendation-only and
+  cannot authorize an Application or Assignment.
+- Persistence: added the explicit match confidence column and request/rank
+  index to the existing `AiMatchResult` table; matching writes replace the
+  current result set transactionally and retain source attribution metadata.
+- Verification: AI repository contract suite (41 tests), focused NestJS AI
+  adapter/matching/publication suites, and backend full suite (137 suites / 865
+  tests, one suite and two tests skipped) passed. Architecture, lint, exact
+  TypeScript, build, Prisma validation/generation, API-client, Postman
+  coverage, and diff checks passed.
+
+### 2026-08-11 - Sprint 6 premium benefit APIs (TASK-6-04)
+
+- Public interface: owner match invitations at `POST
+  /contribution-requests/:requestId/matches/:contributorId/invite` and Gold-only
+  reverse recommendations at `GET /contributors/me/recommended-tasks`.
+- Notifications: persisted bilingual `match.found` and recommendation template
+  contracts, deduplication, Gold owner auto-notification, and Silver/Gold
+  skill-matched notification eligibility. Invitations never create Applications
+  or selection priority.
+- Priority and plan policy: owner discovery exposes Silver/Gold
+  `priorityVisibility`; owner review orders pending Applications by Gold
+  contributor `isPriority`; contributor submission remains plan-independent;
+  owner and contributor commission flags are explicit in subscription status.
+- AI boundary: reverse recommendations reuse the validated Contributor Matching
+  input/output contract, with one Gold contributor candidate against each
+  published actionable Request. AI remains recommendation-only.
+- Verification: focused matching, notification, subscription, project, and
+  Application suites passed; backend full suite passed 137 suites / 871 tests
+  with one suite and two tests skipped. Architecture, lint, exact TypeScript,
+  build, Prisma validation/generation, API-client, Postman coverage, and diff
+  checks passed.

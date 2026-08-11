@@ -93,6 +93,13 @@
 # - [DONE] POST /applications/:applicationId/assessment-requests
 # - [DONE] GET /applications/:applicationId/assessment
 # - [DONE] POST /applications/:applicationId/assessment/presentations
+# - [DONE] POST /applications/:applicationId/deliveries
+# - [DONE] PATCH /deliveries/:deliveryId
+# - [DONE] GET /deliveries/:deliveryId
+# - [DONE] GET /me/deliveries
+# - [DONE] GET /owner/deliveries
+# - [DONE] GET /owner/delivery-lifecycle
+# - [DONE] POST /deliveries/:deliveryId/reviews
 # - [DONE] POST /contribution-proposals
 # - [DONE] GET /contribution-proposals/mine
 # - [DONE] GET /contribution-proposals/for-project/:projectId
@@ -109,6 +116,8 @@
 # - [DONE] POST /projects/github/preview -> POST /projects -> explicit publish/archive
 # - [DONE] POST /contributors/profiles/me/ensure
 # - [DONE] GET /contributors/profiles/:username
+# - [DONE] POST /contributors/me/skill-gap-guidance
+# - [DONE] GET /contributors/me/skill-gap-guidance/stream
 # - [DONE] POST /skill-profiles/me/generations
 # - [DONE] GET /skill-profiles/me/generations/latest
 # - [DONE] GET /skill-profiles/me/generations/:generationId
@@ -153,6 +162,11 @@
 @proposalCursor = replace-with-next-cursor-or-remove-query
 @userIdToPromote = replace-with-real-user-id
 @notificationId = replace-with-recipient-notification-uuid
+@acceptedApplicationId = replace-with-accepted-application-uuid
+@deliveryId = replace-with-delivery-uuid
+@deliverySubmissionIdempotencyKey = 00000000-0000-4000-8000-000000000021
+@deliveryUpdateIdempotencyKey = 00000000-0000-4000-8000-000000000022
+@deliveryReviewIdempotencyKey = 00000000-0000-4000-8000-000000000023
 
 
 ### 01 - DONE - Health check
@@ -902,11 +916,41 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 ### 11C - DONE - Get contributor profile by username
 # What it does:
-# Returns the authenticated view of a canonical contributor profile username.
+# Returns the authenticated view of a canonical contributor profile username,
+# including aggregate rating, completed contributions, assigned-task success
+# rate, and top verified technology tags derived from approved Deliveries.
 #
 # Auth:
 # Protected.
 GET {{baseUrl}}/contributors/profiles/{{contributorUsername}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 11D - DONE - Request explicit skill-gap guidance
+# What it does:
+# Generates source-scoped educational guidance for a currently published
+# Contribution Request using the contributor's approved skill evidence.
+# Guidance is advisory only and is not an eligibility or Owner Decision.
+#
+# Auth:
+# Protected. Requires an active contributor token.
+#
+# Expected success response:
+# A structured result with missing/below-target skills, technologies,
+# learning resources, practice projects, source attribution, and metadata.
+POST {{baseUrl}}/contributors/me/skill-gap-guidance
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "contributionRequestId": "{{contributionRequestId}}"
+}
+
+
+### 11D.1 - DONE - Stream explicit skill-gap guidance
+# The stream emits one guidance.completed SSE event containing the validated
+# final result.
+GET {{baseUrl}}/contributors/me/skill-gap-guidance/stream?contributionRequestId={{contributionRequestId}}
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
@@ -1458,4 +1502,61 @@ Content-Type: application/json
 {
   "idempotencyKey": "message-rest-001",
   "body": "Hello from the Assignment conversation."
+}
+
+
+### 52 - Submit a Delivery for an accepted Application
+POST {{baseUrl}}/applications/{{acceptedApplicationId}}/deliveries
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: {{deliverySubmissionIdempotencyKey}}
+Content-Type: application/json
+
+{
+  "pullRequestUrl": "https://github.com/octocat/Hello-World/pull/1",
+  "contributorNotes": "Ready for owner review."
+}
+
+
+### 53 - Read the contributor composed Delivery lifecycle
+GET {{baseUrl}}/me/deliveries
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 54 - Update or resubmit a Delivery
+PATCH {{baseUrl}}/deliveries/{{deliveryId}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: {{deliveryUpdateIdempotencyKey}}
+Content-Type: application/json
+
+{
+  "pullRequestUrl": "https://github.com/octocat/Hello-World/pull/2",
+  "contributorNotes": "Updated after owner feedback."
+}
+
+
+### 55 - Read Delivery history as a participant
+GET {{baseUrl}}/deliveries/{{deliveryId}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 56 - List the owner's Delivery review queue
+GET {{baseUrl}}/owner/deliveries
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 57 - Read the owner's composed contribution lifecycle
+GET {{baseUrl}}/owner/delivery-lifecycle
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 58 - Approve the current Delivery submission
+POST {{baseUrl}}/deliveries/{{deliveryId}}/reviews
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: {{deliveryReviewIdempotencyKey}}
+Content-Type: application/json
+
+{
+  "outcome": "APPROVED",
+  "rating": 5,
+  "feedback": "The Delivery meets the Contribution Request requirements."
 }

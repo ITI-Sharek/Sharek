@@ -7,6 +7,7 @@ import { AiModule } from '../ai/ai.module';
 import { IdentityModule } from '../identity/identity.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SkillProfilesModule } from '../skill-profiles/skill-profiles.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
 import { AdvisoryFitAssessmentQueue } from './jobs/advisory-fit-assessment.queue';
@@ -17,6 +18,7 @@ import { ApplicationReviewWindowQueue } from './jobs/application-review-window.q
 import { ApplicationReviewWindowWorker } from './jobs/application-review-window.worker';
 import { ApplicationReviewWindowService } from './services/application-review-window.service';
 import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment.service';
+import { ApplicationReputationFactsService } from './services/application-reputation-facts.service';
 
 @Module({
   imports: [
@@ -27,6 +29,7 @@ import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment
     IdentityModule,
     NotificationsModule,
     SkillProfilesModule,
+    SubscriptionsModule,
   ],
   controllers: [ApplicationsController],
   providers: [
@@ -39,7 +42,8 @@ import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment
     AdvisoryFitAssessmentReaperService,
     ApplicationReviewWindowQueue,
     ApplicationReviewWindowWorker,
+    ApplicationReputationFactsService,
   ],
-  exports: [ApplicationsService],
+  exports: [ApplicationsService, ApplicationReputationFactsService],
 })
 export class ApplicationsModule {}

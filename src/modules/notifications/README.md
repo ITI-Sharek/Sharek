@@ -78,6 +78,13 @@ transaction; workflows may supply their existing transaction. Shared realtime
 publication runs only after commit, and publication failure does not remove the
 durable row/event.
 
+Deployments that already applied the semantic migration before receiving the
+earlier skill-generation backfill migrations are handled by forward-only
+compatibility and repair migrations. The compatibility step temporarily allows
+the legacy backfill column list to run, and the repair step maps those rows to
+version-one semantic templates and restores the required `template_key` and
+`parameters` constraints. Fresh deployments retain the original backfill order.
+
 The `NotificationInboxService` reads the current identity language on every
 presentation and applies the recipient's current retention choice. Read-state
 mutations use conditional aggregate-version updates and append durable
@@ -121,6 +128,11 @@ Current supported workflow:
   and day-7 expiry notifications for contributors. Expiry copy explicitly
   states that owner silence is not rejection and has no eligibility or
   reputation effect.
+- semantic Delivery-submitted, resubmitted, approved, changes-requested, and rejected
+  notifications, deduplicated by Delivery, outcome, and submission version.
+  Delivery workflows persist the Notification and its event atomically with
+  the Delivery transition, retain required owner feedback in contributor-facing
+  outcome parameters, then publish through `/realtime` after commit.
 - idempotent Contribution Proposal revision-request, accepted, and declined
   notifications for the proposer, with the resulting draft Request ID attached
   to accepted notifications.

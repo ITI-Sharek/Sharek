@@ -3,6 +3,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { ApplicationsModule } from '../applications/applications.module';
 import { GithubModule } from '../github/github.module';
 import { IdentityModule } from '../identity/identity.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PublicProjectsController } from './public-projects.controller';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
@@ -10,7 +11,12 @@ import { ProjectPublicationService } from './services/project-publication.servic
 import { PublicProjectsService } from './services/public-projects.service';
 
 @Module({
-  imports: [forwardRef(() => ApplicationsModule), GithubModule, IdentityModule],
+  imports: [
+    forwardRef(() => ApplicationsModule),
+    GithubModule,
+    IdentityModule,
+    SubscriptionsModule,
+  ],
   controllers: [ProjectsController, PublicProjectsController],
   providers: [
     ProjectsService,

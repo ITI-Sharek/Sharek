@@ -17,6 +17,9 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ProjectsModule } from './modules/projects/projects.module';
 import { ReputationModule } from './modules/reputation/reputation.module';
 import { SkillProfilesModule } from './modules/skill-profiles/skill-profiles.module';
+import { SkillGuidanceModule } from './modules/skill-guidance/skill-guidance.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { MatchingModule } from './modules/matching/matching.module';
 import { AuthModule } from './shared/auth/auth.module';
 import { envValidationSchema } from './shared/config/env.validation';
 import { DatabaseModule } from './shared/database/database.module';
@@ -56,6 +59,9 @@ import { RealtimeModule } from './shared/realtime/realtime.module';
     AdminModule,
     AiModule,
     AssignmentConversationsModule,
+    SkillGuidanceModule,
+    SubscriptionsModule,
+    MatchingModule,
   ],
 })
 export class AppModule { }

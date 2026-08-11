@@ -47,6 +47,23 @@ enum SubscriptionStatus {
   expired
 }
 
+enum SubscriptionSource {
+  default
+  admin
+  demo
+  payment_provider
+}
+
+enum SubscriptionEntitlementKey {
+  project_material_analysis
+}
+
+enum SubscriptionEntitlementStatus {
+  active
+  revoked
+  expired
+}
+
 enum ProjectCategory {
   web
   mobile
@@ -94,6 +111,7 @@ enum ContributionRequestAuditAction {
   cancelled
   discarded
   assigned
+  completed
 }
 
 enum ApplicationStatus {
@@ -186,16 +204,16 @@ enum ContributionProposalAuditAction {
 
 enum DeliveryStatus {
   submitted
-  under_review
+  changes_requested
+  resubmitted
   approved
   rejected
-  revision_requested
 }
 
 enum DeliveryReviewOutcome {
   approved
   rejected
-  revision_requested
+  changes_requested
 }
 
 enum DisputeType {
@@ -401,6 +419,7 @@ model User {
   last_login_at      DateTime?
 
   subscriptions                     Subscription[]
+  subscriptionEntitlements          SubscriptionEntitlement[]
   projects                          Project[]                          @relation("ProjectOwner")
   contributionRequests              ContributionRequest[]              @relation("ContributionRequestOwner")
   applications                      Application[]                      @relation("ApplicationContributor")
@@ -408,6 +427,8 @@ model User {
   notificationEvents                NotificationEvent[]
   notificationPreference            NotificationPreference?
   deliveryReviews                   DeliveryReview[]                   @relation("DeliveryReviewReviewer")
+  deliveryApprovedEvents            DeliveryApprovedEvent[]            @relation("DeliveryApprovedEventContributor")
+  deliverySubmissions               DeliverySubmission[]               @relation("DeliverySubmissionContributor")
   disputesFiled                     Dispute[]                          @relation("UserDisputesFiled")
   disputesResolved                  Dispute[]                          @relation("UserDisputesResolved")
   githubAccount                     GitHubAccount?
@@ -620,6 +641,7 @@ model Subscription {
   plan_type         SubscriptionPlanType
   user_role_context SubscriptionUserRoleContext
   status            SubscriptionStatus          @default(active)
+  source            SubscriptionSource          @default(default)
   starts_at         DateTime
   expires_at        DateTime?
   cancelled_at      DateTime?
@@ -629,6 +651,26 @@ model Subscription {
   user User @relation(fields: [user_id], references: [id])
 
   @@index([user_id])
+  @@index([user_id, user_role_context, status])
+  @@index([expires_at])
+}
+
+model SubscriptionEntitlement {
+  id          String                         @id @default(uuid()) @db.Uuid
+  user_id     String                         @db.Uuid
+  key         SubscriptionEntitlementKey
+  source      SubscriptionSource
+  status      SubscriptionEntitlementStatus @default(active)
+  starts_at   DateTime
+  expires_at  DateTime?
+  revoked_at  DateTime?
+  created_at  DateTime                       @default(now())
+  updated_at  DateTime                       @default(now()) @updatedAt
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@index([user_id, key, status])
+  @@index([expires_at])
 }
 
 model Project {
@@ -1196,6 +1238,7 @@ model AiMatchResult {
   contribution_request_id String   @db.Uuid
   contributor_id          String   @db.Uuid
   match_score             Float
+  confidence              String   @default("MEDIUM") @db.VarChar(10)
   justification           String?
   matched_skills          Json?
   reputation_signals      Json?
@@ -1207,6 +1250,8 @@ model AiMatchResult {
 
   contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
   contributor         User                @relation("AIMatchContributor", fields: [contributor_id], references: [id])
+
+  @@index([contribution_request_id, rank])
 }
 
 model AiTraceLog {
@@ -1228,35 +1273,86 @@ model AiTraceLog {
 }
 
 model Delivery {
-  id                      String         @id @default(uuid()) @db.Uuid
-  application_id          String         @unique @db.Uuid
-  contribution_request_id String         @db.Uuid
-  contributor_id          String         @db.Uuid
-  pr_url                  String         @db.VarChar(500)
-  contributor_notes       String?
-  status                  DeliveryStatus @default(submitted)
-  submitted_at            DateTime
-  reviewed_at             DateTime?
-  created_at              DateTime       @default(now())
-  updated_at              DateTime       @default(now()) @updatedAt
+  id                         String         @id @default(uuid()) @db.Uuid
+  application_id             String         @unique @db.Uuid
+  contribution_request_id    String         @db.Uuid
+  contributor_id             String         @db.Uuid
+  pr_url                     String         @db.VarChar(500)
+  contributor_notes          String?
+  status                     DeliveryStatus @default(submitted)
+  submitted_at               DateTime
+  reviewed_at                DateTime?
+  submission_number          Int            @default(1)
+  submission_idempotency_key String?        @unique @db.VarChar(36)
+  submission_fingerprint     String?        @db.Char(64)
+  created_at                 DateTime       @default(now())
+  updated_at                 DateTime       @default(now()) @updatedAt
 
-  application         Application         @relation(fields: [application_id], references: [id])
-  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
-  contributor         User                @relation("DeliveryContributor", fields: [contributor_id], references: [id])
-  deliveryReview      DeliveryReview?
+  application         Application             @relation(fields: [application_id], references: [id])
+  contributionRequest ContributionRequest     @relation(fields: [contribution_request_id], references: [id])
+  contributor         User                    @relation("DeliveryContributor", fields: [contributor_id], references: [id])
+  deliverySubmissions DeliverySubmission[]
+  deliveryReviews     DeliveryReview[]
+  approvedEvents      DeliveryApprovedEvent[]
+}
+
+model DeliverySubmission {
+  id                  String   @id @default(uuid()) @db.Uuid
+  delivery_id         String   @db.Uuid
+  submission_number   Int
+  contributor_id      String   @db.Uuid
+  pr_url              String   @db.VarChar(500)
+  contributor_notes   String?
+  idempotency_key     String?  @db.VarChar(36)
+  command_fingerprint String?  @db.Char(64)
+  submitted_at        DateTime @default(now())
+
+  delivery    Delivery @relation(fields: [delivery_id], references: [id], onDelete: Restrict)
+  contributor User     @relation("DeliverySubmissionContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+
+  @@unique([delivery_id, submission_number])
+  @@unique([contributor_id, idempotency_key])
+  @@index([delivery_id, submitted_at])
 }
 
 model DeliveryReview {
-  id          String                @id @default(uuid()) @db.Uuid
-  delivery_id String                @unique @db.Uuid
-  reviewer_id String                @db.Uuid
-  rating      Int
-  feedback    String?
-  outcome     DeliveryReviewOutcome
-  created_at  DateTime              @default(now())
+  id                  String                @id @default(uuid()) @db.Uuid
+  delivery_id         String                @db.Uuid
+  reviewer_id         String                @db.Uuid
+  submission_number   Int
+  rating              Int?
+  feedback            String?
+  outcome             DeliveryReviewOutcome
+  idempotency_key     String?               @db.VarChar(36)
+  command_fingerprint String?               @db.Char(64)
+  created_at          DateTime              @default(now())
 
-  delivery Delivery @relation(fields: [delivery_id], references: [id])
-  reviewer User     @relation("DeliveryReviewReviewer", fields: [reviewer_id], references: [id])
+  delivery      Delivery               @relation(fields: [delivery_id], references: [id])
+  reviewer      User                   @relation("DeliveryReviewReviewer", fields: [reviewer_id], references: [id])
+  approvedEvent DeliveryApprovedEvent?
+
+  @@unique([delivery_id, submission_number])
+  @@unique([reviewer_id, idempotency_key])
+  @@index([delivery_id, created_at])
+}
+
+model DeliveryApprovedEvent {
+  id                      String    @id @default(uuid()) @db.Uuid
+  delivery_id             String    @db.Uuid
+  delivery_review_id      String    @unique @db.Uuid
+  contributor_id          String    @db.Uuid
+  contribution_request_id String    @db.Uuid
+  rating                  Int
+  occurred_at             DateTime
+  published_at            DateTime?
+  created_at              DateTime  @default(now())
+
+  delivery       Delivery       @relation(fields: [delivery_id], references: [id], onDelete: Restrict)
+  deliveryReview DeliveryReview @relation(fields: [delivery_review_id], references: [id], onDelete: Restrict)
+  contributor    User           @relation("DeliveryApprovedEventContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+
+  @@index([published_at, occurred_at, id])
+  @@index([contributor_id, occurred_at])
 }
 
 model Dispute {
@@ -1658,6 +1754,8 @@ model UsageTracker {
   updated_at  DateTime       @default(now()) @updatedAt
 
   user User @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, action_type, period_date])
 }
 
 enum MaterialVisibility {

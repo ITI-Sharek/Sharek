@@ -209,6 +209,22 @@ describe('GitHub onboarding flow', () => {
           },
         });
       });
+
+    await request(app.getHttpServer())
+      .get('/me/subscription')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          roleContext: 'owner',
+          plan: 'bronze',
+          source: 'default',
+          usage: { used: 0, limit: 10 },
+          entitlements: [
+            { key: 'PROJECT_MATERIAL_ANALYSIS', state: 'unavailable' },
+          ],
+        });
+      });
   });
 
   it('redirects repository OAuth browser callbacks to the frontend callback route', async () => {
@@ -789,6 +805,14 @@ class InMemoryDatabase {
 
   subscription = {
     findFirst: jest.fn(() => Promise.resolve(null)),
+  };
+
+  subscriptionEntitlement = {
+    findFirst: jest.fn(() => Promise.resolve(null)),
+  };
+
+  usageTracker = {
+    findUnique: jest.fn(() => Promise.resolve(null)),
   };
 
   skillProfileGeneration = {

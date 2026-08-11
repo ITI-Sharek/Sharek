@@ -16,9 +16,17 @@ import {
   SkillProfileGenerationNotificationStatus,
   SkillReviewNotificationParameters,
   ConversationActivityNotificationParameters,
+  DeliveryNotificationParameters,
+  MatchFoundNotificationParameters,
+  TaskRecommendationNotificationParameters,
 } from './notification-template.types';
 
 export const NOTIFICATION_TEMPLATE_KEYS = [
+  'delivery.submitted',
+  'delivery.resubmitted',
+  'delivery.approved',
+  'delivery.changes_requested',
+  'delivery.rejected',
   'application.accepted',
   'application.submitted',
   'application.withdrawn',
@@ -36,6 +44,8 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'skill_profile_generation.needs_more_evidence',
   'skill_profile_generation.failed',
   'conversation.activity',
+  'match.found',
+  'task.recommendation',
   'system.legacy',
 ] as const satisfies readonly NotificationTemplateKey[];
 
@@ -55,6 +65,26 @@ type ApplicationNotificationAction =
   | 'expired';
 
 const POLICY: Readonly<Record<NotificationTemplateKey, NotificationTemplatePolicy>> = {
+  'delivery.submitted': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
+  'delivery.resubmitted': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
+  'delivery.approved': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
+  'delivery.changes_requested': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
+  'delivery.rejected': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
   'application.accepted': {
     category: NotificationType.application_status,
     priority: 'attention',
@@ -121,6 +151,14 @@ const POLICY: Readonly<Record<NotificationTemplateKey, NotificationTemplatePolic
   },
   'conversation.activity': {
     category: NotificationType.conversation_activity,
+    priority: 'attention',
+  },
+  'match.found': {
+    category: NotificationType.match_found,
+    priority: 'attention',
+  },
+  'task.recommendation': {
+    category: NotificationType.task_recommendation,
     priority: 'attention',
   },
   'system.legacy': {
@@ -205,10 +243,72 @@ const APPLICATION_COPY: Record<
   },
 };
 
+const DELIVERY_COPY: Record<
+  'submitted' | 'resubmitted' | 'approved' | 'changes_requested' | 'rejected',
+  Record<NotificationLanguage, { title: string; body: string }>
+> = {
+  submitted: {
+    en: {
+      title: 'Delivery submitted',
+      body: 'A contributor submitted a Delivery for your Contribution Request.',
+    },
+    ar: {
+      title: 'تم تسليم العمل',
+      body: 'قدّم مساهم تسليمًا لطلب المساهمة الخاص بك.',
+    },
+  },
+  resubmitted: {
+    en: {
+      title: 'Delivery resubmitted',
+      body: 'A contributor resubmitted a Delivery after addressing your feedback.',
+    },
+    ar: {
+      title: 'أُعيد تسليم العمل',
+      body: 'أعاد مساهم تسليم العمل بعد معالجة ملاحظاتك.',
+    },
+  },
+  approved: {
+    en: {
+      title: 'Delivery approved',
+      body: 'The Project owner approved your Delivery. Your contribution is complete.',
+    },
+    ar: {
+      title: 'تم اعتماد التسليم',
+      body: 'اعتمد مالك المشروع تسليمك. اكتملت مساهمتك.',
+    },
+  },
+  changes_requested: {
+    en: {
+      title: 'Delivery changes requested',
+      body: 'The Project owner requested changes to your Delivery. Review the feedback and resubmit.',
+    },
+    ar: {
+      title: 'طُلبت تعديلات على التسليم',
+      body: 'طلب مالك المشروع تعديلات على تسليمك. راجع الملاحظات وأعد التسليم.',
+    },
+  },
+  rejected: {
+    en: {
+      title: 'Delivery not approved',
+      body: 'The Project owner did not approve your Delivery. Review the feedback.',
+    },
+    ar: {
+      title: 'لم يتم اعتماد التسليم',
+      body: 'لم يعتمد مالك المشروع تسليمك. راجع الملاحظات.',
+    },
+  },
+};
+
 const APPLICATION_PARAMETER_CONTRACT: NotificationParameterContract = {
   required: ['applicationId', 'contributionRequestId'],
   validate: (parameters) =>
     validateApplicationParameters(parameters) as NotificationTemplateParameters,
+};
+
+const DELIVERY_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['deliveryId', 'contributionRequestId', 'submissionNumber'],
+  validate: (parameters) =>
+    validateDeliveryParameters(parameters) as NotificationTemplateParameters,
 };
 
 const PROPOSAL_PARAMETER_CONTRACT: NotificationParameterContract = {
@@ -243,6 +343,28 @@ const CONVERSATION_PARAMETER_CONTRACT: NotificationParameterContract = {
     validateConversationParameters(parameters) as NotificationTemplateParameters,
 };
 
+const MATCH_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: [
+    'contributionRequestId',
+    'requestTitle',
+    'audience',
+    'notificationKind',
+  ],
+  validate: (parameters) =>
+    validateMatchParameters(parameters) as NotificationTemplateParameters,
+};
+
+const RECOMMENDATION_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: [
+    'contributionRequestId',
+    'requestTitle',
+    'matchScore',
+    'matchedSkills',
+  ],
+  validate: (parameters) =>
+    validateRecommendationParameters(parameters) as NotificationTemplateParameters,
+};
+
 const LEGACY_PARAMETER_CONTRACT: NotificationParameterContract = {
   required: ['legacyTitle', 'legacyBody'],
   validate: (parameters) =>
@@ -256,6 +378,30 @@ function validateApplicationParameters(
   return {
     applicationId: requiredString(record, 'applicationId'),
     contributionRequestId: requiredString(record, 'contributionRequestId'),
+  };
+}
+
+function validateDeliveryParameters(
+  parameters: unknown,
+): DeliveryNotificationParameters {
+  const record = requireRecord(parameters);
+  const feedback = record.feedback;
+  if (feedback !== undefined && (typeof feedback !== 'string' || !feedback.trim())) {
+    throw invalidParameters();
+  }
+  const rating = record.rating;
+  if (
+    rating !== undefined &&
+    (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 5)
+  ) {
+    throw invalidParameters();
+  }
+  return {
+    deliveryId: requiredString(record, 'deliveryId'),
+    contributionRequestId: requiredString(record, 'contributionRequestId'),
+    submissionNumber: requiredPositiveInteger(record, 'submissionNumber'),
+    ...(typeof rating === 'number' ? { rating } : {}),
+    ...(typeof feedback === 'string' ? { feedback: feedback.trim() } : {}),
   };
 }
 
@@ -343,6 +489,79 @@ function validateConversationParameters(
     senderName: requiredString(record, 'senderName'),
     messagePreview: requiredString(record, 'messagePreview'),
     messageCount: requiredPositiveInteger(record, 'messageCount'),
+  };
+}
+
+function validateMatchParameters(
+  parameters: unknown,
+): MatchFoundNotificationParameters {
+  const record = requireRecord(parameters);
+  const audience = record.audience;
+  if (audience !== 'contributor' && audience !== 'owner') {
+    throw invalidParameters();
+  }
+  const notificationKind = record.notificationKind;
+  if (
+    notificationKind !== 'owner_invite' &&
+    notificationKind !== 'gold_auto_match' &&
+    notificationKind !== 'skill_matched_task'
+  ) {
+    throw invalidParameters();
+  }
+  const matchScore = record.matchScore;
+  if (
+    matchScore !== undefined &&
+    (typeof matchScore !== 'number' || matchScore < 0 || matchScore > 1)
+  ) {
+    throw invalidParameters();
+  }
+  const matchedSkills = record.matchedSkills;
+  if (
+    matchedSkills !== undefined &&
+    (!Array.isArray(matchedSkills) ||
+      matchedSkills.some(
+        (skill) => typeof skill !== 'string' || !skill.trim(),
+      ))
+  ) {
+    throw invalidParameters();
+  }
+  return {
+    contributionRequestId: requiredString(record, 'contributionRequestId'),
+    requestTitle: requiredString(record, 'requestTitle'),
+    audience,
+    notificationKind,
+    ...(matchScore === undefined ? {} : { matchScore }),
+    ...(matchedSkills === undefined ? {} : { matchedSkills }),
+  };
+}
+
+function validateRecommendationParameters(
+  parameters: unknown,
+): TaskRecommendationNotificationParameters {
+  const record = requireRecord(parameters);
+  const matchScore = record.matchScore;
+  if (
+    typeof matchScore !== 'number' ||
+    matchScore < 0 ||
+    matchScore > 1
+  ) {
+    throw invalidParameters();
+  }
+  const matchedSkills = record.matchedSkills;
+  if (
+    !Array.isArray(matchedSkills) ||
+    matchedSkills.length === 0 ||
+    matchedSkills.some(
+      (skill) => typeof skill !== 'string' || !skill.trim(),
+    )
+  ) {
+    throw invalidParameters();
+  }
+  return {
+    contributionRequestId: requiredString(record, 'contributionRequestId'),
+    requestTitle: requiredString(record, 'requestTitle'),
+    matchScore,
+    matchedSkills,
   };
 }
 
@@ -461,6 +680,56 @@ function applicationTemplate(
         validateApplicationParameters(parameters),
       ),
   };
+}
+
+function deliveryTemplate(
+  action: 'submitted' | 'resubmitted' | 'approved' | 'changes_requested' | 'rejected',
+): NotificationTemplateDefinition {
+  const key = `delivery.${action}` as NotificationTemplateKey;
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: DELIVERY_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) => {
+        validateDeliveryParameters(parameters);
+        return deliveryCopy(action, validateDeliveryParameters(parameters), 'en');
+      },
+      ar: (parameters) => {
+        validateDeliveryParameters(parameters);
+        return deliveryCopy(action, validateDeliveryParameters(parameters), 'ar');
+      },
+    },
+    buildDeepLink: (parameters) =>
+      buildDeliveryNotificationDeepLink(validateDeliveryParameters(parameters)),
+  };
+}
+
+function deliveryCopy(
+  action: 'submitted' | 'resubmitted' | 'approved' | 'changes_requested' | 'rejected',
+  parameters: DeliveryNotificationParameters,
+  language: NotificationLanguage,
+): { title: string; body: string } {
+  const copy = DELIVERY_COPY[action][language];
+  if (action === 'approved' && parameters.rating) {
+    const label = language === 'ar' ? 'التقييم' : 'Rating';
+    return {
+      ...copy,
+      body: `${copy.body} ${label}: ${'★'.repeat(parameters.rating)} (${parameters.rating}/5).`,
+    };
+  }
+  if (!parameters.feedback || (action !== 'changes_requested' && action !== 'rejected')) {
+    return copy;
+  }
+  const label = language === 'ar' ? 'ملاحظات المالك' : 'Owner feedback';
+  return { ...copy, body: `${copy.body} ${label}: ${parameters.feedback}` };
+}
+
+export function buildDeliveryNotificationDeepLink(
+  parameters: DeliveryNotificationParameters,
+): string {
+  return `/deliveries/${safeIdentifier(validateDeliveryParameters(parameters).deliveryId)}`;
 }
 
 function proposalTemplate(
@@ -639,7 +908,96 @@ const CONVERSATION_TEMPLATE: NotificationTemplateDefinition = {
     ),
 };
 
+function matchTemplate(): NotificationTemplateDefinition {
+  const key: NotificationTemplateKey = 'match.found';
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: MATCH_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) => renderMatchNotification(validateMatchParameters(parameters), 'en'),
+      ar: (parameters) => renderMatchNotification(validateMatchParameters(parameters), 'ar'),
+    },
+    buildDeepLink: (parameters) =>
+      `/contribution-requests/${safeIdentifier(validateMatchParameters(parameters).contributionRequestId)}`,
+  };
+}
+
+function renderMatchNotification(
+  parameters: MatchFoundNotificationParameters,
+  language: NotificationLanguage,
+): { title: string; body: string } {
+  const score = parameters.matchScore === undefined
+    ? ''
+    : ` (${Math.round(parameters.matchScore * 100)}% match)`;
+  const skills = parameters.matchedSkills?.length
+    ? ` ${language === 'ar' ? 'المهارات المطابقة' : 'Matching skills'}: ${parameters.matchedSkills.join(', ')}.`
+    : '';
+  if (parameters.audience === 'owner') {
+    return language === 'ar'
+      ? {
+          title: 'تم العثور على مساهم مطابق',
+          body: `تم العثور على مساهم مناسب لطلب المشاركة «${parameters.requestTitle}»${score}.${skills}`,
+        }
+      : {
+          title: 'Matching contributor found',
+          body: `A contributor matches “${parameters.requestTitle}”${score}.${skills}`,
+        };
+  }
+  if (parameters.notificationKind === 'owner_invite') {
+    return language === 'ar'
+      ? {
+          title: 'تم ترشيحك لمهمة',
+          body: `رشحك مالك المشروع لطلب المشاركة «${parameters.requestTitle}». راجع المهمة وقرر ما إذا كنت تريد التقديم.`,
+        }
+      : {
+          title: 'You were matched to a task',
+          body: `An owner matched you to “${parameters.requestTitle}”. Review the task and decide whether to apply.`,
+        };
+  }
+  return language === 'ar'
+    ? {
+        title: 'مهمة جديدة تطابق مهاراتك',
+        body: `تطابق المهمة «${parameters.requestTitle}» مهاراتك${score}.${skills}`,
+      }
+    : {
+        title: 'New task matching your skills',
+        body: `“${parameters.requestTitle}” matches your approved skills${score}.${skills}`,
+      };
+}
+
+const RECOMMENDATION_TEMPLATE: NotificationTemplateDefinition = {
+  key: 'task.recommendation',
+  version: 1,
+  ...POLICY['task.recommendation'],
+  parameterContract: RECOMMENDATION_PARAMETER_CONTRACT,
+  render: {
+    en: (parameters) => {
+      const validated = validateRecommendationParameters(parameters);
+      return {
+        title: 'Task recommended for you',
+        body: `“${validated.requestTitle}” is a ${Math.round(validated.matchScore * 100)}% match for your ${validated.matchedSkills.join(', ')} skills.`,
+      };
+    },
+    ar: (parameters) => {
+      const validated = validateRecommendationParameters(parameters);
+      return {
+        title: 'مهمة موصى بها لك',
+        body: `تطابق «${validated.requestTitle}» مهاراتك بنسبة ${Math.round(validated.matchScore * 100)}%: ${validated.matchedSkills.join('، ')}.`,
+      };
+    },
+  },
+  buildDeepLink: (parameters) =>
+    `/contribution-requests/${safeIdentifier(validateRecommendationParameters(parameters).contributionRequestId)}`,
+};
+
 const definitions: NotificationTemplateDefinition[] = [
+  deliveryTemplate('submitted'),
+  deliveryTemplate('resubmitted'),
+  deliveryTemplate('approved'),
+  deliveryTemplate('changes_requested'),
+  deliveryTemplate('rejected'),
   applicationTemplate('accepted'),
   applicationTemplate('submitted'),
   applicationTemplate('withdrawn'),
@@ -708,6 +1066,8 @@ const definitions: NotificationTemplateDefinition[] = [
   skillGenerationTemplate('needs_more_evidence'),
   skillGenerationTemplate('failed'),
   CONVERSATION_TEMPLATE,
+  matchTemplate(),
+  RECOMMENDATION_TEMPLATE,
   LEGACY_TEMPLATE,
 ];
 
@@ -735,6 +1095,12 @@ export function validateNotificationTemplateParameters<
   parameters: unknown,
 ): NotificationTemplateParameterMap[K] {
   switch (key) {
+    case 'delivery.submitted':
+    case 'delivery.resubmitted':
+    case 'delivery.approved':
+    case 'delivery.changes_requested':
+    case 'delivery.rejected':
+      return validateDeliveryParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'system.legacy':
       return validateLegacyParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'skill_review.activated':
@@ -747,6 +1113,10 @@ export function validateNotificationTemplateParameters<
       return validateSkillGenerationParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'conversation.activity':
       return validateConversationParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'match.found':
+      return validateMatchParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'task.recommendation':
+      return validateRecommendationParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'proposal.revision_requested':
     case 'proposal.accepted':
     case 'proposal.declined':

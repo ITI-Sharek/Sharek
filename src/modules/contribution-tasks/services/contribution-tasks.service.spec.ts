@@ -59,6 +59,7 @@ describe('ContributionTasksService', () => {
     lockContributionRequestProjectAccess: jest.fn(),
     lockContributionRequestProjectOwnerAccess: jest.fn(),
     lockContributionRequestProjectOwnerContext: jest.fn(),
+    listContributionRequestProjectIdsForOwner: jest.fn(),
     listContributionRequestProjectReferences: jest.fn(),
     getContributionRequestPublicationEntitlement: jest.fn(),
     isContributionRequestProjectPublished: jest.fn(),
@@ -66,6 +67,10 @@ describe('ContributionTasksService', () => {
   };
   const applicationsService = {
     cancelPendingForRequest: jest.fn(),
+  };
+  const subscriptionsService = {
+    getOwnerContributionRequestPublicationEntitlement: jest.fn(),
+    reserveOwnerContributionRequestPublication: jest.fn(),
   };
   const service = new ContributionTasksService(
     database as never,
@@ -75,12 +80,14 @@ describe('ContributionTasksService', () => {
     database as never,
     projectsService as never,
     applicationsService as never,
+    subscriptionsService as never,
   );
   const developmentPublicationService =
     new ContributionRequestPublicationService(
       database as never,
       projectsService as never,
       applicationsService as never,
+      subscriptionsService as never,
       new ConfigService({ NODE_ENV: 'development' }),
     );
   const publicService = new PublicContributionRequestsService(
@@ -144,6 +151,27 @@ describe('ContributionTasksService', () => {
         monthlyLimit: 10,
       },
     );
+    subscriptionsService.getOwnerContributionRequestPublicationEntitlement.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+        monthlyUsage: 0,
+        monthlyUsagePeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+        monthlyUsagePeriodEnd: new Date('2026-08-01T00:00:00.000Z'),
+        source: 'default',
+      },
+    );
+    subscriptionsService.reserveOwnerContributionRequestPublication.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+        monthlyUsage: 1,
+        monthlyUsageBefore: 0,
+        monthlyUsagePeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+        monthlyUsagePeriodEnd: new Date('2026-08-01T00:00:00.000Z'),
+        source: 'default',
+      },
+    );
     projectsService.isContributionRequestProjectPublished.mockResolvedValue(
       true,
     );
@@ -155,6 +183,9 @@ describe('ContributionTasksService', () => {
     });
     projectsService.listContributionRequestProjectReferences.mockResolvedValue([
       { id: projectId, title: 'Share-k Backend', slug: 'share-k-backend' },
+    ]);
+    projectsService.listContributionRequestProjectIdsForOwner.mockResolvedValue([
+      projectId,
     ]);
   });
 
@@ -325,8 +356,17 @@ describe('ContributionTasksService', () => {
       published_at: publishedAt,
     });
     database.contributionRequest.findFirst.mockResolvedValue(current);
-    database.contributionRequest.count.mockResolvedValue(9);
-    database.subscription.findFirst.mockResolvedValue({ plan_type: 'bronze' });
+    subscriptionsService.reserveOwnerContributionRequestPublication.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+        monthlyUsage: 10,
+        monthlyUsageBefore: 9,
+        monthlyUsagePeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+        monthlyUsagePeriodEnd: new Date('2026-08-01T00:00:00.000Z'),
+        source: 'default',
+      },
+    );
     database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
     database.contributionRequest.findUniqueOrThrow.mockResolvedValue(published);
 
@@ -341,15 +381,6 @@ describe('ContributionTasksService', () => {
       publishedAt,
     });
 
-    expect(database.contributionRequest.count).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        owner_id: owner.id,
-        published_at: expect.objectContaining({
-          gte: expect.any(Date),
-          lt: expect.any(Date),
-        }),
-      }),
-    });
     expect(database.contributionRequest.updateMany).toHaveBeenCalledWith({
       where: expect.objectContaining({
         id: requestId,
@@ -372,8 +403,13 @@ describe('ContributionTasksService', () => {
 
   it('uses the default Bronze entitlement and blocks the eleventh monthly publication', async () => {
     database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
-    database.subscription.findFirst.mockResolvedValue(null);
-    database.contributionRequest.count.mockResolvedValue(10);
+    subscriptionsService.reserveOwnerContributionRequestPublication.mockRejectedValue(
+      new ConflictApplicationError(
+        'The monthly Contribution Request publication limit was reached',
+        'CONTRIBUTION_REQUEST_LIMIT_REACHED',
+        { planType: 'bronze', monthlyLimit: 10, monthlyUsage: 10 },
+      ),
+    );
 
     await expect(
       publicationService.publishRequest({ user: owner, requestId }),
@@ -395,8 +431,16 @@ describe('ContributionTasksService', () => {
       published_at: new Date('2026-07-28T12:00:00.000Z'),
     });
     database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
-    database.subscription.findFirst.mockResolvedValue(null);
-    database.contributionRequest.count.mockResolvedValue(10);
+    subscriptionsService.getOwnerContributionRequestPublicationEntitlement.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+        monthlyUsage: 10,
+        monthlyUsagePeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+        monthlyUsagePeriodEnd: new Date('2026-08-01T00:00:00.000Z'),
+        source: 'default',
+      },
+    );
     database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
     database.contributionRequest.findUniqueOrThrow.mockResolvedValue(published);
 
@@ -416,11 +460,17 @@ describe('ContributionTasksService', () => {
         database as never,
         projectsService as never,
         applicationsService as never,
+        subscriptionsService as never,
         new ConfigService({ NODE_ENV: 'production' }),
       );
     database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
-    database.subscription.findFirst.mockResolvedValue(null);
-    database.contributionRequest.count.mockResolvedValue(10);
+    subscriptionsService.reserveOwnerContributionRequestPublication.mockRejectedValue(
+      new ConflictApplicationError(
+        'The monthly Contribution Request publication limit was reached',
+        'CONTRIBUTION_REQUEST_LIMIT_REACHED',
+        { planType: 'bronze', monthlyLimit: 10, monthlyUsage: 10 },
+      ),
+    );
 
     await expect(
       productionPublicationService.publishRequest({
@@ -1310,7 +1360,7 @@ describe('ContributionTasksService', () => {
     ]);
 
     await expect(
-      service.lockApplicationReviewOwner({
+      service.lockContributionRequestOwnerContext({
         requestId,
         transaction: database as never,
       }),
@@ -1321,6 +1371,96 @@ describe('ContributionTasksService', () => {
     expect(
       projectsService.lockContributionRequestProjectOwnerContext,
     ).toHaveBeenCalledWith(projectId, database);
+  });
+
+  it('completes an assigned Request from an approved Delivery in the caller transaction', async () => {
+    database.$queryRaw.mockResolvedValue([
+      {
+        id: requestId,
+        project_id: projectId,
+        status: ContributionRequestStatus.assigned,
+      },
+    ]);
+    database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.completeFromDeliveryReview({
+        requestId,
+        ownerId: owner.id,
+        deliveryId: '44444444-4444-4444-8444-444444444444',
+        deliveryReviewId: '55555555-5555-4555-8555-555555555555',
+        idempotencyKey: '66666666-6666-4666-8666-666666666666',
+        commandFingerprint: 'a'.repeat(64),
+        transaction: database as never,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(database.contributionRequest.updateMany).toHaveBeenCalledWith({
+      where: { id: requestId, status: ContributionRequestStatus.assigned },
+      data: { status: ContributionRequestStatus.completed },
+    });
+    expect(database.contributionRequestAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: ContributionRequestAuditAction.completed,
+        from_status: ContributionRequestStatus.assigned,
+        to_status: ContributionRequestStatus.completed,
+      }),
+    });
+  });
+
+  it('lists only assigned Request review scopes for the current owner Projects', async () => {
+    database.contributionRequest.findMany.mockResolvedValue([
+      {
+        id: requestId,
+        title: 'Add JWT authentication',
+        requirements: [
+          { kind: 'required', position: 0, text: 'Handle token expiry' },
+        ],
+      },
+    ]);
+
+    await expect(
+      service.listDeliveryReviewScopesForOwner(owner.id),
+    ).resolves.toEqual([
+      {
+        contributionRequestId: requestId,
+        title: 'Add JWT authentication',
+        requirements: [
+          { kind: 'required', position: 0, text: 'Handle token expiry' },
+        ],
+      },
+    ]);
+    expect(database.contributionRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          project_id: { in: [projectId] },
+          status: ContributionRequestStatus.assigned,
+        },
+      }),
+    );
+  });
+
+  it('lists non-draft Request scopes for the owner composed lifecycle', async () => {
+    database.contributionRequest.findMany.mockResolvedValue([
+      { id: requestId, title: 'Add JWT authentication' },
+    ]);
+
+    await expect(
+      service.listDeliveryLifecycleScopesForOwner(owner.id),
+    ).resolves.toEqual([
+      {
+        contributionRequestId: requestId,
+        title: 'Add JWT authentication',
+      },
+    ]);
+    expect(database.contributionRequest.findMany).toHaveBeenCalledWith({
+      where: {
+        project_id: { in: [projectId] },
+        status: { not: ContributionRequestStatus.draft },
+      },
+      select: { id: true, title: true },
+      orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+    });
   });
 });
 

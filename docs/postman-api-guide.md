@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **140**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **153**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -109,6 +109,12 @@ Unique controller method/path pairs: **140**. WebSocket events are excluded from
 | `POST` | `/projects/import/github` | owner / contributor | 410 | Retired GitHub Import Compatibility Route |
 | `PATCH` | `/projects/me/:projectId` | owner / contributor | 200 | Update My Project |
 
+### Subscriptions
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/me/subscription` | owner / contributor | 200 | Get Current Plan |
+
 ### Contribution Requests
 
 | Method | Path | Auth | Success | Purpose |
@@ -117,8 +123,11 @@ Unique controller method/path pairs: **140**. WebSocket events are excluded from
 | `POST` | `/projects/:projectId/contribution-requests` | Bearer / resource-scoped | 201 | Create Draft |
 | `POST` | `/contribution-requests/:requestId/discard` | Bearer / resource-scoped | 200 | Discard Draft |
 | `GET` | `/tasks` | Public | 200 | Discover Open Requests |
+| `POST` | `/contribution-requests/:requestId/matches/generate` | owner | 201 | Generate |
 | `GET` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Get Owned Request |
 | `GET` | `/tasks/:requestId` | Public | 200 | Get Public Request Detail |
+| `POST` | `/contribution-requests/:requestId/matches/:contributorId/invite` | owner | 200 | Invite |
+| `GET` | `/contribution-requests/:requestId/matches` | owner | 200 | List |
 | `GET` | `/projects/:projectId/contribution-requests` | Bearer / resource-scoped | 200 | List Owned Project Requests by Status |
 | `POST` | `/contribution-requests/:requestId/publish` | Bearer / resource-scoped | 200 | Publish Request |
 | `PATCH` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Update Draft |
@@ -137,6 +146,18 @@ Unique controller method/path pairs: **140**. WebSocket events are excluded from
 | `POST` | `/applications/:applicationId/assessment-requests` | Bearer / resource-scoped | 202 | Request Advisory Fit Assessment |
 | `POST` | `/tasks/:requestId/applications` | Bearer / resource-scoped | 201 | Submit Application |
 | `POST` | `/applications/:applicationId/withdraw` | Bearer / resource-scoped | 200 | Withdraw Application |
+
+### Delivery Reviews
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/deliveries/:deliveryId` | Bearer / resource-scoped | 200 | Get For Actor |
+| `GET` | `/me/deliveries` | Bearer / resource-scoped | 200 | List Contributor Lifecycle |
+| `GET` | `/owner/delivery-lifecycle` | Bearer / resource-scoped | 200 | List Owner Lifecycle |
+| `GET` | `/owner/deliveries` | Bearer / resource-scoped | 200 | List Review Queue |
+| `POST` | `/deliveries/:deliveryId/reviews` | Bearer / resource-scoped | 201 | Review |
+| `POST` | `/applications/:applicationId/deliveries` | Bearer / resource-scoped | 201 | Submit |
+| `PATCH` | `/deliveries/:deliveryId` | Bearer / resource-scoped | 200 | Update |
 
 ### Contribution Proposals
 
@@ -192,8 +213,10 @@ Unique controller method/path pairs: **140**. WebSocket events are excluded from
 | Method | Path | Auth | Success | Purpose |
 | --- | --- | --- | ---: | --- |
 | `POST` | `/contributors/profiles/me/ensure` | Bearer / resource-scoped | 201 | Ensure My Profile |
+| `POST` | `/contributors/me/skill-gap-guidance` | Bearer / resource-scoped | 201 | Generate Skill Gap Guidance |
 | `GET` | `/contributors/profiles/:username/avatar` | Public | 200 | Get Contributor Avatar |
 | `GET` | `/contributors/profiles/:username` | Bearer / resource-scoped | 200 | Get Contributor Profile |
+| `GET` | `/contributors/me/recommended-tasks` | contributor | 200 | List |
 | `GET` | `/contributors/profile-fields` | Bearer / resource-scoped | 200 | List Contributor Fields |
 | `GET` | `/contributors/experience-levels` | Public | 200 | List Experience Levels |
 | `PATCH` | `/contributors/profiles/me` | Bearer / resource-scoped | 200 | Update My Profile |

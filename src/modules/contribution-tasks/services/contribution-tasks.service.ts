@@ -24,6 +24,10 @@ import {
 } from '../dto/contribution-request-input.dto';
 import { ApplicationRequestContextDto } from '../dto/application-request-context.dto';
 import {
+  ContributorMatchingRequestContext,
+  ContributorTaskRecommendationContext,
+} from '../dto/contributor-matching-context.dto';
+import {
   ContributionRequestDto,
   ContributionRequestsByStatusDto,
   OwnerProjectContributionRequestsDto,
@@ -56,6 +60,95 @@ export class ContributionTasksService {
     @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
   ) {}
+
+  async getPublishedMatchingContext(
+    requestId: string,
+  ): Promise<ContributorMatchingRequestContext | null> {
+    const request = await this.database.contributionRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        owner_id: true,
+        title: true,
+        description: true,
+        technology_tags: true,
+        status: true,
+        published_at: true,
+        project_id: true,
+        requirements: {
+          select: { id: true, kind: true, position: true, text: true },
+          orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+        },
+      },
+    });
+    if (
+      !request ||
+      request.status !== ContributionRequestStatus.published ||
+      !request.published_at ||
+      !(await this.projectsService.isContributionRequestProjectPublished(
+        request.project_id,
+      ))
+    ) {
+      return null;
+    }
+    return {
+      id: request.id,
+      ownerId: request.owner_id,
+      title: request.title,
+      description: request.description,
+      technologyTags: this.readTechnologyTags(request.technology_tags),
+      requirements: request.requirements,
+    };
+  }
+
+  async listPublishedTaskRecommendationContexts(
+    now = new Date(),
+  ): Promise<ContributorTaskRecommendationContext[]> {
+    const requests = await this.database.contributionRequest.findMany({
+      where: {
+        status: ContributionRequestStatus.published,
+        published_at: { not: null },
+        applications_close_at: { gt: now },
+        project: { status: 'published' },
+      },
+      select: {
+        id: true,
+        owner_id: true,
+        title: true,
+        description: true,
+        technology_tags: true,
+        difficulty: true,
+        applications_close_at: true,
+        target_completion_date: true,
+        reward: true,
+        reward_currency: true,
+        requirements: {
+          select: { id: true, kind: true, position: true, text: true },
+          orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+        },
+        project: { select: { title: true } },
+      },
+      orderBy: [{ published_at: 'desc' }, { id: 'asc' }],
+      take: 50,
+    });
+    return requests.flatMap((request) => {
+      if (!request.applications_close_at) return [];
+      return [{
+        id: request.id,
+        ownerId: request.owner_id,
+        title: request.title,
+        description: request.description,
+        technologyTags: this.readTechnologyTags(request.technology_tags),
+        requirements: request.requirements,
+        projectName: request.project.title,
+        difficulty: request.difficulty,
+        applicationsCloseAt: request.applications_close_at,
+        targetCompletionDate: request.target_completion_date,
+        reward: request.reward ? Number(request.reward.toString()) : null,
+        rewardCurrency: request.reward_currency,
+      }];
+    });
+  }
 
   async getApplicationSubmissionContext(
     requestId: string,
@@ -176,6 +269,70 @@ export class ContributionTasksService {
     });
   }
 
+  async completeFromDeliveryReview(input: {
+    requestId: string;
+    ownerId: string;
+    deliveryId: string;
+    deliveryReviewId: string;
+    idempotencyKey: string;
+    commandFingerprint: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<void> {
+    const rows = await input.transaction.$queryRaw<
+      Array<{
+        id: string;
+        project_id: string;
+        status: ContributionRequestStatus;
+      }>
+    >(Prisma.sql`
+      SELECT "id", "project_id", "status"
+      FROM "ContributionRequest"
+      WHERE "id" = ${input.requestId}::uuid
+      FOR UPDATE
+    `);
+    const request = rows[0];
+    if (!request) throw this.requestNotFound();
+    await this.projectsService.lockContributionRequestProjectOwnerAccess(
+      request.project_id,
+      input.ownerId,
+      input.transaction,
+    );
+    if (request.status === ContributionRequestStatus.completed) return;
+    if (request.status !== ContributionRequestStatus.assigned) {
+      throw new ConflictApplicationError(
+        'The Contribution Request cannot be completed from this Delivery',
+        'REQUEST_TERMINAL',
+        { status: request.status },
+      );
+    }
+
+    const completed = await input.transaction.contributionRequest.updateMany({
+      where: {
+        id: input.requestId,
+        status: ContributionRequestStatus.assigned,
+      },
+      data: { status: ContributionRequestStatus.completed },
+    });
+    if (completed.count !== 1) throw this.concurrentModification();
+
+    await input.transaction.contributionRequestAudit.create({
+      data: {
+        contribution_request_id: input.requestId,
+        actor_id: input.ownerId,
+        action: ContributionRequestAuditAction.completed,
+        from_status: ContributionRequestStatus.assigned,
+        to_status: ContributionRequestStatus.completed,
+        idempotency_key: input.idempotencyKey,
+        command_fingerprint: input.commandFingerprint,
+        metadata: {
+          payloadVersion: 1,
+          deliveryId: input.deliveryId,
+          deliveryReviewId: input.deliveryReviewId,
+        },
+      },
+    });
+  }
+
   async reconfirmOwnerDecisionActor(input: {
     requestId: string;
     ownerId: string;
@@ -212,7 +369,7 @@ export class ContributionTasksService {
     );
   }
 
-  async lockApplicationReviewOwner(input: {
+  async lockContributionRequestOwnerContext(input: {
     requestId: string;
     transaction: Prisma.TransactionClient;
   }): Promise<{ ownerId: string }> {
@@ -232,6 +389,68 @@ export class ContributionTasksService {
         input.transaction,
       );
     return { ownerId: project.ownerId };
+  }
+
+  async listDeliveryReviewScopesForOwner(ownerId: string): Promise<
+    Array<{
+      contributionRequestId: string;
+      title: string;
+      requirements: Array<{
+        kind: ContributionRequestRequirementKind;
+        position: number;
+        text: string;
+      }>;
+    }>
+  > {
+    const projectIds =
+      await this.projectsService.listContributionRequestProjectIdsForOwner(
+        ownerId,
+      );
+    if (projectIds.length === 0) return [];
+    const requests = await this.database.contributionRequest.findMany({
+      where: {
+        project_id: { in: projectIds },
+        status: ContributionRequestStatus.assigned,
+      },
+      select: {
+        id: true,
+        title: true,
+        requirements: {
+          select: { kind: true, position: true, text: true },
+          orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+        },
+      },
+    });
+    return requests.map((request) => ({
+      contributionRequestId: request.id,
+      title: request.title,
+      requirements: request.requirements,
+    }));
+  }
+
+  async listDeliveryLifecycleScopesForOwner(ownerId: string): Promise<
+    Array<{
+      contributionRequestId: string;
+      title: string;
+    }>
+  > {
+    const projectIds =
+      await this.projectsService.listContributionRequestProjectIdsForOwner(
+        ownerId,
+      );
+    if (projectIds.length === 0) return [];
+    const requests = await this.database.contributionRequest.findMany({
+      where: {
+        project_id: { in: projectIds },
+        status: { not: ContributionRequestStatus.draft },
+      },
+      select: { id: true, title: true },
+      orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+    });
+    return requests.map((request) => ({
+      contributionRequestId: request.id,
+      title: request.title,
+    }));
   }
 
   async createDraft(input: {
@@ -990,6 +1209,12 @@ export class ContributionTasksService {
       'Contribution Request was not found',
       'CONTRIBUTION_REQUEST_NOT_FOUND',
     );
+  }
+
+  private readTechnologyTags(value: Prisma.JsonValue): string[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string')
+      : [];
   }
 
   private concurrentModification(): ConflictApplicationError {

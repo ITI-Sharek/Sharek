@@ -142,7 +142,7 @@ export class ApplicationReviewWindowService {
       const result = await this.database.$transaction(
         async (transaction) => {
           const { ownerId } =
-            await this.contributionTasks.lockApplicationReviewOwner({
+            await this.contributionTasks.lockContributionRequestOwnerContext({
               requestId: candidate.contribution_request_id,
               transaction,
             });

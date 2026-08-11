@@ -67,10 +67,14 @@ keeps proposal submission and intake commands consistent with Project state.
 `listContributionRequestProjectReferences()` exposes only Project ID, title,
 and slug projections for published Projects in public Contribution Request
 discovery; callers may resolve known IDs or search titles without joining
-Project-owned tables. Separate owner-only access capabilities permit a Request
-on an archived Project to be cancelled, while publication, discovery, and new
-Application submission continue to require a published Project. The canonical
-owner-plan lookup used by publication and the owner dashboard also lives here.
+Project-owned tables. `listContributionRequestProjectIdsForOwner()` exposes
+only owned Project IDs so Delivery Reviews can select assigned Request scopes
+without reading Project-owned tables. Separate owner-only access capabilities
+permit a Request on an archived Project to be cancelled, while publication,
+discovery, and new Application submission continue to require a published
+Project. The `subscriptions` module owns plan lookup, usage reservation, and
+explicit entitlement resolution; Projects consumes that exported capability for
+its owner dashboard compatibility response.
 
 The module writes `Project`, `ProjectOperation`, and
 `ProjectStateTransition`. It calls exported GitHub services for normalized

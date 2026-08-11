@@ -9,6 +9,14 @@ export interface ApplicationNotificationParameters {
   contributionRequestId: string;
 }
 
+export interface DeliveryNotificationParameters {
+  deliveryId: string;
+  contributionRequestId: string;
+  submissionNumber: number;
+  rating?: number;
+  feedback?: string;
+}
+
 export interface ProposalNotificationParameters {
   proposalId: string;
   projectId: string;
@@ -42,12 +50,38 @@ export interface ConversationActivityNotificationParameters {
   messageCount: number;
 }
 
+export type MatchNotificationKind =
+  | 'owner_invite'
+  | 'gold_auto_match'
+  | 'skill_matched_task';
+
+export interface MatchFoundNotificationParameters {
+  contributionRequestId: string;
+  requestTitle: string;
+  audience: 'contributor' | 'owner';
+  notificationKind: MatchNotificationKind;
+  matchScore?: number;
+  matchedSkills?: string[];
+}
+
+export interface TaskRecommendationNotificationParameters {
+  contributionRequestId: string;
+  requestTitle: string;
+  matchScore: number;
+  matchedSkills: string[];
+}
+
 export interface LegacyNotificationParameters {
   legacyTitle: string;
   legacyBody: string;
 }
 
 export interface NotificationTemplateParameterMap {
+  'delivery.submitted': DeliveryNotificationParameters;
+  'delivery.resubmitted': DeliveryNotificationParameters;
+  'delivery.approved': DeliveryNotificationParameters;
+  'delivery.changes_requested': DeliveryNotificationParameters;
+  'delivery.rejected': DeliveryNotificationParameters;
   'application.accepted': ApplicationNotificationParameters;
   'application.submitted': ApplicationNotificationParameters;
   'application.withdrawn': ApplicationNotificationParameters;
@@ -65,6 +99,8 @@ export interface NotificationTemplateParameterMap {
   'skill_profile_generation.needs_more_evidence': SkillProfileGenerationNotificationParameters;
   'skill_profile_generation.failed': SkillProfileGenerationNotificationParameters;
   'conversation.activity': ConversationActivityNotificationParameters;
+  'match.found': MatchFoundNotificationParameters;
+  'task.recommendation': TaskRecommendationNotificationParameters;
   'system.legacy': LegacyNotificationParameters;
 }
 

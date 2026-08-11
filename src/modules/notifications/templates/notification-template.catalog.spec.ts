@@ -3,6 +3,7 @@ import { NotificationType } from '@prisma/client';
 import {
   NOTIFICATION_TEMPLATE_KEYS,
   buildApplicationNotificationDeepLink,
+  buildDeliveryNotificationDeepLink,
   buildProposalNotificationDeepLink,
   buildSkillReviewNotificationDeepLink,
   getNotificationTemplateDefinitions,
@@ -15,7 +16,9 @@ describe('Notification template catalog', () => {
     const definitions = getNotificationTemplateDefinitions();
     const sampleParameters = {
       applicationId: 'application-1',
+      deliveryId: 'delivery-1',
       contributionRequestId: 'request-1',
+      submissionNumber: 1,
       proposalId: 'proposal-1',
       projectId: 'project-1',
       skillProfileId: 'skill-1',
@@ -32,12 +35,16 @@ describe('Notification template catalog', () => {
       senderName: 'Contributor Name',
       messagePreview: 'Hello owner',
       messageCount: 1,
+      requestTitle: 'Add JWT Authentication',
+      notificationKind: 'skill_matched_task',
+      matchScore: 0.94,
+      matchedSkills: ['Node.js'],
     };
 
     expect(definitions.map((definition) => definition.key)).toEqual(
       NOTIFICATION_TEMPLATE_KEYS,
     );
-    expect(definitions).toHaveLength(18);
+    expect(definitions).toHaveLength(25);
 
     for (const definition of definitions) {
       expect(definition.version).toBe(1);
@@ -93,6 +100,13 @@ describe('Notification template catalog', () => {
         projectId: 'project-1',
       }),
     ).toBe('/proposals/proposal-1');
+    expect(
+      buildDeliveryNotificationDeepLink({
+        deliveryId: 'delivery-1',
+        contributionRequestId: 'request-1',
+        submissionNumber: 2,
+      }),
+    ).toBe('/deliveries/delivery-1');
     expect(buildSkillReviewNotificationDeepLink()).toBe(
       '/settings?section=github',
     );
@@ -104,14 +118,75 @@ describe('Notification template catalog', () => {
     ).toThrow('NOTIFICATION_PARAMETERS_INVALID');
   });
 
+  it('renders owner feedback in contributor-facing Delivery outcomes', () => {
+    const rejected = getNotificationTemplateDefinitions().find(
+      (definition) => definition.key === 'delivery.rejected',
+    )!;
+    expect(
+      rejected.render.en({
+        deliveryId: 'delivery-1',
+        contributionRequestId: 'request-1',
+        submissionNumber: 1,
+        feedback: 'The authentication flow is incomplete.',
+      }).body,
+    ).toContain('The authentication flow is incomplete.');
+
+    const approved = getNotificationTemplateDefinitions().find(
+      (definition) => definition.key === 'delivery.approved',
+    )!;
+    expect(
+      approved.render.en({
+        deliveryId: 'delivery-1',
+        contributionRequestId: 'request-1',
+        submissionNumber: 1,
+        rating: 5,
+      }).body,
+    ).toContain('★★★★★ (5/5)');
+  });
+
   it('keeps critical workflow templates in the attention category', () => {
     expect(getNotificationTemplatePolicy('application.accepted')).toEqual({
       category: NotificationType.application_status,
+      priority: 'attention',
+    });
+    expect(getNotificationTemplatePolicy('delivery.approved')).toEqual({
+      category: NotificationType.delivery_update,
       priority: 'attention',
     });
     expect(getNotificationTemplatePolicy('skill_review.approved')).toEqual({
       category: NotificationType.skill_review,
       priority: 'attention',
     });
+    expect(getNotificationTemplatePolicy('match.found')).toEqual({
+      category: NotificationType.match_found,
+      priority: 'attention',
+    });
+  });
+
+  it('renders a contributor skill-match notification with its trusted task link', () => {
+    const definition = getNotificationTemplateDefinitions().find(
+      (item) => item.key === 'match.found',
+    )!;
+    expect(
+      definition.render.en({
+        contributionRequestId: 'request-1',
+        requestTitle: 'Add JWT Authentication',
+        audience: 'contributor',
+        notificationKind: 'skill_matched_task',
+        matchScore: 0.94,
+        matchedSkills: ['Node.js', 'JWT'],
+      }),
+    ).toMatchObject({
+      title: 'New task matching your skills',
+      body: expect.stringContaining('94%'),
+    });
+    expect(
+      definition.buildDeepLink({
+        contributionRequestId: 'request-1',
+        requestTitle: 'Add JWT Authentication',
+        audience: 'contributor',
+        notificationKind: 'skill_matched_task',
+      }),
+    ).toBe('/contribution-requests/request-1');
   });
 });

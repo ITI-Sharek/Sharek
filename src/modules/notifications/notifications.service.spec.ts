@@ -7,6 +7,63 @@ import {
 import { NotificationsService } from './notifications.service';
 
 describe('NotificationsService', () => {
+  it('persists a resubmission notification with owner feedback-safe Delivery parameters', async () => {
+    const createdAt = new Date('2026-08-11T12:00:00.000Z');
+    const persisted = {
+      id: 'notification-delivery-1',
+      user_id: 'owner-1',
+      type: NotificationType.delivery_update,
+      template_key: 'delivery.resubmitted',
+      template_version: 1,
+      parameters: {
+        deliveryId: 'delivery-1',
+        contributionRequestId: 'request-1',
+        submissionNumber: 2,
+      },
+      deep_link: '/deliveries/delivery-1',
+      priority: 'attention',
+      deduplication_key: 'delivery:delivery-1:resubmitted:2',
+      is_read: false,
+      read_at: null,
+      aggregate_version: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+      title: null,
+      message: null,
+      metadata: null,
+    };
+    const transaction = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(persisted),
+      },
+      notificationEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-delivery-1' }),
+      },
+    };
+    const service = new NotificationsService({} as never);
+
+    await expect(
+      service.createDeliveryNotification(
+        {
+          userId: 'owner-1',
+          deliveryId: 'delivery-1',
+          contributionRequestId: 'request-1',
+          action: 'resubmitted',
+          submissionNumber: 2,
+        },
+        { transaction: transaction as never, emitRealtime: false },
+      ),
+    ).resolves.toMatchObject({ created: true, deliveredRealtime: false });
+    expect(transaction.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        template_key: 'delivery.resubmitted',
+        deep_link: '/deliveries/delivery-1',
+        deduplication_key: 'delivery:delivery-1:resubmitted:2',
+      }),
+    });
+  });
+
   it('creates a conversation activity notification and its durable event in the message transaction', async () => {
     const createdAt = new Date('2026-08-10T12:00:00.000Z');
     const persisted = {
@@ -1049,5 +1106,75 @@ describe('NotificationsService', () => {
     ).rejects.toThrow('NOTIFICATION_PARAMETERS_INVALID');
 
     expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('persists a deduplicated contributor match notification with a task deep link', async () => {
+    const createdAt = new Date('2026-08-11T12:00:00.000Z');
+    const persisted = {
+      id: 'notification-match-1',
+      user_id: 'contributor-1',
+      type: NotificationType.match_found,
+      template_key: 'match.found',
+      template_version: 1,
+      parameters: {
+        contributionRequestId: 'request-1',
+        requestTitle: 'Add JWT Authentication',
+        audience: 'contributor',
+        notificationKind: 'owner_invite',
+        matchScore: 0.94,
+        matchedSkills: ['Node.js'],
+      },
+      deep_link: '/contribution-requests/request-1',
+      priority: 'attention',
+      deduplication_key: 'match:owner_invite:request-1:contributor-1',
+      is_read: false,
+      read_at: null,
+      aggregate_version: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+      title: null,
+      message: null,
+      metadata: null,
+    };
+    const transaction = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(persisted),
+      },
+      notificationEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-match-1' }),
+      },
+    };
+    const database = {
+      $transaction: jest.fn(
+        async (callback: (value: typeof transaction) => unknown) =>
+          callback(transaction),
+      ),
+    };
+    const service = new NotificationsService(database as never);
+
+    await expect(
+      service.createMatchFoundNotification({
+        userId: 'contributor-1',
+        contributionRequestId: 'request-1',
+        requestTitle: 'Add JWT Authentication',
+        audience: 'contributor',
+        notificationKind: 'owner_invite',
+        matchScore: 0.94,
+        matchedSkills: ['Node.js'],
+      }),
+    ).resolves.toMatchObject({
+      notificationId: 'notification-match-1',
+      created: true,
+      deliveredRealtime: false,
+    });
+    expect(transaction.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: NotificationType.match_found,
+        template_key: 'match.found',
+        deep_link: '/contribution-requests/request-1',
+        deduplication_key: 'match:owner_invite:request-1:contributor-1',
+      }),
+    });
   });
 });
