@@ -101,9 +101,22 @@ decline. This keeps the accepted Application, Assignment, sibling closure, and
 Request state atomic while preserving table ownership.
 
 For the Application review window (#52),
-`lockApplicationReviewOwner()` locks the Request and asks the exported Projects
+`lockContributionRequestOwnerContext()` locks the Request and asks the exported Projects
 capability for its current owner on the scheduler's transaction. It returns
 only that owner ID and does not change Request state.
+
+For Delivery review (TASK-5-02), the exported owner scope capabilities resolve
+the current Project owner and ordered Request requirements without exposing
+Project persistence. The lifecycle scope also exposes non-draft owned Request
+IDs for the composed owner dashboard. `completeFromDeliveryReview()` locks an `assigned`
+Request, rechecks current ownership, changes it to `completed`, and appends the
+Request-owned completion audit on the Delivery module's transaction. Changes
+requested and rejected reviews never call this transition.
+
+`ContributionRequestReputationFactsService` is an exported, read-only boundary
+that returns owner-authored technology tags for a set of Request IDs. The
+Delivery reputation coordinator uses those tags only after a Delivery is
+approved; this module does not rank skills or write Reputation records.
 
 ## Persistence
 
@@ -114,9 +127,9 @@ creates ordered `contribution_request_requirements`, and creates append-only
 
 Migration `20260728230000_contribution_request_publication` adds publication
 and cancellation audit actions, the Application cancellation audit action, and
-the actionable-discovery index. Publication asks the Projects module for the
-canonical owner entitlement and monthly limit; this module does not read or
-write Subscription records.
+the actionable-discovery index. Publication asks the Subscriptions module for
+the canonical owner entitlement and atomically reserves the monthly usage
+counter; this module does not read or write Subscription or UsageTracker rows.
 
 Focused verification:
 

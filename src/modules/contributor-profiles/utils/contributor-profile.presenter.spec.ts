@@ -46,6 +46,10 @@ describe('contributor profile presenter', () => {
       reputationSummary: {
         rating: null,
         reviewsCount: 0,
+        completedContributions: 0,
+        totalAssignedTasks: 0,
+        successRate: 0,
+        topVerifiedSkills: [],
       },
     });
 
@@ -85,6 +89,12 @@ describe('contributor profile presenter', () => {
       reputationSummary: {
         rating: 4.5,
         reviewsCount: 2,
+        completedContributions: 2,
+        totalAssignedTasks: 3,
+        successRate: 66.67,
+        topVerifiedSkills: [
+          { name: 'NestJS', verifiedContributionCount: 2 },
+        ],
       },
     });
 
@@ -96,6 +106,16 @@ describe('contributor profile presenter', () => {
       confidence: 0.9,
       status: 'approved',
       evidenceSummary: null,
+    });
+    expect(output.reputationSummary).toEqual({
+      rating: 4.5,
+      reviewsCount: 2,
+      completedContributions: 2,
+      totalAssignedTasks: 3,
+      successRate: 66.67,
+      topVerifiedSkills: [
+        { name: 'NestJS', verifiedContributionCount: 2 },
+      ],
     });
   });
 });

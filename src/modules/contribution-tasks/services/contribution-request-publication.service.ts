@@ -19,6 +19,8 @@ import {
 } from '../../../shared/errors/application.error';
 import { ApplicationsService } from '../../applications/applications.service';
 import { ProjectsService } from '../../projects/projects.service';
+import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
+import { ContributorMatchingService } from '../../matching/matching.service';
 import { ContributionRequestDto } from '../dto/contribution-request-response.dto';
 import {
   CONTRIBUTION_REQUEST_INCLUDE,
@@ -35,7 +37,11 @@ export class ContributionRequestPublicationService {
     private readonly projectsService: ProjectsService,
     @Inject(forwardRef(() => ApplicationsService))
     private readonly applicationsService: ApplicationsService,
+    private readonly subscriptionsService: SubscriptionsService,
     @Optional() private readonly config: ConfigService = new ConfigService(),
+    @Optional()
+    @Inject(forwardRef(() => ContributorMatchingService))
+    private readonly contributorMatchingService?: ContributorMatchingService,
   ) {}
 
   async publishRequest(input: {
@@ -70,7 +76,7 @@ export class ContributionRequestPublicationService {
     this.assertPublishableDraft(current);
 
     try {
-      return await this.database.$transaction(async (transaction) => {
+      const published = await this.database.$transaction(async (transaction) => {
         await this.projectsService.lockContributionRequestProjectAccess(
           current.project_id,
           input.user.id,
@@ -102,31 +108,27 @@ export class ContributionRequestPublicationService {
         this.assertPublishableDraft(locked);
 
         const now = new Date();
-        const { planType, monthlyLimit } =
-          await this.projectsService.getContributionRequestPublicationEntitlement(
-            input.user.id,
-            transaction,
-            now,
-          );
-        const periodStart = new Date(
-          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+        const publication = this.isPublicationLimitEnforced()
+          ? await this.subscriptionsService.reserveOwnerContributionRequestPublication(
+              input.user.id,
+              transaction,
+              now,
+            )
+          : await this.subscriptionsService.getOwnerContributionRequestPublicationEntitlement(
+              input.user.id,
+              transaction,
+              now,
+            );
+        const {
+          planType,
+          monthlyLimit,
+          monthlyUsagePeriodStart: periodStart,
+        } = publication;
+        const monthlyUsageBefore = Number(
+          'monthlyUsageBefore' in publication
+            ? publication.monthlyUsageBefore
+            : publication.monthlyUsage,
         );
-        const periodEnd = new Date(
-          Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
-        );
-        const monthlyUsage = await transaction.contributionRequest.count({
-          where: {
-            owner_id: input.user.id,
-            published_at: { gte: periodStart, lt: periodEnd },
-          },
-        });
-        if (this.isPublicationLimitEnforced() && monthlyUsage >= monthlyLimit) {
-          throw new ConflictApplicationError(
-            'The monthly Contribution Request publication limit was reached',
-            'CONTRIBUTION_REQUEST_LIMIT_REACHED',
-            { planType, monthlyLimit, monthlyUsage, periodStart },
-          );
-        }
 
         const updated = await transaction.contributionRequest.updateMany({
           where: {
@@ -153,7 +155,7 @@ export class ContributionRequestPublicationService {
             metadata: {
               planType,
               monthlyLimit,
-              monthlyUsageBefore: monthlyUsage,
+              monthlyUsageBefore,
               periodStart: periodStart.toISOString(),
             },
           },
@@ -165,6 +167,11 @@ export class ContributionRequestPublicationService {
           });
         return toContributionRequestDto(published);
       });
+      await this.contributorMatchingService?.enqueueForPublishedRequest({
+        ownerId: input.user.id,
+        requestId: input.requestId,
+      });
+      return published;
     } catch (error) {
       return this.resolveIdempotencyRaceOrThrow({
         error,

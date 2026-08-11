@@ -17,6 +17,8 @@ process.env.NOTIFICATION_RETENTION_QUEUE_ENABLED =
 // AdvisoryFitAssessmentService rather than a mock will need to account for it.
 process.env.ADVISORY_FIT_QUEUE_ENABLED =
   process.env.ADVISORY_FIT_QUEUE_ENABLED ?? 'false';
+process.env.CONTRIBUTOR_MATCHING_QUEUE_ENABLED =
+  process.env.CONTRIBUTOR_MATCHING_QUEUE_ENABLED ?? 'false';
 // Same for the Material scan queue, which also throws on enqueue when
 // disabled: an e2e booting the real MaterialsService will need it enabled or
 // the upload command fails.

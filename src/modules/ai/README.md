@@ -8,6 +8,7 @@ ai.service.ts
 dto/
 integrations/fastapi-skill-profile.client.ts
 integrations/advisory-fit.client.ts
+integrations/skill-gap-guidance.client.ts
 README.md
 ```
 
@@ -33,3 +34,12 @@ The Advisory Fit timeout defaults to `75000` ms. FastAPI allows up to 60 seconds
 for the provider call, so the backend keeps a short network-overhead margin
 before recording a technical `UNAVAILABLE` result. Override it with
 `AI_ADVISORY_FIT_TIMEOUT_MS` when deploying a provider with a different budget.
+
+The Skill Gap Guidance client sends a contributor-authenticated, explicit
+request containing a fixed published Contribution Request requirement snapshot,
+approved skill snapshot, and bounded source allowlist. It validates the
+source-attributed structured result and rejects citations outside that allowlist.
+The `skill-guidance` module owns contributor authorization and context assembly;
+this module remains only the NestJS AI facade and FastAPI adapter. Guidance is
+not connected to Application rejection, Advisory Fit decisions, subscription
+tiers, or the retired Application-linked Prisma model.

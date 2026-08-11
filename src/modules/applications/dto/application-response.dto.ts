@@ -42,6 +42,7 @@ export interface ApplicationDto {
   contributionApproach: string | null;
   proposedDeliveryDurationDays: number | null;
   status: ApplicationStatusDto;
+  isPriority: boolean;
   requirementSnapshot: ApplicationRequirementSnapshotDto;
   evidenceSummary: ApplicationEvidenceSummaryDto[];
   submittedAt: Date;

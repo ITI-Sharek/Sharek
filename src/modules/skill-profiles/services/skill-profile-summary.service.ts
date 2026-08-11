@@ -14,6 +14,22 @@ export interface SkillProfileSummaryDto {
   evidenceSummary: string | null;
 }
 
+export interface ContributorMatchingSkillSnapshot {
+  skillProfileId: string;
+  name: string;
+  proficiency: 'beginner' | 'intermediate' | 'advanced';
+  confidence: number;
+  evidenceIds: string[];
+  evidenceSummary: string | null;
+}
+
+export interface ContributorMatchingCandidateSnapshot {
+  contributorId: string;
+  displayName: string;
+  username: string | null;
+  approvedSkills: ContributorMatchingSkillSnapshot[];
+}
+
 @Injectable()
 export class SkillProfileSummaryService {
   constructor(
@@ -35,6 +51,59 @@ export class SkillProfileSummaryService {
     });
 
     return skills.map((skill) => this.toEligibilitySkill(skill));
+  }
+
+  async listApprovedContributorMatchingSnapshots(): Promise<
+    ContributorMatchingCandidateSnapshot[]
+  > {
+    const skills = await this.database.skillProfile.findMany({
+      where: {
+        status: SkillProfileStatus.approved,
+        user: { role: 'contributor', status: 'active' },
+      },
+      select: {
+        id: true,
+        user_id: true,
+        skill_name: true,
+        proficiency_level: true,
+        confidence_score: true,
+        evidence_summary: true,
+        evidence_sources: true,
+        user: {
+          select: { first_name: true, last_name: true, username: true },
+        },
+      },
+      orderBy: [{ user_id: 'asc' }, { created_at: 'asc' }],
+    });
+    const byContributor = new Map<string, ContributorMatchingCandidateSnapshot>();
+    for (const skill of skills) {
+      const existing = byContributor.get(skill.user_id);
+      const candidate =
+        existing ?? {
+          contributorId: skill.user_id,
+          displayName: `${skill.user.first_name} ${skill.user.last_name}`.trim(),
+          username: skill.user.username,
+          approvedSkills: [],
+        };
+      candidate.approvedSkills.push({
+        skillProfileId: skill.id,
+        name: skill.skill_name,
+        proficiency: skill.proficiency_level,
+        confidence: skill.confidence_score,
+        evidenceIds: toBoundedSkillEvidenceSources(skill.evidence_sources)
+          .evidenceIds,
+        evidenceSummary: skill.evidence_summary,
+      });
+      byContributor.set(skill.user_id, candidate);
+    }
+    return [...byContributor.values()];
+  }
+
+  async getApprovedContributorMatchingSnapshot(
+    contributorId: string,
+  ): Promise<ContributorMatchingCandidateSnapshot | null> {
+    const candidates = await this.listApprovedContributorMatchingSnapshots();
+    return candidates.find((candidate) => candidate.contributorId === contributorId) ?? null;
   }
 
   async listAuthorizedSkillsForApplicationSnapshot(

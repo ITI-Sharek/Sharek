@@ -168,6 +168,10 @@ describe('Contributor profile redirect HTTP flow', () => {
             getSummaryForUser: jest.fn().mockResolvedValue({
               rating: null,
               reviewsCount: 0,
+              completedContributions: 0,
+              totalAssignedTasks: 0,
+              successRate: 0,
+              topVerifiedSkills: [],
             }),
           },
         },
@@ -214,6 +218,14 @@ describe('Contributor profile redirect HTTP flow', () => {
       .expect(({ body }) => {
         expect(body.viewerRelationship).toBe('owner');
         expect(body.username).toBe('contributor-one');
+        expect(body.reputationSummary).toEqual({
+          rating: null,
+          reviewsCount: 0,
+          completedContributions: 0,
+          totalAssignedTasks: 0,
+          successRate: 0,
+          topVerifiedSkills: [],
+        });
       });
   });
 });

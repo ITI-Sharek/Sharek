@@ -47,13 +47,15 @@ contributor-profiles  contributor_profiles, contributor_fields, contributor_prof
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications, notification_events, notification_preferences, notification_category_preferences
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
+subscriptions         subscriptions, subscription_entitlements, usage_trackers
+matching              ai_match_results
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
 contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes, contribution_proposal_misuse_reports
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits, owner_decisions, assignments
 contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes
-delivery-reviews      deliveries, delivery_reviews
-reputation            reputation_profiles, reputation_events
+delivery-reviews      deliveries, delivery_submissions, delivery_reviews, delivery_approved_events
+reputation            reputation_records
 admin                 admin_review_queue, reports, disputes, moderation_actions
 ai                    ai_call_audit, AI service response snapshots, embeddings where backend-owned
 ```
@@ -138,12 +140,38 @@ inside one transaction; shared `/realtime` publication starts only after that
 transaction commits. HTTP Message history remains authoritative during socket
 outage or duplicate delivery.
 
+`delivery-reviews` preserves each contributor command in immutable
+`DeliverySubmission` rows and each owner decision in a per-submission
+`DeliveryReview`. The current `Delivery` row is the lifecycle projection.
+Approval also appends one rating-bearing `DeliveryApprovedEvent` outbox row in
+the same transaction as the review and Request completion; the Reputation
+module can poll unpublished facts and acknowledge them without writing
+Delivery-owned tables. Database checks enforce the approved-rating and
+feedback-required contracts for all new review writes.
+
+`ReputationRecord` is a replaceable materialized projection keyed one-to-one by
+contributor user. `overall_rating` and `total_ratings_received` represent only
+approved-Delivery owner ratings; `successful_contributions` counts approved
+Deliveries; `total_contributions` stores the denominator of all assigned tasks;
+and `success_rate` stores the percentage derived from those two counts.
+`top_verified_skills` stores up to five `{ name,
+verifiedContributionCount }` objects derived from owner-authored technology
+tags on approved Contribution Requests. Only the `reputation` module writes the
+record; Delivery's coordinator supplies facts through its public service seam.
+
 `NotificationPreference` stores per-user retention, quiet hours, and revision;
 `NotificationCategoryPreference` stores sparse per-category in-app/browser
 overrides. Missing preferences use the documented 90-day retention and
 browser-disabled defaults. Cleanup deletes only expired Notification rows and
 lets the event cascade remove their corresponding outbox rows; workflow and
 audit tables are never part of retention cleanup.
+
+The Notification semantic rollout also includes an out-of-order deployment
+repair. If an environment applied the semantic migration before the earlier
+skill-generation backfill directories were introduced, a compatibility
+migration temporarily relaxes only the semantic `template_key` and
+`parameters` constraints, and a subsequent repair maps the legacy rows before
+restoring both constraints. No applied migration is edited or reversed.
 
 Application submission and withdrawal notifications use a nullable unique
 `deduplication_key` so a retried Application command cannot create or deliver

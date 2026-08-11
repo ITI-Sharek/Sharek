@@ -22,6 +22,7 @@ import { ContributorProfilesService } from '../contributor-profiles/contributor-
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SkillProfileSummaryService } from '../skill-profiles/services/skill-profile-summary.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   ApplicationDto,
   ApplicationEvidenceSummaryDto,
@@ -37,6 +38,7 @@ import {
   ApplicationRequestScopeDto,
   PendingApplicationsOwnerWorkspaceSummaryDto,
 } from './dto/owner-workspace-summary.dto';
+import { DeliveryLifecycleApplicationContextDto } from './dto/delivery-lifecycle-context.dto';
 import {
   APPLICATION_REVIEW_EXPIRY_DAYS,
   APPLICATION_REVIEW_OVERDUE_DAYS,
@@ -79,6 +81,8 @@ export class ApplicationsService {
     private readonly contributorProfiles: ContributorProfilesService,
     @Optional()
     private readonly assignmentConversations?: AssignmentConversationsService,
+    @Optional()
+    private readonly subscriptions?: SubscriptionsService,
   ) {}
 
   async submit(input: {
@@ -123,6 +127,9 @@ export class ApplicationsService {
       profile: profileContext,
     };
 
+    const priorityApplicationVisibility =
+      (await this.subscriptions?.getContributorBenefitEntitlement(input.actor.id))
+        ?.priorityApplicationVisibility ?? false;
     let application: ApplicationWithSnapshots;
     try {
       application = await this.database.$transaction(async (transaction) => {
@@ -197,6 +204,7 @@ export class ApplicationsService {
             requirement_snapshot_id: requirementSnapshotId,
             evidence_snapshot_id: evidenceSnapshotId,
             status: ApplicationStatus.pending_owner_review,
+            is_priority: priorityApplicationVisibility,
             submitted_at: now,
             review_due_at: this.addDays(now, APPLICATION_REVIEW_REMINDER_DAYS),
             expires_at: this.addDays(now, APPLICATION_REVIEW_EXPIRY_DAYS),
@@ -251,7 +259,11 @@ export class ApplicationsService {
         contribution_request_id: contributionRequestId,
         status: ApplicationStatus.pending_owner_review,
       },
-      orderBy: [{ submitted_at: 'asc' }, { id: 'asc' }],
+      orderBy: [
+        { is_priority: 'desc' },
+        { submitted_at: 'asc' },
+        { id: 'asc' },
+      ],
       include: APPLICATION_INCLUDE,
     });
     return {
@@ -1031,6 +1043,7 @@ export class ApplicationsService {
         application.contribution_approach ?? application.cover_message,
       proposedDeliveryDurationDays: application.proposed_delivery_duration_days,
       status: this.presentStatus(application.status),
+      isPriority: application.is_priority,
       requirementSnapshot: this.presentRequirements(requirements),
       evidenceSummary: evidence.map((item) => this.presentEvidence(item)),
       submittedAt: application.submitted_at,
@@ -1348,6 +1361,113 @@ export class ApplicationsService {
 
   private jsonArray(value: unknown): unknown[] {
     return Array.isArray(value) ? value : [];
+  }
+
+  async lockDeliverySubmissionContext(input: {
+    applicationId: string;
+    contributorId: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<{
+    applicationId: string;
+    contributionRequestId: string;
+    contributorId: string;
+    status: ApplicationStatus;
+  }> {
+    const applications = await input.transaction.$queryRaw<
+      Array<{
+        id: string;
+        contribution_request_id: string;
+        contributor_id: string;
+        status: ApplicationStatus;
+      }>
+    >(Prisma.sql`
+      SELECT "id", "contribution_request_id", "contributor_id", "status"
+      FROM "Application"
+      WHERE "id" = ${input.applicationId}::uuid
+      FOR UPDATE
+    `);
+    const application = applications[0];
+    if (!application || application.contributor_id !== input.contributorId) {
+      throw new ForbiddenApplicationError(
+        'The Application is not available for Delivery submission',
+        'DELIVERY_NOT_AUTHORIZED',
+      );
+    }
+    if (application.status !== ApplicationStatus.accepted) {
+      throw new ConflictApplicationError(
+        'Only an accepted Application can submit a Delivery',
+        'APPLICATION_NOT_ACCEPTED',
+        { status: application.status },
+      );
+    }
+    return {
+      applicationId: application.id,
+      contributionRequestId: application.contribution_request_id,
+      contributorId: application.contributor_id,
+      status: application.status,
+    };
+  }
+
+  async listDeliveryLifecycleContextsForContributor(
+    contributorId: string,
+  ): Promise<DeliveryLifecycleApplicationContextDto[]> {
+    return this.listDeliveryLifecycleContexts({ contributor_id: contributorId });
+  }
+
+  async listDeliveryLifecycleContextsForOwner(
+    contributionRequestIds: string[],
+  ): Promise<DeliveryLifecycleApplicationContextDto[]> {
+    if (contributionRequestIds.length === 0) return [];
+    return this.listDeliveryLifecycleContexts({
+      contribution_request_id: { in: contributionRequestIds },
+    });
+  }
+
+  private async listDeliveryLifecycleContexts(
+    where: Prisma.ApplicationWhereInput,
+  ): Promise<DeliveryLifecycleApplicationContextDto[]> {
+    const applications = await this.database.application.findMany({
+      where,
+      select: {
+        id: true,
+        contribution_request_id: true,
+        contributor_id: true,
+        status: true,
+        contributionRequest: { select: { title: true } },
+        contributor: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+            avatar_url: true,
+          },
+        },
+        assignment: {
+          select: {
+            agreed_delivery_due_at: true,
+            assigned_at: true,
+          },
+        },
+      },
+      orderBy: [{ submitted_at: 'desc' }, { id: 'desc' }],
+    });
+    return applications.map((application) => ({
+      applicationId: application.id,
+      contributionRequestId: application.contribution_request_id,
+      contributionRequestTitle: application.contributionRequest.title,
+      contributorId: application.contributor_id,
+      contributor: {
+        id: application.contributor.id,
+        username: application.contributor.username,
+        displayName:
+          `${application.contributor.first_name} ${application.contributor.last_name}`.trim(),
+        avatarUrl: application.contributor.avatar_url,
+      },
+      applicationStatus: this.presentStatus(application.status),
+      deliveryDueAt: application.assignment?.agreed_delivery_due_at ?? null,
+      assignedAt: application.assignment?.assigned_at ?? null,
+    }));
   }
 
   private emptySummary(
