@@ -54,6 +54,13 @@ export interface ContributorProfileGitHubRepositoryDto {
 export interface ContributorProfileReputationSummaryDto {
   rating: number | null;
   reviewsCount: number;
+  completedContributions: number;
+  totalAssignedTasks: number;
+  successRate: number;
+  topVerifiedSkills: Array<{
+    name: string;
+    verifiedContributionCount: number;
+  }>;
 }
 
 export interface ContributorProfileDto {

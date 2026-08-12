@@ -16,9 +16,15 @@ import {
   SkillProfileGenerationNotificationStatus,
   SkillReviewNotificationParameters,
   ConversationActivityNotificationParameters,
+  DeliveryNotificationParameters,
 } from './notification-template.types';
 
 export const NOTIFICATION_TEMPLATE_KEYS = [
+  'delivery.submitted',
+  'delivery.resubmitted',
+  'delivery.approved',
+  'delivery.changes_requested',
+  'delivery.rejected',
   'application.accepted',
   'application.submitted',
   'application.withdrawn',
@@ -55,6 +61,26 @@ type ApplicationNotificationAction =
   | 'expired';
 
 const POLICY: Readonly<Record<NotificationTemplateKey, NotificationTemplatePolicy>> = {
+  'delivery.submitted': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
+  'delivery.resubmitted': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
+  'delivery.approved': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
+  'delivery.changes_requested': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
+  'delivery.rejected': {
+    category: NotificationType.delivery_update,
+    priority: 'attention',
+  },
   'application.accepted': {
     category: NotificationType.application_status,
     priority: 'attention',
@@ -205,10 +231,72 @@ const APPLICATION_COPY: Record<
   },
 };
 
+const DELIVERY_COPY: Record<
+  'submitted' | 'resubmitted' | 'approved' | 'changes_requested' | 'rejected',
+  Record<NotificationLanguage, { title: string; body: string }>
+> = {
+  submitted: {
+    en: {
+      title: 'Delivery submitted',
+      body: 'A contributor submitted a Delivery for your Contribution Request.',
+    },
+    ar: {
+      title: 'تم تسليم العمل',
+      body: 'قدّم مساهم تسليمًا لطلب المساهمة الخاص بك.',
+    },
+  },
+  resubmitted: {
+    en: {
+      title: 'Delivery resubmitted',
+      body: 'A contributor resubmitted a Delivery after addressing your feedback.',
+    },
+    ar: {
+      title: 'أُعيد تسليم العمل',
+      body: 'أعاد مساهم تسليم العمل بعد معالجة ملاحظاتك.',
+    },
+  },
+  approved: {
+    en: {
+      title: 'Delivery approved',
+      body: 'The Project owner approved your Delivery. Your contribution is complete.',
+    },
+    ar: {
+      title: 'تم اعتماد التسليم',
+      body: 'اعتمد مالك المشروع تسليمك. اكتملت مساهمتك.',
+    },
+  },
+  changes_requested: {
+    en: {
+      title: 'Delivery changes requested',
+      body: 'The Project owner requested changes to your Delivery. Review the feedback and resubmit.',
+    },
+    ar: {
+      title: 'طُلبت تعديلات على التسليم',
+      body: 'طلب مالك المشروع تعديلات على تسليمك. راجع الملاحظات وأعد التسليم.',
+    },
+  },
+  rejected: {
+    en: {
+      title: 'Delivery not approved',
+      body: 'The Project owner did not approve your Delivery. Review the feedback.',
+    },
+    ar: {
+      title: 'لم يتم اعتماد التسليم',
+      body: 'لم يعتمد مالك المشروع تسليمك. راجع الملاحظات.',
+    },
+  },
+};
+
 const APPLICATION_PARAMETER_CONTRACT: NotificationParameterContract = {
   required: ['applicationId', 'contributionRequestId'],
   validate: (parameters) =>
     validateApplicationParameters(parameters) as NotificationTemplateParameters,
+};
+
+const DELIVERY_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['deliveryId', 'contributionRequestId', 'submissionNumber'],
+  validate: (parameters) =>
+    validateDeliveryParameters(parameters) as NotificationTemplateParameters,
 };
 
 const PROPOSAL_PARAMETER_CONTRACT: NotificationParameterContract = {
@@ -256,6 +344,30 @@ function validateApplicationParameters(
   return {
     applicationId: requiredString(record, 'applicationId'),
     contributionRequestId: requiredString(record, 'contributionRequestId'),
+  };
+}
+
+function validateDeliveryParameters(
+  parameters: unknown,
+): DeliveryNotificationParameters {
+  const record = requireRecord(parameters);
+  const feedback = record.feedback;
+  if (feedback !== undefined && (typeof feedback !== 'string' || !feedback.trim())) {
+    throw invalidParameters();
+  }
+  const rating = record.rating;
+  if (
+    rating !== undefined &&
+    (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 5)
+  ) {
+    throw invalidParameters();
+  }
+  return {
+    deliveryId: requiredString(record, 'deliveryId'),
+    contributionRequestId: requiredString(record, 'contributionRequestId'),
+    submissionNumber: requiredPositiveInteger(record, 'submissionNumber'),
+    ...(typeof rating === 'number' ? { rating } : {}),
+    ...(typeof feedback === 'string' ? { feedback: feedback.trim() } : {}),
   };
 }
 
@@ -463,6 +575,56 @@ function applicationTemplate(
   };
 }
 
+function deliveryTemplate(
+  action: 'submitted' | 'resubmitted' | 'approved' | 'changes_requested' | 'rejected',
+): NotificationTemplateDefinition {
+  const key = `delivery.${action}` as NotificationTemplateKey;
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: DELIVERY_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) => {
+        validateDeliveryParameters(parameters);
+        return deliveryCopy(action, validateDeliveryParameters(parameters), 'en');
+      },
+      ar: (parameters) => {
+        validateDeliveryParameters(parameters);
+        return deliveryCopy(action, validateDeliveryParameters(parameters), 'ar');
+      },
+    },
+    buildDeepLink: (parameters) =>
+      buildDeliveryNotificationDeepLink(validateDeliveryParameters(parameters)),
+  };
+}
+
+function deliveryCopy(
+  action: 'submitted' | 'resubmitted' | 'approved' | 'changes_requested' | 'rejected',
+  parameters: DeliveryNotificationParameters,
+  language: NotificationLanguage,
+): { title: string; body: string } {
+  const copy = DELIVERY_COPY[action][language];
+  if (action === 'approved' && parameters.rating) {
+    const label = language === 'ar' ? 'التقييم' : 'Rating';
+    return {
+      ...copy,
+      body: `${copy.body} ${label}: ${'★'.repeat(parameters.rating)} (${parameters.rating}/5).`,
+    };
+  }
+  if (!parameters.feedback || (action !== 'changes_requested' && action !== 'rejected')) {
+    return copy;
+  }
+  const label = language === 'ar' ? 'ملاحظات المالك' : 'Owner feedback';
+  return { ...copy, body: `${copy.body} ${label}: ${parameters.feedback}` };
+}
+
+export function buildDeliveryNotificationDeepLink(
+  parameters: DeliveryNotificationParameters,
+): string {
+  return `/deliveries/${safeIdentifier(validateDeliveryParameters(parameters).deliveryId)}`;
+}
+
 function proposalTemplate(
   action: 'revision_requested' | 'accepted' | 'declined',
   copy: Record<NotificationLanguage, { title: string; body: string }>,
@@ -640,6 +802,11 @@ const CONVERSATION_TEMPLATE: NotificationTemplateDefinition = {
 };
 
 const definitions: NotificationTemplateDefinition[] = [
+  deliveryTemplate('submitted'),
+  deliveryTemplate('resubmitted'),
+  deliveryTemplate('approved'),
+  deliveryTemplate('changes_requested'),
+  deliveryTemplate('rejected'),
   applicationTemplate('accepted'),
   applicationTemplate('submitted'),
   applicationTemplate('withdrawn'),
@@ -735,6 +902,12 @@ export function validateNotificationTemplateParameters<
   parameters: unknown,
 ): NotificationTemplateParameterMap[K] {
   switch (key) {
+    case 'delivery.submitted':
+    case 'delivery.resubmitted':
+    case 'delivery.approved':
+    case 'delivery.changes_requested':
+    case 'delivery.rejected':
+      return validateDeliveryParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'system.legacy':
       return validateLegacyParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'skill_review.activated':

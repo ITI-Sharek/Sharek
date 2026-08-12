@@ -121,6 +121,11 @@ Current supported workflow:
   and day-7 expiry notifications for contributors. Expiry copy explicitly
   states that owner silence is not rejection and has no eligibility or
   reputation effect.
+- semantic Delivery-submitted, resubmitted, approved, changes-requested, and rejected
+  notifications, deduplicated by Delivery, outcome, and submission version.
+  Delivery workflows persist the Notification and its event atomically with
+  the Delivery transition, retain required owner feedback in contributor-facing
+  outcome parameters, then publish through `/realtime` after commit.
 - idempotent Contribution Proposal revision-request, accepted, and declined
   notifications for the proposer, with the resulting draft Request ID attached
   to accepted notifications.

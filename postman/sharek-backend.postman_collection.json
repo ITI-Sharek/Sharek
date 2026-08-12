@@ -21,7 +21,7 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "const uuidVariables = ['applicationIdempotencyKey', 'assessmentIdempotencyKey', 'acceptIdempotencyKey', 'declineIdempotencyKey', 'withdrawalIdempotencyKey', 'createRequestIdempotencyKey', 'updateRequestIdempotencyKey', 'discardRequestIdempotencyKey', 'publishRequestIdempotencyKey', 'cancelRequestIdempotencyKey', 'projectCommandIdempotencyKey', 'proposalSubmissionIdempotencyKey', 'proposalRevisionIdempotencyKey', 'proposalVersionIdempotencyKey', 'proposalWithdrawalIdempotencyKey', 'proposalAcceptIdempotencyKey', 'proposalDeclineIdempotencyKey', 'proposalMisuseIdempotencyKey', 'materialIdempotencyKey', 'materialAnalysisIdempotencyKey', 'messageIdempotencyKey'];",
+          "const uuidVariables = ['applicationIdempotencyKey', 'assessmentIdempotencyKey', 'acceptIdempotencyKey', 'declineIdempotencyKey', 'withdrawalIdempotencyKey', 'createRequestIdempotencyKey', 'updateRequestIdempotencyKey', 'discardRequestIdempotencyKey', 'publishRequestIdempotencyKey', 'cancelRequestIdempotencyKey', 'projectCommandIdempotencyKey', 'proposalSubmissionIdempotencyKey', 'proposalRevisionIdempotencyKey', 'proposalVersionIdempotencyKey', 'proposalWithdrawalIdempotencyKey', 'proposalAcceptIdempotencyKey', 'proposalDeclineIdempotencyKey', 'proposalMisuseIdempotencyKey', 'materialIdempotencyKey', 'materialAnalysisIdempotencyKey', 'messageIdempotencyKey', 'deliverySubmissionIdempotencyKey', 'deliveryUpdateIdempotencyKey', 'deliveryReviewIdempotencyKey'];",
           "uuidVariables.forEach(function (name) {",
           "  if (!pm.environment.get(name)) pm.environment.set(name, pm.variables.replaceIn('{{$guid}}'));",
           "});",
@@ -3826,6 +3826,384 @@
       ]
     },
     {
+      "name": "Delivery Reviews",
+      "description": "Contributor Delivery submission and immutable revisions, owner review queue, review outcomes, and participant-visible history.",
+      "item": [
+        {
+          "name": "Get For Actor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/deliveries/{{deliveryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "deliveries",
+                "{{deliveryId}}"
+              ]
+            },
+            "description": "Get For Actor. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the deliveryId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Contributor Lifecycle",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/me/deliveries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me",
+                "deliveries"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{contributorAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "List Contributor Lifecycle. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Owner Lifecycle",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/owner/delivery-lifecycle",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owner",
+                "delivery-lifecycle"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "List Owner Lifecycle. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Review Queue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/owner/deliveries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "owner",
+                "deliveries"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "List Review Queue. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{deliveryReviewIdempotencyKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/deliveries/{{deliveryId}}/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "deliveries",
+                "{{deliveryId}}",
+                "reviews"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Review. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the deliveryId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"APPROVED\",\n  \"rating\": 5,\n  \"feedback\": \"The delivery meets the request requirements.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{deliverySubmissionIdempotencyKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/applications/{{applicationId}}/deliveries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "applications",
+                "{{applicationId}}",
+                "deliveries"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{contributorAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Submit. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the applicationId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pullRequestUrl\": \"https://github.com/octocat/Hello-World/pull/1\",\n  \"contributorNotes\": \"Ready for owner review.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.id) pm.environment.set('deliveryId', body.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{deliveryUpdateIdempotencyKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/deliveries/{{deliveryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "deliveries",
+                "{{deliveryId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{contributorAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Update. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the deliveryId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pullRequestUrl\": \"https://github.com/octocat/Hello-World/pull/2\",\n  \"contributorNotes\": \"Updated after review.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Contribution Proposals",
       "description": "Private contributor-authored Proposal lifecycle and owner responses.",
       "item": [
@@ -5551,6 +5929,57 @@
                   "type": "string"
                 }
               ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contributors/me/skill-gap-guidance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contributors",
+                "me",
+                "skill-gap-guidance"
+              ]
+            },
+            "description": "Generate. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contributionRequestId\": \"{{contributionRequestId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [

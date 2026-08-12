@@ -17,6 +17,11 @@ import {
   MaterialAnalysisInput,
   MaterialAnalysisResult,
 } from './dto/material-analysis.dto';
+import {
+  SkillGapGuidanceInput,
+  SkillGapGuidanceResult,
+} from './dto/skill-gap-guidance.dto';
+import { SkillGapGuidanceClient } from './integrations/skill-gap-guidance.client';
 
 @Injectable()
 export class AiService {
@@ -24,6 +29,7 @@ export class AiService {
     private readonly skillProfileClient: FastApiSkillProfileClient,
     @Optional() private readonly advisoryFitClient?: AdvisoryFitClient,
     @Optional() private readonly materialAnalysisClient?: MaterialAnalysisClient,
+    @Optional() private readonly skillGapGuidanceClient?: SkillGapGuidanceClient,
   ) {}
 
   generateSkillProfile(input: SkillProfileInput): Promise<SkillProfileResult> {
@@ -58,4 +64,18 @@ export class AiService {
     }
     return this.materialAnalysisClient.analyze(input);
   }
+
+  requestSkillGapGuidance(
+    input: SkillGapGuidanceInput,
+  ): Promise<SkillGapGuidanceResult> {
+    if (!this.skillGapGuidanceClient) {
+      throw new ApplicationError(
+        'Skill-gap guidance client is not configured',
+        'AI_SKILL_GAP_GUIDANCE_CLIENT_NOT_CONFIGURED',
+        503,
+      );
+    }
+    return this.skillGapGuidanceClient.generate(input);
+  }
+
 }

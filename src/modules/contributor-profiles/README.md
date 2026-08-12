@@ -43,3 +43,9 @@ README.md
 
 The controller owns route validation only. Explicit response assembly prevents
 passwords, tokens, and private persistence fields from leaking.
+
+The existing profile response includes the Reputation-owned aggregate rating
+and review sample size, completed contribution and assigned-task counts,
+percentage success rate, and up to five verified technology tags with their
+approved-contribution frequencies. Missing reputation data uses a stable
+zero/null shape; self-declared and pending AI skills never feed these metrics.
