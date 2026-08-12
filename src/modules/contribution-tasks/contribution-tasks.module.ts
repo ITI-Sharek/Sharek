@@ -7,6 +7,8 @@ import { PublicContributionRequestsController } from './controllers/public-contr
 import { ContributionRequestPublicationService } from './services/contribution-request-publication.service';
 import { ContributionTasksService } from './services/contribution-tasks.service';
 import { PublicContributionRequestsService } from './services/public-contribution-requests.service';
+import { ContributionRequestReputationFactsService } from './services/contribution-request-reputation-facts.service';
+import { SkillGapGuidanceContextService } from './services/skill-gap-guidance-context.service';
 
 @Module({
   imports: [
@@ -18,7 +20,13 @@ import { PublicContributionRequestsService } from './services/public-contributio
     ContributionTasksService,
     ContributionRequestPublicationService,
     PublicContributionRequestsService,
+    ContributionRequestReputationFactsService,
+    SkillGapGuidanceContextService,
   ],
-  exports: [ContributionTasksService],
+  exports: [
+    ContributionTasksService,
+    ContributionRequestReputationFactsService,
+    SkillGapGuidanceContextService,
+  ],
 })
 export class ContributionTasksModule {}

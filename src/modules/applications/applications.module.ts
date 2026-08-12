@@ -17,6 +17,7 @@ import { ApplicationReviewWindowQueue } from './jobs/application-review-window.q
 import { ApplicationReviewWindowWorker } from './jobs/application-review-window.worker';
 import { ApplicationReviewWindowService } from './services/application-review-window.service';
 import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment.service';
+import { ApplicationReputationFactsService } from './services/application-reputation-facts.service';
 
 @Module({
   imports: [
@@ -39,7 +40,8 @@ import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment
     AdvisoryFitAssessmentReaperService,
     ApplicationReviewWindowQueue,
     ApplicationReviewWindowWorker,
+    ApplicationReputationFactsService,
   ],
-  exports: [ApplicationsService],
+  exports: [ApplicationsService, ApplicationReputationFactsService],
 })
 export class ApplicationsModule {}

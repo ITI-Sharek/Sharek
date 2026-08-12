@@ -160,15 +160,16 @@ needs workflow code.
 | `identity` | Implemented auth/session endpoints | controllers, DTOs, auth/session/password-reset/social-auth services, mappers, security | account management and security hardening | Update when auth endpoints, user/session rules, roles, or account status change |
 | `github` | Implemented OAuth/account/repository listing and contributor-attributed evidence snapshots | GitHub controller, OAuth service, repository service, DTOs, GitHub API client, token encryption | webhook/sync handling and normalized persistent evidence tables if JSON snapshots no longer scale | Update when GitHub scopes, token handling, repo evidence, or import behavior changes |
 | `projects` | Implemented GitHub project import | root controller/service, DTOs, mapper | update draft, publish/archive, project discovery | Update when project lifecycle, visibility, metadata, or project APIs change |
-| `contributor-profiles` | Implemented profile ensure/read/update, explicit avatar upload, and dynamic admin-managed contributor fields and experience levels | root controller/service, DTOs, presenter, validator, field/experience-level catalogs | richer contribution history and object-storage migration if avatar volume requires it | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
+| `contributor-profiles` | Implemented profile ensure/read/update, dynamic fields, and verified reputation summary presentation | root controller/service, DTOs, presenter, validator, field/experience-level catalogs | richer contribution history | Update when profile visibility, username/profile contracts, profile APIs, or profile persistence changes |
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
 | `contribution-tasks` | Implemented private drafts plus explicit publication, actionable public discovery/detail, owner-plan limits, cancellation, and immutable lifecycle audits | grouped protected/public controllers, focused draft/publication/discovery services, DTOs, mapper, tests, module README | owner decisions/assignment integration and later Proposal-created draft attribution | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
 | `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, and bounded advisory Fit Assessment attempts/presentation auditing | controller, services, DTOs, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
-| `delivery-reviews` | Registered placeholder module | module README and module file | PR submission, owner review, ratings, delivery-approved event | Update when delivery status, ratings, review APIs, or events are added |
-| `reputation` | Partial summary service | module README, module file, reputation service | reputation profile, score history, verified completion updates | Update when scoring rules, history, public reputation APIs, or events are added |
+| `delivery-reviews` | Implemented delivery submission, owner review, and durable reputation projection coordination | HTTP workflow, immutable history, approval outbox, worker, tests | additional reporting | Update when delivery status, ratings, review APIs, or events are added |
+| `reputation` | Implemented verified reputation projection and contributor-profile summary | projection calculator/writer and deterministic skill ranking | score history and public reviews | Update when scoring rules, history, public reputation APIs, or events are added |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
-| `ai` | Implemented FastAPI skill-profile facade | `AiService`, DTOs, strict FastAPI client, response validation tests | eligibility/guidance/embedding clients and broader contract tests | Update when AI schemas, clients, audit metadata, or service behavior changes |
+| `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
+| `skill-guidance` | Implemented explicit contributor-requested source-scoped guidance | controller, service, DTO, context adapter, tests | saved plans require a separate decision | Update when guidance authorization, source policy, routes, or persistence changes |
 | `health` | Implemented health endpoint | health controller, response, module, test | readiness checks for database/Redis/external dependencies if needed | Update when health response shape or readiness checks change |
 
 ## Per-Task Checklist
@@ -2839,3 +2840,19 @@ This keeps the system strong without making it heavy:
   build, Prisma validation/generation, diff checks, and deterministic Postman
   coverage passed at 140 controller routes / 140 canonical requests with zero
   missing, obsolete, or duplicate routes.
+
+### 2026-08-12 - Sprint 5 backend closure
+
+- Delivery: authenticated submit/resubmit, participant detail, contributor and
+  owner lifecycle views, owner review, immutable submission/review history,
+  semantic notifications, and atomic completion plus approval-outbox facts.
+- Reputation: replay-safe projection of approved ratings, completed work,
+  assigned-task success rate, and deterministic verified-skill counts exposed
+  through contributor profiles.
+- Skill guidance: explicit contributor-requested guidance for a published
+  Contribution Request, assembled from approved evidence and validated through
+  the FastAPI Skill Gap Guidance contract. It does not change eligibility,
+  Application state, or owner decisions.
+- Scope: this closure contains Sprint 5 only. Subscription entitlements,
+  contributor matching, premium benefits, and notification migration repair
+  remain outside this change.

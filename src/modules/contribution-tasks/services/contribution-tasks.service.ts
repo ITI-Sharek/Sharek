@@ -176,6 +176,70 @@ export class ContributionTasksService {
     });
   }
 
+  async completeFromDeliveryReview(input: {
+    requestId: string;
+    ownerId: string;
+    deliveryId: string;
+    deliveryReviewId: string;
+    idempotencyKey: string;
+    commandFingerprint: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<void> {
+    const rows = await input.transaction.$queryRaw<
+      Array<{
+        id: string;
+        project_id: string;
+        status: ContributionRequestStatus;
+      }>
+    >(Prisma.sql`
+      SELECT "id", "project_id", "status"
+      FROM "ContributionRequest"
+      WHERE "id" = ${input.requestId}::uuid
+      FOR UPDATE
+    `);
+    const request = rows[0];
+    if (!request) throw this.requestNotFound();
+    await this.projectsService.lockContributionRequestProjectOwnerAccess(
+      request.project_id,
+      input.ownerId,
+      input.transaction,
+    );
+    if (request.status === ContributionRequestStatus.completed) return;
+    if (request.status !== ContributionRequestStatus.assigned) {
+      throw new ConflictApplicationError(
+        'The Contribution Request cannot be completed from this Delivery',
+        'REQUEST_TERMINAL',
+        { status: request.status },
+      );
+    }
+
+    const completed = await input.transaction.contributionRequest.updateMany({
+      where: {
+        id: input.requestId,
+        status: ContributionRequestStatus.assigned,
+      },
+      data: { status: ContributionRequestStatus.completed },
+    });
+    if (completed.count !== 1) throw this.concurrentModification();
+
+    await input.transaction.contributionRequestAudit.create({
+      data: {
+        contribution_request_id: input.requestId,
+        actor_id: input.ownerId,
+        action: ContributionRequestAuditAction.completed,
+        from_status: ContributionRequestStatus.assigned,
+        to_status: ContributionRequestStatus.completed,
+        idempotency_key: input.idempotencyKey,
+        command_fingerprint: input.commandFingerprint,
+        metadata: {
+          payloadVersion: 1,
+          deliveryId: input.deliveryId,
+          deliveryReviewId: input.deliveryReviewId,
+        },
+      },
+    });
+  }
+
   async reconfirmOwnerDecisionActor(input: {
     requestId: string;
     ownerId: string;
@@ -212,7 +276,7 @@ export class ContributionTasksService {
     );
   }
 
-  async lockApplicationReviewOwner(input: {
+  async lockContributionRequestOwnerContext(input: {
     requestId: string;
     transaction: Prisma.TransactionClient;
   }): Promise<{ ownerId: string }> {
@@ -232,6 +296,75 @@ export class ContributionTasksService {
         input.transaction,
       );
     return { ownerId: project.ownerId };
+  }
+
+  async lockApplicationReviewOwner(input: {
+    requestId: string;
+    transaction: Prisma.TransactionClient;
+  }): Promise<{ ownerId: string }> {
+    return this.lockContributionRequestOwnerContext(input);
+  }
+
+  async listDeliveryReviewScopesForOwner(ownerId: string): Promise<
+    Array<{
+      contributionRequestId: string;
+      title: string;
+      requirements: Array<{
+        kind: ContributionRequestRequirementKind;
+        position: number;
+        text: string;
+      }>;
+    }>
+  > {
+    const projectIds =
+      await this.projectsService.listContributionRequestProjectIdsForOwner(
+        ownerId,
+      );
+    if (projectIds.length === 0) return [];
+    const requests = await this.database.contributionRequest.findMany({
+      where: {
+        project_id: { in: projectIds },
+        status: ContributionRequestStatus.assigned,
+      },
+      select: {
+        id: true,
+        title: true,
+        requirements: {
+          select: { kind: true, position: true, text: true },
+          orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+        },
+      },
+    });
+    return requests.map((request) => ({
+      contributionRequestId: request.id,
+      title: request.title,
+      requirements: request.requirements,
+    }));
+  }
+
+  async listDeliveryLifecycleScopesForOwner(ownerId: string): Promise<
+    Array<{
+      contributionRequestId: string;
+      title: string;
+    }>
+  > {
+    const projectIds =
+      await this.projectsService.listContributionRequestProjectIdsForOwner(
+        ownerId,
+      );
+    if (projectIds.length === 0) return [];
+    const requests = await this.database.contributionRequest.findMany({
+      where: {
+        project_id: { in: projectIds },
+        status: { not: ContributionRequestStatus.draft },
+      },
+      select: { id: true, title: true },
+      orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+    });
+    return requests.map((request) => ({
+      contributionRequestId: request.id,
+      title: request.title,
+    }));
   }
 
   async createDraft(input: {

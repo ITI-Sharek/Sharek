@@ -52,6 +52,9 @@ and withdrawal retries.
 
 Owners list pending Applications with `GET /tasks/:requestId/applications` and
 inspect an authorized Application with `GET /applications/:applicationId`.
+The owner list orders Gold contributor Applications first using the persisted
+`is_priority` flag; this changes review visibility only and never guarantees
+selection. The Application response exposes `isPriority`.
 The owning contributor withdraws a pending Application through
 `POST /applications/:applicationId/withdraw`; withdrawal preserves history and
 notifies the owner through the exported Notifications service.
@@ -99,6 +102,11 @@ after Project archival, so pending Applications cannot become stranded.
 Issue #49 still owns publication, discovery, cancellation commands, and their
 Application side effects. This module consumes only the exported read/lock
 submission context from `contribution-tasks`.
+
+`ApplicationReputationFactsService` is an exported, read-only boundary for the
+Reputation projection coordinator. It counts all Assignments for one
+contributor and lists distinct assigned contributor IDs in deterministic,
+bounded batches. It never calculates or writes reputation.
 
 Issue #49 adds the exported transaction-scoped
 `cancelPendingForRequest()` capability. Contribution Request cancellation calls
@@ -184,3 +192,15 @@ Focused verification:
 npm test -- --runInBand src/modules/applications/applications.service.spec.ts test/applications.e2e-spec.ts src/modules/notifications/notifications.service.spec.ts
 npm test -- --runInBand src/modules/applications/services/application-review-window.service.spec.ts src/modules/applications/jobs/application-review-window.queue.spec.ts src/modules/applications/jobs/application-review-window.worker.spec.ts
 ```
+
+## Exported Delivery submission context (TASK-5-02)
+
+`lockDeliverySubmissionContext()` locks the Application on the caller's Prisma
+transaction, verifies that the actor is its assigned contributor, and requires
+the canonical `accepted` state. It returns only Application, Contribution
+Request, contributor, and status facts; the Delivery Reviews module owns every
+Delivery write.
+`listDeliveryLifecycleContextsForContributor()` and the request-scoped owner
+variant expose Application status, contributor identity, optional Assignment
+dates, and Request title so Delivery Reviews can compose both dashboards
+without reading Application-owned tables.

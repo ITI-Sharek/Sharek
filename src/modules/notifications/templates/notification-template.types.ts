@@ -9,6 +9,14 @@ export interface ApplicationNotificationParameters {
   contributionRequestId: string;
 }
 
+export interface DeliveryNotificationParameters {
+  deliveryId: string;
+  contributionRequestId: string;
+  submissionNumber: number;
+  rating?: number;
+  feedback?: string;
+}
+
 export interface ProposalNotificationParameters {
   proposalId: string;
   projectId: string;
@@ -48,6 +56,11 @@ export interface LegacyNotificationParameters {
 }
 
 export interface NotificationTemplateParameterMap {
+  'delivery.submitted': DeliveryNotificationParameters;
+  'delivery.resubmitted': DeliveryNotificationParameters;
+  'delivery.approved': DeliveryNotificationParameters;
+  'delivery.changes_requested': DeliveryNotificationParameters;
+  'delivery.rejected': DeliveryNotificationParameters;
   'application.accepted': ApplicationNotificationParameters;
   'application.submitted': ApplicationNotificationParameters;
   'application.withdrawn': ApplicationNotificationParameters;
