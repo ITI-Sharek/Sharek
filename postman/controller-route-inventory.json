@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 148,
+  "routeCount": 153,
   "routes": [
     {
       "method": "GET",
@@ -2147,6 +2147,94 @@
     },
     {
       "method": "GET",
+      "path": "/contribution-requests/:requestId/matches",
+      "normalizedPath": "/contribution-requests/:parameter/matches",
+      "key": "GET /contribution-requests/:parameter/matches",
+      "controller": "ContributorMatchingController",
+      "handler": "list",
+      "source": "src/modules/matching/matching.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-requests/:requestId/matches/:contributorId/invite",
+      "normalizedPath": "/contribution-requests/:parameter/matches/:parameter/invite",
+      "key": "POST /contribution-requests/:parameter/matches/:parameter/invite",
+      "controller": "ContributorMatchingController",
+      "handler": "invite",
+      "source": "src/modules/matching/matching.controller.ts",
+      "pathParameters": [
+        "requestId",
+        "contributorId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-requests/:requestId/matches/generate",
+      "normalizedPath": "/contribution-requests/:parameter/matches/generate",
+      "key": "POST /contribution-requests/:parameter/matches/generate",
+      "controller": "ContributorMatchingController",
+      "handler": "generate",
+      "source": "src/modules/matching/matching.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
       "path": "/contribution-requests/:requestId/materials",
       "normalizedPath": "/contribution-requests/:parameter/materials",
       "key": "GET /contribution-requests/:parameter/materials",
@@ -2265,6 +2353,33 @@
       "guards": [],
       "roles": [],
       "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/me/recommended-tasks",
+      "normalizedPath": "/contributors/me/recommended-tasks",
+      "key": "GET /contributors/me/recommended-tasks",
+      "controller": "ContributorRecommendationsController",
+      "handler": "list",
+      "source": "src/modules/matching/recommendations.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "contributor"
+      ],
+      "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200
     },
@@ -3685,6 +3800,34 @@
         "AccessTokenGuard"
       ],
       "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/me/subscription",
+      "normalizedPath": "/me/subscription",
+      "key": "GET /me/subscription",
+      "controller": "SubscriptionsController",
+      "handler": "getCurrentPlan",
+      "source": "src/modules/subscriptions/subscriptions.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200

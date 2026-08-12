@@ -15,10 +15,15 @@ describe('ContributionRequestPublicationService', () => {
     getContributionRequestProjectAccess: jest.fn(),
   };
   const applicationsService = { cancelPendingForRequest: jest.fn() };
+  const subscriptionsService = {
+    getOwnerContributionRequestPublicationEntitlement: jest.fn(),
+    reserveOwnerContributionRequestPublication: jest.fn(),
+  };
   const service = new ContributionRequestPublicationService(
     database as never,
     projectsService as never,
     applicationsService as never,
+    subscriptionsService as never,
   );
 
   beforeEach(() => {

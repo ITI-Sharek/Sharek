@@ -28,6 +28,7 @@ export function toProjectResponseDto(project: Project): ProjectResponseDto {
 export function toDiscoveredProjectDto(
   project: Project,
   slug: string,
+  options: { priorityVisibility?: boolean } = {},
 ): DiscoveredProjectDto {
   const technologies = toStringArray(project.technologies);
   const tags = toStringArray(project.tags);
@@ -54,6 +55,7 @@ export function toDiscoveredProjectDto(
     githubRepoUrl: project.github_repo_url,
     repoStatistics: project.repo_statistics,
     publishedAt: project.published_at,
+    priorityVisibility: options.priorityVisibility ?? false,
     discoveryMetadata: {
       source: 'project',
       sourceId: project.id,

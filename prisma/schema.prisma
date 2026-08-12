@@ -47,6 +47,23 @@ enum SubscriptionStatus {
   expired
 }
 
+enum SubscriptionSource {
+  default
+  admin
+  demo
+  payment_provider
+}
+
+enum SubscriptionEntitlementKey {
+  project_material_analysis
+}
+
+enum SubscriptionEntitlementStatus {
+  active
+  revoked
+  expired
+}
+
 enum ProjectCategory {
   web
   mobile
@@ -402,6 +419,7 @@ model User {
   last_login_at      DateTime?
 
   subscriptions                     Subscription[]
+  subscriptionEntitlements          SubscriptionEntitlement[]
   projects                          Project[]                          @relation("ProjectOwner")
   contributionRequests              ContributionRequest[]              @relation("ContributionRequestOwner")
   applications                      Application[]                      @relation("ApplicationContributor")
@@ -623,6 +641,7 @@ model Subscription {
   plan_type         SubscriptionPlanType
   user_role_context SubscriptionUserRoleContext
   status            SubscriptionStatus          @default(active)
+  source            SubscriptionSource          @default(default)
   starts_at         DateTime
   expires_at        DateTime?
   cancelled_at      DateTime?
@@ -632,6 +651,26 @@ model Subscription {
   user User @relation(fields: [user_id], references: [id])
 
   @@index([user_id])
+  @@index([user_id, user_role_context, status])
+  @@index([expires_at])
+}
+
+model SubscriptionEntitlement {
+  id          String                         @id @default(uuid()) @db.Uuid
+  user_id     String                         @db.Uuid
+  key         SubscriptionEntitlementKey
+  source      SubscriptionSource
+  status      SubscriptionEntitlementStatus @default(active)
+  starts_at   DateTime
+  expires_at  DateTime?
+  revoked_at  DateTime?
+  created_at  DateTime                       @default(now())
+  updated_at  DateTime                       @default(now()) @updatedAt
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@index([user_id, key, status])
+  @@index([expires_at])
 }
 
 model Project {
@@ -1199,6 +1238,7 @@ model AiMatchResult {
   contribution_request_id String   @db.Uuid
   contributor_id          String   @db.Uuid
   match_score             Float
+  confidence              String   @default("MEDIUM") @db.VarChar(10)
   justification           String?
   matched_skills          Json?
   reputation_signals      Json?
@@ -1210,6 +1250,8 @@ model AiMatchResult {
 
   contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
   contributor         User                @relation("AIMatchContributor", fields: [contributor_id], references: [id])
+
+  @@index([contribution_request_id, rank])
 }
 
 model AiTraceLog {
@@ -1712,6 +1754,8 @@ model UsageTracker {
   updated_at  DateTime       @default(now()) @updatedAt
 
   user User @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, action_type, period_date])
 }
 
 enum MaterialVisibility {

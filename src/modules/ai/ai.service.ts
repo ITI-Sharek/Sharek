@@ -22,6 +22,11 @@ import {
   SkillGapGuidanceResult,
 } from './dto/skill-gap-guidance.dto';
 import { SkillGapGuidanceClient } from './integrations/skill-gap-guidance.client';
+import {
+  ContributorMatchingInput,
+  ContributorMatchingResult,
+} from './dto/contributor-matching.dto';
+import { ContributorMatchingClient } from './integrations/contributor-matching.client';
 
 @Injectable()
 export class AiService {
@@ -30,6 +35,7 @@ export class AiService {
     @Optional() private readonly advisoryFitClient?: AdvisoryFitClient,
     @Optional() private readonly materialAnalysisClient?: MaterialAnalysisClient,
     @Optional() private readonly skillGapGuidanceClient?: SkillGapGuidanceClient,
+    @Optional() private readonly contributorMatchingClient?: ContributorMatchingClient,
   ) {}
 
   generateSkillProfile(input: SkillProfileInput): Promise<SkillProfileResult> {
@@ -78,4 +84,16 @@ export class AiService {
     return this.skillGapGuidanceClient.generate(input);
   }
 
+  requestContributorMatching(
+    input: ContributorMatchingInput,
+  ): Promise<ContributorMatchingResult> {
+    if (!this.contributorMatchingClient) {
+      throw new ApplicationError(
+        'Contributor matching client is not configured',
+        'AI_CONTRIBUTOR_MATCHING_CLIENT_NOT_CONFIGURED',
+        503,
+      );
+    }
+    return this.contributorMatchingClient.generate(input);
+  }
 }

@@ -17,6 +17,8 @@ import {
   SkillReviewNotificationParameters,
   ConversationActivityNotificationParameters,
   DeliveryNotificationParameters,
+  MatchFoundNotificationParameters,
+  TaskRecommendationNotificationParameters,
 } from './notification-template.types';
 
 export const NOTIFICATION_TEMPLATE_KEYS = [
@@ -42,6 +44,8 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'skill_profile_generation.needs_more_evidence',
   'skill_profile_generation.failed',
   'conversation.activity',
+  'match.found',
+  'task.recommendation',
   'system.legacy',
 ] as const satisfies readonly NotificationTemplateKey[];
 
@@ -147,6 +151,14 @@ const POLICY: Readonly<Record<NotificationTemplateKey, NotificationTemplatePolic
   },
   'conversation.activity': {
     category: NotificationType.conversation_activity,
+    priority: 'attention',
+  },
+  'match.found': {
+    category: NotificationType.match_found,
+    priority: 'attention',
+  },
+  'task.recommendation': {
+    category: NotificationType.task_recommendation,
     priority: 'attention',
   },
   'system.legacy': {
@@ -331,6 +343,28 @@ const CONVERSATION_PARAMETER_CONTRACT: NotificationParameterContract = {
     validateConversationParameters(parameters) as NotificationTemplateParameters,
 };
 
+const MATCH_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: [
+    'contributionRequestId',
+    'requestTitle',
+    'audience',
+    'notificationKind',
+  ],
+  validate: (parameters) =>
+    validateMatchParameters(parameters) as NotificationTemplateParameters,
+};
+
+const RECOMMENDATION_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: [
+    'contributionRequestId',
+    'requestTitle',
+    'matchScore',
+    'matchedSkills',
+  ],
+  validate: (parameters) =>
+    validateRecommendationParameters(parameters) as NotificationTemplateParameters,
+};
+
 const LEGACY_PARAMETER_CONTRACT: NotificationParameterContract = {
   required: ['legacyTitle', 'legacyBody'],
   validate: (parameters) =>
@@ -455,6 +489,79 @@ function validateConversationParameters(
     senderName: requiredString(record, 'senderName'),
     messagePreview: requiredString(record, 'messagePreview'),
     messageCount: requiredPositiveInteger(record, 'messageCount'),
+  };
+}
+
+function validateMatchParameters(
+  parameters: unknown,
+): MatchFoundNotificationParameters {
+  const record = requireRecord(parameters);
+  const audience = record.audience;
+  if (audience !== 'contributor' && audience !== 'owner') {
+    throw invalidParameters();
+  }
+  const notificationKind = record.notificationKind;
+  if (
+    notificationKind !== 'owner_invite' &&
+    notificationKind !== 'gold_auto_match' &&
+    notificationKind !== 'skill_matched_task'
+  ) {
+    throw invalidParameters();
+  }
+  const matchScore = record.matchScore;
+  if (
+    matchScore !== undefined &&
+    (typeof matchScore !== 'number' || matchScore < 0 || matchScore > 1)
+  ) {
+    throw invalidParameters();
+  }
+  const matchedSkills = record.matchedSkills;
+  if (
+    matchedSkills !== undefined &&
+    (!Array.isArray(matchedSkills) ||
+      matchedSkills.some(
+        (skill) => typeof skill !== 'string' || !skill.trim(),
+      ))
+  ) {
+    throw invalidParameters();
+  }
+  return {
+    contributionRequestId: requiredString(record, 'contributionRequestId'),
+    requestTitle: requiredString(record, 'requestTitle'),
+    audience,
+    notificationKind,
+    ...(matchScore === undefined ? {} : { matchScore }),
+    ...(matchedSkills === undefined ? {} : { matchedSkills }),
+  };
+}
+
+function validateRecommendationParameters(
+  parameters: unknown,
+): TaskRecommendationNotificationParameters {
+  const record = requireRecord(parameters);
+  const matchScore = record.matchScore;
+  if (
+    typeof matchScore !== 'number' ||
+    matchScore < 0 ||
+    matchScore > 1
+  ) {
+    throw invalidParameters();
+  }
+  const matchedSkills = record.matchedSkills;
+  if (
+    !Array.isArray(matchedSkills) ||
+    matchedSkills.length === 0 ||
+    matchedSkills.some(
+      (skill) => typeof skill !== 'string' || !skill.trim(),
+    )
+  ) {
+    throw invalidParameters();
+  }
+  return {
+    contributionRequestId: requiredString(record, 'contributionRequestId'),
+    requestTitle: requiredString(record, 'requestTitle'),
+    matchScore,
+    matchedSkills,
   };
 }
 
@@ -801,6 +908,90 @@ const CONVERSATION_TEMPLATE: NotificationTemplateDefinition = {
     ),
 };
 
+function matchTemplate(): NotificationTemplateDefinition {
+  const key: NotificationTemplateKey = 'match.found';
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: MATCH_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) => renderMatchNotification(validateMatchParameters(parameters), 'en'),
+      ar: (parameters) => renderMatchNotification(validateMatchParameters(parameters), 'ar'),
+    },
+    buildDeepLink: (parameters) =>
+      `/contribution-requests/${safeIdentifier(validateMatchParameters(parameters).contributionRequestId)}`,
+  };
+}
+
+function renderMatchNotification(
+  parameters: MatchFoundNotificationParameters,
+  language: NotificationLanguage,
+): { title: string; body: string } {
+  const score = parameters.matchScore === undefined
+    ? ''
+    : ` (${Math.round(parameters.matchScore * 100)}% match)`;
+  const skills = parameters.matchedSkills?.length
+    ? ` ${language === 'ar' ? 'المهارات المطابقة' : 'Matching skills'}: ${parameters.matchedSkills.join(', ')}.`
+    : '';
+  if (parameters.audience === 'owner') {
+    return language === 'ar'
+      ? {
+          title: 'تم العثور على مساهم مطابق',
+          body: `تم العثور على مساهم مناسب لطلب المشاركة «${parameters.requestTitle}»${score}.${skills}`,
+        }
+      : {
+          title: 'Matching contributor found',
+          body: `A contributor matches “${parameters.requestTitle}”${score}.${skills}`,
+        };
+  }
+  if (parameters.notificationKind === 'owner_invite') {
+    return language === 'ar'
+      ? {
+          title: 'تم ترشيحك لمهمة',
+          body: `رشحك مالك المشروع لطلب المشاركة «${parameters.requestTitle}». راجع المهمة وقرر ما إذا كنت تريد التقديم.`,
+        }
+      : {
+          title: 'You were matched to a task',
+          body: `An owner matched you to “${parameters.requestTitle}”. Review the task and decide whether to apply.`,
+        };
+  }
+  return language === 'ar'
+    ? {
+        title: 'مهمة جديدة تطابق مهاراتك',
+        body: `تطابق المهمة «${parameters.requestTitle}» مهاراتك${score}.${skills}`,
+      }
+    : {
+        title: 'New task matching your skills',
+        body: `“${parameters.requestTitle}” matches your approved skills${score}.${skills}`,
+      };
+}
+
+const RECOMMENDATION_TEMPLATE: NotificationTemplateDefinition = {
+  key: 'task.recommendation',
+  version: 1,
+  ...POLICY['task.recommendation'],
+  parameterContract: RECOMMENDATION_PARAMETER_CONTRACT,
+  render: {
+    en: (parameters) => {
+      const validated = validateRecommendationParameters(parameters);
+      return {
+        title: 'Task recommended for you',
+        body: `“${validated.requestTitle}” is a ${Math.round(validated.matchScore * 100)}% match for your ${validated.matchedSkills.join(', ')} skills.`,
+      };
+    },
+    ar: (parameters) => {
+      const validated = validateRecommendationParameters(parameters);
+      return {
+        title: 'مهمة موصى بها لك',
+        body: `تطابق «${validated.requestTitle}» مهاراتك بنسبة ${Math.round(validated.matchScore * 100)}%: ${validated.matchedSkills.join('، ')}.`,
+      };
+    },
+  },
+  buildDeepLink: (parameters) =>
+    `/contribution-requests/${safeIdentifier(validateRecommendationParameters(parameters).contributionRequestId)}`,
+};
+
 const definitions: NotificationTemplateDefinition[] = [
   deliveryTemplate('submitted'),
   deliveryTemplate('resubmitted'),
@@ -875,6 +1066,8 @@ const definitions: NotificationTemplateDefinition[] = [
   skillGenerationTemplate('needs_more_evidence'),
   skillGenerationTemplate('failed'),
   CONVERSATION_TEMPLATE,
+  matchTemplate(),
+  RECOMMENDATION_TEMPLATE,
   LEGACY_TEMPLATE,
 ];
 
@@ -920,6 +1113,10 @@ export function validateNotificationTemplateParameters<
       return validateSkillGenerationParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'conversation.activity':
       return validateConversationParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'match.found':
+      return validateMatchParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'task.recommendation':
+      return validateRecommendationParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'proposal.revision_requested':
     case 'proposal.accepted':
     case 'proposal.declined':

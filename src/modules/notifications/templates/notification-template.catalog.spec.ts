@@ -35,12 +35,16 @@ describe('Notification template catalog', () => {
       senderName: 'Contributor Name',
       messagePreview: 'Hello owner',
       messageCount: 1,
+      requestTitle: 'Add JWT Authentication',
+      notificationKind: 'skill_matched_task',
+      matchScore: 0.94,
+      matchedSkills: ['Node.js'],
     };
 
     expect(definitions.map((definition) => definition.key)).toEqual(
       NOTIFICATION_TEMPLATE_KEYS,
     );
-    expect(definitions).toHaveLength(23);
+    expect(definitions).toHaveLength(25);
 
     for (const definition of definitions) {
       expect(definition.version).toBe(1);
@@ -153,5 +157,36 @@ describe('Notification template catalog', () => {
       category: NotificationType.skill_review,
       priority: 'attention',
     });
+    expect(getNotificationTemplatePolicy('match.found')).toEqual({
+      category: NotificationType.match_found,
+      priority: 'attention',
+    });
+  });
+
+  it('renders a contributor skill-match notification with its trusted task link', () => {
+    const definition = getNotificationTemplateDefinitions().find(
+      (item) => item.key === 'match.found',
+    )!;
+    expect(
+      definition.render.en({
+        contributionRequestId: 'request-1',
+        requestTitle: 'Add JWT Authentication',
+        audience: 'contributor',
+        notificationKind: 'skill_matched_task',
+        matchScore: 0.94,
+        matchedSkills: ['Node.js', 'JWT'],
+      }),
+    ).toMatchObject({
+      title: 'New task matching your skills',
+      body: expect.stringContaining('94%'),
+    });
+    expect(
+      definition.buildDeepLink({
+        contributionRequestId: 'request-1',
+        requestTitle: 'Add JWT Authentication',
+        audience: 'contributor',
+        notificationKind: 'skill_matched_task',
+      }),
+    ).toBe('/contribution-requests/request-1');
   });
 });

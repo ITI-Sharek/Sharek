@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **148**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **153**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -109,6 +109,12 @@ Unique controller method/path pairs: **148**. WebSocket events are excluded from
 | `POST` | `/projects/import/github` | owner / contributor | 410 | Retired GitHub Import Compatibility Route |
 | `PATCH` | `/projects/me/:projectId` | owner / contributor | 200 | Update My Project |
 
+### Subscriptions
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/me/subscription` | owner / contributor | 200 | Get Current Plan |
+
 ### Contribution Requests
 
 | Method | Path | Auth | Success | Purpose |
@@ -117,8 +123,11 @@ Unique controller method/path pairs: **148**. WebSocket events are excluded from
 | `POST` | `/projects/:projectId/contribution-requests` | Bearer / resource-scoped | 201 | Create Draft |
 | `POST` | `/contribution-requests/:requestId/discard` | Bearer / resource-scoped | 200 | Discard Draft |
 | `GET` | `/tasks` | Public | 200 | Discover Open Requests |
+| `POST` | `/contribution-requests/:requestId/matches/generate` | owner | 201 | Generate |
 | `GET` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Get Owned Request |
 | `GET` | `/tasks/:requestId` | Public | 200 | Get Public Request Detail |
+| `POST` | `/contribution-requests/:requestId/matches/:contributorId/invite` | owner | 200 | Invite |
+| `GET` | `/contribution-requests/:requestId/matches` | owner | 200 | List |
 | `GET` | `/projects/:projectId/contribution-requests` | Bearer / resource-scoped | 200 | List Owned Project Requests by Status |
 | `POST` | `/contribution-requests/:requestId/publish` | Bearer / resource-scoped | 200 | Publish Request |
 | `PATCH` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Update Draft |
@@ -204,9 +213,10 @@ Unique controller method/path pairs: **148**. WebSocket events are excluded from
 | Method | Path | Auth | Success | Purpose |
 | --- | --- | --- | ---: | --- |
 | `POST` | `/contributors/profiles/me/ensure` | Bearer / resource-scoped | 201 | Ensure My Profile |
-| `POST` | `/contributors/me/skill-gap-guidance` | Bearer / resource-scoped | 201 | Generate |
+| `POST` | `/contributors/me/skill-gap-guidance` | Bearer / resource-scoped | 201 | Generate Skill Gap Guidance |
 | `GET` | `/contributors/profiles/:username/avatar` | Public | 200 | Get Contributor Avatar |
 | `GET` | `/contributors/profiles/:username` | Bearer / resource-scoped | 200 | Get Contributor Profile |
+| `GET` | `/contributors/me/recommended-tasks` | contributor | 200 | List |
 | `GET` | `/contributors/profile-fields` | Bearer / resource-scoped | 200 | List Contributor Fields |
 | `GET` | `/contributors/experience-levels` | Public | 200 | List Experience Levels |
 | `PATCH` | `/contributors/profiles/me` | Bearer / resource-scoped | 200 | Update My Profile |

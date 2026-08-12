@@ -7,6 +7,7 @@ import { AiModule } from '../ai/ai.module';
 import { IdentityModule } from '../identity/identity.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SkillProfilesModule } from '../skill-profiles/skill-profiles.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
 import { AdvisoryFitAssessmentQueue } from './jobs/advisory-fit-assessment.queue';
@@ -28,6 +29,7 @@ import { ApplicationReputationFactsService } from './services/application-reputa
     IdentityModule,
     NotificationsModule,
     SkillProfilesModule,
+    SubscriptionsModule,
   ],
   controllers: [ApplicationsController],
   providers: [

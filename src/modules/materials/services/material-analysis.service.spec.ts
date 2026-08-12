@@ -38,6 +38,7 @@ describe('MaterialAnalysisService', () => {
     get: jest.fn((_key: string, fallback: unknown) => fallback),
   };
   const projects = { getMaterialProjectContext: jest.fn() };
+  const subscriptions = { getMaterialAnalysisEntitlement: jest.fn() };
   const storage = { getStream: jest.fn() };
   const ai = { requestMaterialAnalysis: jest.fn() };
   const queue = { enqueueRun: jest.fn() };
@@ -47,6 +48,7 @@ describe('MaterialAnalysisService', () => {
     database as never,
     config as unknown as ConfigService,
     projects as never,
+    subscriptions as never,
     storage as never,
     ai as never,
     queue as never,
@@ -60,6 +62,10 @@ describe('MaterialAnalysisService', () => {
       id: projectId,
       ownerId,
       status: ProjectStatus.draft,
+    });
+    subscriptions.getMaterialAnalysisEntitlement.mockResolvedValue({
+      entitled: true,
+      source: 'demo',
     });
     database.material.findMany.mockResolvedValue([
       {

@@ -20,7 +20,10 @@ import {
   getNotificationTemplatePolicy,
   validateNotificationTemplateParameters,
 } from './templates/notification-template.catalog';
-import { NotificationTemplateKey } from './templates/notification-template.types';
+import {
+  MatchNotificationKind,
+  NotificationTemplateKey,
+} from './templates/notification-template.types';
 
 export interface SkillReviewNotificationInput {
   userId: string;
@@ -102,6 +105,16 @@ export interface ConversationActivityNotificationInput {
   messageId: string;
   senderName: string;
   messagePreview: string;
+}
+
+export interface MatchFoundNotificationInput {
+  userId: string;
+  contributionRequestId: string;
+  requestTitle: string;
+  audience: 'contributor' | 'owner';
+  notificationKind: MatchNotificationKind;
+  matchScore?: number;
+  matchedSkills?: string[];
 }
 
 @Injectable()
@@ -202,6 +215,67 @@ export class NotificationsService {
       created,
       deliveredRealtime,
       notification: realtimeNotification,
+    };
+  }
+
+  async createMatchFoundNotification(
+    input: MatchFoundNotificationInput,
+  ): Promise<NotificationCreateResultDto> {
+    const templateKey: NotificationTemplateKey = 'match.found';
+    const parameters = {
+      contributionRequestId: input.contributionRequestId,
+      requestTitle: input.requestTitle,
+      audience: input.audience,
+      notificationKind: input.notificationKind,
+      ...(input.matchScore === undefined
+        ? {}
+        : { matchScore: input.matchScore }),
+      ...(input.matchedSkills === undefined
+        ? {}
+        : { matchedSkills: input.matchedSkills }),
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
+    const deduplicationKey =
+      `match:${input.notificationKind}:${input.contributionRequestId}:${input.userId}`;
+
+    let persisted: { notification: Notification; created: boolean };
+    try {
+      persisted = await this.database.$transaction(async (transaction) => {
+        const existing = await transaction.notification.findUnique({
+          where: { deduplication_key: deduplicationKey },
+        });
+        if (existing) return { notification: existing, created: false };
+        const notification = await transaction.notification.create({
+          data: {
+            user_id: input.userId,
+            type: policy.category,
+            template_key: templateKey,
+            template_version: 1,
+            parameters,
+            deep_link: `/contribution-requests/${encodeURIComponent(input.contributionRequestId)}`,
+            priority: policy.priority,
+            deduplication_key: deduplicationKey,
+          },
+        });
+        await this.notificationEvents.appendCreated(transaction, notification);
+        return { notification, created: true };
+      });
+    } catch (error) {
+      if (!this.isUniqueConstraintError(error)) throw error;
+      const notification = await this.database.notification.findUniqueOrThrow({
+        where: { deduplication_key: deduplicationKey },
+      });
+      persisted = { notification, created: false };
+    }
+
+    return {
+      notificationId: persisted.notification.id,
+      created: persisted.created,
+      deliveredRealtime: persisted.created
+        ? await this.publishCreated(persisted.notification.id)
+        : false,
+      notification: this.presentRealtimeNotification(persisted.notification),
     };
   }
 

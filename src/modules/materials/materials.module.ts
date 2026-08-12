@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ContributionTasksModule } from '../contribution-tasks/contribution-tasks.module';
 import { AiModule } from '../ai/ai.module';
 import { ProjectsModule } from '../projects/projects.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { MaterialScanQueue } from './jobs/material-scan.queue';
 import { MaterialScanWorker } from './jobs/material-scan.worker';
 import { MaterialsController } from './materials.controller';
@@ -34,7 +35,12 @@ import { MaterialAnalysisQueue } from './jobs/material-analysis.queue';
  * of their owning modules; this module never queries their tables directly.
  */
 @Module({
-  imports: [ProjectsModule, ContributionTasksModule, AiModule],
+  imports: [
+    ProjectsModule,
+    SubscriptionsModule,
+    ContributionTasksModule,
+    AiModule,
+  ],
   controllers: [MaterialsController, MaterialAnalysisController],
   providers: [
     MaterialsService,

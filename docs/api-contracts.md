@@ -1539,6 +1539,35 @@ below-target skills, technologies, source-backed resources, practice projects,
 and improvement steps. It never changes eligibility, Application state, owner
 decisions, rank, or score.
 
+## Sprint 6 subscription and contributor matching contracts
+
+Active owners and contributors can read their role-context plan and explicit
+benefits through `GET /me/subscription`. Owner publication limits are reserved
+atomically per UTC month. Contributor Application submission and Skill Gap
+Guidance remain independent of plan; Material Analysis requires an explicit
+entitlement rather than an inferred plan rank.
+
+Owner-only contributor matching uses:
+
+```http
+GET  /contribution-requests/:requestId/matches
+POST /contribution-requests/:requestId/matches/generate
+POST /contribution-requests/:requestId/matches/:contributorId/invite
+```
+
+The request must be published and owned by the active caller. Silver owners
+receive at most five results, Gold owners at most ten, and Bronze owners are
+rejected before AI execution. Results contain a bounded score, categorical
+confidence, approved matched skills, justification, and exact evidence IDs.
+AI output is recommendation-only and never creates an Application, Assignment,
+selection, or eligibility decision.
+
+Gold contributors can read evidence-scoped reverse recommendations through
+`GET /contributors/me/recommended-tasks`. Matching invitations and premium task
+notifications are deduplicated and never bypass the normal Application flow.
+Priority visibility and commission benefit flags remain explicit plan
+presentation, while contributor submission stays available to every plan.
+
 ## Contract Change Rules
 
 - Breaking API changes require frontend coordination.

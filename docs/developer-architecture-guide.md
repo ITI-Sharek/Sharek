@@ -25,6 +25,8 @@ Choose the module that owns the final business state:
 | `admin` | moderation, reports, disputes, admin queues |
 | `ai` | NestJS AI facade and FastAPI client contracts |
 | `skill-guidance` | explicit contributor guidance workflow and source-scoped recommendations |
+| `subscriptions` | subscription plans, owner usage limits, and explicit MVP entitlements |
+| `matching` | contributor matching, premium notifications, invites, reverse recommendations, and `AiMatchResult` persistence |
 | `health` | operational health endpoint |
 
 The owner performs its own writes. Other modules request behavior through an

@@ -35,7 +35,7 @@ describe('ApplicationReviewWindowService', () => {
         callback(database),
     );
     const contributionTasks = {
-      lockApplicationReviewOwner: jest
+      lockContributionRequestOwnerContext: jest
         .fn()
         .mockResolvedValue({ ownerId: '66666666-6666-4666-8666-666666666666' }),
     };
@@ -126,7 +126,7 @@ describe('ApplicationReviewWindowService', () => {
         },
       }),
     });
-    expect(contributionTasks.lockApplicationReviewOwner).toHaveBeenCalledWith({
+    expect(contributionTasks.lockContributionRequestOwnerContext).toHaveBeenCalledWith({
       requestId: reminderCandidate.contribution_request_id,
       transaction: database,
     });
@@ -243,7 +243,7 @@ describe('ApplicationReviewWindowService', () => {
       expired: 0,
     });
     expect(database.$transaction).not.toHaveBeenCalled();
-    expect(contributionTasks.lockApplicationReviewOwner).not.toHaveBeenCalled();
+    expect(contributionTasks.lockContributionRequestOwnerContext).not.toHaveBeenCalled();
     expect(notifications.createApplicationNotification).not.toHaveBeenCalled();
   });
 

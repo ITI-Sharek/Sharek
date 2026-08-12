@@ -27,15 +27,10 @@ import { MyProjectsResponseDto } from './dto/my-projects.dto';
 import { ProjectPageQueryDto } from './dto/project-publication.dto';
 import { ProposalProjectContextDto } from './dto/proposal-project-context.dto';
 import { toDiscoveredProjectDto } from './mappers/project.mapper';
-
-const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS: Record<
-  SubscriptionPlanType,
-  number
-> = {
-  bronze: 10,
-  silver: 20,
-  gold: 30,
-};
+import {
+  OwnerPublicationEntitlement,
+  SubscriptionsService,
+} from '../subscriptions/subscriptions.service';
 
 interface ContributionRequestProjectRow {
   id: string;
@@ -49,6 +44,7 @@ export class ProjectsService {
     private readonly database: DatabaseService,
     @Inject(forwardRef(() => ApplicationsService))
     private readonly applications: ApplicationsService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async getMyProjectsForActor(
@@ -72,13 +68,9 @@ export class ProjectsService {
     query: ProjectPageQueryDto = {},
   ): Promise<MyProjectsResponseDto> {
     const now = new Date();
-    const monthStart = this.getCurrentMonthStart(now);
-    const monthEnd = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
-    );
     const limit = query.limit ?? 20;
     const cursor = query.cursor ? this.decodeOwnerCursor(query.cursor) : null;
-    const [projects, monthlyRequestCount, entitlement] = await Promise.all([
+    const [projects, entitlement] = await Promise.all([
       this.database.project.findMany({
         where: {
           owner_id: ownerId,
@@ -99,15 +91,6 @@ export class ProjectsService {
               status: true,
               id: true,
             },
-          },
-        },
-      }),
-      this.database.contributionRequest.count({
-        where: {
-          owner_id: ownerId,
-          published_at: {
-            gte: monthStart,
-            lt: monthEnd,
           },
         },
       }),
@@ -151,7 +134,7 @@ export class ProjectsService {
         lastActivityLabel: this.formatLastActivityLabel(project.updated_at),
       })),
       quota: {
-        used: monthlyRequestCount,
+        used: entitlement.monthlyUsage,
         monthlyLimit: entitlement.monthlyLimit,
       },
       pageInfo: {
@@ -207,16 +190,6 @@ export class ProjectsService {
     });
   }
 
-  async isContributionRequestProjectPublished(
-    projectId: string,
-  ): Promise<boolean> {
-    const project = await this.database.project.findUnique({
-      where: { id: projectId },
-      select: { status: true },
-    });
-    return project?.status === ProjectStatus.published;
-  }
-
   async listContributionRequestProjectIdsForOwner(
     ownerId: string,
   ): Promise<string[]> {
@@ -225,6 +198,16 @@ export class ProjectsService {
       select: { id: true },
     });
     return projects.map((project) => project.id);
+  }
+
+  async isContributionRequestProjectPublished(
+    projectId: string,
+  ): Promise<boolean> {
+    const project = await this.database.project.findUnique({
+      where: { id: projectId },
+      select: { status: true },
+    });
+    return project?.status === ProjectStatus.published;
   }
 
   async lockContributionRequestProjectPublication(
@@ -300,50 +283,33 @@ export class ProjectsService {
 
   async getContributionRequestPublicationEntitlement(
     ownerId: string,
-    database: Pick<Prisma.TransactionClient, 'subscription'> = this.database,
+    database: Pick<
+      Prisma.TransactionClient,
+      'subscription' | 'subscriptionEntitlement' | 'usageTracker'
+    > = this.database,
     now = new Date(),
-  ): Promise<{ planType: SubscriptionPlanType; monthlyLimit: number }> {
-    const plan = await database.subscription.findFirst({
-      where: {
-        user_id: ownerId,
-        user_role_context: 'owner',
-        status: 'active',
-        starts_at: { lte: now },
-        OR: [{ expires_at: null }, { expires_at: { gt: now } }],
-      },
-      orderBy: { starts_at: 'desc' },
-      select: { plan_type: true },
-    });
-    const planType = plan?.plan_type ?? SubscriptionPlanType.bronze;
-    return {
-      planType,
-      monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS[planType],
-    };
+  ): Promise<OwnerPublicationEntitlement> {
+    return this.subscriptions.getOwnerContributionRequestPublicationEntitlement(
+      ownerId,
+      database,
+      now,
+    );
   }
 
   async getMaterialAnalysisEntitlement(
     ownerId: string,
-    minimumPlan: SubscriptionPlanType = SubscriptionPlanType.gold,
+    _minimumPlan: SubscriptionPlanType = SubscriptionPlanType.gold,
     now = new Date(),
   ): Promise<{ planType: SubscriptionPlanType; entitled: boolean }> {
-    const plan = await this.database.subscription.findFirst({
-      where: {
-        user_id: ownerId,
-        user_role_context: 'owner',
-        status: 'active',
-        starts_at: { lte: now },
-        OR: [{ expires_at: null }, { expires_at: { gt: now } }],
-      },
-      orderBy: { starts_at: 'desc' },
-      select: { plan_type: true },
-    });
-    const planType = plan?.plan_type ?? SubscriptionPlanType.bronze;
-    const rank: Record<SubscriptionPlanType, number> = {
-      bronze: 1,
-      silver: 2,
-      gold: 3,
-    };
-    return { planType, entitled: rank[planType] >= rank[minimumPlan] };
+    const [plan, entitlement] = await Promise.all([
+      this.subscriptions.getOwnerContributionRequestPublicationEntitlement(
+        ownerId,
+        this.database,
+        now,
+      ),
+      this.subscriptions.getMaterialAnalysisEntitlement(ownerId, now),
+    ]);
+    return { planType: plan.planType, entitled: entitlement.entitled };
   }
 
   async lockContributionRequestProjectAccess(
@@ -497,10 +463,18 @@ export class ProjectsService {
         take: limit,
       }),
     ]);
+    const priorityOwnerIds =
+      typeof this.subscriptions.listOwnerPriorityVisibility === 'function'
+        ? await this.subscriptions.listOwnerPriorityVisibility(
+            projects.map((project) => project.owner_id),
+          )
+        : new Set<string>();
 
     return {
       projects: projects.map((project) =>
-        toDiscoveredProjectDto(project, project.slug),
+        toDiscoveredProjectDto(project, project.slug, {
+          priorityVisibility: priorityOwnerIds.has(project.owner_id),
+        }),
       ),
       pagination: {
         page,
@@ -638,10 +612,6 @@ export class ProjectsService {
       );
     }
   }
-  private getCurrentMonthStart(now = new Date()): Date {
-    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  }
-
   private decodeOwnerCursor(cursor: string): { updatedAt: Date; id: string } {
     try {
       const parsed = JSON.parse(

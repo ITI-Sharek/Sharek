@@ -163,7 +163,9 @@ uploaded it, who could read it, and when that ended.
 ## Cross-module boundary
 
 Project and Assignment facts are read through exported `ProjectsService`
-capabilities. This module never reads another module's tables directly.
+capabilities, and the explicit `PROJECT_MATERIAL_ANALYSIS` entitlement is read
+through exported `SubscriptionsService` capabilities. This module never reads
+another module's tables directly.
 
 ## Material analysis
 
@@ -172,7 +174,9 @@ Versions through `POST /projects/:projectId/material-analysis/sets`, then
 explicitly starts `POST /material-analysis/sets/:analysisSetId/runs`. Limits,
 supported MIME types, and the optional minimum subscription plan are exposed by
 `GET /projects/:projectId/material-analysis/constraints` and are enforced by
-the backend. The Run is queued; a worker performs the only byte read and calls
+the backend. Access requires an explicit seeded, demo, or admin entitlement
+when the subscription gate is enabled; plan rank alone is not sufficient. The
+Run is queued; a worker performs the only byte read and calls
 the bearer-authenticated FastAPI `/material-analysis/analyze` contract.
 
 The AI service supports Markdown, DOCX, and text-based PDF extraction, treats
