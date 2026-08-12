@@ -1187,6 +1187,88 @@ describe('ApplicationsService submission and withdrawal', () => {
     }
   });
 
+  it('exposes the complete Application progression for the contributor Delivery lifecycle', async () => {
+    const assignedAt = new Date('2026-08-11T10:00:00.000Z');
+    const deliveryDueAt = new Date('2026-08-25T10:00:00.000Z');
+    database.application.findMany.mockResolvedValue([
+      {
+        id: applicationId,
+        contribution_request_id: requestId,
+        contributor_id: contributor.id,
+        status: ApplicationStatus.accepted,
+        contributionRequest: { title: 'Add JWT authentication' },
+        contributor: {
+          id: contributor.id,
+          username: 'contributor',
+          first_name: 'Example',
+          last_name: 'Contributor',
+          avatar_url: null,
+        },
+        assignment: {
+          agreed_delivery_due_at: deliveryDueAt,
+          assigned_at: assignedAt,
+        },
+      },
+      {
+        id: '55555555-5555-4555-8555-555555555555',
+        contribution_request_id: requestId,
+        contributor_id: contributor.id,
+        status: ApplicationStatus.pending_owner_review,
+        contributionRequest: { title: 'Incomplete legacy acceptance' },
+        contributor: {
+          id: contributor.id,
+          username: 'contributor',
+          first_name: 'Example',
+          last_name: 'Contributor',
+          avatar_url: null,
+        },
+        assignment: null,
+      },
+    ]);
+
+    await expect(
+      service.listDeliveryLifecycleContextsForContributor(contributor.id),
+    ).resolves.toEqual([
+      {
+        applicationId,
+        contributionRequestId: requestId,
+        contributionRequestTitle: 'Add JWT authentication',
+        contributorId: contributor.id,
+        contributor: {
+          id: contributor.id,
+          username: 'contributor',
+          displayName: 'Example Contributor',
+          avatarUrl: null,
+        },
+        applicationStatus: 'ACCEPTED',
+        deliveryDueAt,
+        assignedAt,
+      },
+      {
+        applicationId: '55555555-5555-4555-8555-555555555555',
+        contributionRequestId: requestId,
+        contributionRequestTitle: 'Incomplete legacy acceptance',
+        contributorId: contributor.id,
+        contributor: {
+          id: contributor.id,
+          username: 'contributor',
+          displayName: 'Example Contributor',
+          avatarUrl: null,
+        },
+        applicationStatus: 'PENDING_OWNER_REVIEW',
+        deliveryDueAt: null,
+        assignedAt: null,
+      },
+    ]);
+    expect(database.application.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          contributor_id: contributor.id,
+        },
+      }),
+    );
+  });
+
   it('returns every pending Application as REQUEST_CANCELLED with immutable audits', async () => {
     const secondApplicationId = '55555555-5555-4555-8555-555555555555';
     database.$queryRaw.mockResolvedValue([

@@ -1498,6 +1498,47 @@ contributorId }`, and once the Request is published `GET
 contributorName, contributorUsername }`; clients display the handle as
 `@contributorUsername` when present.
 
+## Sprint 5 delivery, reputation, and guidance contracts
+
+Delivery routes require an active bearer session. Delivery writes also require
+a UUIDv4 `Idempotency-Key`; reuse with different content fails with
+`IDEMPOTENCY_KEY_REUSED`.
+
+```http
+POST  /applications/:applicationId/deliveries
+PATCH /deliveries/:deliveryId
+GET   /deliveries/:deliveryId
+GET   /me/deliveries
+GET   /owner/deliveries
+GET   /owner/delivery-lifecycle
+POST  /deliveries/:deliveryId/reviews
+```
+
+Submissions use a canonical GitHub pull-request URL and optional contributor
+notes. Owner review accepts `APPROVED` with a 1-5 rating, or
+`CHANGES_REQUESTED`/`REJECTED` with required feedback. Each contributor command
+and owner decision is retained in immutable history. Approval atomically
+completes the Contribution Request and appends a durable reputation event.
+
+Contributor profiles expose the verified reputation projection: average
+approved-delivery rating, rating count, approved contribution count,
+assigned-task success rate, and up to five deterministically ranked verified
+skills derived from approved work.
+
+Explicit Skill Gap Guidance is contributor-initiated and independent of
+Application outcomes and subscription tiers:
+
+```http
+POST /contributors/me/skill-gap-guidance
+GET  /contributors/me/skill-gap-guidance/stream?contributionRequestId=<uuid>
+```
+
+NestJS assembles the published request requirements and approved-skill evidence
+before calling FastAPI. The validated result may contain missing or
+below-target skills, technologies, source-backed resources, practice projects,
+and improvement steps. It never changes eligibility, Application state, owner
+decisions, rank, or score.
+
 ## Contract Change Rules
 
 - Breaking API changes require frontend coordination.

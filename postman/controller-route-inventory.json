@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 140,
+  "routeCount": 148,
   "routes": [
     {
       "method": "GET",
@@ -609,6 +609,48 @@
       "authentication": "bearer",
       "idempotency": true,
       "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/applications/:applicationId/deliveries",
+      "normalizedPath": "/applications/:parameter/deliveries",
+      "key": "POST /applications/:parameter/deliveries",
+      "controller": "DeliveryReviewsController",
+      "handler": "submit",
+      "source": "src/modules/delivery-reviews/delivery-reviews.controller.ts",
+      "pathParameters": [
+        "applicationId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "SubmitDeliveryDto",
+      "bodyFields": [
+        {
+          "name": "pullRequestUrl",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "contributorNotes",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
     },
     {
       "method": "POST",
@@ -2227,6 +2269,36 @@
       "successStatus": 200
     },
     {
+      "method": "POST",
+      "path": "/contributors/me/skill-gap-guidance",
+      "normalizedPath": "/contributors/me/skill-gap-guidance",
+      "key": "POST /contributors/me/skill-gap-guidance",
+      "controller": "SkillGapGuidanceController",
+      "handler": "generate",
+      "source": "src/modules/skill-guidance/skill-guidance.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "SkillGapGuidanceRequest",
+      "bodyFields": [
+        {
+          "name": "contributionRequestId",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
       "method": "GET",
       "path": "/contributors/profile-fields",
       "normalizedPath": "/contributors/profile-fields",
@@ -2398,6 +2470,121 @@
       "roles": [],
       "authentication": "bearer",
       "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/deliveries/:deliveryId",
+      "normalizedPath": "/deliveries/:parameter",
+      "key": "GET /deliveries/:parameter",
+      "controller": "DeliveryReviewsController",
+      "handler": "getForActor",
+      "source": "src/modules/delivery-reviews/delivery-reviews.controller.ts",
+      "pathParameters": [
+        "deliveryId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/deliveries/:deliveryId",
+      "normalizedPath": "/deliveries/:parameter",
+      "key": "PATCH /deliveries/:parameter",
+      "controller": "DeliveryReviewsController",
+      "handler": "update",
+      "source": "src/modules/delivery-reviews/delivery-reviews.controller.ts",
+      "pathParameters": [
+        "deliveryId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "SubmitDeliveryDto",
+      "bodyFields": [
+        {
+          "name": "pullRequestUrl",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "contributorNotes",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/deliveries/:deliveryId/reviews",
+      "normalizedPath": "/deliveries/:parameter/reviews",
+      "key": "POST /deliveries/:parameter/reviews",
+      "controller": "DeliveryReviewsController",
+      "handler": "review",
+      "source": "src/modules/delivery-reviews/delivery-reviews.controller.ts",
+      "pathParameters": [
+        "deliveryId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "ReviewDeliveryDto",
+      "bodyFields": [
+        {
+          "name": "outcome",
+          "optional": false,
+          "type": "DeliveryReviewOutcomeInput"
+        },
+        {
+          "name": "rating",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "feedback",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
       "successStatus": 201
     },
     {
@@ -3411,6 +3598,30 @@
     },
     {
       "method": "GET",
+      "path": "/me/deliveries",
+      "normalizedPath": "/me/deliveries",
+      "key": "GET /me/deliveries",
+      "controller": "DeliveryReviewsController",
+      "handler": "listContributorLifecycle",
+      "source": "src/modules/delivery-reviews/delivery-reviews.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
       "path": "/me/notification-preferences",
       "normalizedPath": "/me/notification-preferences",
       "key": "GET /me/notification-preferences",
@@ -3710,6 +3921,54 @@
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/owner/deliveries",
+      "normalizedPath": "/owner/deliveries",
+      "key": "GET /owner/deliveries",
+      "controller": "DeliveryReviewsController",
+      "handler": "listReviewQueue",
+      "source": "src/modules/delivery-reviews/delivery-reviews.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/owner/delivery-lifecycle",
+      "normalizedPath": "/owner/delivery-lifecycle",
+      "key": "GET /owner/delivery-lifecycle",
+      "controller": "DeliveryReviewsController",
+      "handler": "listOwnerLifecycle",
+      "source": "src/modules/delivery-reviews/delivery-reviews.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
     },
     {
       "method": "POST",

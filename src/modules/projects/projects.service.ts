@@ -217,6 +217,16 @@ export class ProjectsService {
     return project?.status === ProjectStatus.published;
   }
 
+  async listContributionRequestProjectIdsForOwner(
+    ownerId: string,
+  ): Promise<string[]> {
+    const projects = await this.database.project.findMany({
+      where: { owner_id: ownerId },
+      select: { id: true },
+    });
+    return projects.map((project) => project.id);
+  }
+
   async lockContributionRequestProjectPublication(
     projectId: string,
     transaction: Prisma.TransactionClient,

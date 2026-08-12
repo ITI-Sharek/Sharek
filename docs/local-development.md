@@ -67,6 +67,8 @@ SKILL_PROFILE_QUEUE_CONCURRENCY=2
 APPLICATION_REVIEW_QUEUE_ENABLED=true
 APPLICATION_REVIEW_SWEEP_INTERVAL_MS=60000
 APPLICATION_REVIEW_SWEEP_BATCH_SIZE=100
+DELIVERY_REPUTATION_QUEUE_ENABLED=true
+DELIVERY_REPUTATION_SWEEP_INTERVAL_MS=60000
 JWT_ACCESS_SECRET=change-me
 JWT_REFRESH_SECRET=change-me
 GITHUB_CLIENT_ID=
@@ -156,6 +158,15 @@ downtime does not lose a reminder or expiry. Disable
 `APPLICATION_REVIEW_QUEUE_ENABLED` for isolated tests. The interval is bounded
 to 10 seconds through 24 hours and the per-phase batch size to 1 through 1000.
 Docker Compose forwards all three scheduler controls to the API container.
+
+The Delivery reputation worker also requires Redis. Each run first consumes
+durable approval events and acknowledges them only after the contributor's
+projection is stored, then reconciles assigned contributors so rejection and
+assignment changes are reflected even without a new approval event. Disable
+`DELIVERY_REPUTATION_QUEUE_ENABLED` for isolated tests; when it is unset the
+worker defaults off in `test` and on in development and production. The sweep
+interval is bounded to 10 seconds through 24 hours. Docker Compose forwards
+both controls to the API container.
 
 For the supported host-run workflow, keep PostgreSQL and Redis running through
 Compose and run `npm run start:dev`. `DATABASE_URL` and `REDIS_URL` must come

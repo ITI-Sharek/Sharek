@@ -7,6 +7,63 @@ import {
 import { NotificationsService } from './notifications.service';
 
 describe('NotificationsService', () => {
+  it('persists a resubmission notification with owner feedback-safe Delivery parameters', async () => {
+    const createdAt = new Date('2026-08-11T12:00:00.000Z');
+    const persisted = {
+      id: 'notification-delivery-1',
+      user_id: 'owner-1',
+      type: NotificationType.delivery_update,
+      template_key: 'delivery.resubmitted',
+      template_version: 1,
+      parameters: {
+        deliveryId: 'delivery-1',
+        contributionRequestId: 'request-1',
+        submissionNumber: 2,
+      },
+      deep_link: '/deliveries/delivery-1',
+      priority: 'attention',
+      deduplication_key: 'delivery:delivery-1:resubmitted:2',
+      is_read: false,
+      read_at: null,
+      aggregate_version: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+      title: null,
+      message: null,
+      metadata: null,
+    };
+    const transaction = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(persisted),
+      },
+      notificationEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-delivery-1' }),
+      },
+    };
+    const service = new NotificationsService({} as never);
+
+    await expect(
+      service.createDeliveryNotification(
+        {
+          userId: 'owner-1',
+          deliveryId: 'delivery-1',
+          contributionRequestId: 'request-1',
+          action: 'resubmitted',
+          submissionNumber: 2,
+        },
+        { transaction: transaction as never, emitRealtime: false },
+      ),
+    ).resolves.toMatchObject({ created: true, deliveredRealtime: false });
+    expect(transaction.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        template_key: 'delivery.resubmitted',
+        deep_link: '/deliveries/delivery-1',
+        deduplication_key: 'delivery:delivery-1:resubmitted:2',
+      }),
+    });
+  });
+
   it('creates a conversation activity notification and its durable event in the message transaction', async () => {
     const createdAt = new Date('2026-08-10T12:00:00.000Z');
     const persisted = {
@@ -1050,4 +1107,5 @@ describe('NotificationsService', () => {
 
     expect(database.$transaction).not.toHaveBeenCalled();
   });
+
 });

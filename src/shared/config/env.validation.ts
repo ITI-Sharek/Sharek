@@ -63,6 +63,14 @@ export const envValidationSchema = Joi.object({
     .min(1)
     .max(1_000)
     .default(100),
+  DELIVERY_REPUTATION_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false'),
+  DELIVERY_REPUTATION_SWEEP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .max(86_400_000)
+    .default(60_000),
   ADVISORY_FIT_QUEUE_ENABLED: Joi.boolean()
     .truthy('true')
     .falsy('false')
@@ -172,6 +180,14 @@ export const envValidationSchema = Joi.object({
   // FastAPI allows up to 60 seconds for the provider call; leave network
   // overhead before NestJS converts a slow but valid response into UNAVAILABLE.
   AI_ADVISORY_FIT_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120_000)
+    .default(75_000),
+  AI_SKILL_GAP_GUIDANCE_PATH: Joi.string()
+    .pattern(/^\/[a-zA-Z0-9/_-]+$/)
+    .default('/skill-gap-guidance/generate'),
+  AI_SKILL_GAP_GUIDANCE_TIMEOUT_MS: Joi.number()
     .integer()
     .min(100)
     .max(120_000)

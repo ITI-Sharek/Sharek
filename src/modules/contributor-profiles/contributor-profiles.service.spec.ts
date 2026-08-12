@@ -138,7 +138,7 @@ describe('ContributorProfilesService', () => {
       {
         getSummaryForUser: jest
           .fn()
-          .mockResolvedValue({ rating: null, reviewsCount: 0 }),
+          .mockResolvedValue(emptyReputationSummary()),
       } as never,
     );
 
@@ -210,7 +210,7 @@ describe('ContributorProfilesService', () => {
       {
         getSummaryForUser: jest
           .fn()
-          .mockResolvedValue({ rating: null, reviewsCount: 0 }),
+          .mockResolvedValue(emptyReputationSummary()),
       } as never,
       { listInstallationLinks } as never,
     );
@@ -223,3 +223,14 @@ describe('ContributorProfilesService', () => {
     expect(listInstallationLinks).toHaveBeenCalledWith(user.id);
   });
 });
+
+function emptyReputationSummary() {
+  return {
+    rating: null,
+    reviewsCount: 0,
+    completedContributions: 0,
+    totalAssignedTasks: 0,
+    successRate: 0,
+    topVerifiedSkills: [],
+  };
+}

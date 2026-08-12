@@ -58,6 +58,7 @@ const orderedFolderNames = [
   'Projects',
   'Contribution Requests',
   'Applications',
+  'Delivery Reviews',
   'Contribution Proposals',
   'Materials',
   'Material Analysis',
@@ -81,7 +82,7 @@ const collection = {
   auth: bearerAuth('accessToken'),
   event: [
     scriptEvent('prerequest', [
-      "const uuidVariables = ['applicationIdempotencyKey', 'assessmentIdempotencyKey', 'acceptIdempotencyKey', 'declineIdempotencyKey', 'withdrawalIdempotencyKey', 'createRequestIdempotencyKey', 'updateRequestIdempotencyKey', 'discardRequestIdempotencyKey', 'publishRequestIdempotencyKey', 'cancelRequestIdempotencyKey', 'projectCommandIdempotencyKey', 'proposalSubmissionIdempotencyKey', 'proposalRevisionIdempotencyKey', 'proposalVersionIdempotencyKey', 'proposalWithdrawalIdempotencyKey', 'proposalAcceptIdempotencyKey', 'proposalDeclineIdempotencyKey', 'proposalMisuseIdempotencyKey', 'materialIdempotencyKey', 'materialAnalysisIdempotencyKey', 'messageIdempotencyKey'];",
+      "const uuidVariables = ['applicationIdempotencyKey', 'assessmentIdempotencyKey', 'acceptIdempotencyKey', 'declineIdempotencyKey', 'withdrawalIdempotencyKey', 'createRequestIdempotencyKey', 'updateRequestIdempotencyKey', 'discardRequestIdempotencyKey', 'publishRequestIdempotencyKey', 'cancelRequestIdempotencyKey', 'projectCommandIdempotencyKey', 'proposalSubmissionIdempotencyKey', 'proposalRevisionIdempotencyKey', 'proposalVersionIdempotencyKey', 'proposalWithdrawalIdempotencyKey', 'proposalAcceptIdempotencyKey', 'proposalDeclineIdempotencyKey', 'proposalMisuseIdempotencyKey', 'materialIdempotencyKey', 'materialAnalysisIdempotencyKey', 'messageIdempotencyKey', 'deliverySubmissionIdempotencyKey', 'deliveryUpdateIdempotencyKey', 'deliveryReviewIdempotencyKey'];",
       'uuidVariables.forEach(function (name) {',
       "  if (!pm.environment.get(name)) pm.environment.set(name, pm.variables.replaceIn('{{$guid}}'));",
       '});',
@@ -323,6 +324,15 @@ function normalizeHeaders(route, headers) {
 }
 
 function idempotencyVariableFor(route) {
+  if (route.path.endsWith('/deliveries')) {
+    return '{{deliverySubmissionIdempotencyKey}}';
+  }
+  if (route.path.endsWith('/reviews')) {
+    return '{{deliveryReviewIdempotencyKey}}';
+  }
+  if (route.path.startsWith('/deliveries/')) {
+    return '{{deliveryUpdateIdempotencyKey}}';
+  }
   if (route.path.includes('/projects/') && route.path.includes('/contribution-requests')) {
     return '{{createRequestIdempotencyKey}}';
   }
@@ -363,6 +373,22 @@ function applyBodyCorrections(route, request) {
     ['POST /assignment-conversations/:parameter/messages', {
       idempotencyKey: '{{messageIdempotencyKey}}',
       body: 'Hello from the Assignment conversation.',
+    }],
+    ['POST /applications/:parameter/deliveries', {
+      pullRequestUrl: 'https://github.com/octocat/Hello-World/pull/1',
+      contributorNotes: 'Ready for owner review.',
+    }],
+    ['PATCH /deliveries/:parameter', {
+      pullRequestUrl: 'https://github.com/octocat/Hello-World/pull/2',
+      contributorNotes: 'Updated after review.',
+    }],
+    ['POST /deliveries/:parameter/reviews', {
+      outcome: 'APPROVED',
+      rating: 5,
+      feedback: 'The delivery meets the request requirements.',
+    }],
+    ['POST /contributors/me/skill-gap-guidance', {
+      contributionRequestId: '{{contributionRequestId}}',
     }],
     ['PATCH /me/notification-preferences', {
       expectedRevision: 1,
@@ -421,6 +447,13 @@ function folderFor(route) {
     if (routePath.includes('/material-analysis')) return 'Material Analysis';
     return 'Projects';
   }
+  if (
+    routePath.startsWith('/deliveries') ||
+    routePath.startsWith('/owner/deliveries') ||
+    routePath.startsWith('/owner/delivery-lifecycle') ||
+    routePath.startsWith('/me/deliveries') ||
+    (routePath.startsWith('/applications/') && routePath.endsWith('/deliveries'))
+  ) return 'Delivery Reviews';
   if (routePath.startsWith('/applications') || routePath.startsWith('/owner-decisions')) return 'Applications';
   if (routePath.startsWith('/tasks')) {
     return routePath.includes('/applications') ? 'Applications' : 'Contribution Requests';
@@ -448,6 +481,16 @@ function requestAuth(route) {
 function tokenVariableFor(route) {
   if (route.roles.includes('admin')) return 'adminAccessToken';
   const pathValue = route.path;
+  if (pathValue.startsWith('/owner/deliveries')) return 'ownerAccessToken';
+  if (pathValue.startsWith('/owner/delivery-lifecycle')) return 'ownerAccessToken';
+  if (pathValue.startsWith('/me/deliveries')) return 'contributorAccessToken';
+  if (pathValue.includes('/deliveries') && route.handler.includes('review')) {
+    return 'ownerAccessToken';
+  }
+  if (
+    pathValue.endsWith('/deliveries') ||
+    (pathValue.startsWith('/deliveries/') && route.method === 'PATCH')
+  ) return 'contributorAccessToken';
   if (
     pathValue.startsWith('/projects/me') ||
     pathValue.startsWith('/projects/github') ||
@@ -564,6 +607,7 @@ function captureScript(route) {
     ['POST /projects', ['projectId', 'id']],
     ['POST /projects/:parameter/contribution-requests', ['contributionRequestId', 'id']],
     ['POST /tasks/:parameter/applications', ['applicationId', 'id']],
+    ['POST /applications/:parameter/deliveries', ['deliveryId', 'id']],
     ['POST /contribution-proposals', ['contributionProposalId', 'id']],
     ['POST /projects/:parameter/materials', ['materialId', 'id']],
     ['POST /contribution-requests/:parameter/materials', ['materialId', 'id']],
@@ -681,6 +725,7 @@ function folderDescription(name) {
     Projects: 'Canonical Project preview, draft, owner lifecycle, discovery, and public reads.',
     'Contribution Requests': 'Owner-managed Contribution Request lifecycle and public actionable discovery.',
     Applications: 'Application submission, review, decisions, advisory assessment, and feedback-report workflows.',
+    'Delivery Reviews': 'Contributor Delivery submission and immutable revisions, owner review queue, review outcomes, and participant-visible history.',
     'Contribution Proposals': 'Private contributor-authored Proposal lifecycle and owner responses.',
     Materials: 'Multipart upload, immutable versions, grants, visibility, downloads, listing, and deletion.',
     'Material Analysis': 'Owner-authorized version-fixed Analysis Sets, Runs, and explicit suggestion review/adoption.',
