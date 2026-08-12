@@ -22,14 +22,35 @@ describe('ProjectsService', () => {
   const applications = {
     summarizePendingByContributionRequests: jest.fn(),
   };
-  const service = new ProjectsService(database as never, applications as never);
+  const subscriptions = {
+    getOwnerContributionRequestPublicationEntitlement: jest.fn(),
+    getMaterialAnalysisEntitlement: jest.fn(),
+  };
+  const service = new ProjectsService(
+    database as never,
+    applications as never,
+    subscriptions as never,
+  );
 
   beforeEach(() => {
     jest.resetAllMocks();
     applications.summarizePendingByContributionRequests.mockResolvedValue({
       projects: [],
     });
-    database.subscription.findFirst.mockResolvedValue(null);
+    subscriptions.getOwnerContributionRequestPublicationEntitlement.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+        monthlyUsage: 0,
+        monthlyUsagePeriodStart: new Date('2026-08-01T00:00:00.000Z'),
+        monthlyUsagePeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        source: 'default',
+      },
+    );
+    subscriptions.getMaterialAnalysisEntitlement.mockResolvedValue({
+      entitled: false,
+      source: null,
+    });
   });
 
   it('returns only published Project references to public Request discovery', async () => {
@@ -45,6 +66,21 @@ describe('ProjectsService', () => {
         id: { in: ['project-id'] },
       },
       select: { id: true, title: true, slug: true },
+    });
+  });
+
+  it('lists only Project IDs owned by the Delivery review actor', async () => {
+    database.project.findMany.mockResolvedValue([
+      { id: 'project-1' },
+      { id: 'project-2' },
+    ]);
+
+    await expect(
+      service.listContributionRequestProjectIdsForOwner('owner-id'),
+    ).resolves.toEqual(['project-1', 'project-2']);
+    expect(database.project.findMany).toHaveBeenCalledWith({
+      where: { owner_id: 'owner-id' },
+      select: { id: true },
     });
   });
 
@@ -211,8 +247,16 @@ describe('ProjectsService', () => {
         ],
       },
     ]);
-    database.contributionRequest.count.mockResolvedValue(7);
-    database.subscription.findFirst.mockResolvedValue({ plan_type: 'gold' });
+    subscriptions.getOwnerContributionRequestPublicationEntitlement.mockResolvedValue(
+      {
+        planType: 'gold',
+        monthlyLimit: 30,
+        monthlyUsage: 7,
+        monthlyUsagePeriodStart: new Date('2026-08-01T00:00:00.000Z'),
+        monthlyUsagePeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        source: 'demo',
+      },
+    );
     applications.summarizePendingByContributionRequests.mockResolvedValue({
       projects: [{ projectId: 'project-id', pendingApplicationCount: 1 }],
     });
@@ -228,15 +272,6 @@ describe('ProjectsService', () => {
         },
       ],
       quota: { used: 7, monthlyLimit: 30 },
-    });
-    expect(database.contributionRequest.count).toHaveBeenCalledWith({
-      where: {
-        owner_id: 'owner-id',
-        published_at: {
-          gte: expect.any(Date),
-          lt: expect.any(Date),
-        },
-      },
     });
     expect(
       applications.summarizePendingByContributionRequests,

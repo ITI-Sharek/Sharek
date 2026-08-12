@@ -467,7 +467,11 @@ describe('ApplicationsService submission and withdrawal', () => {
           contribution_request_id: requestId,
           status: ApplicationStatus.pending_owner_review,
         },
-        orderBy: [{ submitted_at: 'asc' }, { id: 'asc' }],
+        orderBy: [
+          { is_priority: 'desc' },
+          { submitted_at: 'asc' },
+          { id: 'asc' },
+        ],
         include: expect.any(Object),
       });
       expect(contributionTasks.confirmOwnerDecisionActor).toHaveBeenCalledWith({

@@ -19,6 +19,8 @@ business decisions, and its database writes.
 | `admin` | planned | moderation, disputes, reports, queues |
 | `ai` | implemented facade | FastAPI client contracts and AI facade |
 | `skill-guidance` | implemented | explicit contributor guidance workflow and source-scoped AI recommendations |
+| `subscriptions` | implemented | plan context, owner limits, explicit MVP entitlements, and usage reservation |
+| `matching` | implemented | Silver/Gold matching, premium notifications, invites, and Gold reverse recommendations |
 
 Small modules use root controller/service files. Larger modules use
 `controllers/` and `services/`. Optional folders are created only for real code.

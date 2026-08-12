@@ -170,6 +170,8 @@ needs workflow code.
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `skill-guidance` | Implemented explicit contributor-requested source-scoped guidance | controller, service, DTO, context adapter, tests | saved plans require a separate decision | Update when guidance authorization, source policy, routes, or persistence changes |
+| `subscriptions` | Implemented plan context, owner limits, explicit entitlements, and usage reservation | controller, service, DTOs, migrations, tests | payment/checkout remains out of MVP | Update when plan, benefit, entitlement, or usage policy changes |
+| `matching` | Implemented owner matching, invitations, premium task notices, and reverse recommendations | controller, service, AI adapter, queue/worker, persistence, tests | richer ranking evaluation | Update when matching inputs, ranking, premium actions, or persistence changes |
 | `health` | Implemented health endpoint | health controller, response, module, test | readiness checks for database/Redis/external dependencies if needed | Update when health response shape or readiness checks change |
 
 ## Per-Task Checklist
@@ -2856,3 +2858,13 @@ This keeps the system strong without making it heavy:
 - Scope: this closure contains Sprint 5 only. Subscription entitlements,
   contributor matching, premium benefits, and notification migration repair
   remain outside this change.
+
+### 2026-08-12 - Sprint 6 backend implementation
+
+- Added explicit subscription status, entitlements, and atomic owner usage
+  reservation without changing contributor Application availability.
+- Added evidence-scoped contributor matching, persisted bounded results,
+  owner invitations, premium task notifications, and Gold reverse
+  recommendations. AI remains recommendation-only.
+- Added priority and commission benefit presentation behind the same plan seam.
+- Scope: this change contains Sprint 6 product work only.

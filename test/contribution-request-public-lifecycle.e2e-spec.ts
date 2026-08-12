@@ -18,6 +18,7 @@ import { ContributorProfilesService } from '../src/modules/contributor-profiles/
 import { IdentityUsernameService } from '../src/modules/identity/services/identity-username.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { ProjectsService } from '../src/modules/projects/projects.service';
+import { SubscriptionsService } from '../src/modules/subscriptions/subscriptions.service';
 import { SkillProfileSummaryService } from '../src/modules/skill-profiles/services/skill-profile-summary.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
 import { DatabaseService } from '../src/shared/database/database.service';
@@ -228,6 +229,10 @@ describe('Contribution Request owner publication HTTP integration', () => {
     lockContributionRequestProjectOwnerAccess: jest.fn(),
     getContributionRequestPublicationEntitlement: jest.fn(),
   };
+  const subscriptionsService = {
+    getOwnerContributionRequestPublicationEntitlement: jest.fn(),
+    reserveOwnerContributionRequestPublication: jest.fn(),
+  };
   const contributionTasksService = {
     getApplicationSubmissionContext: jest.fn(),
   };
@@ -245,6 +250,7 @@ describe('Contribution Request owner publication HTTP integration', () => {
         },
         { provide: DatabaseService, useValue: database },
         { provide: ProjectsService, useValue: projectsService },
+        { provide: SubscriptionsService, useValue: subscriptionsService },
         { provide: SkillProfileSummaryService, useValue: {} },
         { provide: IdentityUsernameService, useValue: {} },
         { provide: NotificationsService, useValue: {} },
@@ -310,6 +316,27 @@ describe('Contribution Request owner publication HTTP integration', () => {
       {
         planType: 'bronze',
         monthlyLimit: 10,
+      },
+    );
+    subscriptionsService.getOwnerContributionRequestPublicationEntitlement.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+        monthlyUsage: 0,
+        monthlyUsagePeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+        monthlyUsagePeriodEnd: new Date('2026-08-01T00:00:00.000Z'),
+        source: 'default',
+      },
+    );
+    subscriptionsService.reserveOwnerContributionRequestPublication.mockResolvedValue(
+      {
+        planType: 'bronze',
+        monthlyLimit: 10,
+        monthlyUsage: 1,
+        monthlyUsageBefore: 0,
+        monthlyUsagePeriodStart: new Date('2026-07-01T00:00:00.000Z'),
+        monthlyUsagePeriodEnd: new Date('2026-08-01T00:00:00.000Z'),
+        source: 'default',
       },
     );
   });

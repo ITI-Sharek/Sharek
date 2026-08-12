@@ -22,6 +22,7 @@ import { ContributorProfilesService } from '../contributor-profiles/contributor-
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SkillProfileSummaryService } from '../skill-profiles/services/skill-profile-summary.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   ApplicationDto,
   ApplicationEvidenceSummaryDto,
@@ -80,6 +81,8 @@ export class ApplicationsService {
     private readonly contributorProfiles: ContributorProfilesService,
     @Optional()
     private readonly assignmentConversations?: AssignmentConversationsService,
+    @Optional()
+    private readonly subscriptions?: SubscriptionsService,
   ) {}
 
   async submit(input: {
@@ -124,6 +127,9 @@ export class ApplicationsService {
       profile: profileContext,
     };
 
+    const priorityApplicationVisibility =
+      (await this.subscriptions?.getContributorBenefitEntitlement(input.actor.id))
+        ?.priorityApplicationVisibility ?? false;
     let application: ApplicationWithSnapshots;
     try {
       application = await this.database.$transaction(async (transaction) => {
@@ -198,6 +204,7 @@ export class ApplicationsService {
             requirement_snapshot_id: requirementSnapshotId,
             evidence_snapshot_id: evidenceSnapshotId,
             status: ApplicationStatus.pending_owner_review,
+            is_priority: priorityApplicationVisibility,
             submitted_at: now,
             review_due_at: this.addDays(now, APPLICATION_REVIEW_REMINDER_DAYS),
             expires_at: this.addDays(now, APPLICATION_REVIEW_EXPIRY_DAYS),
@@ -252,7 +259,11 @@ export class ApplicationsService {
         contribution_request_id: contributionRequestId,
         status: ApplicationStatus.pending_owner_review,
       },
-      orderBy: [{ submitted_at: 'asc' }, { id: 'asc' }],
+      orderBy: [
+        { is_priority: 'desc' },
+        { submitted_at: 'asc' },
+        { id: 'asc' },
+      ],
       include: APPLICATION_INCLUDE,
     });
     return {
@@ -1032,6 +1043,7 @@ export class ApplicationsService {
         application.contribution_approach ?? application.cover_message,
       proposedDeliveryDurationDays: application.proposed_delivery_duration_days,
       status: this.presentStatus(application.status),
+      isPriority: application.is_priority,
       requirementSnapshot: this.presentRequirements(requirements),
       evidenceSummary: evidence.map((item) => this.presentEvidence(item)),
       submittedAt: application.submitted_at,

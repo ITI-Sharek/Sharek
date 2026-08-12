@@ -24,6 +24,10 @@ import {
 } from '../dto/contribution-request-input.dto';
 import { ApplicationRequestContextDto } from '../dto/application-request-context.dto';
 import {
+  ContributorMatchingRequestContext,
+  ContributorTaskRecommendationContext,
+} from '../dto/contributor-matching-context.dto';
+import {
   ContributionRequestDto,
   ContributionRequestsByStatusDto,
   OwnerProjectContributionRequestsDto,
@@ -56,6 +60,95 @@ export class ContributionTasksService {
     @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
   ) {}
+
+  async getPublishedMatchingContext(
+    requestId: string,
+  ): Promise<ContributorMatchingRequestContext | null> {
+    const request = await this.database.contributionRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        owner_id: true,
+        title: true,
+        description: true,
+        technology_tags: true,
+        status: true,
+        published_at: true,
+        project_id: true,
+        requirements: {
+          select: { id: true, kind: true, position: true, text: true },
+          orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+        },
+      },
+    });
+    if (
+      !request ||
+      request.status !== ContributionRequestStatus.published ||
+      !request.published_at ||
+      !(await this.projectsService.isContributionRequestProjectPublished(
+        request.project_id,
+      ))
+    ) {
+      return null;
+    }
+    return {
+      id: request.id,
+      ownerId: request.owner_id,
+      title: request.title,
+      description: request.description,
+      technologyTags: this.readTechnologyTags(request.technology_tags),
+      requirements: request.requirements,
+    };
+  }
+
+  async listPublishedTaskRecommendationContexts(
+    now = new Date(),
+  ): Promise<ContributorTaskRecommendationContext[]> {
+    const requests = await this.database.contributionRequest.findMany({
+      where: {
+        status: ContributionRequestStatus.published,
+        published_at: { not: null },
+        applications_close_at: { gt: now },
+        project: { status: 'published' },
+      },
+      select: {
+        id: true,
+        owner_id: true,
+        title: true,
+        description: true,
+        technology_tags: true,
+        difficulty: true,
+        applications_close_at: true,
+        target_completion_date: true,
+        reward: true,
+        reward_currency: true,
+        requirements: {
+          select: { id: true, kind: true, position: true, text: true },
+          orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+        },
+        project: { select: { title: true } },
+      },
+      orderBy: [{ published_at: 'desc' }, { id: 'asc' }],
+      take: 50,
+    });
+    return requests.flatMap((request) => {
+      if (!request.applications_close_at) return [];
+      return [{
+        id: request.id,
+        ownerId: request.owner_id,
+        title: request.title,
+        description: request.description,
+        technologyTags: this.readTechnologyTags(request.technology_tags),
+        requirements: request.requirements,
+        projectName: request.project.title,
+        difficulty: request.difficulty,
+        applicationsCloseAt: request.applications_close_at,
+        targetCompletionDate: request.target_completion_date,
+        reward: request.reward ? Number(request.reward.toString()) : null,
+        rewardCurrency: request.reward_currency,
+      }];
+    });
+  }
 
   async getApplicationSubmissionContext(
     requestId: string,
@@ -296,13 +389,6 @@ export class ContributionTasksService {
         input.transaction,
       );
     return { ownerId: project.ownerId };
-  }
-
-  async lockApplicationReviewOwner(input: {
-    requestId: string;
-    transaction: Prisma.TransactionClient;
-  }): Promise<{ ownerId: string }> {
-    return this.lockContributionRequestOwnerContext(input);
   }
 
   async listDeliveryReviewScopesForOwner(ownerId: string): Promise<
@@ -1123,6 +1209,12 @@ export class ContributionTasksService {
       'Contribution Request was not found',
       'CONTRIBUTION_REQUEST_NOT_FOUND',
     );
+  }
+
+  private readTechnologyTags(value: Prisma.JsonValue): string[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string')
+      : [];
   }
 
   private concurrentModification(): ConflictApplicationError {

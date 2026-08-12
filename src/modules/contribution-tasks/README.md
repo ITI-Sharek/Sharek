@@ -127,9 +127,9 @@ creates ordered `contribution_request_requirements`, and creates append-only
 
 Migration `20260728230000_contribution_request_publication` adds publication
 and cancellation audit actions, the Application cancellation audit action, and
-the actionable-discovery index. Publication asks the Projects module for the
-canonical owner entitlement and monthly limit; this module does not read or
-write Subscription records.
+the actionable-discovery index. Publication asks the Subscriptions module for
+the canonical owner entitlement and atomically reserves the monthly usage
+counter; this module does not read or write Subscription or UsageTracker rows.
 
 Focused verification:
 

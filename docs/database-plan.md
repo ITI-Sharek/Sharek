@@ -47,6 +47,8 @@ contributor-profiles  contributor_profiles, contributor_fields, contributor_prof
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications, notification_events, notification_preferences, notification_category_preferences
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
+subscriptions         subscriptions, subscription_entitlements, usage_trackers
+matching              ai_match_results
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
 contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes, contribution_proposal_misuse_reports

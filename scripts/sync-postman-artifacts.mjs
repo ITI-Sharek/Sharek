@@ -56,6 +56,7 @@ const orderedFolderNames = [
   'GitHub Evidence',
   'GitHub App',
   'Projects',
+  'Subscriptions',
   'Contribution Requests',
   'Applications',
   'Delivery Reviews',
@@ -387,9 +388,6 @@ function applyBodyCorrections(route, request) {
       rating: 5,
       feedback: 'The delivery meets the request requirements.',
     }],
-    ['POST /contributors/me/skill-gap-guidance', {
-      contributionRequestId: '{{contributionRequestId}}',
-    }],
     ['PATCH /me/notification-preferences', {
       expectedRevision: 1,
       retentionDays: 90,
@@ -436,6 +434,7 @@ function canonicalRequestName(route, currentName) {
 function folderFor(route) {
   const routePath = route.path;
   if (routePath === '/health') return 'Health';
+  if (routePath === '/me/subscription') return 'Subscriptions';
   if (routePath.startsWith('/admin/')) return 'Admin';
   if (routePath.startsWith('/auth/google') || routePath.startsWith('/auth/github')) return 'OAuth';
   if (routePath.startsWith('/auth/')) return 'Identity and Sessions';

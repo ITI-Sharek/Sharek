@@ -1,4 +1,11 @@
-import { PrismaClient, UserRole } from '@prisma/client';
+import {
+  PrismaClient,
+  SubscriptionEntitlementKey,
+  SubscriptionPlanType,
+  SubscriptionSource,
+  SubscriptionUserRoleContext,
+  UserRole,
+} from '@prisma/client';
 import { randomBytes, scrypt as scryptCallback } from 'crypto';
 import { promisify } from 'util';
 
@@ -69,7 +76,72 @@ async function main() {
     console.log(`✅ ${user.role} user created: ${user.email}`);
   }
 
+  const owner = await prisma.user.findUniqueOrThrow({
+    where: { email: 'owner@sharek.local' },
+  });
+  const contributor = await prisma.user.findUniqueOrThrow({
+    where: { email: 'contributor@sharek.local' },
+  });
+  await ensureDemoSubscription({
+    userId: owner.id,
+    roleContext: SubscriptionUserRoleContext.owner,
+    planType: SubscriptionPlanType.bronze,
+  });
+  await ensureDemoSubscription({
+    userId: contributor.id,
+    roleContext: SubscriptionUserRoleContext.contributor,
+    planType: SubscriptionPlanType.bronze,
+  });
+  await ensureDemoMaterialAnalysisEntitlement(owner.id);
+
   console.log(`🔑 Password for all dev users: ${DEV_PASSWORD}`);
+}
+
+async function ensureDemoSubscription(input: {
+  userId: string;
+  roleContext: SubscriptionUserRoleContext;
+  planType: SubscriptionPlanType;
+}): Promise<void> {
+  const active = await prisma.subscription.findFirst({
+    where: {
+      user_id: input.userId,
+      user_role_context: input.roleContext,
+      status: 'active',
+    },
+  });
+  if (active) return;
+
+  await prisma.subscription.create({
+    data: {
+      user_id: input.userId,
+      plan_type: input.planType,
+      user_role_context: input.roleContext,
+      source: SubscriptionSource.demo,
+      starts_at: new Date(),
+    },
+  });
+}
+
+async function ensureDemoMaterialAnalysisEntitlement(
+  userId: string,
+): Promise<void> {
+  const active = await prisma.subscriptionEntitlement.findFirst({
+    where: {
+      user_id: userId,
+      key: SubscriptionEntitlementKey.project_material_analysis,
+      status: 'active',
+    },
+  });
+  if (active) return;
+
+  await prisma.subscriptionEntitlement.create({
+    data: {
+      user_id: userId,
+      key: SubscriptionEntitlementKey.project_material_analysis,
+      source: SubscriptionSource.demo,
+      starts_at: new Date(),
+    },
+  });
 }
 
 main()

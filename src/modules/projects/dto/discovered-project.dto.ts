@@ -25,6 +25,7 @@ export interface DiscoveredProjectDto {
   githubRepoUrl: string;
   repoStatistics: unknown;
   publishedAt: Date | null;
+  priorityVisibility: boolean;
   discoveryMetadata: ProjectDiscoveryMetadataDto;
 }
 

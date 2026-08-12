@@ -75,6 +75,10 @@ export const envValidationSchema = Joi.object({
     .truthy('true')
     .falsy('false')
     .default(true),
+  CONTRIBUTOR_MATCHING_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
   ADVISORY_FIT_REAP_INTERVAL_MS: Joi.number()
     .integer()
     .min(10_000)
@@ -188,6 +192,14 @@ export const envValidationSchema = Joi.object({
     .pattern(/^\/[a-zA-Z0-9/_-]+$/)
     .default('/skill-gap-guidance/generate'),
   AI_SKILL_GAP_GUIDANCE_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120_000)
+    .default(75_000),
+  AI_CONTRIBUTOR_MATCHING_PATH: Joi.string()
+    .pattern(/^\/[a-zA-Z0-9/_-]+$/)
+    .default('/contributor-matching/generate'),
+  AI_CONTRIBUTOR_MATCHING_TIMEOUT_MS: Joi.number()
     .integer()
     .min(100)
     .max(120_000)
