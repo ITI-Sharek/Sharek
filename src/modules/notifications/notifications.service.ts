@@ -14,6 +14,7 @@ import { NotificationRealtimeService } from './notification-realtime.service';
 import {
   buildApplicationNotificationDeepLink,
   buildConversationActivityNotificationDeepLink,
+  buildDeliveryNotificationDeepLink,
   buildProposalNotificationDeepLink,
   buildSkillReviewNotificationDeepLink,
   getNotificationTemplatePolicy,
@@ -64,6 +65,21 @@ export interface ApplicationNotificationInput {
   applicationId: string;
   contributionRequestId: string;
   action: ApplicationNotificationAction;
+}
+
+export interface DeliveryNotificationInput {
+  userId: string;
+  deliveryId: string;
+  contributionRequestId: string;
+  action:
+    | 'submitted'
+    | 'resubmitted'
+    | 'approved'
+    | 'changes_requested'
+    | 'rejected';
+  submissionNumber: number;
+  rating?: number | null;
+  feedback?: string | null;
 }
 
 export type ProposalNotificationAction =
@@ -549,6 +565,66 @@ export class NotificationsService {
       deliveredRealtime: false,
       notification: this.presentRealtimeNotification(notification),
     };
+  }
+
+  async createDeliveryNotification(
+    input: DeliveryNotificationInput,
+    options?: {
+      transaction?: Prisma.TransactionClient;
+      emitRealtime?: boolean;
+    },
+  ): Promise<NotificationCreateResultDto> {
+    const templateKey = `delivery.${input.action}` as NotificationTemplateKey;
+    const parameters = {
+      deliveryId: input.deliveryId,
+      contributionRequestId: input.contributionRequestId,
+      submissionNumber: input.submissionNumber,
+      ...(input.rating ? { rating: input.rating } : {}),
+      ...(input.feedback ? { feedback: input.feedback } : {}),
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
+    const deduplicationKey =
+      `delivery:${input.deliveryId}:${input.action}:${input.submissionNumber}`;
+    const persist = async (transaction: Prisma.TransactionClient) => {
+      const existing = await transaction.notification.findUnique({
+        where: { deduplication_key: deduplicationKey },
+      });
+      let notification = existing;
+      let created = false;
+      if (!notification) {
+        notification = await transaction.notification.create({
+          data: {
+            user_id: input.userId,
+            type: policy.category,
+            template_key: templateKey,
+            template_version: 1,
+            parameters,
+            deep_link: buildDeliveryNotificationDeepLink(parameters),
+            priority: policy.priority,
+            deduplication_key: deduplicationKey,
+          },
+        });
+        created = true;
+        await this.notificationEvents.appendCreated(transaction, notification);
+      }
+      return {
+        notificationId: notification.id,
+        created,
+        deliveredRealtime: false,
+        notification: this.presentRealtimeNotification(notification),
+      };
+    };
+
+    if (options?.transaction) {
+      return persist(options.transaction);
+    }
+    const persisted = await this.database.$transaction(persist);
+    const deliveredRealtime =
+      persisted.created && options?.emitRealtime !== false
+        ? await this.publishCreated(persisted.notificationId)
+        : false;
+    return { ...persisted, deliveredRealtime };
   }
 
   async emitNotificationCreated(notificationId: string): Promise<boolean> {

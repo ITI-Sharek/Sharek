@@ -24,6 +24,7 @@ Choose the module that owns the final business state:
 | `reputation` | reputation summaries and history |
 | `admin` | moderation, reports, disputes, admin queues |
 | `ai` | NestJS AI facade and FastAPI client contracts |
+| `skill-guidance` | explicit contributor guidance workflow and source-scoped recommendations |
 | `health` | operational health endpoint |
 
 The owner performs its own writes. Other modules request behavior through an

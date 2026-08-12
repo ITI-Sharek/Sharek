@@ -29,6 +29,7 @@ describe('environment validation', () => {
       APPLICATION_REVIEW_QUEUE_ENABLED: true,
       APPLICATION_REVIEW_SWEEP_INTERVAL_MS: 60_000,
       APPLICATION_REVIEW_SWEEP_BATCH_SIZE: 100,
+      DELIVERY_REPUTATION_SWEEP_INTERVAL_MS: 60_000,
       AI_ADVISORY_FIT_TIMEOUT_MS: 75_000,
       ADVISORY_FIT_QUEUE_ENABLED: true,
       ADVISORY_FIT_REAP_INTERVAL_MS: 60_000,
@@ -65,6 +66,15 @@ describe('environment validation', () => {
       envValidationSchema.validate({
         ...validEnvironment,
         APPLICATION_REVIEW_SWEEP_BATCH_SIZE: 1_001,
+      }).error,
+    ).toBeDefined();
+  });
+
+  it('rejects an unsafe Delivery reputation sweep interval', () => {
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        DELIVERY_REPUTATION_SWEEP_INTERVAL_MS: 9_999,
       }).error,
     ).toBeDefined();
   });

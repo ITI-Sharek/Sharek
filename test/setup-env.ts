@@ -8,6 +8,8 @@ process.env.SKILL_PROFILE_QUEUE_ENABLED =
   process.env.SKILL_PROFILE_QUEUE_ENABLED ?? 'false';
 process.env.APPLICATION_REVIEW_QUEUE_ENABLED =
   process.env.APPLICATION_REVIEW_QUEUE_ENABLED ?? 'false';
+process.env.DELIVERY_REPUTATION_QUEUE_ENABLED =
+  process.env.DELIVERY_REPUTATION_QUEUE_ENABLED ?? 'false';
 process.env.NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED =
   process.env.NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED ?? 'false';
 process.env.NOTIFICATION_RETENTION_QUEUE_ENABLED =
@@ -22,6 +24,8 @@ process.env.ADVISORY_FIT_QUEUE_ENABLED =
 // the upload command fails.
 process.env.MATERIAL_SCAN_QUEUE_ENABLED =
   process.env.MATERIAL_SCAN_QUEUE_ENABLED ?? 'false';
+process.env.MATERIAL_ANALYSIS_QUEUE_ENABLED =
+  process.env.MATERIAL_ANALYSIS_QUEUE_ENABLED ?? 'false';
 process.env.MATERIAL_DOWNLOAD_TOKEN_SECRET =
   process.env.MATERIAL_DOWNLOAD_TOKEN_SECRET ??
   'test-material-download-secret-change-me';
