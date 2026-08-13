@@ -1,10 +1,11 @@
 # Payments Module
 
-PAY-01 and PAY-02 own the isolated, disabled-by-default Paymob sandbox
+PAY-01 through PAY-03 own the isolated, disabled-by-default Paymob sandbox
 foundation authorized by DEC-077. The module owns provider configuration, the
 narrow provider-facing contract, Paymob HTTP mapping, response validation,
 transaction callback HMAC verification/normalization, payment-attempt rows,
-and deduplicated webhook-event rows.
+checkout idempotency, payment status reads, and deduplicated webhook-event
+rows.
 
 ## Public provider seam
 
@@ -20,15 +21,26 @@ secret needed by a later checkout service. Callback normalization returns only
 the transaction facts a later payment workflow must compare: transaction/order
 identifiers, amount, currency, integration, pending, and success.
 
-There is intentionally no controller, route, checkout service, subscription
-writer, repository abstraction, use-case layer, invoice, recurring-billing,
-reward, escrow, or payout operation. `PaymentAttemptStatus` permits only
-`pending -> paid|failed|cancelled` and the reserved `paid -> refunded` path;
-repeating the current state is idempotent and terminal states cannot be retried.
+The public routes currently are:
 
-`PaymentAttempt` is unique by `(user_id, idempotency_key)`. `PaymentWebhookEvent`
-stores only a minimized JSON payload and is duplicate-protected by both the
-provider event identity (when available) and a deterministic fingerprint.
+- `GET /subscriptions/plans` — the backend-owned Bronze/Silver/Gold catalog;
+- `POST /me/subscription/checkout` — an authenticated, role-context-checked
+  Paymob checkout command;
+- `GET /me/payments/:paymentId` — an authenticated owner/contributor read of
+  payment state.
+
+The checkout command never writes Subscription rows and never activates a plan.
+`PaymentAttemptStatus` permits only `pending -> paid|failed|cancelled` and the
+reserved `paid -> refunded` path; repeating the current state is idempotent and
+terminal states cannot be retried.
+
+`PaymentAttempt` is unique by `(user_id, idempotency_key)` and stores the
+Paymob client secret returned for that attempt so an idempotent retry can reuse
+the same hosted checkout handoff. This client secret is scoped checkout data,
+not a Paymob merchant credential, and is returned only in the checkout DTO.
+`PaymentWebhookEvent` stores only a minimized JSON payload and is
+duplicate-protected by both the provider event identity (when available) and a
+deterministic fingerprint.
 Webhook verification and processing are separate statuses so a later callback
 workflow can record an invalid signature without implying processing success.
 The `minimizePaymentWebhookPayload()` and
@@ -68,13 +80,15 @@ the plan-grounded `amount`, `currency`, `payment_methods`, and
 
 The migration `20260813120000_payment_attempts_and_webhook_events` adds the
 provider, purpose, attempt-status, webhook-verification, and webhook-processing
-enums plus the two payment-owned tables and their foreign keys/indexes. It does
-not alter `Subscription` rows. Only a later verified callback workflow may
-call the exported Subscriptions service to assign a plan.
+enums plus the two payment-owned tables and their foreign keys/indexes.
+`20260813150000_payment_checkout_handoff` adds the persisted Paymob client
+secret required for safe idempotent browser retries. These migrations do not
+alter `Subscription` rows. Only a later verified callback workflow may call the
+exported Subscriptions service to assign a plan.
 
 ## Deferred work
 
-PAY-03+ may add idempotent checkout/status APIs, a webhook route, payment-fact
-checks, and Subscription-owned plan assignment after the PAY-00 release gates
-close. Checkout remains disabled by default and no browser redirect can mutate
-payment or subscription state.
+PAY-04 may add the webhook route, payment-fact checks, exactly-once payment
+transition, and Subscription-owned plan assignment after the PAY-00 release
+gates close. Checkout remains disabled by default and no browser redirect can
+mutate payment or subscription state.

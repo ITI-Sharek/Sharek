@@ -689,6 +689,7 @@ model PaymentAttempt {
   idempotency_key         String                      @db.VarChar(128)
   provider                PaymentProvider             @default(paymob)
   provider_intention_id   String?                     @db.VarChar(255)
+  provider_client_secret  String?                     @db.VarChar(1000)
   provider_order_id       String?                     @db.VarChar(255)
   provider_transaction_id String?                     @db.VarChar(255)
   status                  PaymentAttemptStatus        @default(pending)

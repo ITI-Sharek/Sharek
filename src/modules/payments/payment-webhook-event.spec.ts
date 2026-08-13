@@ -8,7 +8,7 @@ describe('payment webhook event normalization', () => {
   const transaction: NormalizedPaymentTransaction = {
     transactionId: 'transaction-1',
     orderId: 'order-1',
-    amountCents: 29_900,
+    amountCents: 50_000,
     currency: 'EGP',
     integrationId: 5_852_767,
     pending: false,
