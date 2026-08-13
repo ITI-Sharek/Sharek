@@ -12,6 +12,7 @@
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:migrations": "node scripts/test-application-status-migration.mjs",
+    "test:migrations:payments": "node scripts/test-payment-persistence-migration.mjs",
     "test:migrations:notifications": "node scripts/test-notification-semantic-migration.mjs",
     "test:migrations:subscriptions": "node scripts/test-subscription-plan-migration.mjs",
     "test:migrations:matching": "node scripts/test-ai-match-result-migration.mjs",
