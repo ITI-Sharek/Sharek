@@ -38,7 +38,7 @@ describe('subscription plan catalog', () => {
 
     expect(entry).toEqual({
       planType: SubscriptionPlanType.gold,
-      amountCents: 59_900,
+      amountCents: 50_000,
       currency: 'EGP',
       durationDays: 30,
       checkoutAvailable: true,

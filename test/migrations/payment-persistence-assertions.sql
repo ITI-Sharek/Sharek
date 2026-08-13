@@ -27,7 +27,8 @@ BEGIN
     "plan_type",
     "amount_cents",
     "currency",
-    "idempotency_key"
+    "idempotency_key",
+    "provider_client_secret"
   ) VALUES (
     test_attempt_id,
     test_user_id,
@@ -36,7 +37,8 @@ BEGIN
     'silver',
     29900,
     'EGP',
-    'pay02-idempotency-key'
+    'pay02-idempotency-key',
+    'paymob-client-secret-for-replay'
   );
 
   IF NOT EXISTS (
@@ -45,6 +47,7 @@ BEGIN
     WHERE "id" = test_attempt_id
       AND "status" = 'pending'
       AND "provider" = 'paymob'
+      AND "provider_client_secret" = 'paymob-client-secret-for-replay'
   ) THEN
     RAISE EXCEPTION 'PaymentAttempt defaults or persistence are incorrect';
   END IF;

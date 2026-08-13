@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 
 import { DatabaseService } from '../../shared/database/database.service';
+import { ConflictApplicationError } from '../../shared/errors/application.error';
 import {
   CONTRIBUTOR_PLAN_CATALOG,
   ContributorPlanPolicy,
@@ -16,6 +17,11 @@ import {
   OwnerPlanPolicy,
   PLAN_RANK,
 } from './plan-catalog';
+import {
+  getSubscriptionPlanCatalog,
+  getSubscriptionPlanCatalogEntry,
+  SubscriptionPlanCatalogEntry,
+} from './subscription-catalog';
 
 /** The subset of the Prisma client this service needs, so callers can hand it a transaction. */
 export type EntitlementsDatabase = Pick<Prisma.TransactionClient, 'subscription'>;
@@ -82,6 +88,36 @@ export class EntitlementsService {
     private readonly database: DatabaseService,
     @Optional() private readonly config: ConfigService = new ConfigService(),
   ) {}
+
+  getPlanCatalog(): SubscriptionPlanCatalogEntry[] {
+    return getSubscriptionPlanCatalog();
+  }
+
+  getPlanCatalogEntry(
+    planType: SubscriptionPlanType,
+  ): SubscriptionPlanCatalogEntry {
+    return getSubscriptionPlanCatalogEntry(planType);
+  }
+
+  async assertPlanPurchaseAllowed(
+    userId: string,
+    roleContext: SubscriptionUserRoleContext,
+    requestedPlan: SubscriptionPlanType,
+    now = new Date(),
+  ): Promise<void> {
+    const current = await this.resolve(userId, roleContext, this.database, now);
+    if (PLAN_RANK[requestedPlan] <= PLAN_RANK[current.planType]) {
+      throw new ConflictApplicationError(
+        'Only an upgrade is available while a subscription plan is active',
+        'SUBSCRIPTION_PLAN_CHANGE_NOT_ALLOWED',
+        {
+          currentPlan: current.planType,
+          requestedPlan,
+          roleContext,
+        },
+      );
+    }
+  }
 
   async resolveForOwner(
     userId: string,
