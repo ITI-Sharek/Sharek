@@ -1,9 +1,10 @@
 # Payments Module
 
-PAY-01 owns the isolated, disabled-by-default Paymob sandbox provider
-foundation authorized by DEC-077. It owns provider configuration, the narrow
-provider-facing contract, Paymob HTTP mapping, response validation, and
-transaction callback HMAC verification/normalization.
+PAY-01 and PAY-02 own the isolated, disabled-by-default Paymob sandbox
+foundation authorized by DEC-077. The module owns provider configuration, the
+narrow provider-facing contract, Paymob HTTP mapping, response validation,
+transaction callback HMAC verification/normalization, payment-attempt rows,
+and deduplicated webhook-event rows.
 
 ## Public provider seam
 
@@ -19,9 +20,21 @@ secret needed by a later checkout service. Callback normalization returns only
 the transaction facts a later payment workflow must compare: transaction/order
 identifiers, amount, currency, integration, pending, and success.
 
-There is intentionally no controller, route, payment table, checkout service,
-subscription writer, repository abstraction, use-case layer, cancellation,
-refund, invoice, recurring-billing, reward, escrow, or payout operation.
+There is intentionally no controller, route, checkout service, subscription
+writer, repository abstraction, use-case layer, invoice, recurring-billing,
+reward, escrow, or payout operation. `PaymentAttemptStatus` permits only
+`pending -> paid|failed|cancelled` and the reserved `paid -> refunded` path;
+repeating the current state is idempotent and terminal states cannot be retried.
+
+`PaymentAttempt` is unique by `(user_id, idempotency_key)`. `PaymentWebhookEvent`
+stores only a minimized JSON payload and is duplicate-protected by both the
+provider event identity (when available) and a deterministic fingerprint.
+Webhook verification and processing are separate statuses so a later callback
+workflow can record an invalid signature without implying processing success.
+The `minimizePaymentWebhookPayload()` and
+`createPaymentWebhookFingerprint()` helpers derive the stored payload and
+SHA-256 fingerprint from normalized provider facts, never from raw callback
+content.
 
 ## Configuration
 
@@ -51,9 +64,17 @@ does not provide additional fields in the canonical plan, so PAY-01 maps only
 the plan-grounded `amount`, `currency`, `payment_methods`, and
 `special_reference` fields and deliberately does not invent billing/items data.
 
+## Persistence
+
+The migration `20260813120000_payment_attempts_and_webhook_events` adds the
+provider, purpose, attempt-status, webhook-verification, and webhook-processing
+enums plus the two payment-owned tables and their foreign keys/indexes. It does
+not alter `Subscription` rows. Only a later verified callback workflow may
+call the exported Subscriptions service to assign a plan.
+
 ## Deferred work
 
-PAY-02+ must first close the product/catalog/account decisions in PAY-00. A
-later slice may add backend-owned prices/currency, payment persistence,
-idempotent checkout/status APIs, a webhook route, payment-fact checks, and
-Subscription-owned plan assignment. Those changes are not part of PAY-01.
+PAY-03+ may add idempotent checkout/status APIs, a webhook route, payment-fact
+checks, and Subscription-owned plan assignment after the PAY-00 release gates
+close. Checkout remains disabled by default and no browser redirect can mutate
+payment or subscription state.

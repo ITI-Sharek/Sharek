@@ -2988,3 +2988,30 @@ This keeps the system strong without making it heavy:
 - Verification: focused tests passed 2 suites / 24 tests; full Jest passed 138
   suites with 1 skipped and 885 tests with 2 skipped; architecture, lint, exact
   TypeScript, build, and diff checks passed.
+
+### 2026-08-13 - Paymob catalog and payment persistence (PAY-02 / #103)
+
+- Modules: `payments`, `subscriptions`, and Prisma migrations.
+- Requirement IDs: PAY-02, DEC-077, and DEC-078. The approved shared catalog is
+  Bronze `0 EGP` with no expiry and no checkout, Silver `29,900` minor units in
+  `EGP` for 30 days, and Gold `59,900` minor units in `EGP` for 30 days. Both
+  owner and contributor role contexts use the same catalog.
+- Change: added the code-owned subscription catalog and exported service seam;
+  added payment provider/purpose/status enums plus `PaymentAttempt` and
+  `PaymentWebhookEvent` persistence. Attempts are unique per user and
+  idempotency key, webhook events are protected by provider identity and
+  fingerprint, callback verification and processing statuses are separate, and
+  the state helper makes repeated callbacks idempotent while rejecting unsafe
+  retries or terminal-state changes.
+- API/authorization: no routes or browser checkout were added. `Subscription`
+  rows remain owned by `subscriptions`; the payment migration writes only
+  payment-owned rows and leaves provider activation for PAY-04.
+- Database: migration
+  `20260813120000_payment_attempts_and_webhook_events` adds the payment enums,
+  tables, foreign keys, uniqueness constraints, and lookup indexes. A fresh
+  PostgreSQL migration round-trip fixture inserts representative attempt and
+  webhook rows and proves duplicate protection.
+- Verification: focused catalog/state/webhook-normalization/migration-contract
+  tests passed 4 suites / 20 tests; the PostgreSQL migration round-trip passed;
+  architecture, lint, exact TypeScript, Prisma validation, and build passed.
+  Full Jest passed 142 suites with 1 skipped and 907 tests with 2 skipped.

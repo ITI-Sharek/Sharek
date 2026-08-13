@@ -56,6 +56,35 @@ enum SubscriptionSource {
   payment_provider
 }
 
+enum PaymentProvider {
+  paymob
+}
+
+enum PaymentAttemptPurpose {
+  subscription_purchase
+}
+
+enum PaymentAttemptStatus {
+  pending
+  paid
+  failed
+  cancelled
+  refunded
+}
+
+enum PaymentWebhookVerificationStatus {
+  unverified
+  verified
+  invalid
+}
+
+enum PaymentWebhookProcessingStatus {
+  pending
+  processed
+  failed
+  ignored
+}
+
 enum ProjectCategory {
   web
   mobile
@@ -411,6 +440,7 @@ model User {
   last_login_at      DateTime?
 
   subscriptions                     Subscription[]
+  paymentAttempts                   PaymentAttempt[]
   projects                          Project[]                          @relation("ProjectOwner")
   contributionRequests              ContributionRequest[]              @relation("ContributionRequestOwner")
   applications                      Application[]                      @relation("ApplicationContributor")
@@ -646,6 +676,61 @@ model Subscription {
 
   @@index([user_id])
   @@index([user_id, user_role_context, status, starts_at(sort: Desc)])
+}
+
+model PaymentAttempt {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  user_id                 String                      @db.Uuid
+  purpose                 PaymentAttemptPurpose
+  user_role_context       SubscriptionUserRoleContext
+  plan_type               SubscriptionPlanType
+  amount_cents            Int
+  currency                String                      @db.Char(3)
+  idempotency_key         String                      @db.VarChar(128)
+  provider                PaymentProvider             @default(paymob)
+  provider_intention_id   String?                     @db.VarChar(255)
+  provider_order_id       String?                     @db.VarChar(255)
+  provider_transaction_id String?                     @db.VarChar(255)
+  status                  PaymentAttemptStatus        @default(pending)
+  expires_at              DateTime?
+  paid_at                 DateTime?
+  failed_at               DateTime?
+  cancelled_at            DateTime?
+  created_at              DateTime                    @default(now())
+  updated_at              DateTime                    @default(now()) @updatedAt
+
+  user          User                  @relation(fields: [user_id], references: [id])
+  webhookEvents PaymentWebhookEvent[]
+
+  @@unique([user_id, idempotency_key])
+  @@index([user_id, status])
+  @@index([provider, provider_intention_id])
+  @@index([provider, provider_order_id])
+  @@index([provider, provider_transaction_id])
+  @@index([expires_at])
+}
+
+model PaymentWebhookEvent {
+  id                  String                           @id @default(uuid()) @db.Uuid
+  provider            PaymentProvider                  @default(paymob)
+  provider_event_id   String?                          @db.VarChar(255)
+  fingerprint         String                           @unique @db.Char(64)
+  payment_attempt_id  String?                          @db.Uuid
+  minimized_payload   Json
+  verification_status PaymentWebhookVerificationStatus @default(unverified)
+  processing_status   PaymentWebhookProcessingStatus   @default(pending)
+  verified_at         DateTime?
+  processed_at        DateTime?
+  failed_at           DateTime?
+  created_at          DateTime                         @default(now())
+  updated_at          DateTime                         @default(now()) @updatedAt
+
+  paymentAttempt PaymentAttempt? @relation(fields: [payment_attempt_id], references: [id], onDelete: SetNull)
+
+  @@unique([provider, provider_event_id])
+  @@index([payment_attempt_id, processing_status])
+  @@index([provider, created_at])
+  @@index([verification_status, processing_status])
 }
 
 model Project {
