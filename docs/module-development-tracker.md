@@ -2974,3 +2974,17 @@ This keeps the system strong without making it heavy:
 - The response carries `rank` and a categorical `confidence`, and no
   `matchScore`. DEC-010 forbids presenting fit as a number, and tests assert no
   score and no percentage appear anywhere in the payload.
+
+### 2026-08-13 - Paymob sandbox provider foundation (PAY-01 / #102)
+
+- Module: new `payments` module. Added a disabled-by-default Paymob provider
+  seam for one-time Intention creation and verified transaction callback
+  normalization using the documented SHA-512 HMAC field order.
+- Configuration: added conditional Paymob credentials/integration-ID
+  validation, an HTTPS production boundary, and a bounded request timeout.
+- Scope: no controller, route, Prisma schema/migration, payment persistence,
+  checkout behavior, or Subscription mutation was added; the provider is
+  registered in `AppModule` only for later consumers.
+- Verification: focused tests passed 2 suites / 24 tests; full Jest passed 138
+  suites with 1 skipped and 885 tests with 2 skipped; architecture, lint, exact
+  TypeScript, build, and diff checks passed.

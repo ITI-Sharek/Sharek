@@ -27,6 +27,7 @@ Choose the module that owns the final business state:
 | `admin` | moderation, reports, disputes, admin queues |
 | `ai` | NestJS AI facade and FastAPI client contracts |
 | `skill-guidance` | explicit contributor guidance workflow and source-scoped recommendations |
+| `payments` | disabled-by-default Paymob provider configuration and normalized sandbox calls; payment state and Subscription writes remain in later payment slices |
 | `health` | operational health endpoint |
 
 The owner performs its own writes. Other modules request behavior through an
