@@ -16,6 +16,13 @@ describe('environment validation', () => {
     expect(result.error).toBeUndefined();
     expect(result.value).toMatchObject({
       REALTIME_NOTIFICATIONS_ENABLED: false,
+      PAYMENTS_PAYMOB_ENABLED: false,
+      PAYMOB_API_BASE_URL: 'https://accept.paymob.com',
+      PAYMOB_INTENTION_PATH: '/v1/intention/',
+      PAYMOB_SECRET_KEY: '',
+      PAYMOB_HMAC_SECRET: '',
+      PAYMOB_INTEGRATION_IDS: '',
+      PAYMOB_REQUEST_TIMEOUT_MS: 10_000,
       NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED: true,
       NOTIFICATION_EVENT_RECOVERY_INTERVAL_MS: 60_000,
       NOTIFICATION_EVENT_RECOVERY_BATCH_SIZE: 100,
@@ -184,5 +191,88 @@ describe('environment validation', () => {
     });
 
     expect(result.error).toBeDefined();
+  });
+
+  it('requires Paymob credentials and integration IDs only when enabled', () => {
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        PAYMENTS_PAYMOB_ENABLED: true,
+        PAYMOB_SECRET_KEY: 'sandbox-secret',
+        PAYMOB_HMAC_SECRET: 'sandbox-hmac-secret',
+        PAYMOB_INTEGRATION_IDS: '12345, 67890',
+      }).error,
+    ).toBeUndefined();
+
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        PAYMENTS_PAYMOB_ENABLED: true,
+        PAYMOB_HMAC_SECRET: 'sandbox-hmac-secret',
+        PAYMOB_INTEGRATION_IDS: '12345',
+      }).error,
+    ).toBeDefined();
+
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        PAYMENTS_PAYMOB_ENABLED: true,
+        PAYMOB_SECRET_KEY: 'sandbox-secret',
+        PAYMOB_HMAC_SECRET: 'sandbox-hmac-secret',
+      }).error,
+    ).toBeDefined();
+
+    for (const credentials of [
+      { PAYMOB_SECRET_KEY: '   ', PAYMOB_HMAC_SECRET: 'sandbox-hmac-secret' },
+      { PAYMOB_SECRET_KEY: 'sandbox-secret', PAYMOB_HMAC_SECRET: '   ' },
+    ]) {
+      expect(
+        envValidationSchema.validate({
+          ...validEnvironment,
+          PAYMENTS_PAYMOB_ENABLED: true,
+          PAYMOB_INTEGRATION_IDS: '12345',
+          ...credentials,
+        }).error,
+      ).toBeDefined();
+    }
+
+    for (const integrationIds of [
+      '0',
+      '1e3',
+      '1.0',
+      'not-numeric',
+      '12345,,67890',
+      '9007199254740992',
+    ]) {
+      expect(
+        envValidationSchema.validate({
+          ...validEnvironment,
+          PAYMENTS_PAYMOB_ENABLED: true,
+          PAYMOB_SECRET_KEY: 'sandbox-secret',
+          PAYMOB_HMAC_SECRET: 'sandbox-hmac-secret',
+          PAYMOB_INTEGRATION_IDS: integrationIds,
+        }).error,
+      ).toBeDefined();
+    }
+  });
+
+  it('rejects an insecure Paymob API URL in production', () => {
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        AI_SERVICE_AUTH_TOKEN: 'a'.repeat(32),
+        PAYMOB_API_BASE_URL: 'http://accept.paymob.com',
+      }).error,
+    ).toBeDefined();
+  });
+
+  it('rejects an unbounded Paymob request timeout', () => {
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        PAYMOB_REQUEST_TIMEOUT_MS: 30_001,
+      }).error,
+    ).toBeDefined();
   });
 });
