@@ -121,3 +121,56 @@ transitions, transactions, and audit writes over its own tables
 publication and ownership facts only through the exported `ProjectsService`
 (`getProposalProjectContext` for reads and `lockProposalProjectContext` for
 transaction-scoped commands) and never touches Project tables directly.
+
+## Implemented: the eligibility gate on proposals (#117, P0-B04)
+
+The second contribution path is gated on the same evaluation as Applications,
+so the gate cannot be walked around by *proposing* the work instead of applying
+for it.
+
+A proposer has no owner-authored Request to be measured against — they wrote the
+work themselves. So the bar is inferred from the **proposal content** (title,
+proposed outcome, and the problem/benefit framing), then compared against the
+proposer's approved skills by the same `EligibilityService` the Application path
+uses. One comparison, one payload shape, two triggers:
+`PROPOSAL_BLOCKED_SKILL_GAP` is the Application block's `403` with the same
+`metadata.blockingSkills`.
+
+- Applies to **`POST /contribution-proposals` and `POST /:proposalId/versions`**,
+  because a new version can escalate scope beyond what the proposer can
+  evidence. The bar is re-inferred from the new content rather than reused.
+- Inference runs **outside** the transaction (it is an HTTP call; holding a
+  database connection across one would tie up the pool). Nothing can make it
+  stale — the bar comes from content submitted in the same request.
+- The comparison runs **inside** the transaction, before any row is written, so
+  a refusal leaves the aggregate untouched: no Proposal, no version row, no
+  audit row, and a blocked version leaves the prior version as the latest.
+
+### The deliberate asymmetry with the Application path
+
+**Inference failure fails open.** A provider outage raises
+`PROPOSAL_ELIGIBILITY_UNAVAILABLE` (**503**, `metadata.retriable: true`), never a
+verdict — distinguishable from a block by both code *and* status, so a client
+cannot conflate them even by accident.
+
+The Application path has no equivalent because it needs no provider at submit
+time: its bar was frozen onto the Request at publication. Here the provider is
+on the critical path, and an outage rendered as "your skills are insufficient"
+would be a false statement about a person that they can neither act on nor
+appeal.
+
+### One gap, stated plainly
+
+A blocked **create** records no `EligibilityEvaluation`. The CHECK permits
+exactly one target and the Proposal it would point at was never created — that
+is the constraint working as intended, not a bug to route around. The `403`
+still names every blocking skill, so the refusal is fully explained; what a
+blocked create cannot leave is the *durable* record. A blocked **version** does
+record one, because there the Proposal exists.
+
+### Running without it
+
+`PROPOSAL_ELIGIBILITY_GATE_ENABLED=false` skips inference and the gate entirely
+— no provider call, no evaluation row. It defaults on outside tests and off in
+them, because this path needs a live provider on the request thread and the
+existing proposal suite is about the proposal lifecycle, not the gate.

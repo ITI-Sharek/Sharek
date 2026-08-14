@@ -4,7 +4,10 @@ import { ApplicationsModule } from '../applications/applications.module';
 import { ContributionTasksModule } from '../contribution-tasks/contribution-tasks.module';
 import { ReputationModule } from '../reputation/reputation.module';
 import { SkillProfilesModule } from '../skill-profiles/skill-profiles.module';
+import { AiModule } from '../ai/ai.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { MatchRanker } from './match-ranker';
+import { AiMatchRanker } from './integrations/ai-match-ranker';
 import { MatchingService } from './matching.service';
 import { RecommendationsController } from './recommendations.controller';
 import { RecommendedTasksService } from './recommended-tasks.service';
@@ -13,8 +16,10 @@ import { RecommendedTasksService } from './recommended-tasks.service';
  * Matching owns `AiMatchResult` and nothing else. Every fact it ranks on is read
  * through the exported service of the module that owns it.
  *
- * `MatchRanker` is deliberately unbound: the AI ranker lives in AI_Agents, and
- * its absence is a supported state. Binding it here later is a one-line change.
+ * `MatchRanker` is bound to the AI ranking agent, behind `MATCH_RANKER_ENABLED`
+ * which defaults to off. The deterministic shortlist is a complete answer on
+ * its own, so the ranker only ever changes the order — never which Requests a
+ * contributor sees.
  */
 @Module({
   imports: [
@@ -23,9 +28,16 @@ import { RecommendedTasksService } from './recommended-tasks.service';
     ContributionTasksModule,
     ApplicationsModule,
     ReputationModule,
+    AiModule,
   ],
   controllers: [RecommendationsController],
-  providers: [MatchingService, RecommendedTasksService],
+  providers: [
+    MatchingService,
+    RecommendedTasksService,
+    // Binds the port. Off unless MATCH_RANKER_ENABLED; every failure mode
+    // falls back to the deterministic order.
+    { provide: MatchRanker, useClass: AiMatchRanker },
+  ],
   exports: [MatchingService],
 })
 export class MatchingModule {}

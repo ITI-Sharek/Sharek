@@ -125,6 +125,18 @@ enum ContributionRequestRequirementKind {
   preferred
 }
 
+/// Where one piece of block-triggered guidance has got to.
+///
+/// `failed` is a first-class state rather than a deleted row: a contributor who
+/// asked for help and got none must be told that, not shown an empty space. The
+/// deterministic blocking-skill list survives either way — the narrative is an
+/// addition to the reason, never the reason itself.
+enum EligibilityGuidanceStatus {
+  pending
+  ready
+  failed
+}
+
 /// The verdict of one Eligibility Evaluation. There is no third value on
 /// purpose: a provider outage or an evaluation that could not run is a
 /// retriable error, never an outcome recorded against a contributor (ADR 0015).
@@ -506,6 +518,7 @@ model User {
   reportsReceived                   Report[]                           @relation("ReportReportedUser")
   skillGapContributions             SkillGapGuidance[]                 @relation("SkillGapContributor")
   eligibilityEvaluations            EligibilityEvaluation[]            @relation("EligibilityEvaluationContributor")
+  eligibilityGuidance               EligibilityGuidance[]              @relation("EligibilityGuidanceContributor")
   authSessions                      AuthSession[]
   authProviderAccounts              AuthProviderAccount[]
   authOAuthStates                   AuthOAuthState[]
@@ -980,8 +993,46 @@ model EligibilityEvaluation {
   contributionRequest ContributionRequest?  @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
   contributionProposal ContributionProposal? @relation(fields: [contribution_proposal_id], references: [id], onDelete: Cascade)
 
+  guidance EligibilityGuidance[]
+
   @@index([contributor_id, evaluated_at])
   @@index([contribution_request_id, evaluated_at])
+}
+
+/// Educational guidance for the exact gap a block named (DEC-078, ADR 0014).
+///
+/// Scoped to an `EligibilityEvaluation`, **not** to an Application: under a hard
+/// block no Application exists, and ADR 0014 already retired the
+/// Application-linked `SkillGapGuidance` entity. That entity's
+/// `application_id` is `@unique` and NOT NULL, so reusing it here is not merely
+/// undesirable — it is unrepresentable.
+///
+/// Append-only in the sense that matters: a row is never deleted and its
+/// `blocking_skills` never change. Only the narrative fields move, once, from
+/// pending to ready or failed.
+model EligibilityGuidance {
+  id                       String                    @id @default(uuid()) @db.Uuid
+  eligibility_evaluation_id String                   @db.Uuid
+  /// Denormalized from the evaluation so the authorization check needs one row,
+  /// not a join. Guidance is readable only by its own contributor.
+  contributor_id           String                    @db.Uuid
+  status                   EligibilityGuidanceStatus @default(pending)
+  /// Copied from the evaluation at request time. The whole point is that this
+  /// survives a provider failure: a contributor is never told only "you are
+  /// blocked" with no explanation.
+  blocking_skills          Json                      @default("[]")
+  narrative                String?
+  recommendations          Json?
+  model_used               String?                   @db.VarChar(50)
+  created_at               DateTime                  @default(now())
+  updated_at               DateTime                  @default(now()) @updatedAt
+
+  eligibilityEvaluation EligibilityEvaluation @relation(fields: [eligibility_evaluation_id], references: [id], onDelete: Cascade)
+  contributor           User                  @relation("EligibilityGuidanceContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+
+  /// The keyset pagination order for a contributor's history.
+  @@index([contributor_id, created_at, id])
+  @@index([eligibility_evaluation_id, created_at])
 }
 
 model ContributionRequestAudit {
