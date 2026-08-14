@@ -3181,3 +3181,21 @@ This keeps the system strong without making it heavy:
 - The E2E uses an in-memory store rather than per-call jest mocks, because the
   property under test is temporal: the row must be readable and *useful* between
   the request and the provider answering, which a per-call mock cannot express.
+
+### 2026-08-14 - X-Q01 cross-repo AI route contract
+
+- `npm run test:ai-routes` fails when the AI service stops serving a route this
+  backend calls. Added because that mismatch is invisible to both repositories:
+  each mocks the other, so a renamed FastAPI route only appears as a 404 in a
+  real environment. `/advisory-fit/assess` had in fact been renamed to
+  `/advisory-fit/analyze` on an AI branch while these clients still called
+  `/assess`.
+- The called set is extracted from the clients themselves — the `${baseUrl}`
+  template literals plus the `AI_*_PATH` defaults in `env.validation.ts` — so a
+  manifest cannot quietly drift from the code. `docs/ai-service-routes.json` is
+  the assertion, not the source, and the check fails if the two disagree.
+- Prefers the live `/openapi.json` when `AI_SERVICE_URL` is reachable and falls
+  back to the manifest in CI. Extra routes on the AI service pass; only a route
+  we call and it does not serve fails.
+- Verified in both directions: renaming the served route and renaming the
+  client's path each fail the check with the offending path named.
