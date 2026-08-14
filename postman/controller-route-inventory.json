@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 153,
+  "routeCount": 156,
   "routes": [
     {
       "method": "GET",
@@ -2323,6 +2323,97 @@
       "guards": [],
       "roles": [],
       "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/me/eligibility-guidance",
+      "normalizedPath": "/contributors/me/eligibility-guidance",
+      "key": "GET /contributors/me/eligibility-guidance",
+      "controller": "EligibilityGuidanceController",
+      "handler": "list",
+      "source": "src/modules/skill-guidance/controllers/eligibility-guidance.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "cursor",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contributors/me/eligibility-guidance",
+      "normalizedPath": "/contributors/me/eligibility-guidance",
+      "key": "POST /contributors/me/eligibility-guidance",
+      "controller": "EligibilityGuidanceController",
+      "handler": "request",
+      "source": "src/modules/skill-guidance/controllers/eligibility-guidance.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "RequestEligibilityGuidanceDto",
+      "bodyFields": [
+        {
+          "name": "eligibilityEvaluationId",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/me/eligibility-guidance/:guidanceId",
+      "normalizedPath": "/contributors/me/eligibility-guidance/:parameter",
+      "key": "GET /contributors/me/eligibility-guidance/:parameter",
+      "controller": "EligibilityGuidanceController",
+      "handler": "get",
+      "source": "src/modules/skill-guidance/controllers/eligibility-guidance.controller.ts",
+      "pathParameters": [
+        "guidanceId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200
     },
