@@ -28,6 +28,7 @@ describe('MatchingService', () => {
     return {
       id: '33333333-3333-4333-8333-333333333331',
       projectId: '44444444-4444-4444-8444-444444444441',
+      projectName: 'Share-k API',
       ownerId,
       title: 'Build the NestJS ingestion worker',
       technologyTags: ['NestJS', 'PostgreSQL'],
@@ -69,8 +70,12 @@ describe('MatchingService', () => {
     jest.resetAllMocks();
     entitlements.resolveForContributor.mockResolvedValue(goldPlan());
     skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
-      { name: 'NestJS', proficiencyLevel: 'advanced' },
-      { name: 'PostgreSQL', proficiencyLevel: 'intermediate' },
+      {
+        name: 'NestJS',
+        proficiencyLevel: 'advanced',
+        evidenceSources: { evidenceIds: ['github:sharek/api'], limitations: [] },
+      },
+      { name: 'PostgreSQL', proficiencyLevel: 'intermediate', evidenceSources: null },
     ]);
     contributionTasks.listOpenRequestsForMatching.mockResolvedValue([
       candidate(),
@@ -344,8 +349,12 @@ describe('MatchingService', () => {
   describe('the reason a match was made', () => {
     it('names the skills matched and the skills brought beyond the ask', async () => {
       skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
-        { name: 'NestJS', proficiencyLevel: 'advanced' },
-        { name: 'Kubernetes', proficiencyLevel: 'beginner' },
+        {
+          name: 'NestJS',
+          proficiencyLevel: 'advanced',
+          evidenceSources: { evidenceIds: ['github:sharek/api'] },
+        },
+        { name: 'Kubernetes', proficiencyLevel: 'beginner', evidenceSources: null },
       ]);
       contributionTasks.listOpenRequestsForMatching.mockResolvedValue([
         candidate({ technologyTags: ['NestJS'], requirementTexts: [] }),
@@ -357,8 +366,18 @@ describe('MatchingService', () => {
       });
 
       expect(shortlist.matches[0]).toMatchObject({
-        matchedSkills: [{ name: 'NestJS', proficiency: 'advanced' }],
-        exceededSkills: [{ name: 'Kubernetes', proficiency: 'beginner' }],
+        matchedSkills: [
+          {
+            name: 'NestJS',
+            proficiency: 'advanced',
+            // The approval's evidence travels with the match, so a
+            // recommendation can cite why the platform believes the skill.
+            evidenceIds: ['github:sharek/api'],
+          },
+        ],
+        exceededSkills: [
+          { name: 'Kubernetes', proficiency: 'beginner', evidenceIds: [] },
+        ],
       });
     });
 

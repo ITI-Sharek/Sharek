@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 149,
+  "routeCount": 150,
   "routes": [
     {
       "method": "GET",
@@ -2265,6 +2265,33 @@
       "guards": [],
       "roles": [],
       "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/me/recommended-tasks",
+      "normalizedPath": "/contributors/me/recommended-tasks",
+      "key": "GET /contributors/me/recommended-tasks",
+      "controller": "RecommendationsController",
+      "handler": "list",
+      "source": "src/modules/matching/recommendations.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "contributor"
+      ],
+      "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200
     },

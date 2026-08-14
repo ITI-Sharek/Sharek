@@ -1332,6 +1332,63 @@ the user cannot benefit from would be advertising an unusable benefit.
 command enforces it — both read the same resolution — so what a user is shown
 and what they can do cannot drift apart.
 
+## Phase 1 matched projects (#111)
+
+```http
+GET /contributors/me/recommended-tasks
+Authorization: Bearer <contributor access token>
+```
+
+Gold contributors receive up to 10 ranked matches. A **free contributor
+receives `200` with an empty list and `reason: MATCHING_REQUIRES_SUBSCRIPTION`,
+not a `403`** — the route is legitimately theirs, and an error state is the
+wrong thing for the UI to render when the correct answer is an upgrade prompt.
+An owner receives `403 CONTRIBUTOR_RECOMMENDATIONS_NOT_AUTHORIZED`: matched
+projects are a contributor benefit.
+
+```json
+{
+  "planType": "gold",
+  "reason": null,
+  "recommendations": [
+    {
+      "requestId": "…",
+      "projectName": "Share-k API",
+      "title": "Build the ingestion worker",
+      "rank": 1,
+      "confidence": "HIGH",
+      "justification": "Your approved NestJS and PostgreSQL match what this request asks for.",
+      "matchedSkills": [
+        { "name": "NestJS", "proficiency": "advanced", "evidenceIds": ["github:sharek/api"] }
+      ],
+      "applicationsCloseAt": "2026-09-01T00:00:00.000Z",
+      "targetCompletionDate": null,
+      "difficulty": "intermediate",
+      "reward": null,
+      "rewardCurrency": null
+    }
+  ]
+}
+```
+
+**There is no `matchScore` and no percentage anywhere in this response.**
+DEC-010 forbids presenting fit as a number; `rank` is an ordinal position and
+`confidence` is a categorical band. Coverage is computed internally for ordering
+and never leaves the backend as a number.
+
+**Matching is pull-only.** Publishing a Contribution Request emits no
+notification to matching contributors, in either owner tier. Owner-side
+auto-notification is out of scope and must not be built; the
+`AiMatchResult.notification_sent` column that existed for it was dropped in
+`20260814120000_drop_ai_match_notification_sent`.
+
+Results are persisted to `AiMatchResult` with rank and matched skills.
+Recomputing replaces the contributor's previous rows rather than accumulating
+them. AI ranking is an optional re-order over the deterministic shortlist: if
+no ranker is bound, or it fails, or it returns anything other than a
+permutation of the shortlist, the deterministic order stands and the request
+still succeeds.
+
 ## Sprint 4 Owner Decisions and Assignments (#51)
 
 ```http

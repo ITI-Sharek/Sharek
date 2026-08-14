@@ -1219,11 +1219,13 @@ model AiMatchResult {
   source_attribution      Json?
   rank                    Int
   model_used              String?  @db.VarChar(50)
-  notification_sent       Boolean  @default(false)
   created_at              DateTime @default(now())
 
   contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
   contributor         User                @relation("AIMatchContributor", fields: [contributor_id], references: [id])
+
+  @@unique([contribution_request_id, contributor_id])
+  @@index([contributor_id, created_at(sort: Desc)])
 }
 
 model AiTraceLog {
