@@ -2974,3 +2974,44 @@ This keeps the system strong without making it heavy:
 - The response carries `rank` and a categorical `confidence`, and no
   `matchScore`. DEC-010 forbids presenting fit as a number, and tests assert no
   score and no percentage appear anywhere in the payload.
+
+### 2026-08-14 - P0-B01 required skill levels on Contribution Requests
+
+- Module: `contribution-tasks`, new
+  `ContributionRequestSkillRequirementsService` and one new table
+  `ContributionRequestSkillRequirement`. Kept out of the 1,300-line
+  `ContributionTasksService` because the two answer different questions about
+  the same aggregate: that one owns the owner-authored draft contract, this one
+  owns the machine-comparable level bar, and the AI write path (`P0-B02`) lands
+  here next.
+- **Phase 0 begins.** Nothing blocks yet. This issue is persistence and the
+  owner write path only; the inference call is `P0-B02` (#115) and the
+  evaluation that refuses a submission is `P0-B03` (#116).
+- `required_level` **reuses `SkillProfileProficiencyLevel`** instead of a
+  parallel enum. Both sides of the eligibility comparison must share one
+  vocabulary; two enums would let them drift and make the comparison undefined.
+- Skill-name normalization moved to `shared/skills/skill-name.ts` and
+  `matching/skill-fit.ts` now delegates to it. This closes the
+  Phase 0 upgrade point that file documented. One definition is what makes it
+  impossible — not merely unlikely — for a contributor to be shortlisted for a
+  Request they are then blocked from applying to.
+- The freeze is enforced inside the transaction behind a `FOR UPDATE` on the
+  Request row, which overlaps the lock the publication service already takes, so
+  a publish and a skill-requirement edit serialize. A status read before the
+  transaction would be stale by the time the rows are written.
+- `UNIQUE (contribution_request_id, skill_name_normalized)` is the real guard,
+  not the service's duplicate check — that check is racy across two concurrent
+  draft edits. `pnpm run test:migrations:skill-requirements` exercises the
+  index, the cascade, the level vocabulary, and the snapshot's independence
+  from later Request edits against real Postgres, because mocked suites cannot
+  prove DDL.
+- `ApplicationRequirementSnapshot.skill_requirements` defaults to `[]`, so every
+  Application submitted before the gate reads as "no bar" — which is what it
+  was. No backfill is needed or correct.
+- Public request detail exposes `skillName`, `requiredLevel`, and `kind` via a
+  narrow Prisma `select`, never `confidence` or `source`. Excluding them at the
+  query rather than in the mapper means no later change can leak them by
+  spreading the row, and two tests assert the select shape directly.
+- `UnprocessableApplicationError` gained an optional `metadata` argument,
+  matching `ConflictApplicationError`. A 422 that names which of fifteen skill
+  rows was the duplicate saves the caller a second request.

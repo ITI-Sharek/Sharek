@@ -1,7 +1,7 @@
 # Contribution Requests Module
 
-This module owns Contribution Request records, their ordered Requirements, and
-their immutable lifecycle audit. New domain code uses **Contribution Request**;
+This module owns Contribution Request records, their ordered Requirements, their
+required skill levels, and their immutable lifecycle audit. New domain code uses **Contribution Request**;
 the directory keeps its historical `contribution-tasks` name to avoid a broad
 module rename.
 
@@ -33,6 +33,8 @@ GET   /projects/:projectId/contribution-requests
 POST  /projects/:projectId/contribution-requests
 GET   /contribution-requests/:requestId
 PATCH /contribution-requests/:requestId
+GET   /contribution-requests/:requestId/skill-requirements
+PUT   /contribution-requests/:requestId/skill-requirements
 POST  /contribution-requests/:requestId/discard
 POST  /contribution-requests/:requestId/publish
 POST  /contribution-requests/:requestId/cancel
@@ -118,7 +120,67 @@ that returns owner-authored technology tags for a set of Request IDs. The
 Delivery reputation coordinator uses those tags only after a Delivery is
 approved; this module does not rank skills or write Reputation records.
 
+## Implemented: required skill levels (#114, P0-B01)
+
+A Request's Requirements are owner-authored prose — what the work involves.
+`ContributionRequestSkillRequirement` is the machine-comparable half: one row
+per named skill, with the proficiency it demands. It exists because nothing in
+the prior model was comparable to a contributor's proficiency, so there was no
+bar to compare anyone against (DEC-078, ADR 0015).
+
+- `required_level` reuses the **`SkillProfileProficiencyLevel`** enum rather
+  than declaring a parallel one, so both sides of the eligibility comparison
+  share one vocabulary and cannot drift apart.
+- `skill_name_normalized` is produced by `shared/skills/skill-name.ts`, the same
+  function the `matching` module uses. One definition is what prevents a
+  contributor being shortlisted for a Request they are then blocked from
+  applying to.
+- **The set freezes at publication.** Writes against anything other than a
+  `draft` return `REQUEST_SKILL_REQUIREMENTS_FROZEN` (409). The status is read
+  inside the transaction behind a `FOR UPDATE` on the Request row, which
+  overlaps the lock the publication service takes — so a publish and an edit
+  serialize instead of interleaving.
+- The write **replaces the whole set** atomically. A partial patch would make
+  "delete the last required skill" unexpressible.
+- Owner writes are always `source: owner_override` with `confidence: null`, so
+  a later inference run (`P0-B02`) can tell a human correction from its own
+  earlier output and must not overwrite it.
+- Only `required` rows will block. `preferred` rows are advisory and never
+  affect eligibility — the rule Advisory Fit already follows for the Fit Band.
+- The frozen set is copied into `ApplicationRequirementSnapshot.skill_requirements`
+  at submission. **Both** kinds are recorded: the snapshot is the historical
+  record of what was asked, and it is the *evaluation* that ignores `preferred`.
+  Filtering here would leave a later dispute unable to reconstruct the bar.
+- Public request detail exposes `skillName`, `requiredLevel`, and `kind` only.
+  `confidence` and `source` are excluded by a narrow Prisma `select` rather than
+  by mapping, so no later change can leak them by spreading the row.
+
+Out of scope for this issue and tracked separately: the inference call and
+publication precondition (`P0-B02`, #115), and the evaluation that blocks a
+submission (`P0-B03`, #116). Nothing here blocks anything yet.
+
 ## Persistence
+
+Migration `20260814101636_contribution_request_skill_requirements` creates
+`ContributionRequestSkillRequirement` with a **unique index on
+`(contribution_request_id, skill_name_normalized)`** and an `ON DELETE CASCADE`
+from the Request, and adds `ApplicationRequirementSnapshot.skill_requirements`
+defaulting to `[]`.
+
+The unique index is the real guard, not the service's duplicate check: that
+check is racy across two concurrent draft edits. The default on the snapshot
+column means every Application submitted before the gate existed reads as "no
+bar", which is what it was — no backfill is needed or correct.
+
+Because the mocked jest suites cannot prove DDL, the index, the cascade, the
+level vocabulary, and the snapshot's independence from later Request edits are
+exercised against real Postgres:
+
+```bash
+docker compose up -d postgres
+DATABASE_URL=postgresql://sharek:sharek@localhost:5433/sharek?schema=public \
+  pnpm run test:migrations:skill-requirements
+```
 
 Migration `20260728013000_contribution_request_drafts` preserves legacy request
 rows, renames legacy technology/deadline columns, adds Applications Close Time,
@@ -134,5 +196,5 @@ write Subscription records.
 Focused verification:
 
 ```bash
-npm test -- --runInBand src/modules/contribution-tasks/services/contribution-tasks.service.spec.ts src/modules/contribution-tasks/services/contribution-request-publication.service.spec.ts src/modules/contribution-tasks/services/public-contribution-requests.service.spec.ts src/modules/applications/applications.service.spec.ts test/contribution-requests.e2e-spec.ts test/contribution-request-public-lifecycle.e2e-spec.ts
+npm test -- --runInBand src/modules/contribution-tasks/services/contribution-tasks.service.spec.ts src/modules/contribution-tasks/services/contribution-request-skill-requirements.service.spec.ts src/modules/contribution-tasks/services/contribution-request-publication.service.spec.ts src/modules/contribution-tasks/services/public-contribution-requests.service.spec.ts src/modules/applications/applications.service.spec.ts test/contribution-requests.e2e-spec.ts test/contribution-request-public-lifecycle.e2e-spec.ts
 ```

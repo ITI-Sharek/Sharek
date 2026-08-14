@@ -174,6 +174,26 @@ describe('ApplicationsService submission and withdrawal', () => {
       requirements: [
         { id: 'required-1', kind: 'required', position: 0, text: 'NestJS' },
       ],
+      // Non-empty on purpose: the frozen bar has to be proven to reach the
+      // snapshot, and an empty array would pass whether or not it does.
+      skillRequirements: [
+        {
+          id: 'skill-required-1',
+          skillName: 'NestJS',
+          skillNameNormalized: 'nestjs',
+          requiredLevel: 'intermediate',
+          kind: 'required',
+          position: 0,
+        },
+        {
+          id: 'skill-preferred-1',
+          skillName: 'GraphQL',
+          skillNameNormalized: 'graphql',
+          requiredLevel: 'beginner',
+          kind: 'preferred',
+          position: 0,
+        },
+      ],
     };
     contributionTasks.getApplicationSubmissionContext.mockResolvedValue(
       requestContext,
@@ -275,6 +295,22 @@ describe('ApplicationsService submission and withdrawal', () => {
           requirements: [
             expect.objectContaining({ id: 'required-1', kind: 'required' }),
           ],
+          // The frozen level bar (DEC-078). Both kinds are recorded: the
+          // snapshot is the historical record of what was asked, and it is the
+          // evaluation that ignores `preferred`. Dropping preferred rows here
+          // would leave a later dispute unable to reconstruct the bar.
+          skill_requirements: [
+            expect.objectContaining({
+              skillName: 'NestJS',
+              skillNameNormalized: 'nestjs',
+              requiredLevel: 'intermediate',
+              kind: 'required',
+            }),
+            expect.objectContaining({
+              skillName: 'GraphQL',
+              kind: 'preferred',
+            }),
+          ],
         }),
       }),
     );
@@ -318,6 +354,7 @@ describe('ApplicationsService submission and withdrawal', () => {
         applicationsCloseAt: new Date('2030-01-01T00:00:00.000Z'),
         updatedAt: new Date('2026-07-28T11:00:00.000Z'),
         requirements: [],
+        skillRequirements: [],
       });
 
       await expect(
@@ -341,6 +378,7 @@ describe('ApplicationsService submission and withdrawal', () => {
       applicationsCloseAt: new Date('2020-01-01T00:00:00.000Z'),
       updatedAt: new Date('2020-01-01T00:00:00.000Z'),
       requirements: [],
+      skillRequirements: [],
     });
     await expect(
       service.submit({
@@ -481,6 +519,7 @@ describe('ApplicationsService submission and withdrawal', () => {
       applicationsCloseAt: new Date('2020-01-01T00:00:00.000Z'),
       updatedAt: new Date('2020-01-01T00:00:00.000Z'),
       requirements: [],
+      skillRequirements: [],
     });
 
     await expect(

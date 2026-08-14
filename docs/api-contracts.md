@@ -664,6 +664,58 @@ CONTRIBUTION_REQUEST_IDEMPOTENCY_KEY_INVALID
 CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT
 ```
 
+## Contribution Request Required Skill Levels
+
+Owner-only, authenticated, and editable **only while the Request is a draft**
+(DEC-078, ADR 0015):
+
+```text
+GET /contribution-requests/:requestId/skill-requirements
+PUT /contribution-requests/:requestId/skill-requirements
+```
+
+`PUT` replaces the whole set. A partial patch would make "remove the last
+required skill" unexpressible, and the owner is editing a short list they can
+see in full. Request body:
+
+```json
+{
+  "skillRequirements": [
+    { "skillName": "NestJS", "requiredLevel": "intermediate", "kind": "required" },
+    { "skillName": "PostgreSQL", "requiredLevel": "beginner", "kind": "preferred" }
+  ]
+}
+```
+
+`requiredLevel` is `beginner | intermediate | advanced` — the same vocabulary
+as a contributor's approved skill proficiency, because both sides of the
+eligibility comparison must share one scale. `kind` is `required | preferred`;
+only `required` rows will ever block a submission.
+
+`source` and `confidence` are **not accepted** on input and are rejected with
+`400`. Every owner write is recorded as `source: owner_override` with
+`confidence: null`, so a later inference run can tell a human correction from
+its own earlier output and must not overwrite it.
+
+The response is the stored set, ordered `required` first then `preferred`, each
+by position, and carries `source` and `confidence` for the owner. The **public**
+Request detail (`GET /tasks/:requestId`) exposes `skillName`, `requiredLevel`,
+and `kind` only — never `confidence`, `source`, or any model identifier.
+
+At most 15 skills. Duplicates are detected on the *normalized* name, so
+`Node.js` and `nodejs` are one skill.
+
+```text
+REQUEST_SKILL_REQUIREMENTS_FROZEN        409  the Request is no longer a draft
+REQUEST_SKILL_REQUIREMENTS_TOO_MANY      422  more than 15 rows
+REQUEST_SKILL_REQUIREMENT_DUPLICATE      422  two spellings of one skill
+REQUEST_SKILL_REQUIREMENT_NAME_INVALID   422  a name with no letters or digits
+```
+
+The set **freezes at publication** and is copied into the Application's
+Requirement Snapshot at submission, so editing a later draft can never change
+why an earlier contributor was refused.
+
 ## Contribution Request Public Lifecycle
 
 Owner commands require an authenticated active `owner`, an owned published

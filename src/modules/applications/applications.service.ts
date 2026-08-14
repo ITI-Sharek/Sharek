@@ -190,6 +190,22 @@ export class ApplicationsService {
               position: requirement.position,
               text: requirement.text,
             })) as unknown as Prisma.InputJsonValue,
+            // The level bar as it stood at this instant (DEC-078, ADR 0015).
+            // Snapshotting it is what makes a refusal reproducible: the owner
+            // can never publish an edit that retroactively changes why an
+            // earlier contributor was blocked, because the evaluation reads
+            // this frozen copy rather than the live rows. Both `required` and
+            // `preferred` rows are recorded — the snapshot is the historical
+            // record of what was asked, and it is the evaluation that ignores
+            // `preferred`.
+            skill_requirements: locked!.skillRequirements.map((skill) => ({
+              id: skill.id,
+              skillName: skill.skillName,
+              skillNameNormalized: skill.skillNameNormalized,
+              requiredLevel: skill.requiredLevel,
+              kind: skill.kind,
+              position: skill.position,
+            })) as unknown as Prisma.InputJsonValue,
           },
         });
         await transaction.applicationEvidenceSnapshot.create({
