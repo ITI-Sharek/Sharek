@@ -1398,6 +1398,34 @@ Authorized Application projections also include `reviewDueAt`, `expiresAt`,
 nullable `expiredAt`, and `overdue`. `overdue` becomes true at the inclusive
 day-5 boundary only while the Application remains `PENDING_OWNER_REVIEW`.
 
+## AI service routes
+
+The backend calls five FastAPI routes, one client each under
+`src/modules/ai/integrations/`:
+
+| Route | Client | Feature |
+|---|---|---|
+| `/advisory-fit/assess` | `advisory-fit.client.ts` | Advisory Fit Assessment |
+| `/requirements/infer` | `requirement-inference.client.ts` | Required skill levels (P0) |
+| `/material-analysis/analyze` | `material-analysis.client.ts` | Material Draft Suggestions |
+| `/skill-gap-guidance/generate` | `skill-gap-guidance.client.ts` | Skill Gap Guidance |
+| `/skill-profiles/generate` | `fastapi-skill-profile.client.ts` | Skill profile generation |
+
+Four of the five read their path from an `AI_*_PATH` setting; the default is
+what ships and is therefore what the AI service must serve.
+`/skill-profiles/generate` is built inline from `AI_SERVICE_URL`.
+
+`npm run test:ai-routes` asserts the AI service still serves all five. It reads
+the live `/openapi.json` when `AI_SERVICE_URL` is reachable and falls back to
+`docs/ai-service-routes.json` otherwise, failing if that manifest drifts from
+the clients. Extra routes on the AI service are fine — only a route the backend
+calls and the service does not serve is a failure.
+
+This exists because a renamed route is invisible to both repositories'
+mocked suites: `/advisory-fit/assess` was once renamed to `/advisory-fit/analyze`
+on an AI branch while these clients still called `/assess`, and nothing failed
+until the service was actually run.
+
 ## Phase 1 subscription status (#108)
 
 ```http
