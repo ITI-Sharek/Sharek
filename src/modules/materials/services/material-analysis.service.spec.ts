@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MaterialScanStatus, ProjectStatus } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
+import { EntitlementsService } from '../../subscriptions/entitlements.service';
 import { MaterialAnalysisService } from './material-analysis.service';
 
 describe('MaterialAnalysisService', () => {
@@ -32,6 +33,7 @@ describe('MaterialAnalysisService', () => {
     materialAnalysisSetVersion: { findMany: jest.fn() },
     materialVersion: { findUnique: jest.fn() },
     materialDraftSuggestion: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    subscription: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   };
   const config = {
@@ -40,7 +42,12 @@ describe('MaterialAnalysisService', () => {
   const projects = { getMaterialProjectContext: jest.fn() };
   const storage = { getStream: jest.fn() };
   const ai = { requestMaterialAnalysis: jest.fn() };
-  const entitlements = { hasMinimumOwnerPlan: jest.fn() };
+  // The real service over the same mocked client and config, so the analysis
+  // entitlement is resolved rather than stubbed away.
+  const entitlements = new EntitlementsService(
+    database as never,
+    config as unknown as ConfigService,
+  );
   const queue = { enqueueRun: jest.fn() };
   const publication = { updateProject: jest.fn() };
   const contributionTasks = { createDraft: jest.fn() };

@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **148**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **149**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -242,6 +242,12 @@ Unique controller method/path pairs: **148**. WebSocket events are excluded from
 | `PATCH` | `/notifications/:notificationId/read-state` | Bearer / resource-scoped | 200 | Set Notification Read State |
 | `GET` | `/notifications/unread-count` | Bearer / resource-scoped | 200 | Unread Notification Count |
 | `PATCH` | `/me/notification-preferences` | Bearer / resource-scoped | 200 | Update Notification Preferences |
+
+### Subscriptions
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `GET` | `/me/subscription` | owner / contributor | 200 | Get Current Plan |
 
 ### Admin
 

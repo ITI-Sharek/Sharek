@@ -18,6 +18,17 @@ limit, a cap, or a commission rate.
 
 ## Public API
 
+### Routes
+
+| Route | Returns |
+|---|---|
+| `GET /me/subscription` | The caller's own resolved plan, usage, benefits, and entitlements |
+
+The route takes no user parameter, so there is no path through this module's
+HTTP surface to another user's subscription.
+
+### Exported service
+
 `SubscriptionsModule` exports `EntitlementsService` only.
 
 | Method | Answers |
@@ -26,6 +37,7 @@ limit, a cap, or a commission rate.
 | `resolveForContributor(userId, database?, now?)` | Daily Application limit, matched-project cap, commission rate |
 | `resolve(userId, roleContext, database?, now?)` | Either of the above, when the role is only known at runtime |
 | `hasMinimumOwnerPlan(userId, minimumPlan, now?)` | Whether an owner's plan clears a threshold |
+| `resolveMaterialAnalysisEntitlement(userId, roleContext, now?)` | Whether Material analysis is available right now |
 | `assignPlan(input, database?)` | Records a plan an administrator or a payment provider granted |
 
 Every read takes an optional Prisma client so callers can resolve **inside their
@@ -66,13 +78,37 @@ be advertising an unusable benefit.
   source, and only a real checkout may write `payment_provider`. An admin grant
   and a paid grant are otherwise the same row shape.
 
+## The status endpoint
+
+`GET /me/subscription` is assembled by `SubscriptionStatusService`. Three rules
+shape what it says:
+
+- **Benefits are server-authored.** The label a user reads is written next to
+  the limit the backend enforces, so the two cannot drift. The UI never
+  reconstructs plan policy from the plan name.
+- **No commission, in either role, on either plan.** Phase 1 has no paid tasks,
+  so a commission rate has nothing to apply to, and advertising a waiver the
+  user cannot benefit from would be advertising an unusable benefit. A test
+  asserts the string is absent from the whole payload.
+- **`usage` is the window the count is measured over, not the billing period.**
+  A calendar month of published Contribution Requests for an owner, a UTC day of
+  Applications for a contributor. That is what a user means by "resets", and it
+  is present for free users, who have an allowance but no billing period at all.
+
+A free user receives a complete payload. Absence of a subscription is a valid
+state, so the route never 404s.
+
 ## Not here
 
-Checkout, webhooks, and payment persistence are the PAY-xx issues. Usage
-counting lives with the module that enforces the limit — publication counts in
-contribution-tasks, Application counts in applications — because the count is
-part of that module's transaction. This module supplies the limit, not the
-tally.
+Checkout, webhooks, and payment persistence are the PAY-xx issues.
+
+Usage **counting** lives with the module that owns the thing being counted:
+published Contribution Requests in projects, Applications in applications. This
+module supplies the limit and reads the tally for presentation; it never keeps
+its own copy. That is why `SubscriptionsModule` forward-references those two
+modules — for the read side of the status endpoint only. `EntitlementsService`
+itself has no module dependencies, which is what lets every enforcement point
+depend on it.
 
 ## Extending
 

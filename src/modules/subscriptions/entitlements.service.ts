@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   Prisma,
   SubscriptionPlanType,
@@ -77,7 +78,10 @@ const PLAN_SELECTION = {
  */
 @Injectable()
 export class EntitlementsService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    @Optional() private readonly config: ConfigService = new ConfigService(),
+  ) {}
 
   async resolveForOwner(
     userId: string,
@@ -140,6 +144,48 @@ export class EntitlementsService {
       planType,
       entitled: PLAN_RANK[planType] >= PLAN_RANK[minimumPlan],
     };
+  }
+
+  /**
+   * Whether Material analysis is available to this user right now.
+   *
+   * Both the enforcement point in the materials module and the subscription
+   * status endpoint read this, so the answer a contributor is shown and the
+   * answer the command applies cannot drift apart. Material analysis is an
+   * owner capability over an owner's own Project, so a contributor is never
+   * entitled to it whatever their plan.
+   */
+  async resolveMaterialAnalysisEntitlement(
+    userId: string,
+    roleContext: SubscriptionUserRoleContext,
+    now = new Date(),
+  ): Promise<{ planType: SubscriptionPlanType; entitled: boolean }> {
+    if (roleContext !== SubscriptionUserRoleContext.owner) {
+      const { planType } = await this.resolveForContributor(
+        userId,
+        this.database,
+        now,
+      );
+      return { planType, entitled: false };
+    }
+    if (!this.config.get<boolean>('MATERIAL_ANALYSIS_ENABLED', true)) {
+      const { planType } = await this.resolveForOwner(userId, this.database, now);
+      return { planType, entitled: false };
+    }
+    if (
+      !this.config.get<boolean>('MATERIAL_ANALYSIS_REQUIRE_SUBSCRIPTION', false)
+    ) {
+      const { planType } = await this.resolveForOwner(userId, this.database, now);
+      return { planType, entitled: true };
+    }
+    return this.hasMinimumOwnerPlan(
+      userId,
+      this.config.get<SubscriptionPlanType>(
+        'MATERIAL_ANALYSIS_MIN_PLAN',
+        SubscriptionPlanType.gold,
+      ),
+      now,
+    );
   }
 
   /**

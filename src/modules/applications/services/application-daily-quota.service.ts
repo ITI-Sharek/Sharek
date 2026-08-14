@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, UserActionType } from '@prisma/client';
 
+import { DatabaseService } from '../../../shared/database/database.service';
 import { ConflictApplicationError } from '../../../shared/errors/application.error';
 import { EntitlementsService } from '../../subscriptions/entitlements.service';
 
@@ -22,7 +23,10 @@ export interface DailyApplicationQuota {
  */
 @Injectable()
 export class ApplicationDailyQuotaService {
-  constructor(private readonly entitlements: EntitlementsService) {}
+  constructor(
+    private readonly entitlements: EntitlementsService,
+    private readonly database: DatabaseService,
+  ) {}
 
   /**
    * Serializes one contributor's concurrent submissions for the rest of the
@@ -105,11 +109,12 @@ export class ApplicationDailyQuotaService {
   /** Today's tally without consuming anything, for the subscription status endpoint. */
   async read(input: {
     contributorId: string;
-    database: Pick<Prisma.TransactionClient, 'usageTracker'>;
     now: Date;
+    database?: Pick<Prisma.TransactionClient, 'usageTracker'>;
   }): Promise<{ used: number; periodStart: Date; periodEnd: Date }> {
+    const database = input.database ?? this.database;
     const periodDate = startOfUtcDay(input.now);
-    const tally = await input.database.usageTracker.findUnique({
+    const tally = await database.usageTracker.findUnique({
       where: {
         user_id_action_type_period_date: {
           user_id: input.contributorId,

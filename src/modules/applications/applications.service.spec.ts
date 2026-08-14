@@ -146,6 +146,7 @@ describe('ApplicationsService submission and withdrawal', () => {
   // tests exercise the advisory lock and the tally rather than a stub of them.
   const dailyQuota = new ApplicationDailyQuotaService(
     new EntitlementsService(database as never),
+    database as never,
   );
   const service = new ApplicationsService(
     database as never,

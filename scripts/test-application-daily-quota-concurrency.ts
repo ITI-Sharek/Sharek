@@ -25,6 +25,7 @@ const database = new PrismaClient({
 });
 const quota = new ApplicationDailyQuotaService(
   new EntitlementsService(database as never),
+  database as never,
 );
 
 const now = new Date();
