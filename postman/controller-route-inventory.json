@@ -2248,6 +2248,64 @@
     },
     {
       "method": "GET",
+      "path": "/contribution-requests/:requestId/skill-requirements",
+      "normalizedPath": "/contribution-requests/:parameter/skill-requirements",
+      "key": "GET /contribution-requests/:parameter/skill-requirements",
+      "controller": "ContributionTasksController",
+      "handler": "listSkillRequirements",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/contribution-requests/:requestId/skill-requirements",
+      "normalizedPath": "/contribution-requests/:parameter/skill-requirements",
+      "key": "PUT /contribution-requests/:parameter/skill-requirements",
+      "controller": "ContributionTasksController",
+      "handler": "replaceSkillRequirements",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ReplaceContributionRequestSkillRequirementsDto",
+      "bodyFields": [
+        {
+          "name": "skillRequirements",
+          "optional": false,
+          "type": "ContributionRequestSkillRequirementInputDto[]"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
       "path": "/contributors/experience-levels",
       "normalizedPath": "/contributors/experience-levels",
       "key": "GET /contributors/experience-levels",
@@ -5150,6 +5208,32 @@
       "authentication": "bearer",
       "idempotency": true,
       "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/tasks/:requestId/eligibility",
+      "normalizedPath": "/tasks/:parameter/eligibility",
+      "key": "GET /tasks/:parameter/eligibility",
+      "controller": "EligibilityController",
+      "handler": "previewForRequest",
+      "source": "src/modules/eligibility/eligibility.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
     },
     {
       "method": "POST",

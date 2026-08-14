@@ -10,6 +10,8 @@ import {
 } from 'class-validator';
 import { ContributionRequestDifficulty } from '@prisma/client';
 
+import { PublicContributionRequestSkillRequirementDto } from './contribution-request-skill-requirement.dto';
+
 function normalizeTechnologyFilter(value: unknown): string[] {
   const raw = Array.isArray(value) ? value : [value];
   return Array.from(
@@ -116,5 +118,11 @@ export interface PublicContributionRequestDetailDto
   description: string;
   status: 'published';
   requirements: PublicContributionRequestRequirementDto[];
+  /**
+   * The level bar, frozen at publication (DEC-078). A contributor sees exactly
+   * what is demanded of them and nothing about how it was arrived at — no
+   * `confidence`, no `source`, no model name.
+   */
+  skillRequirements: PublicContributionRequestSkillRequirementDto[];
   attribution: PublicContributionRequestAttributionDto | null;
 }

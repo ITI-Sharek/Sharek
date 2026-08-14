@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 
@@ -20,7 +21,9 @@ import {
   DiscardContributionRequestDto,
   UpdateContributionRequestDto,
 } from '../dto/contribution-request-input.dto';
+import { ReplaceContributionRequestSkillRequirementsDto } from '../dto/contribution-request-skill-requirement.dto';
 import { ContributionRequestPublicationService } from '../services/contribution-request-publication.service';
+import { ContributionRequestSkillRequirementsService } from '../services/contribution-request-skill-requirements.service';
 import { ContributionTasksService } from '../services/contribution-tasks.service';
 
 @UseGuards(AccessTokenGuard)
@@ -29,6 +32,7 @@ export class ContributionTasksController {
   constructor(
     private readonly contributionTasksService: ContributionTasksService,
     private readonly publicationService: ContributionRequestPublicationService,
+    private readonly skillRequirementsService: ContributionRequestSkillRequirementsService,
   ) {}
 
   @Get('projects/:projectId/contribution-requests')
@@ -74,6 +78,27 @@ export class ContributionTasksController {
       requestId,
       body,
       idempotencyKey,
+    });
+  }
+
+  @Get('contribution-requests/:requestId/skill-requirements')
+  listSkillRequirements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId', new ParseUUIDPipe({ version: '4' })) requestId: string,
+  ) {
+    return this.skillRequirementsService.listForOwner(user, requestId);
+  }
+
+  @Put('contribution-requests/:requestId/skill-requirements')
+  replaceSkillRequirements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('requestId', new ParseUUIDPipe({ version: '4' })) requestId: string,
+    @Body() body: ReplaceContributionRequestSkillRequirementsDto,
+  ) {
+    return this.skillRequirementsService.replaceOwnerSkillRequirements({
+      user,
+      requestId,
+      skillRequirements: body.skillRequirements,
     });
   }
 

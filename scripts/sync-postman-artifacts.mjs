@@ -391,6 +391,15 @@ function applyBodyCorrections(route, request) {
     ['POST /contributors/me/skill-gap-guidance', {
       contributionRequestId: '{{contributionRequestId}}',
     }],
+    // Replaces the whole set, so the example sends both kinds: only `required`
+    // rows can block, and `preferred` is advisory. No `source` or `confidence`
+    // — an owner write is always the override, and the API rejects both fields.
+    ['PUT /contribution-requests/:parameter/skill-requirements', {
+      skillRequirements: [
+        { skillName: 'NestJS', requiredLevel: 'intermediate', kind: 'required' },
+        { skillName: 'PostgreSQL', requiredLevel: 'beginner', kind: 'preferred' },
+      ],
+    }],
     ['PATCH /me/notification-preferences', {
       expectedRevision: 1,
       retentionDays: 90,

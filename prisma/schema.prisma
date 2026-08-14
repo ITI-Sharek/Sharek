@@ -125,6 +125,45 @@ enum ContributionRequestRequirementKind {
   preferred
 }
 
+/// The verdict of one Eligibility Evaluation. There is no third value on
+/// purpose: a provider outage or an evaluation that could not run is a
+/// retriable error, never an outcome recorded against a contributor (ADR 0015).
+enum EligibilityOutcome {
+  eligible
+  blocked
+}
+
+/// Whether inference has produced a level bar for a draft yet.
+///
+/// Owner-visible, because a draft that cannot be published until it has a
+/// required skill row must be able to say *why* it has none: still running, or
+/// failed and worth retrying. Without this the owner sees an empty list and a
+/// publish button that refuses, with nothing connecting the two.
+enum ContributionRequestSkillInferenceStatus {
+  not_started
+  pending
+  succeeded
+  /// Retriable. A provider outage is not a statement about the Request, so the
+  /// draft stays editable and the owner may retry or enter the set by hand.
+  failed
+}
+
+/// Where a required skill level came from. An `owner_override` row always wins
+/// over re-inference: a human who has corrected the bar must not have their
+/// correction overwritten by the next model run (ADR 0015).
+enum ContributionRequestSkillRequirementSource {
+  ai_inferred
+  owner_override
+}
+
+/// Categorical by design. A percentage invites the reader to treat an inferred
+/// level as a measurement, and it is not one.
+enum ContributionRequestSkillRequirementConfidence {
+  high
+  medium
+  low
+}
+
 enum ContributionRequestAuditAction {
   created
   updated
@@ -466,6 +505,7 @@ model User {
   reportsResolved                   Report[]                           @relation("ReportResolver")
   reportsReceived                   Report[]                           @relation("ReportReportedUser")
   skillGapContributions             SkillGapGuidance[]                 @relation("SkillGapContributor")
+  eligibilityEvaluations            EligibilityEvaluation[]            @relation("EligibilityEvaluationContributor")
   authSessions                      AuthSession[]
   authProviderAccounts              AuthProviderAccount[]
   authOAuthStates                   AuthOAuthState[]
@@ -826,6 +866,8 @@ model ContributionRequest {
   origin_proposal_id        String?                        @unique @db.Uuid
   attributed_contributor_id String?                        @db.Uuid
   published_at              DateTime?
+  skill_inference_status    ContributionRequestSkillInferenceStatus @default(not_started)
+  skill_inference_ran_at    DateTime?
   created_at                DateTime                       @default(now())
   updated_at                DateTime                       @default(now()) @updatedAt
 
@@ -834,6 +876,8 @@ model ContributionRequest {
   originProposal        ContributionProposal?            @relation("ProposalOriginatedRequest", fields: [origin_proposal_id], references: [id], onDelete: SetNull)
   attributedContributor User?                            @relation("ContributionRequestAttributedContributor", fields: [attributed_contributor_id], references: [id], onDelete: SetNull)
   requirements          ContributionRequestRequirement[]
+  skillRequirements     ContributionRequestSkillRequirement[]
+  eligibilityEvaluations EligibilityEvaluation[]
   auditEvents           ContributionRequestAudit[]
   applications          Application[]
   aiMatchResults        AiMatchResult[]
@@ -862,6 +906,82 @@ model ContributionRequestRequirement {
 
   @@unique([contribution_request_id, kind, position])
   @@index([contribution_request_id, kind])
+}
+
+/// The level bar a Contribution Request sets, one row per named skill.
+///
+/// `ContributionRequestRequirement` above is owner-authored prose — what the
+/// work involves. This is the machine-comparable half: a skill name and the
+/// proficiency it demands, which is the only thing an Eligibility Evaluation
+/// can compare a contributor's approved skills against (DEC-078, ADR 0015).
+///
+/// `required_level` deliberately reuses `SkillProfileProficiencyLevel` rather
+/// than declaring a parallel enum: the two sides of the comparison must share
+/// one vocabulary, and a separate enum would let them drift apart silently.
+///
+/// Rows are editable only while the owning Request is a draft. They freeze at
+/// publication and are copied into `ApplicationRequirementSnapshot`, so editing
+/// a later draft can never change why an earlier contributor was blocked.
+model ContributionRequestSkillRequirement {
+  id                      String                                         @id @default(uuid()) @db.Uuid
+  contribution_request_id String                                         @db.Uuid
+  skill_name              String                                         @db.VarChar(100)
+  /// Identity form from `shared/skills/skill-name.ts`. The unique index below
+  /// is built on it, so `Node.js` and `nodejs` cannot both attach to one Request.
+  skill_name_normalized   String                                         @db.VarChar(100)
+  required_level          SkillProfileProficiencyLevel
+  kind                    ContributionRequestRequirementKind
+  source                  ContributionRequestSkillRequirementSource
+  /// Categorical, never a percentage, and never exposed publicly. Null on
+  /// owner overrides — a human who states the bar is not expressing confidence.
+  confidence              ContributionRequestSkillRequirementConfidence?
+  position                Int
+  created_at              DateTime                                       @default(now())
+  updated_at              DateTime                                       @default(now()) @updatedAt
+
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
+
+  @@unique([contribution_request_id, skill_name_normalized])
+  @@index([contribution_request_id, kind])
+}
+
+/// Append-only record of one gate decision (DEC-078, ADR 0015).
+///
+/// Never updated and never deleted. A refusal has to stay reproducible for a
+/// dispute months later, which means recording what was compared at the time —
+/// `blocking_skills` carries each blocking skill with the level demanded and
+/// the level the contributor held, so the reason survives even if the
+/// contributor's profile changes afterwards.
+///
+/// Written for BOTH outcomes. Recording only refusals would make the table a
+/// list of accusations with no denominator, and "was this person evaluated at
+/// all?" unanswerable.
+model EligibilityEvaluation {
+  id                       String             @id @default(uuid()) @db.Uuid
+  contributor_id           String             @db.Uuid
+  /// Exactly one of these is set, enforced by a CHECK constraint in the raw
+  /// migration: an evaluation belongs to one contribution path.
+  contribution_request_id  String?            @db.Uuid
+  contribution_proposal_id String?            @db.Uuid
+  outcome                  EligibilityOutcome
+  /// `[{ skillName, requiredLevel, contributorLevel }]`. Empty for `eligible`.
+  /// `contributorLevel` is null when the contributor holds no approved evidence
+  /// for that skill at all — a distinction the UI has to render differently.
+  blocking_skills          Json               @default("[]")
+  /// The version of the comparison contract that produced this row, not a
+  /// version of the Request. The bar itself is frozen at publication, so the
+  /// Request identifies it; this column exists so that a later change to the
+  /// comparison rules is visible in an append-only log rather than making old
+  /// rows silently unreproducible.
+  requirement_snapshot_version Int            @default(1)
+  evaluated_at             DateTime           @default(now())
+
+  contributor         User                  @relation("EligibilityEvaluationContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+  contributionRequest ContributionRequest?  @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
+  contributionProposal ContributionProposal? @relation(fields: [contribution_proposal_id], references: [id], onDelete: Cascade)
+
+  @@index([contributor_id, evaluated_at])
+  @@index([contribution_request_id, evaluated_at])
 }
 
 model ContributionRequestAudit {
@@ -930,6 +1050,12 @@ model ApplicationRequirementSnapshot {
   contribution_request_id   String   @db.Uuid
   source_request_updated_at DateTime
   requirements              Json
+  /// The frozen level bar this Application was judged against (DEC-078).
+  /// A separate column rather than a key inside `requirements`, because the
+  /// two have different readers: Advisory Fit consumes the prose requirements,
+  /// the Eligibility Evaluation consumes these. Defaults to `[]` so every
+  /// Application that predates the gate reads as "no bar", which is what it was.
+  skill_requirements        Json     @default("[]")
   created_at                DateTime @default(now())
 
   application        Application?
@@ -1214,6 +1340,7 @@ model ContributionProposal {
   proposer          User                               @relation("ContributionProposalProposer", fields: [proposer_id], references: [id], onDelete: Restrict)
   versions          ContributionProposalVersion[]
   auditEvents       ContributionProposalAudit[]
+  eligibilityEvaluations EligibilityEvaluation[]
   misuseReports     ContributionProposalMisuseReport[]
   originatedRequest ContributionRequest?               @relation("ProposalOriginatedRequest")
 

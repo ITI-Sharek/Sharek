@@ -5,6 +5,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AssignmentConversationsModule } from './modules/assignment-conversations/assignment-conversations.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
+import { EligibilityModule } from './modules/eligibility/eligibility.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { ContributionProposalsModule } from './modules/contribution-proposals/contribution-proposals.module';
 import { ContributionTasksModule } from './modules/contribution-tasks/contribution-tasks.module';
@@ -55,6 +56,7 @@ import { RealtimeModule } from './shared/realtime/realtime.module';
     ContributionTasksModule,
     ContributorProfilesModule,
     ApplicationsModule,
+    EligibilityModule,
     MaterialsModule,
     ContributionProposalsModule,
     DeliveryReviewsModule,

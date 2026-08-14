@@ -2,8 +2,11 @@ import {
   ContributionRequestAuditAction,
   ContributionRequestDifficulty,
   ContributionRequestRequirementKind,
+  ContributionRequestSkillRequirementConfidence,
+  ContributionRequestSkillRequirementSource,
   ContributionRequestStatus,
   Prisma,
+  SkillProfileProficiencyLevel,
 } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 
@@ -434,6 +437,49 @@ describe('ContributionTasksService', () => {
     expect(database.contributionRequest.updateMany).not.toHaveBeenCalled();
   });
 
+  it('refuses publication when no required skill level exists', async () => {
+    // Publishing with no bar produces a Request nobody can be measured against,
+    // so every contributor passes and the differentiator silently does not
+    // exist for that Request. It is always fixable by hand, so a provider
+    // outage never prevents publication.
+    database.contributionRequest.findFirst.mockResolvedValue(
+      makeRequest({ skillRequirements: [] }),
+    );
+
+    await expect(
+      publicationService.publishRequest({ user: owner, requestId }),
+    ).rejects.toMatchObject({
+      code: 'REQUEST_SKILL_REQUIREMENTS_MISSING',
+      statusCode: 422,
+    } satisfies Partial<ApplicationError>);
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('refuses publication when the only skill level is preferred', async () => {
+    database.contributionRequest.findFirst.mockResolvedValue(
+      makeRequest({
+        skillRequirements: [
+          {
+            id: 'skill-preferred-0',
+            skill_name: 'GraphQL',
+            skill_name_normalized: 'graphql',
+            required_level: SkillProfileProficiencyLevel.beginner,
+            kind: ContributionRequestRequirementKind.preferred,
+            source: ContributionRequestSkillRequirementSource.ai_inferred,
+            confidence: ContributionRequestSkillRequirementConfidence.low,
+            position: 0,
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      publicationService.publishRequest({ user: owner, requestId }),
+    ).rejects.toMatchObject({
+      code: 'REQUEST_SKILL_REQUIREMENTS_MISSING',
+    } satisfies Partial<ApplicationError>);
+  });
+
   it('rejects publication when the draft is no longer complete', async () => {
     database.contributionRequest.findFirst.mockResolvedValue(
       makeRequest({ requirements: [] }),
@@ -528,6 +574,18 @@ describe('ContributionTasksService', () => {
       },
       include: {
         requirements: true,
+        // Asserted as an explicit narrow `select`, not `true`: `confidence` and
+        // `source` must be unreachable from the public query, so that no later
+        // change can leak them into a contributor-facing payload by spreading
+        // the row.
+        skillRequirements: {
+          select: {
+            skill_name: true,
+            required_level: true,
+            kind: true,
+            position: true,
+          },
+        },
         attributedContributor: {
           select: {
             id: true,
@@ -1369,6 +1427,30 @@ function baseRequest() {
       makeRequirement('required', 0, 'Build a tested NestJS endpoint'),
       makeRequirement('preferred', 0, 'Document the API examples'),
     ],
+    // A complete draft now carries a level bar — publication refuses without
+    // one (DEC-078). Cases that need the empty state override this explicitly,
+    // so the precondition stays visible rather than being the fixture default.
+    skillRequirements: [
+      {
+        id: 'skill-required-0',
+        skill_name: 'NestJS',
+        skill_name_normalized: 'nestjs',
+        required_level: SkillProfileProficiencyLevel.intermediate,
+        kind: ContributionRequestRequirementKind.required,
+        source: ContributionRequestSkillRequirementSource.ai_inferred,
+        confidence: ContributionRequestSkillRequirementConfidence.high,
+        position: 0,
+      },
+    ] as Array<{
+      id: string;
+      skill_name: string;
+      skill_name_normalized: string;
+      required_level: SkillProfileProficiencyLevel;
+      kind: ContributionRequestRequirementKind;
+      source: ContributionRequestSkillRequirementSource;
+      confidence: ContributionRequestSkillRequirementConfidence | null;
+      position: number;
+    }>,
     attributedContributor: null as {
       id: string;
       username: string | null;

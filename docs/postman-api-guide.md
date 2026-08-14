@@ -120,7 +120,10 @@ Unique controller method/path pairs: **153**. WebSocket events are excluded from
 | `GET` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Get Owned Request |
 | `GET` | `/tasks/:requestId` | Public | 200 | Get Public Request Detail |
 | `GET` | `/projects/:projectId/contribution-requests` | Bearer / resource-scoped | 200 | List Owned Project Requests by Status |
+| `GET` | `/contribution-requests/:requestId/skill-requirements` | Bearer / resource-scoped | 200 | List Skill Requirements |
+| `GET` | `/tasks/:requestId/eligibility` | Bearer / resource-scoped | 200 | Preview For Request |
 | `POST` | `/contribution-requests/:requestId/publish` | Bearer / resource-scoped | 200 | Publish Request |
+| `PUT` | `/contribution-requests/:requestId/skill-requirements` | Bearer / resource-scoped | 200 | Replace Skill Requirements |
 | `PATCH` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Update Draft |
 
 ### Applications

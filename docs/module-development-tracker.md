@@ -3035,3 +3035,141 @@ This keeps the system strong without making it heavy:
   with 1 skipped and 997 tests with 2 skipped. The local PostgreSQL migration
   round-trip could not connect because the configured `postgres` host is
   unavailable in this environment.
+
+### 2026-08-14 - P0-B01 required skill levels on Contribution Requests
+
+- Module: `contribution-tasks`, new
+  `ContributionRequestSkillRequirementsService` and one new table
+  `ContributionRequestSkillRequirement`. Kept out of the 1,300-line
+  `ContributionTasksService` because the two answer different questions about
+  the same aggregate: that one owns the owner-authored draft contract, this one
+  owns the machine-comparable level bar, and the AI write path (`P0-B02`) lands
+  here next.
+- **Phase 0 begins.** Nothing blocks yet. This issue is persistence and the
+  owner write path only; the inference call is `P0-B02` (#115) and the
+  evaluation that refuses a submission is `P0-B03` (#116).
+- `required_level` **reuses `SkillProfileProficiencyLevel`** instead of a
+  parallel enum. Both sides of the eligibility comparison must share one
+  vocabulary; two enums would let them drift and make the comparison undefined.
+- Skill-name normalization moved to `shared/skills/skill-name.ts` and
+  `matching/skill-fit.ts` now delegates to it. This closes the
+  Phase 0 upgrade point that file documented. One definition is what makes it
+  impossible — not merely unlikely — for a contributor to be shortlisted for a
+  Request they are then blocked from applying to.
+- The freeze is enforced inside the transaction behind a `FOR UPDATE` on the
+  Request row, which overlaps the lock the publication service already takes, so
+  a publish and a skill-requirement edit serialize. A status read before the
+  transaction would be stale by the time the rows are written.
+- `UNIQUE (contribution_request_id, skill_name_normalized)` is the real guard,
+  not the service's duplicate check — that check is racy across two concurrent
+  draft edits. `pnpm run test:migrations:skill-requirements` exercises the
+  index, the cascade, the level vocabulary, and the snapshot's independence
+  from later Request edits against real Postgres, because mocked suites cannot
+  prove DDL.
+- `ApplicationRequirementSnapshot.skill_requirements` defaults to `[]`, so every
+  Application submitted before the gate reads as "no bar" — which is what it
+  was. No backfill is needed or correct.
+- Public request detail exposes `skillName`, `requiredLevel`, and `kind` via a
+  narrow Prisma `select`, never `confidence` or `source`. Excluding them at the
+  query rather than in the mapper means no later change can leak them by
+  spreading the row, and two tests assert the select shape directly.
+- `UnprocessableApplicationError` gained an optional `metadata` argument,
+  matching `ConflictApplicationError`. A 422 that names which of fifteen skill
+  rows was the duplicate saves the caller a second request.
+
+### 2026-08-14 - P0-B02 requirement inference and the publication precondition
+
+- Modules: `ai` (new `RequirementInferenceClient`), `contribution-tasks` (new
+  `jobs/requirement-inference.*` and `RequirementInferenceProcessorService`).
+  `contribution-tasks` now imports `AiModule`.
+- **The client revalidates everything the FastAPI schema already enforces.**
+  That is not redundancy: ADR 0015 makes these rows an authorization input, and
+  a schema on the far side of an HTTP call is a promise made by a separately
+  deployed service. This is the check that actually runs before a value can
+  influence whether someone may apply. One out-of-vocabulary row fails the whole
+  run rather than being dropped — a silently discarded skill is a bar the owner
+  never sees and never approves.
+- Confidence is **rejected, not coerced**, when it is not `high|medium|low`.
+  Mapping `0.9` to `high` would invent a categorical judgement the agent never
+  made.
+- The client normalizes with `shared/skills/skill-name.ts`, so a set that would
+  violate the unique index is refused before a transaction opens rather than
+  surfacing as a `P2002` inside the worker.
+- **The override rule lives in the delete filter**, not in a read-and-diff:
+  `deleteMany` is scoped to `source: ai_inferred`, so an owner correction
+  survives re-inference by construction. An inferred skill the owner already
+  overrode is dropped, because the unique index permits one row per normalized
+  name and the human's wins.
+- `RequirementInferenceQueue.enqueueInference` **swallows its own errors**,
+  unlike `AdvisoryFitAssessmentQueue.enqueueAssessment` which throws when
+  disabled. An Assessment Request is a durable row an owner asked for and would
+  be stranded by a dropped job; inference is an optional convenience on a draft,
+  and failing an authoring flow because Redis is down would be worse than no
+  bar. Enqueue happens after commit, never inside the transaction.
+- Jobs carry `requestedAt` and the processor stands down when the draft moved
+  past it, so a slow run cannot overwrite rows inferred from newer text. Status
+  and revision are rechecked under `FOR UPDATE` before persisting, because
+  publication can happen between reading the draft and opening the transaction.
+- A provider failure writes no skill row, sets `skill_inference_status=failed`,
+  and does **not** rethrow — letting it bubble would burn BullMQ's three
+  attempts on a service that is down and write three identical audit rows while
+  the owner still sees nothing explaining the empty list.
+- One `AiTraceLog` row per run with model, latency, status and a skill count.
+  No request content and no provider trace (ADR 0002); a test asserts the
+  draft's own text does not appear in the row.
+- Publication now refuses without a `required` skill row
+  (`REQUEST_SKILL_REQUIREMENTS_MISSING`). `REQUIREMENT_INFERENCE_QUEUE_ENABLED=false`
+  remains a fully supported way to run the product — the owner types the set.
+- `scripts/advisory-fit-provider-stub.mjs` now routes on path and serves
+  `/requirements/infer` too. It echoes the request's technology tags rather than
+  a fixture, for the same reason the Advisory Fit half does: a canned list would
+  fail the client's cap and duplicate checks against a real draft, and that
+  looks exactly like a broken queue.
+
+### 2026-08-14 - P0-B03 the eligibility gate
+
+- New module `eligibility`, owning `EligibilityEvaluation` and nothing else. The
+  bar comes from `contribution-tasks` and approved skills from `skill-profiles`,
+  both through exported services.
+- **It reverses the application-blocking clauses of DEC-030 and DEC-036** and is
+  the first place an AI-derived value can prevent an action. Advisory Fit is
+  untouched and stays decision-neutral; the two answer different questions.
+- The comparison is a pure, clock-free function in
+  `services/skill-level-comparison.ts`. That is what makes a refusal
+  reproducible for a dispute months later — identical inputs, identical verdict.
+  `LEVEL_RANK` is a map, not an array index, so a fourth level cannot be added
+  without explicitly deciding where it sits.
+- **Exactly meeting the bar clears it** (`>=`, not `>`). Otherwise every stated
+  level would silently mean one level higher and no owner could express
+  "intermediate is enough".
+- A skill the contributor does not hold is listed with `contributorLevel: null`
+  rather than omitted, and a contributor with no approved skills sees **every**
+  required skill named. An empty list would read as "blocked for no stated
+  reason", which is the dead end DEC-078 exists to remove.
+- Approved skills are read through
+  `SkillProfileSummaryService.listAuthorizedSkillsForApplicationSnapshot` — the
+  same capability the Application evidence snapshot uses. Restating the status
+  filter here would let the gate's definition of "approved" drift from the one
+  recorded on the Application.
+- Where a contributor holds several approved rows for one skill the **highest**
+  wins; picking arbitrarily would make the verdict depend on row order.
+- **The eligible verdict is written inside the caller's transaction; the blocked
+  verdict is not.** A block throws to refuse the submission, which rolls that
+  transaction back — a row written inside it would vanish and the refusal would
+  leave no trace. `recordBlocked` persists it on a fresh connection afterwards,
+  which is why `submit` carries an internal marker error out of the transaction
+  rather than throwing the 403 directly.
+- Placed after the duplicate check and before `dailyQuota.reserve`, so a blocked
+  attempt costs no daily slot (DEC-079) and someone who already applied gets the
+  accurate duplicate error instead of a skill block.
+- `GET /tasks/:requestId/eligibility` writes no evaluation row and is advisory
+  by construction. The tempting optimisation — "we already checked, skip it in
+  the transaction" — is precisely the TOCTOU bug, and a test asserts a
+  revocation between the two calls still blocks.
+- The CHECK permitting exactly one evaluation target lives in the raw migration
+  because Prisma cannot express one; `pnpm run test:migrations:eligibility`
+  proves it, the outcome vocabulary, and the contributor `ON DELETE RESTRICT`
+  against real Postgres.
+- `contribution_proposal_id` ships now though only `P0-B04` writes it: adding it
+  later would mean writing the CHECK twice and leaving a window where a Proposal
+  evaluation is unstorable.
