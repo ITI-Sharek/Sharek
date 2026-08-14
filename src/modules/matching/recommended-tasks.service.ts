@@ -78,13 +78,14 @@ export class RecommendedTasksService {
     if (!this.ranker) return matches;
     try {
       const reranked = await this.ranker.rerank({ contributorId, matches });
-      if (!isPermutationOf(matches, reranked)) {
+      const reordered = reorderOnly(matches, reranked);
+      if (!reordered) {
         this.logger.warn(
           'Match ranker returned a set that was not a permutation of the shortlist; keeping the deterministic order',
         );
         return matches;
       }
-      return reranked;
+      return reordered;
     } catch (error) {
       this.logger.warn(
         `Match ranker failed, keeping the deterministic order: ${
@@ -198,20 +199,28 @@ function coverageFor(confidence: 'HIGH' | 'MEDIUM' | 'LOW'): number {
   return 0;
 }
 
-function isPermutationOf(
+function reorderOnly(
   original: ShortlistedMatch[],
   candidate: unknown,
-): candidate is ShortlistedMatch[] {
+): ShortlistedMatch[] | null {
   if (!Array.isArray(candidate) || candidate.length !== original.length) {
-    return false;
+    return null;
   }
-  const originalIds = new Set(original.map((match) => match.request.id));
-  const candidateIds = new Set(
-    candidate.map((match: ShortlistedMatch) => match?.request?.id),
+  const originalById = new Map(
+    original.map((match) => [match.request.id, match]),
   );
-  if (candidateIds.size !== originalIds.size) return false;
-  for (const id of candidateIds) {
-    if (!originalIds.has(id)) return false;
+  const reordered: ShortlistedMatch[] = [];
+  const seen = new Set<string>();
+  for (const item of candidate) {
+    const id = (item as { request?: { id?: unknown } } | null)?.request?.id;
+    if (typeof id !== 'string' || seen.has(id)) return null;
+    const match = originalById.get(id);
+    if (!match) return null;
+    seen.add(id);
+    // Return the deterministic object, not the ranker's object. The ranker may
+    // reorder a shortlist, but it cannot edit the request, evidence, reason,
+    // entitlement cap, or any other server-authored fact.
+    reordered.push(match);
   }
-  return true;
+  return reordered.length === original.length ? reordered : null;
 }

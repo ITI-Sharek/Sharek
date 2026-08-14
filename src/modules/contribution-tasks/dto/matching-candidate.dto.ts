@@ -1,3 +1,15 @@
+import {
+  ContributionRequestRequirementKind,
+  SkillProfileProficiencyLevel,
+} from '@prisma/client';
+
+export interface MatchingCandidateSkillRequirement {
+  skillName: string;
+  skillNameNormalized: string;
+  requiredLevel: SkillProfileProficiencyLevel;
+  kind: ContributionRequestRequirementKind;
+}
+
 /**
  * The facts the matching module needs about one open Contribution Request.
  *
@@ -15,6 +27,8 @@ export interface MatchingCandidateRequestDto {
   technologyTags: string[];
   /** Requirement text in position order, required entries before preferred. */
   requirementTexts: string[];
+  /** Frozen Phase 0 skill bar; empty only for legacy Requests predating the gate. */
+  skillRequirements: MatchingCandidateSkillRequirement[];
   difficulty: 'beginner' | 'intermediate' | 'advanced' | null;
   applicationsCloseAt: Date | null;
   targetCompletionDate: Date | null;

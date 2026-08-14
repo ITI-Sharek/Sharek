@@ -226,7 +226,11 @@ Contributor profile response shape:
   },
   "reputationSummary": {
     "rating": null,
-    "reviewsCount": 0
+    "reviewsCount": 0,
+    "completedContributions": 0,
+    "totalAssignedTasks": 0,
+    "successRate": 0,
+    "topVerifiedSkills": []
   },
   "contributionHistory": [],
   "completionPrompts": ["add_bio", "add_experience", "add_fields", "generate_skills", "connect_github"],
@@ -1499,6 +1503,12 @@ notification to matching contributors, in either owner tier. Owner-side
 auto-notification is out of scope and must not be built; the
 `AiMatchResult.notification_sent` column that existed for it was dropped in
 `20260814120000_drop_ai_match_notification_sent`.
+
+The shortlist uses the Request's frozen required skill levels when present:
+only contributors meeting every required `beginner < intermediate < advanced`
+level are recommended. Preferred rows may explain a match but never make an
+under-levelled contributor eligible. Legacy Requests without a stored skill bar
+use the earlier normalized-name fallback.
 
 Results are persisted to `AiMatchResult` with rank and matched skills.
 Recomputing replaces the contributor's previous rows rather than accumulating

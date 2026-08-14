@@ -53,6 +53,11 @@ The `minimizePaymentWebhookPayload()` and
 SHA-256 fingerprint from normalized provider facts, never from raw callback
 content.
 
+Concurrent retries for one PaymentAttempt are serialized by a bounded
+PostgreSQL transaction advisory lock while the intention is created. A retry
+therefore re-reads the stored provider intention instead of creating a second
+Paymob checkout.
+
 ## Configuration
 
 `PAYMENTS_PAYMOB_ENABLED` defaults to `false`. When enabled, the Paymob secret
