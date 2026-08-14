@@ -167,6 +167,7 @@ needs workflow code.
 | `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, and bounded advisory Fit Assessment attempts/presentation auditing | controller, services, DTOs, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
 | `delivery-reviews` | Implemented delivery submission, owner review, and durable reputation projection coordination | HTTP workflow, immutable history, approval outbox, worker, tests | additional reporting | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Implemented verified reputation projection and contributor-profile summary | projection calculator/writer and deterministic skill ranking | score history and public reviews | Update when scoring rules, history, public reputation APIs, or events are added |
+| `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, plus Subscription provenance and billing-period columns | `EntitlementsService`, `plan-catalog.ts`, migration regression harness, tests, module README | `GET /me/subscription`, checkout, and webhook activation | Update when a plan limit, a tier, resolution rules, or Subscription columns change |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `skill-guidance` | Implemented explicit contributor-requested source-scoped guidance | controller, service, DTO, context adapter, tests | saved plans require a separate decision | Update when guidance authorization, source policy, routes, or persistence changes |
@@ -2856,3 +2857,26 @@ This keeps the system strong without making it heavy:
 - Scope: this closure contains Sprint 5 only. Subscription entitlements,
   contributor matching, premium benefits, and notification migration repair
   remain outside this change.
+
+### 2026-08-14 - P1-B01 entitlements service
+
+- Collapsed the Bronze/Silver/Gold ladder to one paid tier per role (`free` /
+  `gold`, DEC-077), mapping bronze to free and silver to gold so no paying user
+  was downgraded by the migration. Owner monthly publication limits moved to
+  5 (free) / 30 (gold).
+- Added the `subscriptions` module. `EntitlementsService` is now the single
+  source of every plan number; `plan-catalog.ts` is the only file containing
+  one. The projects module no longer reads the `Subscription` table, and the
+  materials module asks this service for the analysis entitlement instead of
+  asking projects a subscription question.
+- Added `Subscription.source` (DEC-026), `current_period_start`,
+  `current_period_end`, and `provider_subscription_id`, with an index covering
+  the (user, role context, status, starts_at) resolution query.
+- Expiry is resolved by the billing-period bound inside the query, so a lapsed
+  plan stops granting without any background job. A cancelled plan keeps
+  granting until its paid period ends; only `expired` never grants.
+- `commissionRate` is modelled but deliberately unexposed: Phase 1 has no paid
+  tasks for a commission to apply to.
+- Both row-transforming migrations are covered by
+  `pnpm run test:migrations:subscriptions`, which replays them against a real
+  throwaway Postgres database.
