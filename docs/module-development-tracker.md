@@ -167,7 +167,8 @@ needs workflow code.
 | `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, bounded advisory Fit Assessment attempts/presentation auditing, and the contributor daily Application allowance | controller, services, DTOs, `ApplicationDailyQuotaService`, real-Postgres concurrency check, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, quota rules, or cancellation effects are added |
 | `delivery-reviews` | Implemented delivery submission, owner review, and durable reputation projection coordination | HTTP workflow, immutable history, approval outbox, worker, tests | additional reporting | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Implemented verified reputation projection and contributor-profile summary | projection calculator/writer and deterministic skill ranking | score history and public reviews | Update when scoring rules, history, public reputation APIs, or events are added |
-| `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, plus Subscription provenance and billing-period columns | `EntitlementsService`, `plan-catalog.ts`, migration regression harness, tests, module README | `GET /me/subscription`, checkout, and webhook activation | Update when a plan limit, a tier, resolution rules, or Subscription columns change |
+| `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, Subscription provenance and billing-period columns, and the `GET /me/subscription` status endpoint | `EntitlementsService`, `SubscriptionStatusService`, controller, DTO, `plan-catalog.ts`, migration regression harness, tests, module README | checkout and webhook activation | Update when a plan limit, a tier, resolution rules, the status payload, or Subscription columns change |
+| `matching` | Implemented the deterministic contributor-to-Request shortlist with entitlement gating, explainable reasons, and a single Phase 0 upgrade point | `MatchingService`, `skill-fit.ts`, exclusion/determinism/performance tests, module README | the HTTP route, AiMatchResult persistence, and AI re-ranking | Update when ranking keys, exclusions, the fit comparison, or the candidate bound change |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `skill-guidance` | Implemented explicit contributor-requested source-scoped guidance | controller, service, DTO, context adapter, tests | saved plans require a separate decision | Update when guidance authorization, source policy, routes, or persistence changes |
@@ -2902,3 +2903,48 @@ This keeps the system strong without making it heavy:
 - Corrected a false claim in the applications README: `Application.is_priority`
   is never written or read, and priority Application visibility is not a Phase 1
   deliverable.
+
+### 2026-08-14 - P1-B02 subscription status endpoint
+
+- `GET /me/subscription` exists. The frontend had been calling it against a
+  typed contract with no implementation behind it, so the settings panel
+  rendered its error state; the response now matches
+  `SubscriptionPlanStatusDto` field for field, asserted by
+  `test/subscription-status.e2e-spec.ts`.
+- Benefits are server-authored, including the label, and only the caller's own
+  role context is described. No commission benefit is emitted anywhere in
+  Phase 1; a test asserts the string is absent from the whole payload.
+- `usage` is the window the count is measured over — a UTC day for a
+  contributor, a UTC month for an owner — not the billing period, so it is
+  meaningful for free users who have an allowance but no billing period.
+- `PROJECT_MATERIAL_ANALYSIS` moved behind
+  `EntitlementsService.resolveMaterialAnalysisEntitlement`, which the materials
+  command now also calls, so what a user is shown and what they can do cannot
+  drift apart.
+- `ProjectsService.getOwnerPublicationUsage` extracts the monthly count that
+  `getMyProjects` already performed, so the my-projects quota widget and the
+  status endpoint share one implementation.
+- `SubscriptionsModule` forward-references projects and applications for the
+  read side of this endpoint only. `EntitlementsService` still has no module
+  dependencies, which is what lets every enforcement point depend on it.
+
+### 2026-08-14 - P1-B04 deterministic match shortlist
+
+- Added the `matching` module. `MatchingService.shortlistForContributor` ranks
+  open Contribution Requests a contributor's approved skills fit, by coverage,
+  then owner reputation, then recency, then `id`. The `id` key is what makes the
+  order total: without it the same contributor refreshing sees a different list.
+- No AI, no HTTP route, no notifications in this change.
+- **Owner-side matching is not present and must not be added.** No method takes
+  a Request and returns contributors; a test walks the service prototype to
+  assert that structurally rather than by convention.
+- `skill-fit.ts` holds the one function that decides fit, documented as the
+  Phase 0 upgrade point. Today it compares approved skill names against
+  technology tags and requirement text; when
+  `ContributionRequestSkillRequirement` lands, level comparison replaces it in
+  that file alone.
+- The module owns no tables. Candidate Requests come from a new bounded,
+  indexed `ContributionTasksService.listOpenRequestsForMatching`, and prior
+  Applications from a new `ApplicationsService.listAppliedContributionRequestIds`.
+- Coverage never leaves the module as a number: it becomes a categorical
+  HIGH/MEDIUM/LOW band, because DEC-010 forbids presenting fit as a percentage.

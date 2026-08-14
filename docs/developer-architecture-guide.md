@@ -23,6 +23,7 @@ Choose the module that owns the final business state:
 | `delivery-reviews` | delivery submissions, owner review, feedback, ratings |
 | `reputation` | reputation summaries and history |
 | `subscriptions` | plan entitlements, limits, and the Subscription table |
+| `matching` | deterministic contributor-to-Request shortlist, owning no tables |
 | `admin` | moderation, reports, disputes, admin queues |
 | `ai` | NestJS AI facade and FastAPI client contracts |
 | `skill-guidance` | explicit contributor guidance workflow and source-scoped recommendations |

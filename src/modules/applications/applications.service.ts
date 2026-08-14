@@ -254,6 +254,28 @@ export class ApplicationsService {
     return this.present(application);
   }
 
+  /**
+   * The Contribution Requests this contributor has already applied to, in any
+   * status. Exported so the matching module can exclude them without reading
+   * Application rows.
+   *
+   * Every status counts, not only pending ones: a contributor who withdrew or
+   * was not selected has already seen the Request and decided about it, so
+   * re-surfacing it as a fresh match would be noise rather than a
+   * recommendation.
+   */
+  async listAppliedContributionRequestIds(
+    contributorId: string,
+  ): Promise<string[]> {
+    const applications = await this.database.application.findMany({
+      where: { contributor_id: contributorId },
+      select: { contribution_request_id: true },
+    });
+    return applications.map(
+      (application) => application.contribution_request_id,
+    );
+  }
+
   async listForOwner(
     actor: AuthenticatedUser,
     contributionRequestId: string,
