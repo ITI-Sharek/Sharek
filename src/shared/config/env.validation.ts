@@ -209,7 +209,7 @@ export const envValidationSchema = Joi.object({
     .falsy('false')
     .default(false),
   MATERIAL_ANALYSIS_MIN_PLAN: Joi.string()
-    .valid('bronze', 'silver', 'gold')
+    .valid('free', 'gold')
     .default('gold'),
   MATERIAL_ANALYSIS_MAX_DOCUMENTS: Joi.number()
     .integer()

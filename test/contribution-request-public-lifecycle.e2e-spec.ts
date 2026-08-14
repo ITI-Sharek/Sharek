@@ -308,8 +308,8 @@ describe('Contribution Request owner publication HTTP integration', () => {
     );
     projectsService.getContributionRequestPublicationEntitlement.mockResolvedValue(
       {
-        planType: 'bronze',
-        monthlyLimit: 10,
+        planType: 'free',
+        monthlyLimit: 5,
       },
     );
   });
@@ -334,7 +334,7 @@ describe('Contribution Request owner publication HTTP integration', () => {
         action: 'published',
         from_status: 'draft',
         to_status: 'published',
-        metadata: expect.objectContaining({ planType: 'bronze' }),
+        metadata: expect.objectContaining({ planType: 'free' }),
       }),
     });
   });

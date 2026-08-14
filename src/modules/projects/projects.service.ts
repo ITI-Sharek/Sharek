@@ -32,8 +32,7 @@ const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS: Record<
   SubscriptionPlanType,
   number
 > = {
-  bronze: 10,
-  silver: 20,
+  free: 5,
   gold: 30,
 };
 
@@ -314,7 +313,7 @@ export class ProjectsService {
       orderBy: { starts_at: 'desc' },
       select: { plan_type: true },
     });
-    const planType = plan?.plan_type ?? SubscriptionPlanType.bronze;
+    const planType = plan?.plan_type ?? SubscriptionPlanType.free;
     return {
       planType,
       monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS[planType],
@@ -337,11 +336,10 @@ export class ProjectsService {
       orderBy: { starts_at: 'desc' },
       select: { plan_type: true },
     });
-    const planType = plan?.plan_type ?? SubscriptionPlanType.bronze;
+    const planType = plan?.plan_type ?? SubscriptionPlanType.free;
     const rank: Record<SubscriptionPlanType, number> = {
-      bronze: 1,
-      silver: 2,
-      gold: 3,
+      free: 1,
+      gold: 2,
     };
     return { planType, entitled: rank[planType] >= rank[minimumPlan] };
   }

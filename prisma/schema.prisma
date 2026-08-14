@@ -31,8 +31,7 @@ enum LanguageCode {
 }
 
 enum SubscriptionPlanType {
-  bronze
-  silver
+  free
   gold
 }
 

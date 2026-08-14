@@ -205,7 +205,7 @@ describe('GitHub onboarding flow', () => {
           projects: [],
           quota: {
             used: 0,
-            monthlyLimit: 10,
+            monthlyLimit: 5,
           },
         });
       });

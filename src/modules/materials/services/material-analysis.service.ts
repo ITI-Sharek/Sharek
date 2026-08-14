@@ -651,7 +651,7 @@ export class MaterialAnalysisService {
     if (!this.config.get<boolean>('MATERIAL_ANALYSIS_REQUIRE_SUBSCRIPTION', false)) {
       return;
     }
-    const minimumPlan = this.config.get<'bronze' | 'silver' | 'gold'>(
+    const minimumPlan = this.config.get<'free' | 'gold'>(
       'MATERIAL_ANALYSIS_MIN_PLAN',
       'gold',
     );
