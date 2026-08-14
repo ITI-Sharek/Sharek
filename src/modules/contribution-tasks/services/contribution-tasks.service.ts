@@ -6,6 +6,7 @@ import {
   ContributionRequestRequirementKind,
   ContributionRequestStatus,
   Prisma,
+  SkillProfileProficiencyLevel,
 } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
@@ -192,7 +193,18 @@ export class ContributionTasksService {
       where: { contribution_request_id: requestId },
       orderBy: [{ kind: 'asc' }, { position: 'asc' }],
     });
-    return this.toApplicationRequestContext({ ...request, requirements });
+    // Read under the `FOR SHARE` taken above, so the set the Application is
+    // about to snapshot cannot change between reading it and writing it.
+    const skillRequirements =
+      await transaction.contributionRequestSkillRequirement.findMany({
+        where: { contribution_request_id: requestId },
+        orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+      });
+    return this.toApplicationRequestContext({
+      ...request,
+      requirements,
+      skillRequirements,
+    });
   }
 
   async assignFromOwnerDecision(input: {
@@ -1166,6 +1178,14 @@ export class ContributionTasksService {
       position: number;
       text: string;
     }>;
+    skillRequirements: Array<{
+      id: string;
+      skill_name: string;
+      skill_name_normalized: string;
+      required_level: SkillProfileProficiencyLevel;
+      kind: ContributionRequestRequirementKind;
+      position: number;
+    }>;
   }): ApplicationRequestContextDto {
     return {
       id: request.id,
@@ -1178,6 +1198,14 @@ export class ContributionTasksService {
         kind: requirement.kind,
         position: requirement.position,
         text: requirement.text,
+      })),
+      skillRequirements: request.skillRequirements.map((skill) => ({
+        id: skill.id,
+        skillName: skill.skill_name,
+        skillNameNormalized: skill.skill_name_normalized,
+        requiredLevel: skill.required_level,
+        kind: skill.kind,
+        position: skill.position,
       })),
     };
   }

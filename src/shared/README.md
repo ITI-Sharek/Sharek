@@ -30,10 +30,16 @@ shared/
   events/
   observability/
   realtime/
+  skills/
 ```
 
 Use them like this:
 
+- `skills`: skill-name normalization. It is here, not in a module, because
+  `contribution-tasks` stores the normalized form under a unique index and
+  `matching` compares against the same form — if the two ever diverged, a
+  contributor could be shortlisted for a Request they are then blocked from
+  applying to. It is string handling, not a business rule.
 - `auth`: request-level auth plumbing, guards, decorators, token hash helpers,
   and authenticated request types.
 - `config`: environment validation and shared configuration setup.

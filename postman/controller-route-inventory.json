@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 150,
+  "routeCount": 152,
   "routes": [
     {
       "method": "GET",
@@ -2244,6 +2244,64 @@
       "roles": [],
       "authentication": "bearer",
       "idempotency": true,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contribution-requests/:requestId/skill-requirements",
+      "normalizedPath": "/contribution-requests/:parameter/skill-requirements",
+      "key": "GET /contribution-requests/:parameter/skill-requirements",
+      "controller": "ContributionTasksController",
+      "handler": "listSkillRequirements",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/contribution-requests/:requestId/skill-requirements",
+      "normalizedPath": "/contribution-requests/:parameter/skill-requirements",
+      "key": "PUT /contribution-requests/:parameter/skill-requirements",
+      "controller": "ContributionTasksController",
+      "handler": "replaceSkillRequirements",
+      "source": "src/modules/contribution-tasks/controllers/contribution-tasks.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ReplaceContributionRequestSkillRequirementsDto",
+      "bodyFields": [
+        {
+          "name": "skillRequirements",
+          "optional": false,
+          "type": "ContributionRequestSkillRequirementInputDto[]"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
       "successStatus": 200
     },
     {
