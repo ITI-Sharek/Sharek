@@ -782,6 +782,32 @@ Only `required` skill rows can block; `preferred` rows are advisory. Pending,
 rejected, and disputed skills never count toward the bar. Approving a higher
 level flips the verdict with no other action.
 
+### The Proposal path (P0-B04)
+
+The same gate applies to `POST /contribution-proposals` and
+`POST /contribution-proposals/:proposalId/versions`. A proposer has no
+owner-authored Request to be measured against, so the bar is inferred from the
+**proposal content** and compared against their approved skills by the same
+comparison:
+
+```text
+PROPOSAL_BLOCKED_SKILL_GAP      403  metadata.blockingSkills, identical shape
+PROPOSAL_ELIGIBILITY_UNAVAILABLE 503  metadata.retriable: true
+```
+
+A blocked create leaves **no** Proposal row, version row, or audit row. A
+blocked new version leaves the prior version as the latest.
+
+**Inference failure fails open** with the 503, never a block — distinguishable
+from a refusal by both code and status. The Application path has no equivalent
+because its bar is already frozen on the Request and needs no provider at submit
+time; here the provider is on the critical path, and an outage presented as a
+skill judgement would be a false statement the proposer cannot appeal.
+
+A blocked create records no `EligibilityEvaluation`: the CHECK permits exactly
+one target and the Proposal was never created. The 403 still names every
+blocking skill. A blocked version does record one.
+
 ## Block-triggered Skill-Gap Guidance
 
 The ADR 0014 contributor-requested route is unchanged. These are additional,
