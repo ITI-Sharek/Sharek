@@ -18,26 +18,8 @@ import {
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
+import { PaymentCheckoutDto, PaymentStatusDto } from './dto/payment-response.dto';
 import { PAYMENT_PROVIDER, PaymentProvider } from './payments.types';
-
-export interface PaymentCheckoutDto {
-  paymentId: string;
-  checkout: {
-    provider: 'paymob';
-    clientSecret: string;
-  };
-}
-
-export interface PaymentStatusDto {
-  paymentId: string;
-  planType: SubscriptionPlanType;
-  roleContext: SubscriptionUserRoleContext;
-  amountCents: number;
-  currency: string;
-  status: PaymentAttemptStatus;
-  createdAt: Date;
-  paidAt: Date | null;
-}
 
 @Injectable()
 export class PaymentsService {
@@ -166,30 +148,51 @@ export class PaymentsService {
   private async completePendingCheckout(
     attempt: PaymentAttemptRecord,
   ): Promise<PaymentCheckoutDto> {
-    if (attempt.status !== PaymentAttemptStatus.pending) {
-      throw new ConflictApplicationError(
-        'The idempotent payment command has already reached a terminal state',
-        'PAYMENT_IDEMPOTENCY_REPLAY_NOT_PENDING',
+    return this.database.$transaction(async (transaction) => {
+      // The provider call is deliberately inside the bounded transaction. A
+      // compare-and-set after the call would still create two Paymob
+      // intentions when concurrent retries race; this advisory lock makes one
+      // retry observe the first provider reference instead.
+      await transaction.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended('payment_checkout:' || ${attempt.id}::text, 0))`,
       );
-    }
+      const currentAttempt = await transaction.paymentAttempt.findUnique({
+        where: { id: attempt.id },
+      });
+      if (!currentAttempt) {
+        throw new NotFoundApplicationError(
+          'Payment was not found',
+          'PAYMENT_NOT_FOUND',
+        );
+      }
+      if (currentAttempt.status !== PaymentAttemptStatus.pending) {
+        throw new ConflictApplicationError(
+          'The idempotent payment command has already reached a terminal state',
+          'PAYMENT_IDEMPOTENCY_REPLAY_NOT_PENDING',
+        );
+      }
 
-    if (attempt.provider_intention_id && attempt.provider_client_secret) {
-      return this.toCheckoutDto(attempt);
-    }
+      if (
+        currentAttempt.provider_intention_id &&
+        currentAttempt.provider_client_secret
+      ) {
+        return this.toCheckoutDto(currentAttempt);
+      }
 
-    const intention = await this.provider.createPaymentIntention({
-      amountCents: attempt.amount_cents,
-      currency: attempt.currency,
-      reference: `sharek:payment:${attempt.id}`,
+      const intention = await this.provider.createPaymentIntention({
+        amountCents: currentAttempt.amount_cents,
+        currency: currentAttempt.currency,
+        reference: `sharek:payment:${currentAttempt.id}`,
+      });
+      const updatedAttempt = await transaction.paymentAttempt.update({
+        where: { id: currentAttempt.id },
+        data: {
+          provider_intention_id: intention.intentionId,
+          provider_client_secret: intention.clientSecret,
+        },
+      });
+      return this.toCheckoutDto(updatedAttempt);
     });
-    const updatedAttempt = await this.database.paymentAttempt.update({
-      where: { id: attempt.id },
-      data: {
-        provider_intention_id: intention.intentionId,
-        provider_client_secret: intention.clientSecret,
-      },
-    });
-    return this.toCheckoutDto(updatedAttempt);
   }
 
   private toCheckoutDto(attempt: PaymentAttemptRecord): PaymentCheckoutDto {

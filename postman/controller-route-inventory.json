@@ -5228,9 +5228,12 @@
       "contentType": null,
       "multipartFields": [],
       "guards": [
-        "AccessTokenGuard"
+        "AccessTokenGuard",
+        "RolesGuard"
       ],
-      "roles": [],
+      "roles": [
+        "contributor"
+      ],
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200

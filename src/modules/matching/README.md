@@ -108,20 +108,21 @@ Withdrawn and not-selected Applications still exclude a Request: the contributor
 has already seen it and decided, so re-surfacing it would be noise rather than a
 recommendation.
 
-## The Phase 0 upgrade point
+## The Phase 0 skill bar
 
 `skill-fit.ts` holds **one function**, `assessSkillFit`, and it is the only
 place in the backend that decides whether skills fit a Request.
 
-Today a Request states what it wants as owner-typed technology tags plus free
-requirement text, while a contributor has approved skill *names*. There is
-nothing comparable to compare levels against, so fit is name overlap.
+Published Requests with a frozen `ContributionRequestSkillRequirement` bar use
+the required `beginner < intermediate < advanced` levels. A contributor is
+recommended only when every required level is met; preferred rows can enrich
+the explanation but never make a blocked Request eligible. This keeps the
+recommendation surface consistent with DEC-078: a contributor is not shown work
+they cannot apply to.
 
-When Phase 0 lands `ContributionRequestSkillRequirement` — frozen
-`{ skill_name, required_level, kind }` rows — that comparison becomes strictly
-better, and `exceededSkills` gains its real meaning: skills whose proficiency
-clears the required level rather than skills the Request never asked about.
-Making that swap should be a change to that one file and nothing else.
+Legacy Requests without a stored bar retain the name-overlap fallback against
+technology tags and requirement text. New published Requests cannot take that
+path because publication requires at least one required skill row.
 
 ## Cost
 

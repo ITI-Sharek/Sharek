@@ -2,7 +2,14 @@ import {
   normalizeSkillName,
   normalizeSkillPhrase,
 } from '../../shared/skills/skill-name';
-import { MatchingCandidateRequestDto } from '../contribution-tasks/dto/matching-candidate.dto';
+import {
+  compareSkillLevels,
+  meetsSkillLevel,
+} from '../../shared/skills/skill-level';
+import {
+  MatchingCandidateRequestDto,
+  MatchingCandidateSkillRequirement,
+} from '../contribution-tasks/dto/matching-candidate.dto';
 
 export interface ApprovedSkill {
   name: string;
@@ -53,6 +60,8 @@ export interface SkillFit {
   coverage: number;
   /** What the Request asks for, after normalization. Empty means it named nothing. */
   requestedSkillCount: number;
+  /** A Phase 0 Request is recommended only when every required level is met. */
+  eligible: boolean;
 }
 
 /**
@@ -65,25 +74,100 @@ export interface SkillFit {
  * exclusions, entitlement, persistence — consumes its result and never
  * re-derives fit.
  *
- * **Today (no Phase 0):** a Request describes what it wants as owner-typed
- * technology tags plus free requirement text, and a contributor has approved
- * skill *names* with a proficiency level. There is nothing comparable to
- * compare levels against, so fit is name overlap: normalized skill names found
- * in the tags, or as whole words in the requirement text.
- *
- * **After Phase 0 (`ContributionRequestSkillRequirement`):** a Request carries
- * frozen `{ skill_name, required_level, kind }` rows, which is strictly better
- * — a contributor's `intermediate` React can be compared against a required
- * `advanced` React instead of both simply being "React". When that lands,
- * change this function to take the requirement rows and compare levels, and
- * redefine `exceededSkills` as skills whose proficiency clears the required
- * level. Nothing outside this file should need to change: that is the point of
- * routing every comparison through here.
+ * Legacy Requests without a frozen skill bar retain the original name-overlap
+ * fallback. Current Phase 0 Requests use their frozen required levels instead;
+ * an under-levelled contributor is not recommended for work they cannot apply
+ * to. Preferred rows may enrich the explanation but never make an otherwise
+ * blocked Request eligible.
  *
  * The function is pure and takes no clock, so identical inputs always produce
  * an identical result — which is what makes the shortlist above it stable.
  */
 export function assessSkillFit(
+  approvedSkills: PreparedSkill[],
+  request: MatchingCandidateRequestDto,
+): SkillFit {
+  const requiredSkills = request.skillRequirements.filter(
+    (skill) => skill.kind === 'required',
+  );
+  if (requiredSkills.length > 0) {
+    return assessLevelFit(approvedSkills, requiredSkills, request.skillRequirements);
+  }
+
+  return assessLegacyNameFit(approvedSkills, request);
+}
+
+function assessLevelFit(
+  approvedSkills: PreparedSkill[],
+  requiredSkills: MatchingCandidateSkillRequirement[],
+  allRequirements: MatchingCandidateSkillRequirement[],
+): SkillFit {
+  const strongestByToken = new Map<string, PreparedSkill>();
+  for (const prepared of approvedSkills) {
+    const current = strongestByToken.get(prepared.token);
+    if (
+      !current ||
+      compareSkillLevels(
+        prepared.skill.proficiencyLevel,
+        current.skill.proficiencyLevel,
+      ) > 0
+    ) {
+      strongestByToken.set(prepared.token, prepared);
+    }
+  }
+
+  const matchedSkills: ApprovedSkill[] = [];
+  const matchedTokens = new Set<string>();
+  let matchedRequiredCount = 0;
+  let eligible = true;
+
+  for (const required of requiredSkills) {
+    const prepared = strongestByToken.get(required.skillNameNormalized);
+    if (
+      prepared &&
+      meetsSkillLevel(prepared.skill.proficiencyLevel, required.requiredLevel)
+    ) {
+      matchedRequiredCount += 1;
+      if (!matchedTokens.has(prepared.token)) {
+        matchedSkills.push(prepared.skill);
+        matchedTokens.add(prepared.token);
+      }
+    } else {
+      eligible = false;
+    }
+  }
+
+  for (const preferred of allRequirements.filter(
+    (skill) => skill.kind === 'preferred',
+  )) {
+    const prepared = strongestByToken.get(preferred.skillNameNormalized);
+    if (
+      prepared &&
+      meetsSkillLevel(prepared.skill.proficiencyLevel, preferred.requiredLevel) &&
+      !matchedTokens.has(prepared.token)
+    ) {
+      matchedSkills.push(prepared.skill);
+      matchedTokens.add(prepared.token);
+    }
+  }
+
+  const requestedTokens = new Set(
+    allRequirements.map((skill) => skill.skillNameNormalized),
+  );
+  const exceededSkills = approvedSkills
+    .filter((skill) => !requestedTokens.has(skill.token))
+    .map((skill) => skill.skill);
+
+  return {
+    matchedSkills,
+    exceededSkills,
+    coverage: matchedRequiredCount / requiredSkills.length,
+    requestedSkillCount: requiredSkills.length,
+    eligible,
+  };
+}
+
+function assessLegacyNameFit(
   approvedSkills: PreparedSkill[],
   request: MatchingCandidateRequestDto,
 ): SkillFit {
@@ -120,6 +204,7 @@ export function assessSkillFit(
         ? 0
         : matchedTokens.size / requestedTokens.size,
     requestedSkillCount: requestedTokens.size,
+    eligible: true,
   };
 }
 

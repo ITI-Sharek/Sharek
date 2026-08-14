@@ -1,4 +1,7 @@
-import { SubscriptionPlanType } from '@prisma/client';
+import {
+  ContributionRequestRequirementKind,
+  SubscriptionPlanType,
+} from '@prisma/client';
 
 import { MatchingCandidateRequestDto } from '../contribution-tasks/dto/matching-candidate.dto';
 import { MatchingService } from './matching.service';
@@ -33,6 +36,7 @@ describe('MatchingService', () => {
       title: 'Build the NestJS ingestion worker',
       technologyTags: ['NestJS', 'PostgreSQL'],
       requirementTexts: ['Write tested NestJS services.'],
+      skillRequirements: [],
       difficulty: 'intermediate',
       applicationsCloseAt: new Date('2026-09-01T00:00:00.000Z'),
       targetCompletionDate: null,
@@ -191,6 +195,76 @@ describe('MatchingService', () => {
       ).resolves.toMatchObject({
         matches: [],
         reason: 'NO_MATCHING_REQUESTS',
+      });
+    });
+
+    it('uses the frozen required levels and excludes an under-levelled contributor', async () => {
+      skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
+        {
+          name: 'React',
+          proficiencyLevel: 'intermediate',
+          evidenceSources: null,
+        },
+      ]);
+      contributionTasks.listOpenRequestsForMatching.mockResolvedValue([
+        candidate({
+          technologyTags: ['React'],
+          skillRequirements: [
+            {
+              skillName: 'React',
+              skillNameNormalized: 'react',
+              requiredLevel: 'advanced',
+              kind: ContributionRequestRequirementKind.required,
+            },
+          ],
+        }),
+      ]);
+
+      await expect(
+        service.shortlistForContributor({ contributorId, now }),
+      ).resolves.toMatchObject({
+        matches: [],
+        reason: 'NO_MATCHING_REQUESTS',
+      });
+    });
+
+    it('accepts an exact frozen required level and keeps preferred rows advisory', async () => {
+      skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
+        {
+          name: 'React',
+          proficiencyLevel: 'advanced',
+          evidenceSources: null,
+        },
+      ]);
+      contributionTasks.listOpenRequestsForMatching.mockResolvedValue([
+        candidate({
+          technologyTags: ['React'],
+          skillRequirements: [
+            {
+              skillName: 'React',
+              skillNameNormalized: 'react',
+              requiredLevel: 'advanced',
+              kind: ContributionRequestRequirementKind.required,
+            },
+            {
+              skillName: 'PostgreSQL',
+              skillNameNormalized: 'postgresql',
+              requiredLevel: 'beginner',
+              kind: ContributionRequestRequirementKind.preferred,
+            },
+          ],
+        }),
+      ]);
+
+      await expect(
+        service.shortlistForContributor({ contributorId, now }),
+      ).resolves.toMatchObject({
+        matches: [
+          {
+            matchedSkills: [{ name: 'React', proficiency: 'advanced' }],
+          },
+        ],
+        reason: null,
       });
     });
 

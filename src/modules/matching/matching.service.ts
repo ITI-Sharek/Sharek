@@ -134,7 +134,7 @@ export class MatchingService {
         candidate,
         fit: assessSkillFit(preparedSkills, candidate),
       }))
-      .filter(({ fit }) => fit.matchedSkills.length > 0);
+      .filter(({ fit }) => fit.eligible && fit.matchedSkills.length > 0);
 
     if (scored.length === 0) {
       return {

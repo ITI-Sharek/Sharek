@@ -10,12 +10,14 @@ the owner's optional per-Requirement read on the applicants who got through.
 
 ## The comparison
 
-`services/skill-level-comparison.ts` is pure and clock-free, so identical inputs
+`shared/skills/skill-level.ts` owns the shared level order used by both
+eligibility and matching. `services/skill-level-comparison.ts` is pure and
+clock-free, so identical inputs
 always produce an identical verdict — which is what makes a refusal reproducible
 for a dispute months later.
 
-- Ordering is `beginner < intermediate < advanced`, held in one `LEVEL_RANK` map
-  so a new level cannot be added without explicitly deciding where it sits.
+- Ordering is `beginner < intermediate < advanced`, held in one shared map so a
+  new level cannot be added without explicitly deciding where it sits.
 - **Exactly meeting the bar clears it.** Requiring strictly more would make
   every stated level mean one level higher than it says.
 - A required skill the contributor does not hold at all blocks, and is listed
@@ -79,3 +81,6 @@ present from the start; the Proposal path is wired in `P0-B04` (#117).
 
 The contributor foreign key is `ON DELETE RESTRICT`: the evaluation is the
 record of why a person was refused and must not vanish to an unrelated cleanup.
+
+P0-B05/#118 remains a follow-up: a recorded blocked evaluation is the durable
+trigger for contributor-requested skill-gap guidance.

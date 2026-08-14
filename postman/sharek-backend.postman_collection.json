@@ -3227,7 +3227,7 @@
                 "eligibility"
               ]
             },
-            "description": "Preview For Request. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the requestId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+            "description": "Preview For Request. Requires an active bearer session with role: contributor. Set the requestId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
           },
           "event": [
             {

@@ -156,6 +156,19 @@ export class ContributionTasksService {
       title: request.title,
       technologyTags: this.normalizeTechnologyTags(request.technology_tags),
       requirementTexts: requirements.map((requirement) => requirement.text),
+      skillRequirements: [...request.skillRequirements]
+        .sort(
+          (left, right) =>
+            (left.kind === ContributionRequestRequirementKind.required ? 0 : 1) -
+              (right.kind === ContributionRequestRequirementKind.required ? 0 : 1) ||
+            left.position - right.position,
+        )
+        .map((skill) => ({
+          skillName: skill.skill_name,
+          skillNameNormalized: skill.skill_name_normalized,
+          requiredLevel: skill.required_level,
+          kind: skill.kind,
+        })),
       difficulty: request.difficulty,
       applicationsCloseAt: request.applications_close_at,
       targetCompletionDate: request.target_completion_date,

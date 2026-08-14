@@ -38,6 +38,8 @@ describe('PaymentsService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    $executeRaw: jest.fn(),
+    $transaction: jest.fn(),
   };
   const subscriptions = {
     getPlanCatalogEntry: jest.fn().mockReturnValue(plan),
@@ -52,6 +54,8 @@ describe('PaymentsService', () => {
     subscriptions as never,
     provider,
   );
+
+  let lockedAttempt: ReturnType<typeof pendingAttempt>;
 
   const pendingAttempt = (overrides: Record<string, unknown> = {}) => ({
     id: paymentId,
@@ -81,15 +85,26 @@ describe('PaymentsService', () => {
     jest.resetAllMocks();
     subscriptions.getPlanCatalogEntry.mockReturnValue(plan);
     subscriptions.assertPlanPurchaseAllowed.mockResolvedValue(undefined);
-    database.paymentAttempt.findUnique.mockResolvedValue(null);
-    database.paymentAttempt.findFirst.mockResolvedValue(null);
-    database.paymentAttempt.create.mockResolvedValue(
-      pendingAttempt({
-        provider_intention_id: null,
-        provider_client_secret: null,
-      }),
+    lockedAttempt = pendingAttempt({
+      provider_intention_id: null,
+      provider_client_secret: null,
+    });
+    database.paymentAttempt.findUnique.mockImplementation(
+      (input: { where: Record<string, unknown> }) =>
+        Promise.resolve('id' in input.where ? lockedAttempt : null),
     );
-    database.paymentAttempt.update.mockResolvedValue(pendingAttempt());
+    database.paymentAttempt.findFirst.mockResolvedValue(null);
+    database.paymentAttempt.create.mockImplementation(async () => lockedAttempt);
+    database.paymentAttempt.update.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => {
+        lockedAttempt = { ...lockedAttempt, ...data };
+        return lockedAttempt;
+      },
+    );
+    database.$executeRaw.mockResolvedValue(1);
+    database.$transaction.mockImplementation(
+      (callback: (transaction: typeof database) => unknown) => callback(database),
+    );
     provider.createPaymentIntention.mockResolvedValue({
       intentionId: 'intention-1',
       clientSecret: 'client-secret-1',
