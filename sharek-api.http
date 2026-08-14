@@ -1459,3 +1459,28 @@ Content-Type: application/json
   "idempotencyKey": "message-rest-001",
   "body": "Hello from the Assignment conversation."
 }
+
+
+### 52 - Read the authenticated owner's subscription status
+# The route takes no user parameter: it always returns the caller's own plan.
+# `usage` is the window the count is measured over — the calendar month for an
+# owner — not the billing period. A free user gets a complete payload, not a 404.
+GET {{baseUrl}}/me/subscription
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 53 - Read the authenticated contributor's subscription status
+# For a contributor `usage` counts Applications submitted today (UTC) against
+# the daily allowance, and `periodEnd` is the instant that allowance refills.
+GET {{baseUrl}}/me/subscription
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 54 - Read the authenticated contributor's matched projects
+# Gold contributors receive up to 10 ranked matches; a free contributor receives
+# 200 with an empty list and `reason: MATCHING_REQUIRES_SUBSCRIPTION`, not a 403
+# — the route is legitimately theirs. `rank` is an ordinal and `confidence` is a
+# categorical band; there is no score and no percentage anywhere (DEC-010).
+# Matching is pull-only: publishing a Contribution Request notifies nobody.
+GET {{baseUrl}}/contributors/me/recommended-tasks
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}

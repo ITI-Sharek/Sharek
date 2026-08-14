@@ -164,9 +164,11 @@ needs workflow code.
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
 | `contribution-tasks` | Implemented private drafts plus explicit publication, actionable public discovery/detail, owner-plan limits, cancellation, and immutable lifecycle audits | grouped protected/public controllers, focused draft/publication/discovery services, DTOs, mapper, tests, module README | owner decisions/assignment integration and later Proposal-created draft attribution | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
-| `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, and bounded advisory Fit Assessment attempts/presentation auditing | controller, services, DTOs, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
+| `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, bounded advisory Fit Assessment attempts/presentation auditing, and the contributor daily Application allowance | controller, services, DTOs, `ApplicationDailyQuotaService`, real-Postgres concurrency check, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, quota rules, or cancellation effects are added |
 | `delivery-reviews` | Implemented delivery submission, owner review, and durable reputation projection coordination | HTTP workflow, immutable history, approval outbox, worker, tests | additional reporting | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Implemented verified reputation projection and contributor-profile summary | projection calculator/writer and deterministic skill ranking | score history and public reviews | Update when scoring rules, history, public reputation APIs, or events are added |
+| `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, Subscription provenance and billing-period columns, and the `GET /me/subscription` status endpoint | `EntitlementsService`, `SubscriptionStatusService`, controller, DTO, `plan-catalog.ts`, migration regression harness, tests, module README | checkout and webhook activation | Update when a plan limit, a tier, resolution rules, the status payload, or Subscription columns change |
+| `matching` | Implemented the deterministic contributor-to-Request shortlist, `GET /contributors/me/recommended-tasks`, AiMatchResult persistence, and the optional AI re-rank seam | `MatchingService`, `RecommendedTasksService`, controller, DTO, `skill-fit.ts`, `MatchRanker` port, migration regression, tests, module README | binding an AI ranker once AI_Agents P1-A01 ships | Update when ranking keys, exclusions, the fit comparison, the response shape, or the candidate bound change |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `skill-guidance` | Implemented explicit contributor-requested source-scoped guidance | controller, service, DTO, context adapter, tests | saved plans require a separate decision | Update when guidance authorization, source policy, routes, or persistence changes |
@@ -2856,3 +2858,119 @@ This keeps the system strong without making it heavy:
 - Scope: this closure contains Sprint 5 only. Subscription entitlements,
   contributor matching, premium benefits, and notification migration repair
   remain outside this change.
+
+### 2026-08-14 - P1-B01 entitlements service
+
+- Collapsed the Bronze/Silver/Gold ladder to one paid tier per role (`free` /
+  `gold`, DEC-077), mapping bronze to free and silver to gold so no paying user
+  was downgraded by the migration. Owner monthly publication limits moved to
+  5 (free) / 30 (gold).
+- Added the `subscriptions` module. `EntitlementsService` is now the single
+  source of every plan number; `plan-catalog.ts` is the only file containing
+  one. The projects module no longer reads the `Subscription` table, and the
+  materials module asks this service for the analysis entitlement instead of
+  asking projects a subscription question.
+- Added `Subscription.source` (DEC-026), `current_period_start`,
+  `current_period_end`, and `provider_subscription_id`, with an index covering
+  the (user, role context, status, starts_at) resolution query.
+- Expiry is resolved by the billing-period bound inside the query, so a lapsed
+  plan stops granting without any background job. A cancelled plan keeps
+  granting until its paid period ends; only `expired` never grants.
+- `commissionRate` is modelled but deliberately unexposed: Phase 1 has no paid
+  tasks for a commission to apply to.
+- Both row-transforming migrations are covered by
+  `pnpm run test:migrations:subscriptions`, which replays them against a real
+  throwaway Postgres database.
+
+### 2026-08-14 - P1-B03 contributor daily Application allowance
+
+- Free contributors get 1 Application per UTC day and Gold contributors 5, both
+  resolved through `EntitlementsService` (DEC-079). This module holds neither
+  number.
+- `ApplicationDailyQuotaService` takes `pg_advisory_xact_lock` on the
+  contributor as the first statement of the submission transaction, through
+  `$executeRaw` rather than `$queryRaw`, and reserves the slot last — after the
+  replay, request-state, and duplicate checks — so nothing that would have been
+  refused anyway costs the contributor a slot.
+- `UsageTracker` gains a unique index on (user, action, period date). The table
+  had been unused since the initial migration.
+- Withdrawal deliberately does not refund the allowance; refunding would make
+  withdraw-and-resubmit an unlimited-application loop.
+- Mocked suites cannot execute the advisory lock or run two transactions at
+  once, so `pnpm run test:concurrency:application-quota` exercises the real
+  behaviour: 8 parallel attempts at a limit of 1 grant exactly one, 12 at a
+  limit of 5 grant exactly 1..5, and a rolled-back transaction leaves no tally.
+- Corrected a false claim in the applications README: `Application.is_priority`
+  is never written or read, and priority Application visibility is not a Phase 1
+  deliverable.
+
+### 2026-08-14 - P1-B02 subscription status endpoint
+
+- `GET /me/subscription` exists. The frontend had been calling it against a
+  typed contract with no implementation behind it, so the settings panel
+  rendered its error state; the response now matches
+  `SubscriptionPlanStatusDto` field for field, asserted by
+  `test/subscription-status.e2e-spec.ts`.
+- Benefits are server-authored, including the label, and only the caller's own
+  role context is described. No commission benefit is emitted anywhere in
+  Phase 1; a test asserts the string is absent from the whole payload.
+- `usage` is the window the count is measured over — a UTC day for a
+  contributor, a UTC month for an owner — not the billing period, so it is
+  meaningful for free users who have an allowance but no billing period.
+- `PROJECT_MATERIAL_ANALYSIS` moved behind
+  `EntitlementsService.resolveMaterialAnalysisEntitlement`, which the materials
+  command now also calls, so what a user is shown and what they can do cannot
+  drift apart.
+- `ProjectsService.getOwnerPublicationUsage` extracts the monthly count that
+  `getMyProjects` already performed, so the my-projects quota widget and the
+  status endpoint share one implementation.
+- `SubscriptionsModule` forward-references projects and applications for the
+  read side of this endpoint only. `EntitlementsService` still has no module
+  dependencies, which is what lets every enforcement point depend on it.
+
+### 2026-08-14 - P1-B04 deterministic match shortlist
+
+- Added the `matching` module. `MatchingService.shortlistForContributor` ranks
+  open Contribution Requests a contributor's approved skills fit, by coverage,
+  then owner reputation, then recency, then `id`. The `id` key is what makes the
+  order total: without it the same contributor refreshing sees a different list.
+- No AI, no HTTP route, no notifications in this change.
+- **Owner-side matching is not present and must not be added.** No method takes
+  a Request and returns contributors; a test walks the service prototype to
+  assert that structurally rather than by convention.
+- `skill-fit.ts` holds the one function that decides fit, documented as the
+  Phase 0 upgrade point. Today it compares approved skill names against
+  technology tags and requirement text; when
+  `ContributionRequestSkillRequirement` lands, level comparison replaces it in
+  that file alone.
+- The module owns no tables. Candidate Requests come from a new bounded,
+  indexed `ContributionTasksService.listOpenRequestsForMatching`, and prior
+  Applications from a new `ApplicationsService.listAppliedContributionRequestIds`.
+- Coverage never leaves the module as a number: it becomes a categorical
+  HIGH/MEDIUM/LOW band, because DEC-010 forbids presenting fit as a percentage.
+
+### 2026-08-14 - P1-B05 matched projects for Gold contributors
+
+- `GET /contributors/me/recommended-tasks` exists. The frontend had been calling
+  it with nothing behind it. Gold contributors receive up to 10 ranked matches;
+  a free contributor receives 200 with an empty list and
+  `MATCHING_REQUIRES_SUBSCRIPTION`, **not a 403** — the route is legitimately
+  theirs, and an error state is the wrong thing to render when the right answer
+  is an upgrade prompt.
+- **Matching is pull-only.** Publishing a Contribution Request notifies nobody,
+  in either owner tier, and a test asserts publication emits no notification.
+  `AiMatchResult.notification_sent`, which existed for owner-side
+  auto-notification, is dropped and unreferenced; a real-Postgres migration
+  regression (`pnpm run test:migrations:matching`) proves the column is gone and
+  the pre-existing rows survived.
+- Results persist to `AiMatchResult` with rank and matched skills. Recomputing
+  replaces the contributor's rows in one transaction; the new
+  `UNIQUE (contribution_request_id, contributor_id)` makes replacement the only
+  representable outcome.
+- `MatchRanker` is a port with no implementation here: the AI ranker lives in
+  AI_Agents, and its absence is a supported state. A ranker may only reorder —
+  never add, remove, or edit — so a failing, missing, or misbehaving ranker
+  leaves the deterministic order in place instead of failing the request.
+- The response carries `rank` and a categorical `confidence`, and no
+  `matchScore`. DEC-010 forbids presenting fit as a number, and tests assert no
+  score and no percentage appear anywhere in the payload.

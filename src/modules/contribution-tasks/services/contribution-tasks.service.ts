@@ -23,6 +23,7 @@ import {
   UpdateContributionRequestDto,
 } from '../dto/contribution-request-input.dto';
 import { ApplicationRequestContextDto } from '../dto/application-request-context.dto';
+import { MatchingCandidateRequestDto } from '../dto/matching-candidate.dto';
 import {
   ContributionRequestDto,
   ContributionRequestsByStatusDto,
@@ -56,6 +57,91 @@ export class ContributionTasksService {
     @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
   ) {}
+
+  /**
+   * The open Contribution Requests the matching module may consider.
+   *
+   * Two exclusions are applied here rather than left to the caller, because
+   * they are this module's rules about its own rows: a Request that has closed
+   * to Applications is not a candidate, and neither is one the contributor
+   * owns. Everything else — skill fit, entitlement, ranking — is the caller's
+   * business.
+   *
+   * The result is **bounded**: `limit` caps how many rows leave this module, and
+   * the ordering is the same deterministic key the shortlist ranks on last, so
+   * truncation keeps the most recently published candidates rather than an
+   * arbitrary slice. `@@index([status, applications_close_at, published_at])`
+   * covers the filter.
+   */
+  async listOpenRequestsForMatching(input: {
+    excludeOwnerId: string;
+    limit: number;
+    now?: Date;
+  }): Promise<MatchingCandidateRequestDto[]> {
+    const now = input.now ?? new Date();
+    const publishedProjects =
+      await this.projectsService.listContributionRequestProjectReferences({});
+    if (publishedProjects.length === 0) return [];
+
+    const requests = await this.database.contributionRequest.findMany({
+      where: {
+        status: ContributionRequestStatus.published,
+        published_at: { not: null },
+        applications_close_at: { gt: now },
+        project_id: { in: publishedProjects.map((project) => project.id) },
+        owner_id: { not: input.excludeOwnerId },
+      },
+      orderBy: [{ published_at: 'desc' }, { id: 'desc' }],
+      take: input.limit,
+      include: CONTRIBUTION_REQUEST_INCLUDE,
+    });
+
+    const projectTitles = new Map(
+      publishedProjects.map((project) => [project.id, project.title]),
+    );
+    return requests.map((request) =>
+      this.toMatchingCandidate(
+        request,
+        projectTitles.get(request.project_id) ?? '',
+      ),
+    );
+  }
+
+  private toMatchingCandidate(
+    request: ContributionRequestWithRequirements,
+    projectName: string,
+  ): MatchingCandidateRequestDto {
+    const requirements = [...request.requirements].sort((left, right) => {
+      if (left.kind !== right.kind) {
+        return left.kind === ContributionRequestRequirementKind.required
+          ? -1
+          : 1;
+      }
+      return left.position - right.position;
+    });
+    return {
+      id: request.id,
+      projectId: request.project_id,
+      projectName,
+      ownerId: request.owner_id,
+      title: request.title,
+      technologyTags: this.normalizeTechnologyTags(request.technology_tags),
+      requirementTexts: requirements.map((requirement) => requirement.text),
+      difficulty: request.difficulty,
+      applicationsCloseAt: request.applications_close_at,
+      targetCompletionDate: request.target_completion_date,
+      reward: request.reward === null ? null : Number(request.reward),
+      rewardCurrency: request.reward_currency,
+      // A published Request always has this; the fallback keeps the type honest
+      // rather than asserting non-null over a nullable column.
+      publishedAt: request.published_at ?? request.created_at,
+    };
+  }
+
+  private normalizeTechnologyTags(value: Prisma.JsonValue): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((tag): tag is string => typeof tag === 'string');
+  }
 
   async getApplicationSubmissionContext(
     requestId: string,

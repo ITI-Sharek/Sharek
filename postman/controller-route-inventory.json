@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 148,
+  "routeCount": 150,
   "routes": [
     {
       "method": "GET",
@@ -2269,6 +2269,33 @@
       "successStatus": 200
     },
     {
+      "method": "GET",
+      "path": "/contributors/me/recommended-tasks",
+      "normalizedPath": "/contributors/me/recommended-tasks",
+      "key": "GET /contributors/me/recommended-tasks",
+      "controller": "RecommendationsController",
+      "handler": "list",
+      "source": "src/modules/matching/recommendations.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
       "method": "POST",
       "path": "/contributors/me/skill-gap-guidance",
       "normalizedPath": "/contributors/me/skill-gap-guidance",
@@ -3685,6 +3712,34 @@
         "AccessTokenGuard"
       ],
       "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/me/subscription",
+      "normalizedPath": "/me/subscription",
+      "key": "GET /me/subscription",
+      "controller": "SubscriptionsController",
+      "handler": "getCurrentPlan",
+      "source": "src/modules/subscriptions/subscriptions.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200

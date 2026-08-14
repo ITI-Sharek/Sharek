@@ -1252,7 +1252,13 @@ authorize new evidence access. The submission transaction revalidates and locks
 the active GitHub App link, installation, selected repositories, consent, and
 matching generation before fixing the snapshot. Revoked or unverifiable legacy
 evidence is omitted. The parent Project must also still be published.
-Submission performs no AI or attempt-quota work.
+Submission performs no AI work. It does consume one of the contributor's daily
+Applications: free contributors get 1 per UTC day and Gold contributors 5, both
+resolved through the subscriptions module. Exceeding the allowance returns
+`409 APPLICATION_DAILY_LIMIT_REACHED` with `used`, `limit`, and `resetsAt` — the
+exact UTC instant the allowance refills. Only a successfully created Application
+spends a slot: a replay, a duplicate, or a closed Request costs nothing, and
+withdrawal does not refund.
 
 ```http
 GET  /tasks/:taskId/applications
@@ -1264,8 +1270,8 @@ Idempotency-Key: 00000000-0000-4000-8000-000000000002
 Owner reads are ownership-scoped. Detail also permits the applying contributor.
 Withdrawal is contributor-owned and pending-only. Stable workflow errors include
 `ALREADY_APPLIED`, `APPLICATIONS_CLOSED`, `REQUEST_CANCELLED`,
-`REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, `APPLICATION_TERMINAL`, and
-`APPLICATION_IDEMPOTENCY_CONFLICT`.
+`REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, `APPLICATION_TERMINAL`,
+`APPLICATION_DAILY_LIMIT_REACHED`, and `APPLICATION_IDEMPOTENCY_CONFLICT`.
 
 Application detail includes nullable `ownerDecision` and `assignment` fields.
 For a declined Application, the applying contributor receives the immutable
@@ -1273,6 +1279,115 @@ decision identifier and feedback needed to use the moderation-report route.
 Authorized Application projections also include `reviewDueAt`, `expiresAt`,
 nullable `expiredAt`, and `overdue`. `overdue` becomes true at the inclusive
 day-5 boundary only while the Application remains `PENDING_OWNER_REVIEW`.
+
+## Phase 1 subscription status (#108)
+
+```http
+GET /me/subscription
+Authorization: Bearer <owner or contributor access token>
+```
+
+Returns the caller's own resolved plan. The route takes no user parameter, so
+there is no path through it to another user's subscription. An admin receives
+`403 SUBSCRIPTION_ACCOUNT_NOT_ELIGIBLE`: an admin holds no plan in either role
+context.
+
+```json
+{
+  "roleContext": "contributor",
+  "plan": "free",
+  "status": "active",
+  "source": "default",
+  "usage": {
+    "used": 0,
+    "limit": 1,
+    "periodStart": "2026-08-14T00:00:00.000Z",
+    "periodEnd": "2026-08-15T00:00:00.000Z"
+  },
+  "benefits": [
+    { "key": "CONTRIBUTOR_DAILY_APPLICATIONS", "state": "included", "label": "1 Application per day" },
+    { "key": "CONTRIBUTOR_MATCHED_PROJECTS", "state": "unavailable", "label": "Matched projects" }
+  ],
+  "entitlements": [
+    { "key": "PROJECT_MATERIAL_ANALYSIS", "state": "unavailable" }
+  ]
+}
+```
+
+A free user receives a complete payload, never a 404: the absence of a
+subscription is a valid state.
+
+`usage` is the window the `used` count is measured over, not the billing period
+— a UTC calendar day of Applications for a contributor, a UTC calendar month of
+published Contribution Requests for an owner. It is therefore present and
+meaningful for free users, who have an allowance but no billing period.
+
+`benefits` are server-authored, including the label, so the sentence a user
+reads and the limit the backend enforces come from one place. Only the caller's
+own role context is described. **No commission benefit is emitted in Phase 1**:
+there are no paid tasks for a commission to apply to, and advertising a waiver
+the user cannot benefit from would be advertising an unusable benefit.
+
+`entitlements` reports `PROJECT_MATERIAL_ANALYSIS` exactly as the materials
+command enforces it — both read the same resolution — so what a user is shown
+and what they can do cannot drift apart.
+
+## Phase 1 matched projects (#111)
+
+```http
+GET /contributors/me/recommended-tasks
+Authorization: Bearer <contributor access token>
+```
+
+Gold contributors receive up to 10 ranked matches. A **free contributor
+receives `200` with an empty list and `reason: MATCHING_REQUIRES_SUBSCRIPTION`,
+not a `403`** — the route is legitimately theirs, and an error state is the
+wrong thing for the UI to render when the correct answer is an upgrade prompt.
+An owner receives `403 CONTRIBUTOR_RECOMMENDATIONS_NOT_AUTHORIZED`: matched
+projects are a contributor benefit.
+
+```json
+{
+  "planType": "gold",
+  "reason": null,
+  "recommendations": [
+    {
+      "requestId": "…",
+      "projectName": "Share-k API",
+      "title": "Build the ingestion worker",
+      "rank": 1,
+      "confidence": "HIGH",
+      "justification": "Your approved NestJS and PostgreSQL match what this request asks for.",
+      "matchedSkills": [
+        { "name": "NestJS", "proficiency": "advanced", "evidenceIds": ["github:sharek/api"] }
+      ],
+      "applicationsCloseAt": "2026-09-01T00:00:00.000Z",
+      "targetCompletionDate": null,
+      "difficulty": "intermediate",
+      "reward": null,
+      "rewardCurrency": null
+    }
+  ]
+}
+```
+
+**There is no `matchScore` and no percentage anywhere in this response.**
+DEC-010 forbids presenting fit as a number; `rank` is an ordinal position and
+`confidence` is a categorical band. Coverage is computed internally for ordering
+and never leaves the backend as a number.
+
+**Matching is pull-only.** Publishing a Contribution Request emits no
+notification to matching contributors, in either owner tier. Owner-side
+auto-notification is out of scope and must not be built; the
+`AiMatchResult.notification_sent` column that existed for it was dropped in
+`20260814120000_drop_ai_match_notification_sent`.
+
+Results are persisted to `AiMatchResult` with rank and matched skills.
+Recomputing replaces the contributor's previous rows rather than accumulating
+them. AI ranking is an optional re-order over the deterministic shortlist: if
+no ranker is bound, or it fails, or it returns anything other than a
+permutation of the shortlist, the deterministic order stands and the request
+still succeeds.
 
 ## Sprint 4 Owner Decisions and Assignments (#51)
 
