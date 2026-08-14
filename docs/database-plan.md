@@ -351,6 +351,22 @@ Because mocked jest suites cannot prove DDL,
 throwaway database and asserts the index, the cascade, the level vocabulary,
 and that a snapshot survives its source rows being deleted and replaced.
 
+### Inference status
+
+Migration `20260814132500_contribution_request_skill_inference_status` adds
+`ContributionRequest.skill_inference_status` (`not_started | pending |
+succeeded | failed`) and `skill_inference_ran_at`.
+
+It exists because publication refuses a draft with no `required` skill row, and
+an owner facing an empty list plus a refusing publish button needs the two
+connected: `pending` means wait, `failed` means retry or type it in. `failed` is
+explicitly retriable — a provider outage is not a statement about the Request,
+so the draft stays editable and nothing in the skill set is touched.
+
+`not_started` for every pre-existing row is correct rather than a compromise:
+inference genuinely has never run for them, and a draft whose owner enters the
+set by hand stays in that state and publishes normally.
+
 ## Eligibility evaluations
 
 `EligibilityEvaluation` is owned by the `eligibility` module. Migration

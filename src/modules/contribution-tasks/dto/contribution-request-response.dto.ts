@@ -1,6 +1,7 @@
 import {
   ContributionRequestDifficulty,
   ContributionRequestRequirementKind,
+  ContributionRequestSkillInferenceStatus,
   ContributionRequestStatus,
 } from '@prisma/client';
 
@@ -40,6 +41,13 @@ export interface ContributionRequestDto {
    * precondition of publishing.
    */
   skillRequirements: ContributionRequestSkillRequirementDto[];
+  /**
+   * Why the skill list looks the way it does. Without it an owner facing an
+   * empty list and a publish button that refuses has nothing connecting the
+   * two: `pending` means wait, `failed` means retry or type it yourself.
+   */
+  skillInferenceStatus: ContributionRequestSkillInferenceStatus;
+  skillInferenceRanAt: Date | null;
   technologyTags: string[];
   applicationsCloseTime: Date | null;
   targetCompletionDate: string | null;

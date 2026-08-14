@@ -716,6 +716,23 @@ The set **freezes at publication** and is copied into the Application's
 Requirement Snapshot at submission, so editing a later draft can never change
 why an earlier contributor was refused.
 
+Rows may also arrive from inference (DEC-078). Creating or editing a draft
+queues a background run against the AI service; the owner DTO carries
+`skillInferenceStatus` (`not_started | pending | succeeded | failed`) and
+`skillInferenceRanAt` so a client can explain an empty list. A `failed` status
+is retriable and leaves the draft editable — a provider outage never blocks
+authoring, and the owner can always write the set through the `PUT` above. An
+owner write always wins over a later inference run.
+
+**Publication requires at least one `required` skill row.** Without it the
+Request has no bar, so every contributor would pass:
+
+```text
+REQUEST_SKILL_REQUIREMENTS_MISSING  422  no required skill row; carries skillInferenceStatus
+```
+
+`preferred` rows do not satisfy it.
+
 ## Eligibility Gate
 
 ```text
