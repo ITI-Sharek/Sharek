@@ -23,6 +23,7 @@ describe('AiMatchRanker', () => {
         title: `Request ${id}`,
         technologyTags: ['NestJS'],
         requirementTexts: ['Write tested services.'],
+        skillRequirements: [],
         difficulty: 'intermediate',
         applicationsCloseAt: new Date('2026-09-01T00:00:00.000Z'),
         targetCompletionDate: null,

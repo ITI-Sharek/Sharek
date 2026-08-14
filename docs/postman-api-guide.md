@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **156**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **159**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
