@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 /**
- * Local stand-in for the FastAPI Advisory Fit provider, for exercising the
- * queue end to end without the AI service.
+ * Local stand-in for the FastAPI AI service, for exercising the queues end to
+ * end without a provider. Serves two routes, chosen by request path:
+ *
+ *   POST /advisory-fit/assess   -> Advisory Fit findings
+ *   POST /requirements/infer    -> inferred required skill levels (P0-B02)
+ *
+ * The file keeps its Advisory Fit name because that is what every existing
+ * runbook and release-gate script invokes.
  *
  * It echoes the request rather than replaying test/fixtures/sprint4-core/
  * advisory-fit-response.json. That fixture's requirement ids and evidence ids
@@ -55,6 +61,39 @@ function completedFor(body) {
   };
 }
 
+/**
+ * An inferred skill set derived from the Request the backend actually sent.
+ *
+ * Echoing the input rather than serving a fixture, for the same reason the
+ * Advisory Fit stub does: a canned skill list would be rejected by the client's
+ * duplicate and cap checks against a real draft, and a rejected response looks
+ * exactly like a broken queue.
+ */
+function inferredFor(body) {
+  const tags = Array.isArray(body.technologyTags) ? body.technologyTags : [];
+  // One `required` row at minimum, because publication refuses without one and
+  // a stub that cannot get a draft published is not exercising the path.
+  const names = tags.length > 0 ? tags.slice(0, 15) : ['general-programming'];
+  return {
+    skills: names.map((name, index) => ({
+      skillName: String(name),
+      requiredLevel: ['beginner', 'intermediate', 'advanced'][index % 3],
+      // The first is required so the draft is publishable; the rest advisory.
+      kind: index === 0 ? 'required' : 'preferred',
+      confidence: index === 0 ? 'high' : 'medium',
+      rationale: `Stubbed inference from the technology tag ${name}.`,
+    })),
+    metadata: {
+      provider: 'local-stub',
+      model: 'stub-v1',
+      promptVersion: 'requirement-inference-v1',
+      schemaVersion: 'requirement-inference-v1',
+      serviceVersion: 'stub',
+      latencyMs: 5,
+    },
+  };
+}
+
 const server = createServer((request, response) => {
   let raw = '';
   request.on('data', (chunk) => {
@@ -78,6 +117,16 @@ const server = createServer((request, response) => {
       body = {};
     }
 
+    if ((request.url ?? '').startsWith('/requirements/infer')) {
+      const payload = inferredFor(body);
+      console.log(
+        `${request.method} ${request.url} -> ${payload.skills.length} inferred skills`,
+      );
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(payload));
+      return;
+    }
+
     const statusByMode = {
       system_limit: 'NOT_STARTED_SYSTEM_LIMIT',
       no_assessable_evidence: 'NOT_STARTED_NO_ASSESSABLE_EVIDENCE',
@@ -98,6 +147,7 @@ const server = createServer((request, response) => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log(
-    `Advisory Fit provider stub listening on http://127.0.0.1:${port} (mode=${mode}, delayMs=${delayMs})`,
+    `AI provider stub listening on http://127.0.0.1:${port} ` +
+      `(/advisory-fit/assess mode=${mode}, /requirements/infer always succeeds, delayMs=${delayMs})`,
   );
 });
