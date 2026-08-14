@@ -79,6 +79,9 @@
 # - [DONE] POST /projects/:projectId/contribution-requests
 # - [DONE] GET /contribution-requests/:requestId
 # - [DONE] PATCH /contribution-requests/:requestId
+# - [DONE] GET /contribution-requests/:requestId/skill-requirements
+# - [DONE] PUT /contribution-requests/:requestId/skill-requirements
+# - [DONE] GET /tasks/:requestId/eligibility
 # - [DONE] POST /contribution-requests/:requestId/discard
 # - [DONE] POST /contribution-requests/:requestId/publish
 # - [DONE] POST /contribution-requests/:requestId/cancel
@@ -852,10 +855,47 @@ Content-Type: application/json
 }
 
 
+### 11A.4b - DONE - Read the required skill levels on my draft
+GET {{baseUrl}}/contribution-requests/{{contributionRequestId}}/skill-requirements
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 11A.4c - DONE - Set the required skill levels on my draft
+# Replaces the whole set. Only `required` rows can ever block a contributor;
+# `preferred` rows are advisory. `source` and `confidence` are not accepted here
+# — an owner write is always the override, so sending them returns 400.
+# Run 11A.4d after publishing to see this refused with
+# REQUEST_SKILL_REQUIREMENTS_FROZEN.
+PUT {{baseUrl}}/contribution-requests/{{contributionRequestId}}/skill-requirements
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "skillRequirements": [
+    { "skillName": "NestJS", "requiredLevel": "intermediate", "kind": "required" },
+    { "skillName": "PostgreSQL", "requiredLevel": "beginner", "kind": "preferred" }
+  ]
+}
+
+
 ### 11A.5 - DONE - Publish my complete Contribution Request draft
 POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/publish
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: publish-contribution-request-001
+
+
+### 11A.4d - DONE - The freeze: editing skill levels after publication is refused
+# Expect 409 REQUEST_SKILL_REQUIREMENTS_FROZEN. The set an Application was
+# judged against can never change retroactively (ADR 0015).
+PUT {{baseUrl}}/contribution-requests/{{contributionRequestId}}/skill-requirements
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "skillRequirements": [
+    { "skillName": "Rust", "requiredLevel": "advanced", "kind": "required" }
+  ]
+}
 
 
 ### 11A.6 - DONE - Browse actionable Contribution Requests (public)
@@ -1508,3 +1548,27 @@ Content-Type: application/json
 # Replace paymentId with the paymentId returned by the checkout command.
 GET {{baseUrl}}/me/payments/{{paymentId}}
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+### 11E - Eligibility gate (DEC-078)
+
+### 11E.1 - DONE - Check my eligibility before opening the form
+# Advisory only. The verdict is recomputed inside the submission transaction, so
+# a contributor whose approval is revoked in between is still blocked.
+GET {{baseUrl}}/tasks/{{contributionRequestId}}/eligibility
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 11E.2 - DONE - A blocked submission
+# Expect 403 APPLICATION_BLOCKED_SKILL_GAP when approved skills fall below the
+# Request's required levels. metadata.blockingSkills names each skill, the level
+# required, and the level held (null when there is no approved evidence).
+# No Application row, no snapshot, no audit row, and no daily slot is spent.
+POST {{baseUrl}}/tasks/{{contributionRequestId}}/applications
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "contributionApproach": "I will implement and test the requested workflow.",
+  "proposedDeliveryDurationDays": 5,
+  "idempotencyKey": "55555555-5555-4555-8555-555555555555"
+}

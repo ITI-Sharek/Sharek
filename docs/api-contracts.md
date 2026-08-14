@@ -664,6 +664,124 @@ CONTRIBUTION_REQUEST_IDEMPOTENCY_KEY_INVALID
 CONTRIBUTION_REQUEST_IDEMPOTENCY_CONFLICT
 ```
 
+## Contribution Request Required Skill Levels
+
+Owner-only, authenticated, and editable **only while the Request is a draft**
+(DEC-078, ADR 0015):
+
+```text
+GET /contribution-requests/:requestId/skill-requirements
+PUT /contribution-requests/:requestId/skill-requirements
+```
+
+`PUT` replaces the whole set. A partial patch would make "remove the last
+required skill" unexpressible, and the owner is editing a short list they can
+see in full. Request body:
+
+```json
+{
+  "skillRequirements": [
+    { "skillName": "NestJS", "requiredLevel": "intermediate", "kind": "required" },
+    { "skillName": "PostgreSQL", "requiredLevel": "beginner", "kind": "preferred" }
+  ]
+}
+```
+
+`requiredLevel` is `beginner | intermediate | advanced` — the same vocabulary
+as a contributor's approved skill proficiency, because both sides of the
+eligibility comparison must share one scale. `kind` is `required | preferred`;
+only `required` rows will ever block a submission.
+
+`source` and `confidence` are **not accepted** on input and are rejected with
+`400`. Every owner write is recorded as `source: owner_override` with
+`confidence: null`, so a later inference run can tell a human correction from
+its own earlier output and must not overwrite it.
+
+The response is the stored set, ordered `required` first then `preferred`, each
+by position, and carries `source` and `confidence` for the owner. The **public**
+Request detail (`GET /tasks/:requestId`) exposes `skillName`, `requiredLevel`,
+and `kind` only — never `confidence`, `source`, or any model identifier.
+
+At most 15 skills. Duplicates are detected on the *normalized* name, so
+`Node.js` and `nodejs` are one skill.
+
+```text
+REQUEST_SKILL_REQUIREMENTS_FROZEN        409  the Request is no longer a draft
+REQUEST_SKILL_REQUIREMENTS_TOO_MANY      422  more than 15 rows
+REQUEST_SKILL_REQUIREMENT_DUPLICATE      422  two spellings of one skill
+REQUEST_SKILL_REQUIREMENT_NAME_INVALID   422  a name with no letters or digits
+```
+
+The set **freezes at publication** and is copied into the Application's
+Requirement Snapshot at submission, so editing a later draft can never change
+why an earlier contributor was refused.
+
+Rows may also arrive from inference (DEC-078). Creating or editing a draft
+queues a background run against the AI service; the owner DTO carries
+`skillInferenceStatus` (`not_started | pending | succeeded | failed`) and
+`skillInferenceRanAt` so a client can explain an empty list. A `failed` status
+is retriable and leaves the draft editable — a provider outage never blocks
+authoring, and the owner can always write the set through the `PUT` above. An
+owner write always wins over a later inference run.
+
+**Publication requires at least one `required` skill row.** Without it the
+Request has no bar, so every contributor would pass:
+
+```text
+REQUEST_SKILL_REQUIREMENTS_MISSING  422  no required skill row; carries skillInferenceStatus
+```
+
+`preferred` rows do not satisfy it.
+
+## Eligibility Gate
+
+```text
+GET /tasks/:requestId/eligibility
+```
+
+Authenticated, and always the caller's own eligibility — there is no path to ask
+about anyone else. Returns the whole bar, not just the failures, so a
+contributor can see what is being asked before committing to a form:
+
+```json
+{
+  "contributionRequestId": "...",
+  "outcome": "blocked",
+  "blockingSkills": [
+    { "skillName": "react", "requiredLevel": "advanced", "contributorLevel": "beginner" }
+  ],
+  "requiredSkills": [
+    { "skillName": "react", "requiredLevel": "advanced", "contributorLevel": "beginner", "met": false }
+  ]
+}
+```
+
+`contributorLevel` is `null` when the contributor holds no approved evidence for
+that skill at all — a different situation from holding it too low, and one the
+UI must render differently because the recovery advice differs.
+
+**This endpoint is advisory.** Its verdict is never trusted at submission; the
+comparison is recomputed inside the submission transaction against the same
+locked rows. A contributor whose approval is revoked between the two calls is
+still blocked. An unpublished or unknown Request returns the same
+`CONTRIBUTION_REQUEST_NOT_FOUND` as the public detail route.
+
+`POST /tasks/:requestId/applications` may now return:
+
+```text
+APPLICATION_BLOCKED_SKILL_GAP  403  metadata.blockingSkills as above
+```
+
+The block happens **before an Application row exists**, so no Application status
+was added and every superseded AI-gate status stays deleted. A blocked attempt
+creates no Application, no snapshot, no Application audit row, and **consumes no
+daily Application slot** (DEC-079). It records exactly one `EligibilityEvaluation`
+with `outcome: blocked`.
+
+Only `required` skill rows can block; `preferred` rows are advisory. Pending,
+rejected, and disputed skills never count toward the bar. Approving a higher
+level flips the verdict with no other action.
+
 ## Contribution Request Public Lifecycle
 
 Owner commands require an authenticated active `owner`, an owned published

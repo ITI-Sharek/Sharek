@@ -22,6 +22,8 @@ import { ContributorProfilesService } from '../contributor-profiles/contributor-
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SkillProfileSummaryService } from '../skill-profiles/services/skill-profile-summary.service';
+import { BlockingSkillDto } from '../eligibility/dto/eligibility.dto';
+import { EligibilityService } from '../eligibility/services/eligibility.service';
 import {
   ApplicationDto,
   ApplicationEvidenceSummaryDto,
@@ -76,6 +78,8 @@ export class ApplicationsService {
     @Inject(forwardRef(() => ContributionTasksService))
     private readonly contributionTasks: ContributionTasksService,
     private readonly skillProfiles: SkillProfileSummaryService,
+    @Inject(forwardRef(() => EligibilityService))
+    private readonly eligibility: EligibilityService,
     private readonly identity: IdentityUsernameService,
     private readonly notifications: NotificationsService,
     private readonly contributorProfiles: ContributorProfilesService,
@@ -166,6 +170,36 @@ export class ApplicationsService {
         });
         if (existing) throw this.alreadyApplied();
 
+        // THE GATE (DEC-078, ADR 0015).
+        //
+        // Here, not before the transaction: it must run against the same locked
+        // rows the Application is about to be written from. A verdict computed
+        // earlier — including one `GET /tasks/:id/eligibility` returned a second
+        // ago — can be stale by now, and trusting it is the TOCTOU the gate
+        // would otherwise have.
+        //
+        // Before `dailyQuota.reserve` and after the duplicate check, so a
+        // blocked attempt costs no daily slot (DEC-079) and someone who already
+        // applied gets the accurate duplicate error rather than a skill block.
+        const verdict = await this.eligibility.evaluateForRequest({
+          contributorId: input.actor.id,
+          contributionRequestId: input.contributionRequestId,
+          requiredSkills: locked!.skillRequirements,
+          transaction,
+        });
+        if (verdict.outcome === 'blocked') {
+          // Throwing here is what makes "no Application row exists" true: the
+          // block happens before the Application is written, so no new status
+          // is needed and the state machine is untouched. Every superseded
+          // AI-gate status stays deleted.
+          //
+          // Carried out as a marker so the refusal can be recorded *after* this
+          // transaction rolls back — a row written inside it would vanish with
+          // everything else, and the evaluation is the artefact a dispute is
+          // argued from.
+          throw new ApplicationBlockedBySkillGap(verdict.blockingSkills);
+        }
+
         // Last, so that nothing which would have refused the submission anyway
         // — a closed request, a replay, a duplicate — costs the contributor a
         // slot. Anything that throws after this point rolls the tally back with
@@ -189,6 +223,22 @@ export class ApplicationsService {
               kind: requirement.kind,
               position: requirement.position,
               text: requirement.text,
+            })) as unknown as Prisma.InputJsonValue,
+            // The level bar as it stood at this instant (DEC-078, ADR 0015).
+            // Snapshotting it is what makes a refusal reproducible: the owner
+            // can never publish an edit that retroactively changes why an
+            // earlier contributor was blocked, because the evaluation reads
+            // this frozen copy rather than the live rows. Both `required` and
+            // `preferred` rows are recorded — the snapshot is the historical
+            // record of what was asked, and it is the evaluation that ignores
+            // `preferred`.
+            skill_requirements: locked!.skillRequirements.map((skill) => ({
+              id: skill.id,
+              skillName: skill.skillName,
+              skillNameNormalized: skill.skillNameNormalized,
+              requiredLevel: skill.requiredLevel,
+              kind: skill.kind,
+              position: skill.position,
             })) as unknown as Prisma.InputJsonValue,
           },
         });
@@ -234,6 +284,22 @@ export class ApplicationsService {
         return created;
       });
     } catch (error) {
+      if (error instanceof ApplicationBlockedBySkillGap) {
+        // The transaction has rolled back, so nothing exists for this attempt:
+        // no Application, no snapshot, no audit row, and no daily slot spent.
+        // The refusal is recorded now, on a fresh connection, because it is the
+        // artefact a dispute is argued from and the handle skill-gap guidance
+        // will hang on.
+        await this.eligibility.recordBlocked({
+          contributorId: input.actor.id,
+          contributionRequestId: input.contributionRequestId,
+          blockingSkills: error.blockingSkills,
+        });
+        throw this.eligibility.blockedError(
+          'APPLICATION_BLOCKED_SKILL_GAP',
+          error.blockingSkills,
+        );
+      }
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -1505,5 +1571,18 @@ export class ApplicationsService {
         pendingApplicationCount: 0,
       })),
     };
+  }
+}
+
+/**
+ * Internal marker for a submission refused by the eligibility gate.
+ *
+ * Not the HTTP error itself: it exists to carry the blocking skills out through
+ * the transaction rollback, so the refusal can be recorded on a fresh
+ * connection before the 403 is raised. Never escapes this module.
+ */
+class ApplicationBlockedBySkillGap extends Error {
+  constructor(readonly blockingSkills: BlockingSkillDto[]) {
+    super('Application blocked by a skill gap');
   }
 }

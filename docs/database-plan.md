@@ -48,7 +48,8 @@ skill-profiles        skill_profiles, skill_profile_generations, skill_profile_r
 notifications         notifications, notification_events, notification_preferences, notification_category_preferences
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
 payments              payment_attempts, payment_webhook_events, persisted hosted checkout handoff
-contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
+contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_skill_requirements, contribution_request_audits
+eligibility           eligibility_evaluations
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
 contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes, contribution_proposal_misuse_reports
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits, owner_decisions, assignments
@@ -315,6 +316,93 @@ than by the writer remembering to delete first.
 `match_score` remains an internal ordering signal and is never returned:
 DEC-010 forbids presenting fit as a number, so the API exposes an ordinal
 `rank` and a categorical `confidence` instead.
+
+## Required skill levels
+
+`ContributionRequestSkillRequirement` is owned by `contribution-tasks`.
+Migration `20260814101636_contribution_request_skill_requirements` creates it
+with **`UNIQUE (contribution_request_id, skill_name_normalized)`** and an
+`ON DELETE CASCADE` from the Request.
+
+The unique index is the actual invariant, not a convenience. The service
+rejects duplicates before they reach the database, but that check reads and
+writes in separate statements and is racy across two concurrent draft edits;
+the index is what makes "one normalized skill name per Request" true rather
+than usually true. It matters because an Eligibility Evaluation compares a
+contributor against this set — a Request demanding both `advanced Node.js` and
+`beginner nodejs` would contradict itself and produce an unexplainable refusal.
+`skill_name_normalized` is written by `shared/skills/skill-name.ts`, the same
+function `matching` compares with.
+
+`required_level` uses the existing `SkillProfileProficiencyLevel` enum rather
+than a parallel one, so the stored bar and a contributor's approved proficiency
+are values of one type. A separate enum could gain a fourth value on one side
+only, and the level comparison has no defined answer for a level it has never
+seen.
+
+The same migration adds `ApplicationRequirementSnapshot.skill_requirements`
+(`JSONB NOT NULL DEFAULT '[]'`). It is a copy, not a foreign key: ADR 0015
+requires that a published Request's edit history can never change why an
+earlier contributor was blocked, which is only true if the Application holds
+its own frozen record. The default means Applications predating the gate read
+as "no bar", which is what they were — no backfill is needed or correct.
+
+Because mocked jest suites cannot prove DDL,
+`pnpm run test:migrations:skill-requirements` replays every migration against a
+throwaway database and asserts the index, the cascade, the level vocabulary,
+and that a snapshot survives its source rows being deleted and replaced.
+
+### Inference status
+
+Migration `20260814132500_contribution_request_skill_inference_status` adds
+`ContributionRequest.skill_inference_status` (`not_started | pending |
+succeeded | failed`) and `skill_inference_ran_at`.
+
+It exists because publication refuses a draft with no `required` skill row, and
+an owner facing an empty list plus a refusing publish button needs the two
+connected: `pending` means wait, `failed` means retry or type it in. `failed` is
+explicitly retriable — a provider outage is not a statement about the Request,
+so the draft stays editable and nothing in the skill set is touched.
+
+`not_started` for every pre-existing row is correct rather than a compromise:
+inference genuinely has never run for them, and a draft whose owner enters the
+set by hand stays in that state and publishes normally.
+
+## Eligibility evaluations
+
+`EligibilityEvaluation` is owned by the `eligibility` module. Migration
+`20260814143000_eligibility_evaluations` creates it append-only, with a **CHECK
+permitting exactly one target**:
+
+```sql
+CHECK (num_nonnulls("contribution_request_id", "contribution_proposal_id") = 1)
+```
+
+Prisma cannot express a CHECK, so nothing derived from `schema.prisma` proves
+it and the mocked jest suites never touch real DDL. It matters because a row
+belonging to neither path — or to both — is a refusal nobody can attribute,
+which defeats the point of keeping the log at all. `pnpm run
+test:migrations:eligibility` asserts it against real Postgres, along with the
+outcome vocabulary and the contributor `ON DELETE RESTRICT`.
+
+`contribution_proposal_id` exists from the first migration even though only the
+Application path writes it in `P0-B03`. The alternative — adding it in `P0-B04`
+— would mean writing the CHECK twice and having a window where a Proposal
+evaluation is unstorable.
+
+**There are exactly two outcomes**, `eligible` and `blocked`. A provider outage
+or an evaluation that could not run is a retriable error, never a third outcome
+recorded against a contributor: the table is the record of decisions actually
+made about a person, and an infrastructure failure is not one.
+
+Rows are written for both outcomes. Recording only refusals would make the table
+a list of accusations with no denominator and leave "was this person evaluated
+at all?" unanswerable in a dispute.
+
+The contributor foreign key is `ON DELETE RESTRICT` rather than `CASCADE`,
+unlike the two target keys: the evaluation is the record of *why a person was
+refused* and must not vanish to an unrelated cleanup, whereas an evaluation
+against a deleted Request has nothing left to explain.
 
 ## Migration Rules
 

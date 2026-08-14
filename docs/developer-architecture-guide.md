@@ -16,8 +16,9 @@ Choose the module that owns the final business state:
 | `skill-profiles` | skill generations, candidates, approval state, evidence snapshots |
 | `notifications` | in-app notification records and notification write workflows |
 | `assignment-conversations` | private Assignment conversations and durable Message history |
-| `contribution-tasks` | project task definitions and requirements |
+| `contribution-tasks` | project task definitions, requirements, and required skill levels |
 | `applications` | contributor Applications and owner-review lifecycle |
+| `eligibility` | the submission gate: may this contributor apply, and why not |
 | `contribution-proposals` | contributor-authored proposals, immutable versions, owner revision requests, intake |
 | `materials` | versioned Project and Request documents, visibility classes, private storage |
 | `delivery-reviews` | delivery submissions, owner review, feedback, ratings |

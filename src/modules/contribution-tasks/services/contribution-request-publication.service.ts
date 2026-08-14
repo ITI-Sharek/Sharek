@@ -341,6 +341,24 @@ export class ContributionRequestPublicationService {
         'CONTRIBUTION_REQUEST_REQUIRED_REQUIREMENT_MISSING',
       );
     }
+    // The gate's precondition (DEC-078). Publishing with no required skill row
+    // would produce a Request nobody can be measured against, so every
+    // contributor passes and the differentiator the product claims silently
+    // does not exist for that Request. Refusing here makes the absence visible
+    // at the one moment the owner can still fix it — and it is always fixable
+    // by hand, so a provider outage never prevents publication.
+    if (
+      !request.skillRequirements.some(
+        (skill) =>
+          skill.kind === ContributionRequestRequirementKind.required,
+      )
+    ) {
+      throw new UnprocessableApplicationError(
+        'At least one required skill level is required before publication',
+        'REQUEST_SKILL_REQUIREMENTS_MISSING',
+        { skillInferenceStatus: request.skill_inference_status },
+      );
+    }
     if (
       !request.applications_close_at ||
       request.applications_close_at.getTime() <= Date.now()

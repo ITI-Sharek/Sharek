@@ -9,6 +9,7 @@ import * as request from 'supertest';
 import { PublicContributionRequestsController } from '../src/modules/contribution-tasks/controllers/public-contribution-requests.controller';
 import { ContributionTasksController } from '../src/modules/contribution-tasks/controllers/contribution-tasks.controller';
 import { ContributionRequestPublicationService } from '../src/modules/contribution-tasks/services/contribution-request-publication.service';
+import { ContributionRequestSkillRequirementsService } from '../src/modules/contribution-tasks/services/contribution-request-skill-requirements.service';
 import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
 import { PublicContributionRequestsService } from '../src/modules/contribution-tasks/services/public-contribution-requests.service';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
@@ -17,6 +18,7 @@ import { EntitlementsService } from '../src/modules/subscriptions/entitlements.s
 import { ApplicationsController } from '../src/modules/applications/applications.controller';
 import { AdvisoryFitAssessmentService } from '../src/modules/applications/services/advisory-fit-assessment.service';
 import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
+import { EligibilityService } from '../src/modules/eligibility/services/eligibility.service';
 import { IdentityUsernameService } from '../src/modules/identity/services/identity-username.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { ProjectsService } from '../src/modules/projects/projects.service';
@@ -92,7 +94,25 @@ describe('Contribution Request public lifecycle HTTP integration', () => {
             { text: 'Ship tested endpoints', classification: 'required' },
             { text: 'Add examples', classification: 'preferred' },
           ],
+          skillRequirements: [
+            {
+              skillName: 'NestJS',
+              requiredLevel: 'intermediate',
+              kind: 'required',
+            },
+            {
+              skillName: 'GraphQL',
+              requiredLevel: 'beginner',
+              kind: 'preferred',
+            },
+          ],
         });
+        // The contributor learns the bar and nothing about how it was reached.
+        for (const skill of body.skillRequirements) {
+          expect(skill).not.toHaveProperty('confidence');
+          expect(skill).not.toHaveProperty('source');
+          expect(skill).not.toHaveProperty('id');
+        }
       });
 
     expect(database.contributionRequest.findFirst).toHaveBeenCalledWith({
@@ -104,6 +124,14 @@ describe('Contribution Request public lifecycle HTTP integration', () => {
       },
       include: {
         requirements: true,
+        skillRequirements: {
+          select: {
+            skill_name: true,
+            required_level: true,
+            kind: true,
+            position: true,
+          },
+        },
         attributedContributor: {
           select: {
             id: true,
@@ -249,8 +277,16 @@ describe('Contribution Request owner publication HTTP integration', () => {
       controllers: [ContributionTasksController, ApplicationsController],
       providers: [
         ContributionRequestPublicationService,
+        // The real service, not a stub: `DatabaseService` and `ProjectsService`
+        // are already wired here, so mounting it keeps the controller's
+        // dependency graph honest rather than asserting against a double.
+        ContributionRequestSkillRequirementsService,
         ApplicationsService,
         { provide: AdvisoryFitAssessmentService, useValue: {} },
+        // This suite exercises publication and cancellation, not submission, so
+        // the gate is stubbed rather than mounted — it would pull in the whole
+        // skill-profiles graph for a path no test here reaches.
+        { provide: EligibilityService, useValue: {} },
         {
           provide: ContributionTasksService,
           useValue: contributionTasksService,
@@ -434,6 +470,7 @@ describe('Contribution Request owner publication HTTP integration', () => {
       applicationsCloseAt: new Date('2030-03-10T12:00:00.000Z'),
       updatedAt: new Date('2026-07-28T00:00:00.000Z'),
       requirements: [],
+      skillRequirements: [],
     });
 
     await request(app.getHttpServer())
@@ -490,6 +527,24 @@ function contributionRequest(overrides: Record<string, unknown> = {}) {
         kind: 'preferred',
         position: 0,
         text: 'Add examples',
+      },
+    ],
+    // Only the four columns the public `select` asks for. `confidence` and
+    // `source` are absent here on purpose: if the service ever widened the
+    // select to `true`, this fixture would still not supply them and the
+    // include assertion below would catch the change.
+    skillRequirements: [
+      {
+        skill_name: 'NestJS',
+        required_level: 'intermediate',
+        kind: 'required',
+        position: 0,
+      },
+      {
+        skill_name: 'GraphQL',
+        required_level: 'beginner',
+        kind: 'preferred',
+        position: 0,
       },
     ],
     ...overrides,

@@ -86,6 +86,16 @@ export class PublicContributionRequestsService {
       where: { id: requestId, ...this.actionableWhere(new Date()) },
       include: {
         requirements: true,
+        // `select`ed narrowly rather than `true`, so `confidence` and `source`
+        // cannot reach a contributor by someone later spreading the row.
+        skillRequirements: {
+          select: {
+            skill_name: true,
+            required_level: true,
+            kind: true,
+            position: true,
+          },
+        },
         attributedContributor: {
           select: {
             id: true,
@@ -126,6 +136,15 @@ export class PublicContributionRequestsService {
         text: requirement.text,
         classification: requirement.kind,
       })),
+      // Names and levels only. An applicant needs to know the bar to judge
+      // whether to apply; how sure a model was about it is not their business
+      // and invites arguing with the model instead of adding evidence.
+      skillRequirements: orderSkillRequirements(request.skillRequirements)
+        .map((skill) => ({
+          skillName: skill.skill_name,
+          requiredLevel: skill.required_level,
+          kind: skill.kind,
+        })),
       attribution: request.attributedContributor
         ? {
             contributorId: request.attributedContributor.id,
@@ -243,4 +262,25 @@ export class PublicContributionRequestsService {
       'CONTRIBUTION_REQUEST_NOT_FOUND',
     );
   }
+}
+
+/**
+ * Required rows first, then preferred, each by position — the same order the
+ * prose Requirements are presented in. Not an alphabetical sort on `kind`:
+ * that puts "preferred" ahead of "required" and leads a contributor with the
+ * rows that cannot block them.
+ */
+const SKILL_KIND_ORDER: Record<ContributionRequestRequirementKind, number> = {
+  [ContributionRequestRequirementKind.required]: 0,
+  [ContributionRequestRequirementKind.preferred]: 1,
+};
+
+function orderSkillRequirements<
+  T extends { kind: ContributionRequestRequirementKind; position: number },
+>(rows: readonly T[]): T[] {
+  return [...rows].sort(
+    (left, right) =>
+      SKILL_KIND_ORDER[left.kind] - SKILL_KIND_ORDER[right.kind] ||
+      left.position - right.position,
+  );
 }

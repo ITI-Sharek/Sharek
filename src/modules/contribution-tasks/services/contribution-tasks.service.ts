@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import {
   ContributionRequestAuditAction,
   ContributionRequestDifficulty,
   ContributionRequestRequirementKind,
   ContributionRequestStatus,
   Prisma,
+  SkillProfileProficiencyLevel,
 } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../../shared/auth/authenticated-request';
@@ -18,6 +19,8 @@ import {
   UnprocessableApplicationError,
 } from '../../../shared/errors/application.error';
 import { ProjectsService } from '../../projects/projects.service';
+import { RequirementInferenceQueue } from '../jobs/requirement-inference.queue';
+import { RequirementInferenceProcessorService } from './requirement-inference-processor.service';
 import {
   CreateContributionRequestDto,
   UpdateContributionRequestDto,
@@ -56,7 +59,33 @@ export class ContributionTasksService {
     private readonly database: DatabaseService,
     @Inject(forwardRef(() => ProjectsService))
     private readonly projectsService: ProjectsService,
+    @Optional()
+    private readonly requirementInference?: RequirementInferenceQueue,
   ) {}
+
+  /**
+   * Ask for a level bar for this draft, after the transaction has committed.
+   *
+   * Outside the transaction on purpose: enqueuing inside it would hold the
+   * database connection across a Redis round-trip, and a rolled-back draft
+   * would leave a job pointing at a Request that never existed. The queue never
+   * throws, so a Redis outage cannot fail a draft save — the owner can always
+   * type the set by hand.
+   */
+  private async queueRequirementInference(draft: {
+    id: string;
+    description: string;
+    requirementTexts: string[];
+    technologyTags: string[];
+    updatedAt: Date;
+  }): Promise<void> {
+    if (!this.requirementInference) return;
+    if (!RequirementInferenceProcessorService.hasEnoughContent(draft)) return;
+    await this.requirementInference.enqueueInference({
+      contributionRequestId: draft.id,
+      requestedAt: draft.updatedAt.toISOString(),
+    });
+  }
 
   /**
    * The open Contribution Requests the matching module may consider.
@@ -192,7 +221,18 @@ export class ContributionTasksService {
       where: { contribution_request_id: requestId },
       orderBy: [{ kind: 'asc' }, { position: 'asc' }],
     });
-    return this.toApplicationRequestContext({ ...request, requirements });
+    // Read under the `FOR SHARE` taken above, so the set the Application is
+    // about to snapshot cannot change between reading it and writing it.
+    const skillRequirements =
+      await transaction.contributionRequestSkillRequirement.findMany({
+        where: { contribution_request_id: requestId },
+        orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+      });
+    return this.toApplicationRequestContext({
+      ...request,
+      requirements,
+      skillRequirements,
+    });
   }
 
   async assignFromOwnerDecision(input: {
@@ -482,7 +522,7 @@ export class ContributionTasksService {
     if (replay) return replay;
 
     try {
-      return await this.database.$transaction(async (transaction) => {
+      const created = await this.database.$transaction(async (transaction) => {
         await this.projectsService.lockContributionRequestProjectAccess(
           input.projectId,
           input.user.id,
@@ -539,6 +579,17 @@ export class ContributionTasksService {
 
         return toContributionRequestDto(request);
       });
+      await this.queueRequirementInference({
+        id: created.id,
+        description: created.description,
+        requirementTexts: [
+          ...created.requiredRequirements.map((item) => item.text),
+          ...created.preferredRequirements.map((item) => item.text),
+        ],
+        technologyTags: created.technologyTags,
+        updatedAt: created.updatedAt,
+      });
+      return created;
     } catch (error) {
       return this.resolveIdempotencyRaceOrThrow({
         error,
@@ -746,7 +797,7 @@ export class ContributionTasksService {
     this.assertEditableDraft(current.status);
 
     try {
-      return await this.database.$transaction(async (transaction) => {
+      const result = await this.database.$transaction(async (transaction) => {
         await this.projectsService.lockContributionRequestProjectAccess(
           current.project_id,
           input.user.id,
@@ -829,6 +880,20 @@ export class ContributionTasksService {
         });
         return toContributionRequestDto(updated);
       });
+      // Re-inferred on every content edit. The bar has to describe the text the
+      // owner currently sees, and `updatedAt` is what lets a slow run against
+      // the previous text recognise itself as stale and stand down.
+      await this.queueRequirementInference({
+        id: result.id,
+        description: result.description,
+        requirementTexts: [
+          ...result.requiredRequirements.map((item) => item.text),
+          ...result.preferredRequirements.map((item) => item.text),
+        ],
+        technologyTags: result.technologyTags,
+        updatedAt: result.updatedAt,
+      });
+      return result;
     } catch (error) {
       return this.resolveIdempotencyRaceOrThrow({
         error,
@@ -1166,6 +1231,14 @@ export class ContributionTasksService {
       position: number;
       text: string;
     }>;
+    skillRequirements: Array<{
+      id: string;
+      skill_name: string;
+      skill_name_normalized: string;
+      required_level: SkillProfileProficiencyLevel;
+      kind: ContributionRequestRequirementKind;
+      position: number;
+    }>;
   }): ApplicationRequestContextDto {
     return {
       id: request.id,
@@ -1178,6 +1251,14 @@ export class ContributionTasksService {
         kind: requirement.kind,
         position: requirement.position,
         text: requirement.text,
+      })),
+      skillRequirements: request.skillRequirements.map((skill) => ({
+        id: skill.id,
+        skillName: skill.skill_name,
+        skillNameNormalized: skill.skill_name_normalized,
+        requiredLevel: skill.required_level,
+        kind: skill.kind,
+        position: skill.position,
       })),
     };
   }
