@@ -7,9 +7,10 @@
     "Regenerate from a running service: curl -s $AI_SERVICE_URL/openapi.json | jq -r '.paths | keys[]'"
   ],
   "aiServiceRepository": "ITI-Sharek/AI_Agents",
-  "verifiedAgainst": "AI_Agents main @ aaee770 (PR #15)",
+  "verifiedAgainst": "AI_Agents main + PR #16 (/matching/rank)",
   "calledByBackend": [
     "/advisory-fit/assess",
+    "/matching/rank",
     "/material-analysis/analyze",
     "/requirements/infer",
     "/skill-gap-guidance/generate",
@@ -18,6 +19,7 @@
   "routes": [
     "/advisory-fit/assess",
     "/health",
+    "/matching/rank",
     "/material-analysis/analyze",
     "/requirements/infer",
     "/skill-gap-guidance/generate",
