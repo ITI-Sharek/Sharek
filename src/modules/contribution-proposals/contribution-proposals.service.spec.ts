@@ -74,15 +74,28 @@ describe('ContributionProposalsService', () => {
     createProposalNotification: jest.fn(),
     emitProposalNotifications: jest.fn(),
   };
+  // Off by default here, matching production behaviour in test: this suite is
+  // about the proposal lifecycle, not the gate, and the gate needs a live
+  // provider. The gate's own suite turns it on.
+  const proposalEligibility = {
+    isEnabled: jest.fn(),
+    inferRequiredSkills: jest.fn(),
+    evaluate: jest.fn(),
+    recordEvaluation: jest.fn(),
+    recordBlocked: jest.fn(),
+    blockedError: jest.fn(),
+  };
   const service = new ContributionProposalsService(
     database as never,
     projects as never,
     contributionTasks as never,
     notifications as never,
+    proposalEligibility as never,
   );
 
   beforeEach(() => {
     jest.resetAllMocks();
+    proposalEligibility.isEnabled.mockReturnValue(false);
     database.$transaction.mockImplementation(
       (callback: (transaction: typeof database) => unknown) =>
         callback(database),

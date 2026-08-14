@@ -3113,6 +3113,42 @@ This keeps the system strong without making it heavy:
   later would mean writing the CHECK twice and leaving a window where a Proposal
   evaluation is unstorable.
 
+### 2026-08-14 - P0-B04 the eligibility gate on Contribution Proposals
+
+- Module: `contribution-proposals`, new `ProposalEligibilityService`. It imports
+  `AiModule` and `EligibilityModule`; the comparison itself is reused from
+  `eligibility`, not reimplemented — one comparison, one payload shape, two
+  triggers.
+- **Why it exists:** without it the Application gate is trivially avoidable by
+  describing the same work as a Proposal instead of applying for it.
+- The bar is inferred from the proposal's own content because a proposer has no
+  owner-authored Request. The wire field `contributionRequestId` carries the
+  Proposal id — it is an opaque correlation id the agent never resolves, and the
+  alternative was a second FastAPI contract differing by one field name.
+- Inference runs **outside** the transaction (an HTTP call must not hold a
+  database connection); the comparison runs **inside** it, before any row is
+  written.
+- **The deliberate asymmetry:** inference failure raises
+  `PROPOSAL_ELIGIBILITY_UNAVAILABLE` (503, retriable), never a verdict. The
+  Application path needs no provider at submit time because its bar was frozen
+  at publication. Distinguishable by code *and* status so a client cannot
+  conflate an outage with a judgement about a person.
+- **A blocked create records no `EligibilityEvaluation`.** The CHECK permits
+  exactly one target and the Proposal was never created — the constraint working
+  as intended. The 403 still names every blocking skill, so the refusal is
+  explained; only the durable record is unavailable, and only a stored Proposal
+  could anchor one. A blocked version does record it.
+- `requiredSkills` is `null` when the gate is off, distinct from `[]` meaning
+  the agent found nothing to demand. Only the first skips the evaluation and the
+  evaluation row.
+- `PROPOSAL_ELIGIBILITY_GATE_ENABLED` defaults on outside tests, off in them:
+  this path needs a live provider on the request thread, and the existing
+  proposal suite is about the lifecycle, not the gate.
+- The E2E suite was verified by mutation: neutralising "a missing skill blocks"
+  fails 3 tests, and making every level clear the bar fails 4. An earlier
+  version of the fixture left proposal intake disabled, so the blocked-create
+  assertions passed for the wrong reason — intake is now explicitly enabled.
+
 ### 2026-08-14 - P0-B05 skill-gap guidance triggered by a block
 
 - Module: `skill-guidance`, new `EligibilityGuidance` table plus

@@ -9,6 +9,7 @@ import * as request from 'supertest';
 
 import { ContributionProposalsController } from '../src/modules/contribution-proposals/contribution-proposals.controller';
 import { ContributionProposalsService } from '../src/modules/contribution-proposals/contribution-proposals.service';
+import { ProposalEligibilityService } from '../src/modules/contribution-proposals/services/proposal-eligibility.service';
 import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { ProjectsService } from '../src/modules/projects/projects.service';
@@ -494,6 +495,13 @@ describe('Contribution Proposals HTTP-to-service transaction seam', () => {
         { provide: ProjectsService, useValue: projects },
         { provide: ContributionTasksService, useValue: contributionTasks },
         { provide: NotificationsService, useValue: notifications },
+        // This suite exercises the HTTP-to-transaction seam, not the gate, so
+        // it is stubbed off. `test/proposal-eligibility-gate.e2e-spec.ts` mounts
+        // the real service with the flag on.
+        {
+          provide: ProposalEligibilityService,
+          useValue: { isEnabled: () => false },
+        },
       ],
     })
       .overrideGuard(AccessTokenGuard)
