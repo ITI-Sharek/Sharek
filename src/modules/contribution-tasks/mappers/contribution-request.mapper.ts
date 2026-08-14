@@ -60,6 +60,8 @@ export function toContributionRequestDto(
           left.position - right.position,
       )
       .map(toSkillRequirementDto),
+    skillInferenceStatus: request.skill_inference_status,
+    skillInferenceRanAt: request.skill_inference_ran_at,
     technologyTags: readStringArray(request.technology_tags),
     applicationsCloseTime: request.applications_close_at,
     targetCompletionDate: request.target_completion_date
