@@ -3199,3 +3199,25 @@ This keeps the system strong without making it heavy:
   we call and it does not serve fails.
 - Verified in both directions: renaming the served route and renaming the
   client's path each fail the check with the offending path named.
+
+### 2026-08-14 - P1-B06 bind the match ranker
+
+- `MatchRanker` is no longer an unbound port. `AiMatchRanker` calls
+  `POST /matching/rank` behind `MATCH_RANKER_ENABLED`, which defaults to
+  **off**: the deterministic shortlist is a complete answer, so the ranker is
+  an improvement to switch on deliberately rather than a dependency a
+  contributor's matched projects wait on.
+- Nothing the agent returns can change *which* Requests a contributor sees.
+  The client refuses a response that is not a permutation of what it sent —
+  checked as a set and by count, so an added Request, a dropped one, a
+  substituted id and a duplicate are all caught — and the caller refuses one
+  again before use.
+- No score can reach a contributor: a narrative containing `%` is rejected
+  rather than stripped, because deleting the character would leave a sentence
+  built around a number the reader can no longer see (DEC-010).
+- The request carries no contributor identity and no evidence ids, asserted by
+  a test that serialises the payload and greps it.
+- Every failure ends at the deterministic order: flag off, fewer than two
+  matches, unreachable service, non-ok response, malformed body, drifted id
+  set. Verified live against the running agent for the reachable-but-failing
+  and unreachable cases; neither threw.
