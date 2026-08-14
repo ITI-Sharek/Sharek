@@ -782,6 +782,54 @@ Only `required` skill rows can block; `preferred` rows are advisory. Pending,
 rejected, and disputed skills never count toward the bar. Approving a higher
 level flips the verdict with no other action.
 
+## Block-triggered Skill-Gap Guidance
+
+The ADR 0014 contributor-requested route is unchanged. These are additional,
+scoped to a recorded block (DEC-078, `P0-B05`):
+
+```text
+POST /contributors/me/eligibility-guidance      { eligibilityEvaluationId }
+GET  /contributors/me/eligibility-guidance      ?cursor&limit
+GET  /contributors/me/eligibility-guidance/:id
+```
+
+`POST` **returns immediately**, without waiting for the provider:
+
+```json
+{
+  "id": "...",
+  "eligibilityEvaluationId": "...",
+  "status": "pending",
+  "blockingSkills": [
+    { "skillName": "react", "requiredLevel": "advanced", "contributorLevel": "beginner" }
+  ],
+  "narrative": null,
+  "recommendations": null
+}
+```
+
+`status` moves once, to `ready` or `failed`. **`blockingSkills` is present in
+every state** — failure removes the narrative, never the reason, so a
+contributor is never told only "you are blocked" with no explanation.
+
+Re-requesting while one is `pending` or `ready` returns the existing row. A
+`failed` row is not reused, so a retry after a provider outage is possible.
+
+Guidance is scoped to an eligibility evaluation rather than an Application,
+because under a hard block no Application exists. It is **never tier-gated**
+(DEC-076).
+
+`GET` (list) is keyset-paginated on `created_at desc, id desc` and returns
+`pageInfo { hasNextPage, nextCursor }`. Cursors are base64url and strictly
+validated.
+
+```text
+ELIGIBILITY_GUIDANCE_NOT_FOUND        404  unknown id, another contributor, or an owner
+ELIGIBILITY_GUIDANCE_NOT_BLOCKED      400  the evaluation was `eligible`
+ELIGIBILITY_GUIDANCE_CURSOR_INVALID   400  tampered cursor
+SKILL_GAP_GUIDANCE_FORBIDDEN          403  not an active contributor
+```
+
 ## Contribution Request Public Lifecycle
 
 Owner commands require an authenticated active `owner`, an owned published
