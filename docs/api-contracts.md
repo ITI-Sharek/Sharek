@@ -786,6 +786,80 @@ Only `required` skill rows can block; `preferred` rows are advisory. Pending,
 rejected, and disputed skills never count toward the bar. Approving a higher
 level flips the verdict with no other action.
 
+### The Proposal path (P0-B04)
+
+The same gate applies to `POST /contribution-proposals` and
+`POST /contribution-proposals/:proposalId/versions`. A proposer has no
+owner-authored Request to be measured against, so the bar is inferred from the
+**proposal content** and compared against their approved skills by the same
+comparison:
+
+```text
+PROPOSAL_BLOCKED_SKILL_GAP      403  metadata.blockingSkills, identical shape
+PROPOSAL_ELIGIBILITY_UNAVAILABLE 503  metadata.retriable: true
+```
+
+A blocked create leaves **no** Proposal row, version row, or audit row. A
+blocked new version leaves the prior version as the latest.
+
+**Inference failure fails open** with the 503, never a block — distinguishable
+from a refusal by both code and status. The Application path has no equivalent
+because its bar is already frozen on the Request and needs no provider at submit
+time; here the provider is on the critical path, and an outage presented as a
+skill judgement would be a false statement the proposer cannot appeal.
+
+A blocked create records no `EligibilityEvaluation`: the CHECK permits exactly
+one target and the Proposal was never created. The 403 still names every
+blocking skill. A blocked version does record one.
+
+## Block-triggered Skill-Gap Guidance
+
+The ADR 0014 contributor-requested route is unchanged. These are additional,
+scoped to a recorded block (DEC-078, `P0-B05`):
+
+```text
+POST /contributors/me/eligibility-guidance      { eligibilityEvaluationId }
+GET  /contributors/me/eligibility-guidance      ?cursor&limit
+GET  /contributors/me/eligibility-guidance/:id
+```
+
+`POST` **returns immediately**, without waiting for the provider:
+
+```json
+{
+  "id": "...",
+  "eligibilityEvaluationId": "...",
+  "status": "pending",
+  "blockingSkills": [
+    { "skillName": "react", "requiredLevel": "advanced", "contributorLevel": "beginner" }
+  ],
+  "narrative": null,
+  "recommendations": null
+}
+```
+
+`status` moves once, to `ready` or `failed`. **`blockingSkills` is present in
+every state** — failure removes the narrative, never the reason, so a
+contributor is never told only "you are blocked" with no explanation.
+
+Re-requesting while one is `pending` or `ready` returns the existing row. A
+`failed` row is not reused, so a retry after a provider outage is possible.
+
+Guidance is scoped to an eligibility evaluation rather than an Application,
+because under a hard block no Application exists. It is **never tier-gated**
+(DEC-076).
+
+`GET` (list) is keyset-paginated on `created_at desc, id desc` and returns
+`pageInfo { hasNextPage, nextCursor }`. Cursors are base64url and strictly
+validated.
+
+```text
+ELIGIBILITY_GUIDANCE_NOT_FOUND        404  unknown id, another contributor, or an owner
+ELIGIBILITY_GUIDANCE_NOT_BLOCKED      400  the evaluation was `eligible`
+ELIGIBILITY_GUIDANCE_CURSOR_INVALID   400  tampered cursor
+SKILL_GAP_GUIDANCE_FORBIDDEN          403  not an active contributor
+```
+
 ## Contribution Request Public Lifecycle
 
 Owner commands require an authenticated active `owner`, an owned published
@@ -1401,6 +1475,34 @@ decision identifier and feedback needed to use the moderation-report route.
 Authorized Application projections also include `reviewDueAt`, `expiresAt`,
 nullable `expiredAt`, and `overdue`. `overdue` becomes true at the inclusive
 day-5 boundary only while the Application remains `PENDING_OWNER_REVIEW`.
+
+## AI service routes
+
+The backend calls five FastAPI routes, one client each under
+`src/modules/ai/integrations/`:
+
+| Route | Client | Feature |
+|---|---|---|
+| `/advisory-fit/assess` | `advisory-fit.client.ts` | Advisory Fit Assessment |
+| `/requirements/infer` | `requirement-inference.client.ts` | Required skill levels (P0) |
+| `/material-analysis/analyze` | `material-analysis.client.ts` | Material Draft Suggestions |
+| `/skill-gap-guidance/generate` | `skill-gap-guidance.client.ts` | Skill Gap Guidance |
+| `/skill-profiles/generate` | `fastapi-skill-profile.client.ts` | Skill profile generation |
+
+Four of the five read their path from an `AI_*_PATH` setting; the default is
+what ships and is therefore what the AI service must serve.
+`/skill-profiles/generate` is built inline from `AI_SERVICE_URL`.
+
+`npm run test:ai-routes` asserts the AI service still serves all five. It reads
+the live `/openapi.json` when `AI_SERVICE_URL` is reachable and falls back to
+`docs/ai-service-routes.json` otherwise, failing if that manifest drifts from
+the clients. Extra routes on the AI service are fine — only a route the backend
+calls and the service does not serve is a failure.
+
+This exists because a renamed route is invisible to both repositories'
+mocked suites: `/advisory-fit/assess` was once renamed to `/advisory-fit/analyze`
+on an AI branch while these clients still called `/assess`, and nothing failed
+until the service was actually run.
 
 ## Phase 1 subscription status (#108)
 

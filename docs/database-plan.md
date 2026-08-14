@@ -44,6 +44,7 @@ Every table has one owning module:
 identity              users, auth_sessions, auth_provider_accounts, auth_oauth_states, email_verification_otps
 github                github_accounts, github_oauth_states, github_repositories, github_evidence
 contributor-profiles  contributor_profiles, contributor_fields, contributor_profile_fields
+skill-guidance        eligibility_guidance
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications, notification_events, notification_preferences, notification_category_preferences
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
@@ -403,6 +404,27 @@ The contributor foreign key is `ON DELETE RESTRICT` rather than `CASCADE`,
 unlike the two target keys: the evaluation is the record of *why a person was
 refused* and must not vanish to an unrelated cleanup, whereas an evaluation
 against a deleted Request has nothing left to explain.
+
+## Block-triggered guidance
+
+`EligibilityGuidance` is owned by the `skill-guidance` module. Migration
+`20260814152000_eligibility_guidance` creates it with a covering index on
+`(contributor_id, created_at, id)` — the exact keyset order the history is
+paginated by, so a page is an index range rather than an offset scan.
+
+It is scoped to an `EligibilityEvaluation` rather than an Application because
+under a hard block **no Application exists**. The retired
+`SkillGapGuidance.application_id` is `@unique` and NOT NULL, so ADR 0014's
+retired entity could not have carried this even if we wanted it to; it remains
+unused.
+
+`blocking_skills` is **copied onto the row**, not read through the evaluation at
+render time. The duplication is deliberate: the row's job is to keep explaining
+the refusal even when generation fails, and a join would make that dependent on
+the evaluation still being reachable.
+
+The contributor foreign key is `ON DELETE RESTRICT`, matching
+`EligibilityEvaluation`: this is the record of help offered for a refusal.
 
 ## Migration Rules
 

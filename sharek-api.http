@@ -82,6 +82,9 @@
 # - [DONE] GET /contribution-requests/:requestId/skill-requirements
 # - [DONE] PUT /contribution-requests/:requestId/skill-requirements
 # - [DONE] GET /tasks/:requestId/eligibility
+# - [DONE] POST /contributors/me/eligibility-guidance
+# - [DONE] GET  /contributors/me/eligibility-guidance
+# - [DONE] GET  /contributors/me/eligibility-guidance/:guidanceId
 # - [DONE] POST /contribution-requests/:requestId/discard
 # - [DONE] POST /contribution-requests/:requestId/publish
 # - [DONE] POST /contribution-requests/:requestId/cancel
@@ -1572,3 +1575,30 @@ Content-Type: application/json
   "proposedDeliveryDurationDays": 5,
   "idempotencyKey": "55555555-5555-4555-8555-555555555555"
 }
+
+
+### 11F - Block-triggered skill-gap guidance (P0-B05)
+
+### 11F.1 - DONE - Ask for guidance about a block
+# Returns immediately with the deterministic blocking-skill list; `status` is
+# `pending` and the narrative is polled for. Scoped to the EligibilityEvaluation
+# the 403 recorded, because under a hard block no Application exists.
+POST {{baseUrl}}/contributors/me/eligibility-guidance
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "eligibilityEvaluationId": "{{eligibilityEvaluationId}}"
+}
+
+
+### 11F.2 - DONE - Poll until the narrative arrives
+# `status` moves once to `ready` or `failed`. `blockingSkills` is present in
+# every state — failure removes the narrative, never the reason.
+GET {{baseUrl}}/contributors/me/eligibility-guidance/{{eligibilityGuidanceId}}
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 11F.3 - DONE - My guidance history, keyset-paginated
+GET {{baseUrl}}/contributors/me/eligibility-guidance?limit=20
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
