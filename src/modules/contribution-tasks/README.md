@@ -155,9 +155,70 @@ bar to compare anyone against (DEC-078, ADR 0015).
   `confidence` and `source` are excluded by a narrow Prisma `select` rather than
   by mapping, so no later change can leak them by spreading the row.
 
-Out of scope for this issue and tracked separately: the inference call and
-publication precondition (`P0-B02`, #115), and the evaluation that blocks a
-submission (`P0-B03`, #116). Nothing here blocks anything yet.
+Out of scope for that issue and tracked separately: the evaluation that blocks
+a submission (`P0-B03`, #116).
+
+## Implemented: inference and the publication precondition (#115, P0-B02)
+
+The level bar above is now populated by the AI agent, corrected by the owner,
+and required before publication.
+
+- Inference runs on the **`requirement-inference` BullMQ queue**, enqueued after
+  a draft create or content edit *commits*. Enqueuing inside the transaction
+  would hold a database connection across a Redis round-trip and could leave a
+  job pointing at a rolled-back draft.
+- **Saving a draft never blocks on the provider, and never fails because of
+  it.** `RequirementInferenceQueue.enqueueInference` swallows its own errors,
+  unlike `AdvisoryFitAssessmentQueue`, which throws when disabled. The asymmetry
+  is deliberate: an Assessment Request is a durable row an owner asked for and
+  would be stranded by a dropped job; inference is an optional convenience on a
+  draft, and the owner can always type the set by hand.
+- Jobs are keyed by `requestId--<updatedAt>`, and the processor stands down if
+  the draft's `updated_at` moved past the job's `requestedAt`. A slow run
+  against text the owner has since replaced must not overwrite rows inferred
+  from what they currently see.
+- A draft below `MIN_DESCRIPTION_LENGTH` with no requirements and no tags is
+  never sent. Every wasted provider call is real money, and a one-line
+  description produces a bar the owner deletes anyway.
+- **The override rule is enforced by the delete filter**, not by diffing: only
+  `source: ai_inferred` rows are removed, so an owner correction survives
+  re-inference even when the model now proposes something different. An
+  inferred skill the owner has already overridden is dropped — one row per
+  normalized name is all the unique index permits, and the human's wins.
+- Model output is revalidated **in NestJS** by `RequirementInferenceClient`
+  before anything is persisted: level vocabulary, categorical confidence, kind,
+  the 15 cap, and normalized-name uniqueness. The FastAPI schema enforces the
+  same rules, but a schema on the far side of an HTTP call is a promise made by
+  a separately deployed service, and ADR 0015 makes these rows an authorization
+  input. One bad row fails the whole run rather than being dropped: a silently
+  discarded skill is a bar the owner never sees and never approves.
+- A provider failure writes **no skill row at all** and sets
+  `skill_inference_status = failed`, which the owner DTO exposes. The draft
+  stays editable. The processor does not rethrow, so BullMQ's three attempts are
+  not burned on a service that is down.
+- Each run appends one `AiTraceLog` row (`agent_type: skill_validation`,
+  `trigger_entity_type: contribution_request`) carrying model, latency, status
+  and a skill count — **no request content and no provider trace** (ADR 0002).
+  The Request's text already lives on the Request; copying it into an
+  append-only AI log would duplicate owner content into a table with a different
+  retention story and no way to correct it.
+- **Publication refuses without at least one `required` skill row**, with
+  `REQUEST_SKILL_REQUIREMENTS_MISSING` (422) carrying the inference status.
+  Publishing with no bar yields a Request nobody can be measured against, so
+  every contributor passes and the differentiator silently does not exist for
+  it. `preferred` rows do not satisfy the check.
+- `REQUIREMENT_INFERENCE_QUEUE_ENABLED=false` is a **supported way to run the
+  product**, not a degraded mode: CI and a local run need no provider and no
+  Redis, and a draft is still publishable once the owner enters the set through
+  `PUT /contribution-requests/:requestId/skill-requirements`.
+
+Exercise it locally against the stub, which now serves `/requirements/infer`
+alongside `/advisory-fit/assess`:
+
+```bash
+node scripts/advisory-fit-provider-stub.mjs --port 8011
+AI_SERVICE_URL=http://127.0.0.1:8011 REQUIREMENT_INFERENCE_QUEUE_ENABLED=true pnpm start:dev
+```
 
 ## Persistence
 

@@ -96,6 +96,21 @@ enum ContributionRequestRequirementKind {
   preferred
 }
 
+/// Whether inference has produced a level bar for a draft yet.
+///
+/// Owner-visible, because a draft that cannot be published until it has a
+/// required skill row must be able to say *why* it has none: still running, or
+/// failed and worth retrying. Without this the owner sees an empty list and a
+/// publish button that refuses, with nothing connecting the two.
+enum ContributionRequestSkillInferenceStatus {
+  not_started
+  pending
+  succeeded
+  /// Retriable. A provider outage is not a statement about the Request, so the
+  /// draft stays editable and the owner may retry or enter the set by hand.
+  failed
+}
+
 /// Where a required skill level came from. An `owner_override` row always wins
 /// over re-inference: a human who has corrected the bar must not have their
 /// correction overwritten by the next model run (ADR 0015).
@@ -756,6 +771,8 @@ model ContributionRequest {
   origin_proposal_id        String?                        @unique @db.Uuid
   attributed_contributor_id String?                        @db.Uuid
   published_at              DateTime?
+  skill_inference_status    ContributionRequestSkillInferenceStatus @default(not_started)
+  skill_inference_ran_at    DateTime?
   created_at                DateTime                       @default(now())
   updated_at                DateTime                       @default(now()) @updatedAt
 

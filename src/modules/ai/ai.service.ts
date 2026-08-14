@@ -22,6 +22,11 @@ import {
   SkillGapGuidanceResult,
 } from './dto/skill-gap-guidance.dto';
 import { SkillGapGuidanceClient } from './integrations/skill-gap-guidance.client';
+import {
+  RequirementInferenceInput,
+  RequirementInferenceResult,
+} from './dto/requirement-inference.dto';
+import { RequirementInferenceClient } from './integrations/requirement-inference.client';
 
 @Injectable()
 export class AiService {
@@ -30,7 +35,29 @@ export class AiService {
     @Optional() private readonly advisoryFitClient?: AdvisoryFitClient,
     @Optional() private readonly materialAnalysisClient?: MaterialAnalysisClient,
     @Optional() private readonly skillGapGuidanceClient?: SkillGapGuidanceClient,
+    @Optional()
+    private readonly requirementInferenceClient?: RequirementInferenceClient,
   ) {}
+
+  /**
+   * Infer the skills and levels a Contribution Request demands.
+   *
+   * Unlike every other client here, what this returns becomes an authorization
+   * input (ADR 0015) — so the client revalidates the whole payload before it
+   * reaches a caller, and this method adds nothing of its own.
+   */
+  inferRequirementSkills(
+    input: RequirementInferenceInput,
+  ): Promise<RequirementInferenceResult> {
+    if (!this.requirementInferenceClient) {
+      throw new ApplicationError(
+        'Requirement inference client is not configured',
+        'AI_REQUIREMENT_INFERENCE_CLIENT_NOT_CONFIGURED',
+        503,
+      );
+    }
+    return this.requirementInferenceClient.infer(input);
+  }
 
   generateSkillProfile(input: SkillProfileInput): Promise<SkillProfileResult> {
     return this.skillProfileClient.generate(input);
