@@ -96,11 +96,20 @@ export class ContributionTasksService {
       include: CONTRIBUTION_REQUEST_INCLUDE,
     });
 
-    return requests.map((request) => this.toMatchingCandidate(request));
+    const projectTitles = new Map(
+      publishedProjects.map((project) => [project.id, project.title]),
+    );
+    return requests.map((request) =>
+      this.toMatchingCandidate(
+        request,
+        projectTitles.get(request.project_id) ?? '',
+      ),
+    );
   }
 
   private toMatchingCandidate(
     request: ContributionRequestWithRequirements,
+    projectName: string,
   ): MatchingCandidateRequestDto {
     const requirements = [...request.requirements].sort((left, right) => {
       if (left.kind !== right.kind) {
@@ -113,6 +122,7 @@ export class ContributionTasksService {
     return {
       id: request.id,
       projectId: request.project_id,
+      projectName,
       ownerId: request.owner_id,
       title: request.title,
       technologyTags: this.normalizeTechnologyTags(request.technology_tags),

@@ -7,6 +7,8 @@
 export interface MatchingCandidateRequestDto {
   id: string;
   projectId: string;
+  /** The parent Project's title, so the caller need not resolve it again. */
+  projectName: string;
   ownerId: string;
   title: string;
   /** Owner-declared technology tags, already normalized to a string list. */

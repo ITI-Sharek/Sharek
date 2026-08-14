@@ -56,6 +56,7 @@ delivery-reviews      deliveries, delivery_submissions, delivery_reviews, delive
 reputation            reputation_records
 subscriptions         Subscription
 applications          UsageTracker (application_submitted tallies)
+matching              AiMatchResult
 admin                 admin_review_queue, reports, disputes, moderation_actions
 ai                    ai_call_audit, AI service response snapshots, embeddings where backend-owned
 ```
@@ -291,6 +292,28 @@ enforced by the database rather than by whoever remembers to take the lock.
 
 The tally is written inside the Application submission transaction, so a failed
 submission gives the slot back by rolling back rather than by decrementing.
+
+## Match results
+
+`AiMatchResult` is owned by the `matching` module. Migration
+`20260814120000_drop_ai_match_notification_sent` drops `notification_sent`,
+which existed for owner-side auto-notification of best-matching contributors —
+a feature that is out of scope and will not be built. The column is dropped
+rather than left unused because a boolean named `notification_sent` next to a
+match row is an invitation to wire up the `match_found` notification on sight;
+removing it makes the absence of the feature visible in the schema instead of
+depending on someone reading a decision log first. Nothing had ever written or
+read it.
+
+The same migration adds `UNIQUE (contribution_request_id, contributor_id)` and
+an index on `(contributor_id, created_at DESC)`. Recomputing a shortlist
+replaces that contributor's rows rather than accumulating duplicates, and the
+uniqueness that makes the replacement safe is enforced by the database rather
+than by the writer remembering to delete first.
+
+`match_score` remains an internal ordering signal and is never returned:
+DEC-010 forbids presenting fit as a number, so the API exposes an ordinal
+`rank` and a categorical `confidence` instead.
 
 ## Migration Rules
 

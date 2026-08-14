@@ -24,6 +24,7 @@ export type MatchShortlistReason =
 export interface MatchedSkillDto {
   name: string;
   proficiency: 'beginner' | 'intermediate' | 'advanced';
+  evidenceIds: string[];
 }
 
 export interface ShortlistedMatch {
@@ -199,12 +200,29 @@ export class MatchingService {
     return skills.map((skill) => ({
       name: skill.name,
       proficiencyLevel: skill.proficiencyLevel,
+      evidenceIds: toEvidenceIds(skill.evidenceSources),
     }));
   }
 }
 
 function toMatchedSkill(skill: ApprovedSkill): MatchedSkillDto {
-  return { name: skill.name, proficiency: skill.proficiencyLevel };
+  return {
+    name: skill.name,
+    proficiency: skill.proficiencyLevel,
+    evidenceIds: skill.evidenceIds,
+  };
+}
+
+/**
+ * `evidenceSources` crosses the module boundary as `unknown`, so it is narrowed
+ * here rather than trusted. A skill with unreadable sources still matches — it
+ * simply cites nothing.
+ */
+function toEvidenceIds(evidenceSources: unknown): string[] {
+  if (!evidenceSources || typeof evidenceSources !== 'object') return [];
+  const ids = (evidenceSources as { evidenceIds?: unknown }).evidenceIds;
+  if (!Array.isArray(ids)) return [];
+  return ids.filter((id): id is string => typeof id === 'string');
 }
 
 /**

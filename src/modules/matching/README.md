@@ -5,13 +5,30 @@ skills fit. Deterministic and explainable. No AI.
 
 ## Tables owned
 
-None. Every fact this module ranks on is read through the exported service of
-the module that owns it — skills from `skill-profiles`, Requests from
+| Table | Notes |
+|---|---|
+| `AiMatchResult` | What a contributor was shown, with rank and matched skills |
+
+Every fact this module *ranks on* is read through the exported service of the
+module that owns it — skills from `skill-profiles`, Requests from
 `contribution-tasks`, prior Applications from `applications`, reputation from
-`reputation`, plan limits from `subscriptions`. That is why the module is all
-imports and one service.
+`reputation`, plan limits from `subscriptions`.
 
 ## Public API
+
+### Routes
+
+| Route | Returns |
+|---|---|
+| `GET /contributors/me/recommended-tasks` | The caller's own matched projects |
+
+Gold contributors receive up to 10 ranked matches. **A free contributor receives
+`200` with an empty list and `MATCHING_REQUIRES_SUBSCRIPTION`, not a `403`** —
+the route is legitimately theirs, and an error state is the wrong thing for the
+UI to render when the correct answer is an upgrade prompt. An owner receives
+`403`: matched projects are a contributor benefit.
+
+### Exported service
 
 `MatchingModule` exports `MatchingService`.
 
@@ -22,10 +39,43 @@ imports and one service.
 ## Matching is pull-only
 
 **There is no owner-side matching, and none may be added.** No method here takes
-a Contribution Request and returns contributors, and publishing a Request
-notifies nobody. The owner-facing matching UI was removed on 2026-08-14. A test
-asserts the absence structurally, by walking the service prototype, rather than
-trusting convention.
+a Contribution Request and returns contributors, and **publishing a Request
+notifies nobody**, in either owner tier. The owner-facing matching UI was
+removed on 2026-08-14.
+
+Two tests hold that line: one walks the service prototype to assert no
+owner-facing or invite method exists, and one publishes a Request through HTTP
+and asserts the Notifications service was not called.
+
+`AiMatchResult.notification_sent` existed for owner-side auto-notification and
+is dropped. The column went rather than being left unused because a boolean by
+that name sitting next to a match row is an invitation to wire up the
+`match_found` notification on sight.
+
+## Persistence
+
+Results are written to `AiMatchResult` with rank and matched skills, so a later
+question about why a Request appeared has an answer. Recomputing **replaces**
+this contributor's rows rather than accumulating them — the shortlist is a
+current view, not a history — and `UNIQUE (contribution_request_id,
+contributor_id)` makes replacement the only representable outcome. Both
+statements run in one transaction, so a failure cannot leave a contributor with
+no results at all.
+
+`match_score` stays an internal ordering signal and is never returned.
+
+## The AI ranker seam
+
+`MatchRanker` is a port with **no implementation in this repository**. The
+ranking agent lives in AI_Agents (`P1-A01`), and its absence is a supported
+state: a shortlist is a finished answer before a ranker is ever consulted.
+
+The contract is deliberately narrow. A ranker may **reorder** matches; it may
+not add, remove, or edit them. So it cannot surface a Request the exclusions
+rejected, cannot invent a justification, and cannot raise a contributor above
+their entitlement cap. If no ranker is bound, or it throws, or it returns
+anything other than a permutation of the shortlist, the deterministic order
+stands and the request still succeeds.
 
 ## Ranking
 

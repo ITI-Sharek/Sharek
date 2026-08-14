@@ -168,7 +168,7 @@ needs workflow code.
 | `delivery-reviews` | Implemented delivery submission, owner review, and durable reputation projection coordination | HTTP workflow, immutable history, approval outbox, worker, tests | additional reporting | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Implemented verified reputation projection and contributor-profile summary | projection calculator/writer and deterministic skill ranking | score history and public reviews | Update when scoring rules, history, public reputation APIs, or events are added |
 | `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, Subscription provenance and billing-period columns, and the `GET /me/subscription` status endpoint | `EntitlementsService`, `SubscriptionStatusService`, controller, DTO, `plan-catalog.ts`, migration regression harness, tests, module README | checkout and webhook activation | Update when a plan limit, a tier, resolution rules, the status payload, or Subscription columns change |
-| `matching` | Implemented the deterministic contributor-to-Request shortlist with entitlement gating, explainable reasons, and a single Phase 0 upgrade point | `MatchingService`, `skill-fit.ts`, exclusion/determinism/performance tests, module README | the HTTP route, AiMatchResult persistence, and AI re-ranking | Update when ranking keys, exclusions, the fit comparison, or the candidate bound change |
+| `matching` | Implemented the deterministic contributor-to-Request shortlist, `GET /contributors/me/recommended-tasks`, AiMatchResult persistence, and the optional AI re-rank seam | `MatchingService`, `RecommendedTasksService`, controller, DTO, `skill-fit.ts`, `MatchRanker` port, migration regression, tests, module README | binding an AI ranker once AI_Agents P1-A01 ships | Update when ranking keys, exclusions, the fit comparison, the response shape, or the candidate bound change |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `skill-guidance` | Implemented explicit contributor-requested source-scoped guidance | controller, service, DTO, context adapter, tests | saved plans require a separate decision | Update when guidance authorization, source policy, routes, or persistence changes |
@@ -2948,3 +2948,29 @@ This keeps the system strong without making it heavy:
   Applications from a new `ApplicationsService.listAppliedContributionRequestIds`.
 - Coverage never leaves the module as a number: it becomes a categorical
   HIGH/MEDIUM/LOW band, because DEC-010 forbids presenting fit as a percentage.
+
+### 2026-08-14 - P1-B05 matched projects for Gold contributors
+
+- `GET /contributors/me/recommended-tasks` exists. The frontend had been calling
+  it with nothing behind it. Gold contributors receive up to 10 ranked matches;
+  a free contributor receives 200 with an empty list and
+  `MATCHING_REQUIRES_SUBSCRIPTION`, **not a 403** — the route is legitimately
+  theirs, and an error state is the wrong thing to render when the right answer
+  is an upgrade prompt.
+- **Matching is pull-only.** Publishing a Contribution Request notifies nobody,
+  in either owner tier, and a test asserts publication emits no notification.
+  `AiMatchResult.notification_sent`, which existed for owner-side
+  auto-notification, is dropped and unreferenced; a real-Postgres migration
+  regression (`pnpm run test:migrations:matching`) proves the column is gone and
+  the pre-existing rows survived.
+- Results persist to `AiMatchResult` with rank and matched skills. Recomputing
+  replaces the contributor's rows in one transaction; the new
+  `UNIQUE (contribution_request_id, contributor_id)` makes replacement the only
+  representable outcome.
+- `MatchRanker` is a port with no implementation here: the AI ranker lives in
+  AI_Agents, and its absence is a supported state. A ranker may only reorder —
+  never add, remove, or edit — so a failing, missing, or misbehaving ranker
+  leaves the deterministic order in place instead of failing the request.
+- The response carries `rank` and a categorical `confidence`, and no
+  `matchScore`. DEC-010 forbids presenting fit as a number, and tests assert no
+  score and no percentage appear anywhere in the payload.

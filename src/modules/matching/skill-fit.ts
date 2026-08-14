@@ -3,6 +3,12 @@ import { MatchingCandidateRequestDto } from '../contribution-tasks/dto/matching-
 export interface ApprovedSkill {
   name: string;
   proficiencyLevel: 'beginner' | 'intermediate' | 'advanced';
+  /**
+   * The evidence the approval rested on. Carried through so a match can point
+   * at why the platform believes the contributor has the skill, rather than
+   * asserting it unsourced.
+   */
+  evidenceIds: string[];
 }
 
 /**
