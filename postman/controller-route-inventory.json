@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 153,
+  "routeCount": 156,
   "routes": [
     {
       "method": "GET",

@@ -60,7 +60,10 @@ are enforced in the service.
   only when a revision has been requested.
 - **Intake and eligibility**: submission requires a published Project with
   intake enabled (`ProjectProposalIntake`, default enabled). A Project owner
-  cannot propose to their own Project.
+  cannot propose to their own Project. The DEC-078 proposal gate is the next
+  Phase 0 slice (`P0-B04`, #117); its `EligibilityEvaluation` target column is
+  already present, but Proposal creation and versioning do not yet invoke the
+  gate.
 - **Transactional invariants**: submission takes a transaction-scoped shared
   Project lock, materializes and locks the intake row, and serializes commands
   per proposer before rechecking the daily limit. Distinct pending suggestions
