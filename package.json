@@ -14,6 +14,7 @@
     "test:migrations": "node scripts/test-application-status-migration.mjs",
     "test:migrations:notifications": "node scripts/test-notification-semantic-migration.mjs",
     "test:migrations:subscriptions": "node scripts/test-subscription-plan-migration.mjs",
+    "test:concurrency:application-quota": "ts-node --project tsconfig.json scripts/test-application-daily-quota-concurrency.ts",
     "test:api-clients": "node scripts/validate-api-clients.mjs",
     "test:postman": "node scripts/validate-postman-coverage.mjs",
     "postman:generate": "node scripts/sync-postman-artifacts.mjs",

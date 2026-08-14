@@ -1726,6 +1726,12 @@ model UsageTracker {
   updated_at  DateTime       @default(now()) @updatedAt
 
   user User @relation(fields: [user_id], references: [id])
+
+  // One tally per user, action and period. The advisory lock serializes a
+  // contributor's concurrent submissions, but the counter is the thing a quota
+  // is actually made of, so uniqueness is enforced by the database rather than
+  // by whoever remembers to take the lock.
+  @@unique([user_id, action_type, period_date])
 }
 
 enum MaterialVisibility {

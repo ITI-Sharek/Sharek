@@ -55,6 +55,7 @@ contribution-proposals contribution_proposals, contribution_proposal_versions, c
 delivery-reviews      deliveries, delivery_submissions, delivery_reviews, delivery_approved_events
 reputation            reputation_records
 subscriptions         Subscription
+applications          UsageTracker (application_submitted tallies)
 admin                 admin_review_queue, reports, disputes, moderation_actions
 ai                    ai_call_audit, AI service response snapshots, embeddings where backend-owned
 ```
@@ -278,6 +279,18 @@ resolution query, which runs at every enforcement point.
 
 Both migrations transform existing rows, so both are replayed against a real
 throwaway database by `pnpm run test:migrations:subscriptions`.
+
+## Usage tallies
+
+`UsageTracker` had been in the schema unused since the initial migration. It now
+carries the contributor daily Application tally, keyed by (user, action, UTC
+calendar day). Migration `20260814110000_usage_tracker_period_uniqueness` adds
+the unique index on that key: the advisory lock serializes a contributor's
+concurrent submissions, but a quota is made of the counter, so its uniqueness is
+enforced by the database rather than by whoever remembers to take the lock.
+
+The tally is written inside the Application submission transaction, so a failed
+submission gives the slot back by rolling back rather than by decrementing.
 
 ## Migration Rules
 
