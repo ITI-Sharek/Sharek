@@ -48,6 +48,7 @@ skill-profiles        skill_profiles, skill_profile_generations, skill_profile_r
 notifications         notifications, notification_events, notification_preferences, notification_category_preferences
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_skill_requirements, contribution_request_audits
+eligibility           eligibility_evaluations
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
 contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes, contribution_proposal_misuse_reports
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits, owner_decisions, assignments
@@ -365,6 +366,42 @@ so the draft stays editable and nothing in the skill set is touched.
 `not_started` for every pre-existing row is correct rather than a compromise:
 inference genuinely has never run for them, and a draft whose owner enters the
 set by hand stays in that state and publishes normally.
+
+## Eligibility evaluations
+
+`EligibilityEvaluation` is owned by the `eligibility` module. Migration
+`20260814143000_eligibility_evaluations` creates it append-only, with a **CHECK
+permitting exactly one target**:
+
+```sql
+CHECK (num_nonnulls("contribution_request_id", "contribution_proposal_id") = 1)
+```
+
+Prisma cannot express a CHECK, so nothing derived from `schema.prisma` proves
+it and the mocked jest suites never touch real DDL. It matters because a row
+belonging to neither path — or to both — is a refusal nobody can attribute,
+which defeats the point of keeping the log at all. `pnpm run
+test:migrations:eligibility` asserts it against real Postgres, along with the
+outcome vocabulary and the contributor `ON DELETE RESTRICT`.
+
+`contribution_proposal_id` exists from the first migration even though only the
+Application path writes it in `P0-B03`. The alternative — adding it in `P0-B04`
+— would mean writing the CHECK twice and having a window where a Proposal
+evaluation is unstorable.
+
+**There are exactly two outcomes**, `eligible` and `blocked`. A provider outage
+or an evaluation that could not run is a retriable error, never a third outcome
+recorded against a contributor: the table is the record of decisions actually
+made about a person, and an infrastructure failure is not one.
+
+Rows are written for both outcomes. Recording only refusals would make the table
+a list of accusations with no denominator and leave "was this person evaluated
+at all?" unanswerable in a dispute.
+
+The contributor foreign key is `ON DELETE RESTRICT` rather than `CASCADE`,
+unlike the two target keys: the evaluation is the record of *why a person was
+refused* and must not vanish to an unrelated cleanup, whereas an evaluation
+against a deleted Request has nothing left to explain.
 
 ## Migration Rules
 

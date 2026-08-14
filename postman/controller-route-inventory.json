@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 152,
+  "routeCount": 153,
   "routes": [
     {
       "method": "GET",
@@ -5107,6 +5107,32 @@
       "authentication": "bearer",
       "idempotency": true,
       "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/tasks/:requestId/eligibility",
+      "normalizedPath": "/tasks/:parameter/eligibility",
+      "key": "GET /tasks/:parameter/eligibility",
+      "controller": "EligibilityController",
+      "handler": "previewForRequest",
+      "source": "src/modules/eligibility/eligibility.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
     },
     {
       "method": "POST",
