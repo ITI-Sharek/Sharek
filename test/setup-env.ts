@@ -28,6 +28,8 @@ process.env.MATERIAL_ANALYSIS_QUEUE_ENABLED =
   process.env.MATERIAL_ANALYSIS_QUEUE_ENABLED ?? 'false';
 process.env.REQUIREMENT_INFERENCE_QUEUE_ENABLED =
   process.env.REQUIREMENT_INFERENCE_QUEUE_ENABLED ?? 'false';
+process.env.PROPOSAL_ELIGIBILITY_GATE_ENABLED =
+  process.env.PROPOSAL_ELIGIBILITY_GATE_ENABLED ?? 'false';
 process.env.MATERIAL_DOWNLOAD_TOKEN_SECRET =
   process.env.MATERIAL_DOWNLOAD_TOKEN_SECRET ??
   'test-material-download-secret-change-me';
