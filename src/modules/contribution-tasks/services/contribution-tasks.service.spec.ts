@@ -2,8 +2,11 @@ import {
   ContributionRequestAuditAction,
   ContributionRequestDifficulty,
   ContributionRequestRequirementKind,
+  ContributionRequestSkillRequirementConfidence,
+  ContributionRequestSkillRequirementSource,
   ContributionRequestStatus,
   Prisma,
+  SkillProfileProficiencyLevel,
 } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 
@@ -528,6 +531,18 @@ describe('ContributionTasksService', () => {
       },
       include: {
         requirements: true,
+        // Asserted as an explicit narrow `select`, not `true`: `confidence` and
+        // `source` must be unreachable from the public query, so that no later
+        // change can leak them into a contributor-facing payload by spreading
+        // the row.
+        skillRequirements: {
+          select: {
+            skill_name: true,
+            required_level: true,
+            kind: true,
+            position: true,
+          },
+        },
         attributedContributor: {
           select: {
             id: true,
@@ -1369,6 +1384,18 @@ function baseRequest() {
       makeRequirement('required', 0, 'Build a tested NestJS endpoint'),
       makeRequirement('preferred', 0, 'Document the API examples'),
     ],
+    // Empty by default: a draft carries no level bar until inference runs or
+    // the owner writes one, and most of these cases predate the gate entirely.
+    skillRequirements: [] as Array<{
+      id: string;
+      skill_name: string;
+      skill_name_normalized: string;
+      required_level: SkillProfileProficiencyLevel;
+      kind: ContributionRequestRequirementKind;
+      source: ContributionRequestSkillRequirementSource;
+      confidence: ContributionRequestSkillRequirementConfidence | null;
+      position: number;
+    }>,
     attributedContributor: null as {
       id: string;
       username: string | null;

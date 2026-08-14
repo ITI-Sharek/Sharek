@@ -1,6 +1,10 @@
-import { Prisma } from '@prisma/client';
+import {
+  ContributionRequestRequirementKind,
+  Prisma,
+} from '@prisma/client';
 
 import { ContributionRequestDto } from '../dto/contribution-request-response.dto';
+import { ContributionRequestSkillRequirementDto } from '../dto/contribution-request-skill-requirement.dto';
 
 /**
  * Mirrors the select used for the public request DTO and for proposers, so a
@@ -10,8 +14,19 @@ export const ATTRIBUTED_CONTRIBUTOR_SELECT = {
   select: { id: true, username: true, first_name: true, last_name: true },
 } as const;
 
+/**
+ * Required rows lead, then preferred, each by position — matching how the prose
+ * Requirements are presented. An alphabetical sort on `kind` would put
+ * "preferred" first and lead with the rows that cannot block anyone.
+ */
+const SKILL_KIND_ORDER: Record<ContributionRequestRequirementKind, number> = {
+  [ContributionRequestRequirementKind.required]: 0,
+  [ContributionRequestRequirementKind.preferred]: 1,
+};
+
 export const CONTRIBUTION_REQUEST_INCLUDE = {
   requirements: true,
+  skillRequirements: true,
   attributedContributor: ATTRIBUTED_CONTRIBUTOR_SELECT,
 } satisfies Prisma.ContributionRequestInclude;
 
@@ -38,6 +53,13 @@ export function toContributionRequestDto(
     preferredRequirements: requirements
       .filter((requirement) => requirement.kind === 'preferred')
       .map(toRequirementDto),
+    skillRequirements: [...request.skillRequirements]
+      .sort(
+        (left, right) =>
+          SKILL_KIND_ORDER[left.kind] - SKILL_KIND_ORDER[right.kind] ||
+          left.position - right.position,
+      )
+      .map(toSkillRequirementDto),
     technologyTags: readStringArray(request.technology_tags),
     applicationsCloseTime: request.applications_close_at,
     targetCompletionDate: request.target_completion_date
@@ -71,6 +93,25 @@ function toRequirementDto(
     kind: requirement.kind,
     position: requirement.position,
     text: requirement.text,
+  };
+}
+
+/**
+ * The owner's view keeps `source` and `confidence`: deciding whether to correct
+ * an inferred level is exactly the decision those two fields inform.
+ * `PublicContributionRequestDetailDto` deliberately carries neither.
+ */
+function toSkillRequirementDto(
+  skill: ContributionRequestWithRequirements['skillRequirements'][number],
+): ContributionRequestSkillRequirementDto {
+  return {
+    id: skill.id,
+    skillName: skill.skill_name,
+    requiredLevel: skill.required_level,
+    kind: skill.kind,
+    source: skill.source,
+    confidence: skill.confidence,
+    position: skill.position,
   };
 }
 

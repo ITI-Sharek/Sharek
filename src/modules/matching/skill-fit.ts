@@ -1,3 +1,7 @@
+import {
+  normalizeSkillName,
+  normalizeSkillPhrase,
+} from '../../shared/skills/skill-name';
 import { MatchingCandidateRequestDto } from '../contribution-tasks/dto/matching-candidate.dto';
 
 export interface ApprovedSkill {
@@ -145,24 +149,11 @@ function normalizedRequirementText(
 }
 
 /**
- * Case and punctuation are presentation, not identity. Normalization reduces
- * both sides to lowercase words so they can be compared symmetrically; `+` and
- * `#` survive because they are part of real skill names (`C++`, `C#`).
+ * Case and punctuation are presentation, not identity. Both forms come from
+ * `shared/skills`, because `contribution-tasks` stores `skill_name_normalized`
+ * under a unique index using the same identity form and `eligibility` looks
+ * skills up by it. A second copy here that drifted would let a contributor be
+ * shortlisted for a Request they are then blocked from applying to.
  */
-function normalize(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9+#]+/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-}
-
-/**
- * The identity form, with separators removed entirely, so `Node.js`, `node js`,
- * and `NodeJS` are one skill. Used for tag comparison, where both sides are
- * short names. Requirement text keeps the spaced form, because scanning prose
- * for a separator-free token would match across word boundaries.
- */
-function compact(value: string): string {
-  return normalize(value).replace(/ /g, '');
-}
+const normalize = normalizeSkillPhrase;
+const compact = normalizeSkillName;

@@ -84,6 +84,7 @@ describe('PublicContributionRequestsService', () => {
       reward: null,
       reward_currency: null,
       requirements: [],
+      skillRequirements: [],
       attributedContributor: {
         id: 'contributor-1',
         username: 'nour-hassan',
@@ -117,6 +118,7 @@ describe('PublicContributionRequestsService', () => {
       reward: null,
       reward_currency: null,
       requirements: [],
+      skillRequirements: [],
       attributedContributor: null,
     });
     projectsService.listContributionRequestProjectReferences.mockResolvedValue([
