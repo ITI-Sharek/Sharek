@@ -43,6 +43,7 @@ import {
   APPLICATION_REVIEW_OVERDUE_DAYS,
   APPLICATION_REVIEW_REMINDER_DAYS,
 } from './application-review-window.policy';
+import { ApplicationDailyQuotaService } from './services/application-daily-quota.service';
 
 const APPLICATION_INCLUDE = {
   requirementSnapshot: true,
@@ -78,6 +79,7 @@ export class ApplicationsService {
     private readonly identity: IdentityUsernameService,
     private readonly notifications: NotificationsService,
     private readonly contributorProfiles: ContributorProfilesService,
+    private readonly dailyQuota: ApplicationDailyQuotaService,
     @Optional()
     private readonly assignmentConversations?: AssignmentConversationsService,
   ) {}
@@ -127,6 +129,10 @@ export class ApplicationsService {
     let application: ApplicationWithSnapshots;
     try {
       application = await this.database.$transaction(async (transaction) => {
+        // Taken before any other lock so one contributor's concurrent
+        // submissions serialize here rather than racing each other's quota
+        // reads further down.
+        await this.dailyQuota.lockContributor(input.actor.id, transaction);
         const locked =
           await this.contributionTasks.lockApplicationSubmissionContext(
             input.contributionRequestId,
@@ -159,6 +165,16 @@ export class ApplicationsService {
           include: APPLICATION_INCLUDE,
         });
         if (existing) throw this.alreadyApplied();
+
+        // Last, so that nothing which would have refused the submission anyway
+        // — a closed request, a replay, a duplicate — costs the contributor a
+        // slot. Anything that throws after this point rolls the tally back with
+        // the rest of the transaction.
+        await this.dailyQuota.reserve({
+          contributorId: input.actor.id,
+          transaction,
+          now,
+        });
 
         const applicationId = randomUUID();
         const requirementSnapshotId = randomUUID();

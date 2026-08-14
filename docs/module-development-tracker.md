@@ -164,7 +164,7 @@ needs workflow code.
 | `skill-profiles` | Implemented durable selected-repository generation, pending-candidate policy, admin review transitions, review audit history, and approved-only eligibility reads | controller/service, generation service, review service, summary service, BullMQ queue/worker, concrete repository | file-level evidence evaluation and future eligibility consumers | Update when skill state, evidence, AI generation, or approval rules are added |
 | `notifications` | Implemented notification write service and authenticated WebSocket delivery for contributor skill-review outcomes | notifications service/gateway/module, README | notification inbox, read-state APIs, delivery channels, and broader event-driven alerts | Update when notification rows, delivery behavior, or notification APIs change |
 | `contribution-tasks` | Implemented private drafts plus explicit publication, actionable public discovery/detail, owner-plan limits, cancellation, and immutable lifecycle audits | grouped protected/public controllers, focused draft/publication/discovery services, DTOs, mapper, tests, module README | owner decisions/assignment integration and later Proposal-created draft attribution | Update when Contribution Request lifecycle, Requirements, capacity, deadlines, or owner limits are added |
-| `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, and bounded advisory Fit Assessment attempts/presentation auditing | controller, services, DTOs, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, or cancellation effects are added |
+| `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, bounded advisory Fit Assessment attempts/presentation auditing, and the contributor daily Application allowance | controller, services, DTOs, `ApplicationDailyQuotaService`, real-Postgres concurrency check, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, quota rules, or cancellation effects are added |
 | `delivery-reviews` | Implemented delivery submission, owner review, and durable reputation projection coordination | HTTP workflow, immutable history, approval outbox, worker, tests | additional reporting | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Implemented verified reputation projection and contributor-profile summary | projection calculator/writer and deterministic skill ranking | score history and public reviews | Update when scoring rules, history, public reputation APIs, or events are added |
 | `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, plus Subscription provenance and billing-period columns | `EntitlementsService`, `plan-catalog.ts`, migration regression harness, tests, module README | `GET /me/subscription`, checkout, and webhook activation | Update when a plan limit, a tier, resolution rules, or Subscription columns change |
@@ -2880,3 +2880,25 @@ This keeps the system strong without making it heavy:
 - Both row-transforming migrations are covered by
   `pnpm run test:migrations:subscriptions`, which replays them against a real
   throwaway Postgres database.
+
+### 2026-08-14 - P1-B03 contributor daily Application allowance
+
+- Free contributors get 1 Application per UTC day and Gold contributors 5, both
+  resolved through `EntitlementsService` (DEC-079). This module holds neither
+  number.
+- `ApplicationDailyQuotaService` takes `pg_advisory_xact_lock` on the
+  contributor as the first statement of the submission transaction, through
+  `$executeRaw` rather than `$queryRaw`, and reserves the slot last — after the
+  replay, request-state, and duplicate checks — so nothing that would have been
+  refused anyway costs the contributor a slot.
+- `UsageTracker` gains a unique index on (user, action, period date). The table
+  had been unused since the initial migration.
+- Withdrawal deliberately does not refund the allowance; refunding would make
+  withdraw-and-resubmit an unlimited-application loop.
+- Mocked suites cannot execute the advisory lock or run two transactions at
+  once, so `pnpm run test:concurrency:application-quota` exercises the real
+  behaviour: 8 parallel attempts at a limit of 1 grant exactly one, 12 at a
+  limit of 5 grant exactly 1..5, and a rolled-back transaction leaves no tally.
+- Corrected a false claim in the applications README: `Application.is_priority`
+  is never written or read, and priority Application visibility is not a Phase 1
+  deliverable.

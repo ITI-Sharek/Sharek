@@ -7,6 +7,7 @@ import { AiModule } from '../ai/ai.module';
 import { IdentityModule } from '../identity/identity.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SkillProfilesModule } from '../skill-profiles/skill-profiles.module';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ApplicationsController } from './applications.controller';
 import { ApplicationsService } from './applications.service';
 import { AdvisoryFitAssessmentQueue } from './jobs/advisory-fit-assessment.queue';
@@ -18,6 +19,7 @@ import { ApplicationReviewWindowWorker } from './jobs/application-review-window.
 import { ApplicationReviewWindowService } from './services/application-review-window.service';
 import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment.service';
 import { ApplicationReputationFactsService } from './services/application-reputation-facts.service';
+import { ApplicationDailyQuotaService } from './services/application-daily-quota.service';
 
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { ApplicationReputationFactsService } from './services/application-reputa
     IdentityModule,
     NotificationsModule,
     SkillProfilesModule,
+    SubscriptionsModule,
   ],
   controllers: [ApplicationsController],
   providers: [
@@ -41,7 +44,12 @@ import { ApplicationReputationFactsService } from './services/application-reputa
     ApplicationReviewWindowQueue,
     ApplicationReviewWindowWorker,
     ApplicationReputationFactsService,
+    ApplicationDailyQuotaService,
   ],
-  exports: [ApplicationsService, ApplicationReputationFactsService],
+  exports: [
+    ApplicationsService,
+    ApplicationReputationFactsService,
+    ApplicationDailyQuotaService,
+  ],
 })
 export class ApplicationsModule {}

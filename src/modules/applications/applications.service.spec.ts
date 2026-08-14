@@ -10,7 +10,9 @@ import {
   ConflictApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { ApplicationsService } from './applications.service';
+import { ApplicationDailyQuotaService } from './services/application-daily-quota.service';
 
 describe('ApplicationsService owner-workspace summary', () => {
   const database = {
@@ -20,6 +22,7 @@ describe('ApplicationsService owner-workspace summary', () => {
   };
   const service = new ApplicationsService(
     database as never,
+    undefined as never,
     undefined as never,
     undefined as never,
     undefined as never,
@@ -112,8 +115,11 @@ describe('ApplicationsService submission and withdrawal', () => {
       create: jest.fn(),
     },
     assignment: { findUnique: jest.fn(), create: jest.fn() },
+    usageTracker: { upsert: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
+    subscription: { findFirst: jest.fn() },
     $transaction: jest.fn(),
     $queryRaw: jest.fn(),
+    $executeRaw: jest.fn(),
   };
   const contributionTasks = {
     getApplicationSubmissionContext: jest.fn(),
@@ -136,6 +142,11 @@ describe('ApplicationsService submission and withdrawal', () => {
       conversationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     }),
   };
+  // The real quota service over the same mocked client, so the submission
+  // tests exercise the advisory lock and the tally rather than a stub of them.
+  const dailyQuota = new ApplicationDailyQuotaService(
+    new EntitlementsService(database as never),
+  );
   const service = new ApplicationsService(
     database as never,
     contributionTasks as never,
@@ -143,6 +154,7 @@ describe('ApplicationsService submission and withdrawal', () => {
     identity as never,
     notifications as never,
     contributorProfiles as never,
+    dailyQuota,
     assignmentConversations as never,
   );
 
@@ -207,6 +219,12 @@ describe('ApplicationsService submission and withdrawal', () => {
     database.applicationAudit.create.mockResolvedValue({});
     database.applicationAudit.createMany.mockResolvedValue({ count: 0 });
     database.$queryRaw.mockResolvedValue([]);
+    database.$executeRaw.mockResolvedValue(1);
+    // A free contributor with nothing spent yet: 1 Application available today.
+    database.subscription.findFirst.mockResolvedValue(null);
+    database.usageTracker.upsert.mockResolvedValue({ count: 0 });
+    database.usageTracker.update.mockResolvedValue({ count: 1 });
+    database.usageTracker.findUnique.mockResolvedValue(null);
     database.application.create.mockResolvedValue(applicationRecord());
     database.application.findUniqueOrThrow.mockResolvedValue(
       applicationRecord(),
@@ -229,7 +247,7 @@ describe('ApplicationsService submission and withdrawal', () => {
     jest.useRealTimers();
   });
 
-  it('submits one immutable snapshotted Application directly to owner review without AI or quota work', async () => {
+  it('submits one immutable snapshotted Application directly to owner review without AI work', async () => {
     const result = await service.submit({
       actor: contributor,
       contributionRequestId: requestId,
@@ -368,6 +386,114 @@ describe('ApplicationsService submission and withdrawal', () => {
     ).rejects.toMatchObject({ code: 'ALREADY_APPLIED' });
   });
 
+  it('spends one daily Application, taking the contributor lock before any other', async () => {
+    await service.submit({
+      actor: contributor,
+      contributionRequestId: requestId,
+      contributionApproach: 'I will implement and test the NestJS workflow.',
+      proposedDeliveryDurationDays: 5,
+      idempotencyKey: '55555555-5555-4555-8555-555555555555',
+    });
+
+    expect(database.usageTracker.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { count: { increment: 1 } } }),
+    );
+    // The advisory lock is the first statement in the transaction: a
+    // contributor's concurrent submissions have to queue before either of them
+    // can read the tally.
+    expect(database.$executeRaw).toHaveBeenCalled();
+    const lockOrder = database.$executeRaw.mock.invocationCallOrder[0];
+    const requestLockOrder =
+      contributionTasks.lockApplicationSubmissionContext.mock
+        .invocationCallOrder[0];
+    const tallyReadOrder = database.usageTracker.upsert.mock
+      .invocationCallOrder[0];
+    expect(lockOrder).toBeLessThan(requestLockOrder);
+    expect(lockOrder).toBeLessThan(tallyReadOrder);
+  });
+
+  it('refuses a contributor who has spent the day and names when it refills', async () => {
+    database.usageTracker.upsert.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.submit({
+        actor: contributor,
+        contributionRequestId: requestId,
+        contributionApproach: 'I will implement and test the NestJS workflow.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey: '66666666-6666-4666-8666-666666666666',
+      }),
+    ).rejects.toMatchObject({
+      code: 'APPLICATION_DAILY_LIMIT_REACHED',
+      statusCode: 409,
+      metadata: expect.objectContaining({ used: 1, limit: 1 }),
+    });
+    expect(database.application.create).not.toHaveBeenCalled();
+  });
+
+  it('gives a Gold contributor five a day from the same resolved entitlement', async () => {
+    database.subscription.findFirst.mockResolvedValue({
+      plan_type: 'gold',
+      status: 'active',
+      source: 'payment_provider',
+      starts_at: new Date('2026-08-01T00:00:00.000Z'),
+      expires_at: new Date('2030-01-01T00:00:00.000Z'),
+      current_period_start: new Date('2026-08-01T00:00:00.000Z'),
+      current_period_end: new Date('2030-01-01T00:00:00.000Z'),
+    });
+    database.usageTracker.upsert.mockResolvedValue({ count: 4 });
+    database.usageTracker.update.mockResolvedValue({ count: 5 });
+
+    await expect(
+      service.submit({
+        actor: contributor,
+        contributionRequestId: requestId,
+        contributionApproach: 'I will implement and test the NestJS workflow.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey: '55555555-5555-4555-8555-555555555555',
+      }),
+    ).resolves.toMatchObject({ id: applicationId });
+    expect(database.application.create).toHaveBeenCalled();
+  });
+
+  it('never charges a duplicate Application against the daily allowance', async () => {
+    database.application.findUnique.mockResolvedValueOnce(applicationRecord());
+
+    await expect(
+      service.submit({
+        actor: contributor,
+        contributionRequestId: requestId,
+        contributionApproach: 'I will implement and test the NestJS workflow.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey: '88888888-8888-4888-8888-888888888888',
+      }),
+    ).rejects.toMatchObject({ code: 'ALREADY_APPLIED' });
+    expect(database.usageTracker.upsert).not.toHaveBeenCalled();
+    expect(database.usageTracker.update).not.toHaveBeenCalled();
+  });
+
+  it('never charges a closed Request against the daily allowance', async () => {
+    contributionTasks.getApplicationSubmissionContext.mockResolvedValueOnce({
+      id: requestId,
+      ownerId,
+      status: ContributionRequestStatus.published,
+      applicationsCloseAt: new Date('2020-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2020-01-01T00:00:00.000Z'),
+      requirements: [],
+    });
+
+    await expect(
+      service.submit({
+        actor: contributor,
+        contributionRequestId: requestId,
+        contributionApproach: 'I will implement and test the NestJS workflow.',
+        proposedDeliveryDurationDays: 5,
+        idempotencyKey: '99999999-9999-4999-8999-999999999999',
+      }),
+    ).rejects.toMatchObject({ code: 'APPLICATIONS_CLOSED' });
+    expect(database.usageTracker.upsert).not.toHaveBeenCalled();
+  });
+
   it('replays the same submission without creating snapshots, audit, or duplicate notifications', async () => {
     const input = {
       actor: contributor,
@@ -406,6 +532,9 @@ describe('ApplicationsService submission and withdrawal', () => {
       database.applicationRequirementSnapshot.create,
     ).not.toHaveBeenCalled();
     expect(database.applicationAudit.create).not.toHaveBeenCalled();
+    // A replay returns the Application that already exists, so it must not
+    // spend a second slot for the same command.
+    expect(database.usageTracker.update).not.toHaveBeenCalled();
   });
 
   it('withdraws only the contributor-owned pending Application and appends one audit', async () => {
@@ -437,6 +566,11 @@ describe('ApplicationsService submission and withdrawal', () => {
     expect(notifications.createApplicationNotification).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'withdrawn', userId: ownerId }),
     );
+    // Withdrawal does not refund the day's allowance. The owner already spent
+    // attention on the Application, and a refund would make withdraw-and-retry
+    // an unlimited-application loop.
+    expect(database.usageTracker.update).not.toHaveBeenCalled();
+    expect(database.usageTracker.upsert).not.toHaveBeenCalled();
     expect(result.status).toBe('WITHDRAWN');
   });
 

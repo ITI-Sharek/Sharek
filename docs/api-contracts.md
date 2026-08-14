@@ -1252,7 +1252,13 @@ authorize new evidence access. The submission transaction revalidates and locks
 the active GitHub App link, installation, selected repositories, consent, and
 matching generation before fixing the snapshot. Revoked or unverifiable legacy
 evidence is omitted. The parent Project must also still be published.
-Submission performs no AI or attempt-quota work.
+Submission performs no AI work. It does consume one of the contributor's daily
+Applications: free contributors get 1 per UTC day and Gold contributors 5, both
+resolved through the subscriptions module. Exceeding the allowance returns
+`409 APPLICATION_DAILY_LIMIT_REACHED` with `used`, `limit`, and `resetsAt` — the
+exact UTC instant the allowance refills. Only a successfully created Application
+spends a slot: a replay, a duplicate, or a closed Request costs nothing, and
+withdrawal does not refund.
 
 ```http
 GET  /tasks/:taskId/applications
@@ -1264,8 +1270,8 @@ Idempotency-Key: 00000000-0000-4000-8000-000000000002
 Owner reads are ownership-scoped. Detail also permits the applying contributor.
 Withdrawal is contributor-owned and pending-only. Stable workflow errors include
 `ALREADY_APPLIED`, `APPLICATIONS_CLOSED`, `REQUEST_CANCELLED`,
-`REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, `APPLICATION_TERMINAL`, and
-`APPLICATION_IDEMPOTENCY_CONFLICT`.
+`REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, `APPLICATION_TERMINAL`,
+`APPLICATION_DAILY_LIMIT_REACHED`, and `APPLICATION_IDEMPOTENCY_CONFLICT`.
 
 Application detail includes nullable `ownerDecision` and `assignment` fields.
 For a declined Application, the applying contributor receives the immutable
