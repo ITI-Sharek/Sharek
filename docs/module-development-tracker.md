@@ -2992,7 +2992,7 @@ This keeps the system strong without making it heavy:
 ### 2026-08-13 - Paymob catalog and payment persistence (PAY-02 / #103)
 
 - Modules: `payments`, `subscriptions`, and Prisma migrations.
-- Requirement IDs: PAY-02, DEC-077, and DEC-078. The current shared catalog is
+- Requirement IDs: PAY-02 and DEC-077. The current shared catalog is
   Free `0 EGP` with no expiry and no checkout, and Gold `50,000` minor units in
   `EGP` for 30 days. Both owner and contributor role contexts use the same
   catalog.
@@ -3017,7 +3017,7 @@ This keeps the system strong without making it heavy:
 
 ### 2026-08-13 - Paymob checkout and payment status (PAY-03 / #105)
 
-- Requirement IDs: PAY-03, DEC-077, and DEC-078. Added public plan catalog and
+- Requirement IDs: PAY-03 and DEC-077. Added public plan catalog and
   authenticated owner/contributor checkout and payment-status routes.
 - Policy: checkout validates the caller's active role context, resolves the
   Free/Gold plan amount, currency, duration, and eligibility on the backend,

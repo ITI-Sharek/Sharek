@@ -354,7 +354,7 @@ and that a snapshot survives its source rows being deleted and replaced.
 
 ### Inference status
 
-Migration `20260814132500_contribution_request_skill_inference_status` adds
+Migration `20260814113531_contribution_request_skill_inference_status` adds
 `ContributionRequest.skill_inference_status` (`not_started | pending |
 succeeded | failed`) and `skill_inference_ran_at`.
 
@@ -371,7 +371,7 @@ set by hand stays in that state and publishes normally.
 ## Eligibility evaluations
 
 `EligibilityEvaluation` is owned by the `eligibility` module. Migration
-`20260814143000_eligibility_evaluations` creates it append-only, with a **CHECK
+`20260814120107_eligibility_evaluations` creates it append-only, with a **CHECK
 permitting exactly one target**:
 
 ```sql

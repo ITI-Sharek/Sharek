@@ -70,7 +70,7 @@ second call.
 
 ## Persistence
 
-Migration `20260814143000_eligibility_evaluations` creates the append-only
+Migration `20260814120107_eligibility_evaluations` creates the append-only
 table with a **CHECK constraint permitting exactly one target** — a row must
 belong to a Contribution Request or a Contribution Proposal, never both and
 never neither. Prisma cannot express a CHECK, so it lives in the raw migration
