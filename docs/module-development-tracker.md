@@ -3148,3 +3148,36 @@ This keeps the system strong without making it heavy:
   fails 3 tests, and making every level clear the bar fails 4. An earlier
   version of the fixture left proposal intake disabled, so the blocked-create
   assertions passed for the wrong reason — intake is now explicitly enabled.
+
+### 2026-08-14 - P0-B05 skill-gap guidance triggered by a block
+
+- Module: `skill-guidance`, new `EligibilityGuidance` table plus
+  `EligibilityGuidanceService`, its processor, queue and worker. The existing
+  ADR 0014 contributor-requested route is untouched.
+- **Scoped to an `EligibilityEvaluation`, not an Application.** Under a hard
+  block no Application exists, and `SkillGapGuidance.application_id` is
+  `@unique` and NOT NULL — the retired entity is unrepresentable here, not just
+  undesirable. It stays unused.
+- **The request does not wait on the provider.** The deterministic
+  blocking-skill list is copied onto the row and returned immediately; the
+  narrative is queued and polled for.
+- `blocking_skills` is copied rather than joined, so the row keeps explaining
+  the refusal even if generation never succeeds. `recordFailure` touches only
+  `status` — a test asserts it never writes `blocking_skills`.
+- `no_assessable_evidence` and `system_limit` are recorded as **failures**, not
+  as empty successes: both are honest non-answers, and `ready` with nothing in
+  it would show an empty panel and call it help.
+- Re-requesting reuses a `pending` or `ready` row; a `failed` row is not reused,
+  so a retry after a provider outage is possible without spamming the provider
+  while one is in flight.
+- Enqueue happens **after** the row is written, so a Redis outage leaves a
+  `pending` row the contributor can see and retry rather than losing the
+  request. The queue never throws.
+- **No plan check anywhere on this path** (DEC-076), asserted by a test. A block
+  is the moment a paywall would be least defensible.
+- History is keyset-paginated on `(created_at desc, id desc)` with a covering
+  index; cursors are base64url and round-trip-validated, so a tampered cursor is
+  a 400 rather than a silent first page.
+- The E2E uses an in-memory store rather than per-call jest mocks, because the
+  property under test is temporal: the row must be readable and *useful* between
+  the request and the provider answering, which a per-call mock cannot express.

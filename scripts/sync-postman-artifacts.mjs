@@ -391,6 +391,11 @@ function applyBodyCorrections(route, request) {
     ['POST /contributors/me/skill-gap-guidance', {
       contributionRequestId: '{{contributionRequestId}}',
     }],
+    // Block-triggered guidance (P0-B05). Scoped to a recorded evaluation, not
+    // to a Contribution Request: under a hard block no Application exists.
+    ['POST /contributors/me/eligibility-guidance', {
+      eligibilityEvaluationId: '{{eligibilityEvaluationId}}',
+    }],
     // Replaces the whole set, so the example sends both kinds: only `required`
     // rows can block, and `preferred` is advisory. No `source` or `confidence`
     // — an owner write is always the override, and the API rejects both fields.
