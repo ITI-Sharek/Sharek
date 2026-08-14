@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **152**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **153**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -121,6 +121,7 @@ Unique controller method/path pairs: **152**. WebSocket events are excluded from
 | `GET` | `/tasks/:requestId` | Public | 200 | Get Public Request Detail |
 | `GET` | `/projects/:projectId/contribution-requests` | Bearer / resource-scoped | 200 | List Owned Project Requests by Status |
 | `GET` | `/contribution-requests/:requestId/skill-requirements` | Bearer / resource-scoped | 200 | List Skill Requirements |
+| `GET` | `/tasks/:requestId/eligibility` | Bearer / resource-scoped | 200 | Preview For Request |
 | `POST` | `/contribution-requests/:requestId/publish` | Bearer / resource-scoped | 200 | Publish Request |
 | `PUT` | `/contribution-requests/:requestId/skill-requirements` | Bearer / resource-scoped | 200 | Replace Skill Requirements |
 | `PATCH` | `/contribution-requests/:requestId` | Bearer / resource-scoped | 200 | Update Draft |

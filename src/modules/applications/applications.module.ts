@@ -3,6 +3,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { AssignmentConversationsModule } from '../assignment-conversations/assignment-conversations.module';
 import { ContributionTasksModule } from '../contribution-tasks/contribution-tasks.module';
 import { ContributorProfilesModule } from '../contributor-profiles/contributor-profiles.module';
+import { EligibilityModule } from '../eligibility/eligibility.module';
 import { AiModule } from '../ai/ai.module';
 import { IdentityModule } from '../identity/identity.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -27,6 +28,7 @@ import { ApplicationDailyQuotaService } from './services/application-daily-quota
     AssignmentConversationsModule,
     AiModule,
     ContributorProfilesModule,
+    forwardRef(() => EligibilityModule),
     IdentityModule,
     NotificationsModule,
     SkillProfilesModule,

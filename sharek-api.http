@@ -81,6 +81,7 @@
 # - [DONE] PATCH /contribution-requests/:requestId
 # - [DONE] GET /contribution-requests/:requestId/skill-requirements
 # - [DONE] PUT /contribution-requests/:requestId/skill-requirements
+# - [DONE] GET /tasks/:requestId/eligibility
 # - [DONE] POST /contribution-requests/:requestId/discard
 # - [DONE] POST /contribution-requests/:requestId/publish
 # - [DONE] POST /contribution-requests/:requestId/cancel
@@ -1523,3 +1524,28 @@ Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 # Matching is pull-only: publishing a Contribution Request notifies nobody.
 GET {{baseUrl}}/contributors/me/recommended-tasks
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 11E - Eligibility gate (DEC-078)
+
+### 11E.1 - DONE - Check my eligibility before opening the form
+# Advisory only. The verdict is recomputed inside the submission transaction, so
+# a contributor whose approval is revoked in between is still blocked.
+GET {{baseUrl}}/tasks/{{contributionRequestId}}/eligibility
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+
+
+### 11E.2 - DONE - A blocked submission
+# Expect 403 APPLICATION_BLOCKED_SKILL_GAP when approved skills fall below the
+# Request's required levels. metadata.blockingSkills names each skill, the level
+# required, and the level held (null when there is no approved evidence).
+# No Application row, no snapshot, no audit row, and no daily slot is spent.
+POST {{baseUrl}}/tasks/{{contributionRequestId}}/applications
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "contributionApproach": "I will implement and test the requested workflow.",
+  "proposedDeliveryDurationDays": 5,
+  "idempotencyKey": "55555555-5555-4555-8555-555555555555"
+}

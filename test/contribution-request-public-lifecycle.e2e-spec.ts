@@ -18,6 +18,7 @@ import { EntitlementsService } from '../src/modules/subscriptions/entitlements.s
 import { ApplicationsController } from '../src/modules/applications/applications.controller';
 import { AdvisoryFitAssessmentService } from '../src/modules/applications/services/advisory-fit-assessment.service';
 import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
+import { EligibilityService } from '../src/modules/eligibility/services/eligibility.service';
 import { IdentityUsernameService } from '../src/modules/identity/services/identity-username.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { ProjectsService } from '../src/modules/projects/projects.service';
@@ -282,6 +283,10 @@ describe('Contribution Request owner publication HTTP integration', () => {
         ContributionRequestSkillRequirementsService,
         ApplicationsService,
         { provide: AdvisoryFitAssessmentService, useValue: {} },
+        // This suite exercises publication and cancellation, not submission, so
+        // the gate is stubbed rather than mounted — it would pull in the whole
+        // skill-profiles graph for a path no test here reaches.
+        { provide: EligibilityService, useValue: {} },
         {
           provide: ContributionTasksService,
           useValue: contributionTasksService,
