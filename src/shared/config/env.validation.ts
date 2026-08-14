@@ -230,6 +230,16 @@ export const envValidationSchema = Joi.object({
     .falsy('false')
     .default(true),
   AI_REQUIREMENT_INFERENCE_PATH: Joi.string().default('/requirements/infer'),
+  AI_MATCHING_RANK_PATH: Joi.string()
+    .pattern(/^\/[a-zA-Z0-9/_-]+$/)
+    .default('/matching/rank'),
+  AI_MATCHING_RANK_TIMEOUT_MS: Joi.number().integer().min(1000).default(30000),
+  /**
+   * Off by default. The deterministic shortlist is a complete answer, so the
+   * ranker is an improvement to switch on once the agent is deployed and
+   * observed — not a dependency a contributor's matched projects wait on.
+   */
+  MATCH_RANKER_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
   AI_REQUIREMENT_INFERENCE_TIMEOUT_MS: Joi.number().integer().min(1000).default(60000),
   MATERIAL_ANALYSIS_QUEUE_ENABLED: Joi.boolean()
     .truthy('true')
