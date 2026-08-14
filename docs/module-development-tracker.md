@@ -3015,3 +3015,52 @@ This keeps the system strong without making it heavy:
 - `UnprocessableApplicationError` gained an optional `metadata` argument,
   matching `ConflictApplicationError`. A 422 that names which of fifteen skill
   rows was the duplicate saves the caller a second request.
+
+### 2026-08-14 - P0-B02 requirement inference and the publication precondition
+
+- Modules: `ai` (new `RequirementInferenceClient`), `contribution-tasks` (new
+  `jobs/requirement-inference.*` and `RequirementInferenceProcessorService`).
+  `contribution-tasks` now imports `AiModule`.
+- **The client revalidates everything the FastAPI schema already enforces.**
+  That is not redundancy: ADR 0015 makes these rows an authorization input, and
+  a schema on the far side of an HTTP call is a promise made by a separately
+  deployed service. This is the check that actually runs before a value can
+  influence whether someone may apply. One out-of-vocabulary row fails the whole
+  run rather than being dropped — a silently discarded skill is a bar the owner
+  never sees and never approves.
+- Confidence is **rejected, not coerced**, when it is not `high|medium|low`.
+  Mapping `0.9` to `high` would invent a categorical judgement the agent never
+  made.
+- The client normalizes with `shared/skills/skill-name.ts`, so a set that would
+  violate the unique index is refused before a transaction opens rather than
+  surfacing as a `P2002` inside the worker.
+- **The override rule lives in the delete filter**, not in a read-and-diff:
+  `deleteMany` is scoped to `source: ai_inferred`, so an owner correction
+  survives re-inference by construction. An inferred skill the owner already
+  overrode is dropped, because the unique index permits one row per normalized
+  name and the human's wins.
+- `RequirementInferenceQueue.enqueueInference` **swallows its own errors**,
+  unlike `AdvisoryFitAssessmentQueue.enqueueAssessment` which throws when
+  disabled. An Assessment Request is a durable row an owner asked for and would
+  be stranded by a dropped job; inference is an optional convenience on a draft,
+  and failing an authoring flow because Redis is down would be worse than no
+  bar. Enqueue happens after commit, never inside the transaction.
+- Jobs carry `requestedAt` and the processor stands down when the draft moved
+  past it, so a slow run cannot overwrite rows inferred from newer text. Status
+  and revision are rechecked under `FOR UPDATE` before persisting, because
+  publication can happen between reading the draft and opening the transaction.
+- A provider failure writes no skill row, sets `skill_inference_status=failed`,
+  and does **not** rethrow — letting it bubble would burn BullMQ's three
+  attempts on a service that is down and write three identical audit rows while
+  the owner still sees nothing explaining the empty list.
+- One `AiTraceLog` row per run with model, latency, status and a skill count.
+  No request content and no provider trace (ADR 0002); a test asserts the
+  draft's own text does not appear in the row.
+- Publication now refuses without a `required` skill row
+  (`REQUEST_SKILL_REQUIREMENTS_MISSING`). `REQUIREMENT_INFERENCE_QUEUE_ENABLED=false`
+  remains a fully supported way to run the product — the owner types the set.
+- `scripts/advisory-fit-provider-stub.mjs` now routes on path and serves
+  `/requirements/infer` too. It echoes the request's technology tags rather than
+  a fixture, for the same reason the Advisory Fit half does: a canned list would
+  fail the client's cap and duplicate checks against a real draft, and that
+  looks exactly like a broken queue.
