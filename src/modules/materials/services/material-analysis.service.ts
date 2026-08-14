@@ -10,6 +10,7 @@ import {
   MaterialScanStatus,
   Prisma,
   ProjectStatus,
+  SubscriptionUserRoleContext,
 } from '@prisma/client';
 
 import { AiService } from '../../ai/ai.service';
@@ -26,6 +27,7 @@ import {
   NotFoundApplicationError,
 } from '../../../shared/errors/application.error';
 import { ProjectsService } from '../../projects/projects.service';
+import { EntitlementsService } from '../../subscriptions/entitlements.service';
 import { MaterialAnalysisQueue } from '../jobs/material-analysis.queue';
 import {
   AdoptContributionRequestSuggestionDto,
@@ -68,6 +70,7 @@ export class MaterialAnalysisService {
     private readonly projects: ProjectsService,
     private readonly storage: MaterialStorage,
     private readonly ai: AiService,
+    private readonly entitlements: EntitlementsService,
     @Optional() private readonly queue?: MaterialAnalysisQueue,
     @Optional() private readonly publication?: ProjectPublicationService,
     @Optional() private readonly contributionTasks?: ContributionTasksService,
@@ -648,17 +651,13 @@ export class MaterialAnalysisService {
   }
 
   private async assertEntitled(actor: AuthenticatedUser): Promise<void> {
-    if (!this.config.get<boolean>('MATERIAL_ANALYSIS_REQUIRE_SUBSCRIPTION', false)) {
-      return;
-    }
-    const minimumPlan = this.config.get<'bronze' | 'silver' | 'gold'>(
-      'MATERIAL_ANALYSIS_MIN_PLAN',
-      'gold',
-    );
-    const entitlement = await this.projects.getMaterialAnalysisEntitlement(
-      actor.id,
-      minimumPlan,
-    );
+    // The subscription half of the decision lives in the subscriptions module,
+    // so the status endpoint reports exactly what this command enforces.
+    const entitlement =
+      await this.entitlements.resolveMaterialAnalysisEntitlement(
+        actor.id,
+        SubscriptionUserRoleContext.owner,
+      );
     if (!entitlement.entitled) {
       throw new ForbiddenApplicationError(
         'The current subscription does not include Material analysis',

@@ -5,6 +5,7 @@ import {
 } from '@prisma/client';
 
 import { ApplicationError } from '../../shared/errors/application.error';
+import { EntitlementsService } from '../subscriptions/entitlements.service';
 import { ProjectsService } from './projects.service';
 
 describe('ProjectsService', () => {
@@ -22,7 +23,13 @@ describe('ProjectsService', () => {
   const applications = {
     summarizePendingByContributionRequests: jest.fn(),
   };
-  const service = new ProjectsService(database as never, applications as never);
+  // The real EntitlementsService over the same mocked client, so the quota
+  // assertions below still exercise plan resolution rather than a stub of it.
+  const service = new ProjectsService(
+    database as never,
+    new EntitlementsService(database as never),
+    applications as never,
+  );
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -212,7 +219,15 @@ describe('ProjectsService', () => {
       },
     ]);
     database.contributionRequest.count.mockResolvedValue(7);
-    database.subscription.findFirst.mockResolvedValue({ plan_type: 'gold' });
+    database.subscription.findFirst.mockResolvedValue({
+      plan_type: 'gold',
+      status: 'active',
+      source: 'payment_provider',
+      starts_at: new Date('2026-08-01T00:00:00.000Z'),
+      expires_at: new Date('2026-09-01T00:00:00.000Z'),
+      current_period_start: new Date('2026-08-01T00:00:00.000Z'),
+      current_period_end: new Date('2026-09-01T00:00:00.000Z'),
+    });
     applications.summarizePendingByContributionRequests.mockResolvedValue({
       projects: [{ projectId: 'project-id', pendingApplicationCount: 1 }],
     });

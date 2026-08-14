@@ -37,7 +37,8 @@ inform an owner but cannot write Application state.
 Active contributors submit through `POST /tasks/:requestId/applications` with a
 Contribution Approach, Proposed Delivery Duration, and UUID idempotency key.
 Every valid Application enters `pending_owner_review` immediately. Submission
-does not call AI or mutate contributor attempt quotas.
+does not call AI. It does spend one of the contributor's daily Applications —
+see the daily allowance section below.
 
 The service fixes ordered Requirement and approved, audience-bounded Evidence
 Snapshots plus contributor profile context in the submission transaction.
@@ -52,16 +53,56 @@ and withdrawal retries.
 
 Owners list pending Applications with `GET /tasks/:requestId/applications` and
 inspect an authorized Application with `GET /applications/:applicationId`.
-The owner list orders Gold contributor Applications first using the persisted
-`is_priority` flag; this changes review visibility only and never guarantees
-selection. The Application response exposes `isPriority`.
+`Application.is_priority` exists in the schema but is never written or read:
+priority Application visibility is an owner-subscription benefit and is not part
+of Phase 1. The owner list is ordered by submission time.
 The owning contributor withdraws a pending Application through
 `POST /applications/:applicationId/withdraw`; withdrawal preserves history and
 notifies the owner through the exported Notifications service.
 
 Stable submission errors are `ALREADY_APPLIED`, `APPLICATIONS_CLOSED`,
-`REQUEST_CANCELLED`, `REQUEST_TERMINAL`, and `APPLICATION_NOT_AUTHORIZED`.
-Terminal withdrawal returns `APPLICATION_TERMINAL`.
+`REQUEST_CANCELLED`, `REQUEST_TERMINAL`, `APPLICATION_NOT_AUTHORIZED`, and
+`APPLICATION_DAILY_LIMIT_REACHED`. Terminal withdrawal returns
+`APPLICATION_TERMINAL`.
+
+## Implemented: the daily Application allowance (#109, DEC-079)
+
+A free contributor may submit **1 Application per day**; a Gold contributor may
+submit **5**. Both numbers are resolved through the subscriptions module's
+`EntitlementsService`; this module holds neither of them.
+
+`ApplicationDailyQuotaService` owns the rule. The counter is `UsageTracker`
+keyed by (user, `application_submitted`, UTC calendar day), unique in the
+database rather than by convention.
+
+Two properties matter and are the reason the code is shaped the way it is:
+
+- **The allowance is spent inside the submission transaction.** The advisory
+  lock `pg_advisory_xact_lock('application_daily_quota:' || id)` is the first
+  statement in that transaction, so a contributor's concurrent submissions
+  queue instead of both reading the same tally and both passing. It is issued
+  through `$executeRaw`: the function returns `void`, which Prisma cannot
+  deserialize, and `$queryRaw` would throw `P2010` at runtime where no mocked
+  test could see it. `pnpm run test:concurrency:application-quota` proves the
+  behaviour against a real database.
+- **Only a created Application costs a slot.** The reservation is the last
+  check in the transaction, after the replay lookup, the request-state check and
+  the duplicate check, so none of those spend the allowance. Anything that
+  throws afterwards rolls the tally back with everything else.
+
+**Withdrawal does not refund the allowance.** The owner has already spent
+attention on the Application, and refunding would make withdraw-and-resubmit an
+unlimited-application loop.
+
+Exceeding the allowance returns `409 APPLICATION_DAILY_LIMIT_REACHED` carrying
+`used`, `limit`, and `resetsAt` — the exact UTC instant the allowance refills,
+so the UI can state it rather than approximate it. The boundary is UTC, not the
+contributor's local midnight: one global boundary is the only version of the
+rule that stays true when a contributor travels or changes their device clock.
+
+If the Phase 0 eligibility gate ships, it must be checked **before** this
+reservation, so a contributor never burns a daily Application on a task the gate
+would have blocked.
 
 ## Implemented: Owner Decisions and Assignments (#51)
 

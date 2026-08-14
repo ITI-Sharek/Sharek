@@ -140,8 +140,8 @@ describe('ContributionTasksService', () => {
     );
     projectsService.getContributionRequestPublicationEntitlement.mockResolvedValue(
       {
-        planType: 'bronze',
-        monthlyLimit: 10,
+        planType: 'free',
+        monthlyLimit: 5,
       },
     );
     projectsService.isContributionRequestProjectPublished.mockResolvedValue(
@@ -325,8 +325,8 @@ describe('ContributionTasksService', () => {
       published_at: publishedAt,
     });
     database.contributionRequest.findFirst.mockResolvedValue(current);
-    database.contributionRequest.count.mockResolvedValue(9);
-    database.subscription.findFirst.mockResolvedValue({ plan_type: 'bronze' });
+    database.contributionRequest.count.mockResolvedValue(4);
+    database.subscription.findFirst.mockResolvedValue({ plan_type: 'free' });
     database.contributionRequest.updateMany.mockResolvedValue({ count: 1 });
     database.contributionRequest.findUniqueOrThrow.mockResolvedValue(published);
 
@@ -370,10 +370,10 @@ describe('ContributionTasksService', () => {
     });
   });
 
-  it('uses the default Bronze entitlement and blocks the eleventh monthly publication', async () => {
+  it('uses the default free entitlement and blocks the sixth monthly publication', async () => {
     database.contributionRequest.findFirst.mockResolvedValue(makeRequest());
     database.subscription.findFirst.mockResolvedValue(null);
-    database.contributionRequest.count.mockResolvedValue(10);
+    database.contributionRequest.count.mockResolvedValue(5);
 
     await expect(
       publicationService.publishRequest({ user: owner, requestId }),
@@ -381,9 +381,9 @@ describe('ContributionTasksService', () => {
       code: 'CONTRIBUTION_REQUEST_LIMIT_REACHED',
       statusCode: 409,
       metadata: {
-        planType: 'bronze',
-        monthlyLimit: 10,
-        monthlyUsage: 10,
+        planType: 'free',
+        monthlyLimit: 5,
+        monthlyUsage: 5,
       },
     } satisfies Partial<ApplicationError>);
     expect(database.contributionRequest.updateMany).not.toHaveBeenCalled();

@@ -54,6 +54,9 @@ applications          applications, application_requirement_snapshots, applicati
 contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes
 delivery-reviews      deliveries, delivery_submissions, delivery_reviews, delivery_approved_events
 reputation            reputation_records
+subscriptions         Subscription
+applications          UsageTracker (application_submitted tallies)
+matching              AiMatchResult
 admin                 admin_review_queue, reports, disputes, moderation_actions
 ai                    ai_call_audit, AI service response snapshots, embeddings where backend-owned
 ```
@@ -246,6 +249,71 @@ lifecycle column is updated by assessment persistence.
 - Store embedding model and dimensions.
 - Do not use vector similarity as the only eligibility rule.
 - Use deterministic rules and approved skills before LLM explanation.
+
+## Subscription plans
+
+`Subscription` is owned by the `subscriptions` module. No other module reads or
+writes it; enforcement points ask `EntitlementsService` for the number they need.
+
+Two migrations shape it:
+
+- `20260814090000_single_paid_tier_plans` collapses the inherited
+  Bronze/Silver/Gold ladder into `free | gold` (DEC-077). Postgres cannot drop a
+  value from an enum in place, so the type is replaced and the column rewritten
+  with an explicit `USING` mapping: bronze becomes free because bronze was the
+  implicit default for users with no row, and silver becomes **gold** because
+  silver was paid for and a paying user must not be downgraded by a migration.
+- `20260814100000_subscription_source_and_billing_period` adds `source`
+  (`default | admin | demo | payment_provider`, DEC-026),
+  `current_period_start`, `current_period_end`, and `provider_subscription_id`,
+  backfilling the period from the subscription lifetime for existing rows. A
+  NULL `expires_at` stays NULL: an open-ended subscription has no period end,
+  and a NULL end reads downstream as "not elapsed" rather than "elapsed at the
+  epoch".
+
+`starts_at`/`expires_at` describe the whole subscription; `current_period_*`
+describe the period actually paid for, which is what entitlement resolution
+reads. The bound is part of the query, so a lapsed plan grants nothing without
+any background job having run. Index
+`Subscription_user_id_user_role_context_status_starts_at_idx` covers that
+resolution query, which runs at every enforcement point.
+
+Both migrations transform existing rows, so both are replayed against a real
+throwaway database by `pnpm run test:migrations:subscriptions`.
+
+## Usage tallies
+
+`UsageTracker` had been in the schema unused since the initial migration. It now
+carries the contributor daily Application tally, keyed by (user, action, UTC
+calendar day). Migration `20260814110000_usage_tracker_period_uniqueness` adds
+the unique index on that key: the advisory lock serializes a contributor's
+concurrent submissions, but a quota is made of the counter, so its uniqueness is
+enforced by the database rather than by whoever remembers to take the lock.
+
+The tally is written inside the Application submission transaction, so a failed
+submission gives the slot back by rolling back rather than by decrementing.
+
+## Match results
+
+`AiMatchResult` is owned by the `matching` module. Migration
+`20260814120000_drop_ai_match_notification_sent` drops `notification_sent`,
+which existed for owner-side auto-notification of best-matching contributors —
+a feature that is out of scope and will not be built. The column is dropped
+rather than left unused because a boolean named `notification_sent` next to a
+match row is an invitation to wire up the `match_found` notification on sight;
+removing it makes the absence of the feature visible in the schema instead of
+depending on someone reading a decision log first. Nothing had ever written or
+read it.
+
+The same migration adds `UNIQUE (contribution_request_id, contributor_id)` and
+an index on `(contributor_id, created_at DESC)`. Recomputing a shortlist
+replaces that contributor's rows rather than accumulating duplicates, and the
+uniqueness that makes the replacement safe is enforced by the database rather
+than by the writer remembering to delete first.
+
+`match_score` remains an internal ordering signal and is never returned:
+DEC-010 forbids presenting fit as a number, so the API exposes an ordinal
+`rank` and a categorical `confidence` instead.
 
 ## Migration Rules
 

@@ -31,8 +31,7 @@ enum LanguageCode {
 }
 
 enum SubscriptionPlanType {
-  bronze
-  silver
+  free
   gold
 }
 
@@ -45,6 +44,16 @@ enum SubscriptionStatus {
   active
   cancelled
   expired
+}
+
+/// How a Subscription row came to exist (DEC-026). `default` is the seeded or
+/// manually inserted baseline, `payment_provider` is the only source a real
+/// checkout may write.
+enum SubscriptionSource {
+  default
+  admin
+  demo
+  payment_provider
 }
 
 enum ProjectCategory {
@@ -618,20 +627,25 @@ model GitHubOAuthState {
 }
 
 model Subscription {
-  id                String                      @id @default(uuid()) @db.Uuid
-  user_id           String                      @db.Uuid
-  plan_type         SubscriptionPlanType
-  user_role_context SubscriptionUserRoleContext
-  status            SubscriptionStatus          @default(active)
-  starts_at         DateTime
-  expires_at        DateTime?
-  cancelled_at      DateTime?
-  created_at        DateTime                    @default(now())
-  updated_at        DateTime                    @default(now()) @updatedAt
+  id                       String                      @id @default(uuid()) @db.Uuid
+  user_id                  String                      @db.Uuid
+  plan_type                SubscriptionPlanType
+  user_role_context        SubscriptionUserRoleContext
+  status                   SubscriptionStatus          @default(active)
+  source                   SubscriptionSource          @default(default)
+  starts_at                DateTime
+  expires_at               DateTime?
+  current_period_start     DateTime?
+  current_period_end       DateTime?
+  provider_subscription_id String?                     @db.VarChar(255)
+  cancelled_at             DateTime?
+  created_at               DateTime                    @default(now())
+  updated_at               DateTime                    @default(now()) @updatedAt
 
   user User @relation(fields: [user_id], references: [id])
 
   @@index([user_id])
+  @@index([user_id, user_role_context, status, starts_at(sort: Desc)])
 }
 
 model Project {
@@ -1205,11 +1219,13 @@ model AiMatchResult {
   source_attribution      Json?
   rank                    Int
   model_used              String?  @db.VarChar(50)
-  notification_sent       Boolean  @default(false)
   created_at              DateTime @default(now())
 
   contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id])
   contributor         User                @relation("AIMatchContributor", fields: [contributor_id], references: [id])
+
+  @@unique([contribution_request_id, contributor_id])
+  @@index([contributor_id, created_at(sort: Desc)])
 }
 
 model AiTraceLog {
@@ -1712,6 +1728,12 @@ model UsageTracker {
   updated_at  DateTime       @default(now()) @updatedAt
 
   user User @relation(fields: [user_id], references: [id])
+
+  // One tally per user, action and period. The advisory lock serializes a
+  // contributor's concurrent submissions, but the counter is the thing a quota
+  // is actually made of, so uniqueness is enforced by the database rather than
+  // by whoever remembers to take the lock.
+  @@unique([user_id, action_type, period_date])
 }
 
 enum MaterialVisibility {

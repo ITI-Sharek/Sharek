@@ -12,6 +12,8 @@ import { ContributionRequestPublicationService } from '../src/modules/contributi
 import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
 import { PublicContributionRequestsService } from '../src/modules/contribution-tasks/services/public-contribution-requests.service';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
+import { ApplicationDailyQuotaService } from '../src/modules/applications/services/application-daily-quota.service';
+import { EntitlementsService } from '../src/modules/subscriptions/entitlements.service';
 import { ApplicationsController } from '../src/modules/applications/applications.controller';
 import { AdvisoryFitAssessmentService } from '../src/modules/applications/services/advisory-fit-assessment.service';
 import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
@@ -46,6 +48,8 @@ describe('Contribution Request public lifecycle HTTP integration', () => {
       providers: [
         PublicContributionRequestsService,
         { provide: DatabaseService, useValue: database },
+        EntitlementsService,
+        ApplicationDailyQuotaService,
         { provide: ProjectsService, useValue: projectsService },
       ],
     }).compile();
@@ -231,6 +235,14 @@ describe('Contribution Request owner publication HTTP integration', () => {
   const contributionTasksService = {
     getApplicationSubmissionContext: jest.fn(),
   };
+  // Every method the Notifications module exposes to this flow, spied. Matching
+  // is pull-only: publishing a Contribution Request must notify nobody, in
+  // either owner tier, and owner-side auto-notification of matching
+  // contributors is out of scope and must not be built.
+  const notificationsService = {
+    createApplicationNotification: jest.fn(),
+    emitApplicationNotifications: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -244,10 +256,12 @@ describe('Contribution Request owner publication HTTP integration', () => {
           useValue: contributionTasksService,
         },
         { provide: DatabaseService, useValue: database },
+        EntitlementsService,
+        ApplicationDailyQuotaService,
         { provide: ProjectsService, useValue: projectsService },
         { provide: SkillProfileSummaryService, useValue: {} },
         { provide: IdentityUsernameService, useValue: {} },
-        { provide: NotificationsService, useValue: {} },
+        { provide: NotificationsService, useValue: notificationsService },
         { provide: ContributorProfilesService, useValue: {} },
       ],
     })
@@ -308,13 +322,34 @@ describe('Contribution Request owner publication HTTP integration', () => {
     );
     projectsService.getContributionRequestPublicationEntitlement.mockResolvedValue(
       {
-        planType: 'bronze',
-        monthlyLimit: 10,
+        planType: 'free',
+        monthlyLimit: 5,
       },
     );
   });
 
   afterAll(async () => app.close());
+
+  it('publishes without notifying anyone, because matching is pull-only', async () => {
+    const draft = contributionRequest({ status: 'draft', published_at: null });
+    database.contributionRequest.findFirst.mockResolvedValue(draft);
+    database.contributionRequest.findUniqueOrThrow.mockResolvedValue(
+      contributionRequest(),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/contribution-requests/${requestId}/publish`)
+      .set('Idempotency-Key', 'publish-no-notification-001')
+      .send({})
+      .expect(200);
+
+    expect(
+      notificationsService.createApplicationNotification,
+    ).not.toHaveBeenCalled();
+    expect(
+      notificationsService.emitApplicationNotifications,
+    ).not.toHaveBeenCalled();
+  });
 
   it('publishes through the real command service and records the entitlement decision', async () => {
     const draft = contributionRequest({ status: 'draft', published_at: null });
@@ -334,7 +369,7 @@ describe('Contribution Request owner publication HTTP integration', () => {
         action: 'published',
         from_status: 'draft',
         to_status: 'published',
-        metadata: expect.objectContaining({ planType: 'bronze' }),
+        metadata: expect.objectContaining({ planType: 'free' }),
       }),
     });
   });

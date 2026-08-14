@@ -66,6 +66,7 @@ const orderedFolderNames = [
   'Skill Profiles',
   'Assignment Conversations',
   'Notifications',
+  'Subscriptions',
   'Admin',
 ];
 
@@ -469,6 +470,7 @@ function folderFor(route) {
   if (routePath.startsWith('/skill-profiles')) return 'Skill Profiles';
   if (routePath.startsWith('/assignment-conversations')) return 'Assignment Conversations';
   if (routePath.startsWith('/notifications') || routePath.startsWith('/me/notification')) return 'Notifications';
+  if (routePath.startsWith('/me/subscription')) return 'Subscriptions';
   throw new Error(`No Postman folder mapping for ${route.key}`);
 }
 
