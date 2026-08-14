@@ -295,6 +295,37 @@ describe('EntitlementsService', () => {
     });
   });
 
+  describe('purchase policy', () => {
+    it('allows a free user to purchase Gold in the matching role context', async () => {
+      database.subscription.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.assertPlanPurchaseAllowed(
+          userId,
+          SubscriptionUserRoleContext.owner,
+          SubscriptionPlanType.gold,
+          now,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects replaying Gold as another purchase in the same role context', async () => {
+      database.subscription.findFirst.mockResolvedValue(goldRow());
+
+      await expect(
+        service.assertPlanPurchaseAllowed(
+          userId,
+          SubscriptionUserRoleContext.contributor,
+          SubscriptionPlanType.gold,
+          now,
+        ),
+      ).rejects.toMatchObject({
+        code: 'SUBSCRIPTION_PLAN_CHANGE_NOT_ALLOWED',
+        statusCode: 409,
+      });
+    });
+  });
+
   describe('assignPlan', () => {
     it('stamps an administrator grant as `admin` rather than leaving the default', async () => {
       database.subscription.create.mockResolvedValue({});

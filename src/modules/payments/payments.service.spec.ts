@@ -163,7 +163,7 @@ describe('PaymentsService', () => {
 
   it('rejects reusing an idempotency key for a different checkout', async () => {
     database.paymentAttempt.findUnique.mockResolvedValue(
-      pendingAttempt({ plan_type: SubscriptionPlanType.gold }),
+      pendingAttempt({ plan_type: SubscriptionPlanType.free }),
     );
 
     await expect(
@@ -190,7 +190,7 @@ describe('PaymentsService', () => {
     expect(provider.createPaymentIntention).not.toHaveBeenCalled();
   });
 
-  it('does not create a checkout for Bronze', async () => {
+  it('does not create a checkout for Free', async () => {
     subscriptions.getPlanCatalogEntry.mockReturnValue({
       ...plan,
       planType: SubscriptionPlanType.free,

@@ -34,8 +34,8 @@ BEGIN
     test_user_id,
     'subscription_purchase',
     'owner',
-    'silver',
-    29900,
+    'gold',
+    50000,
     'EGP',
     'pay02-idempotency-key',
     'paymob-client-secret-for-replay'
@@ -92,7 +92,7 @@ BEGIN
       'subscription_purchase',
       'owner',
       'gold',
-      59900,
+      50000,
       'EGP',
       'pay02-idempotency-key'
     );

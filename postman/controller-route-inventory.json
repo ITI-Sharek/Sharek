@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 150,
+  "routeCount": 153,
   "routes": [
     {
       "method": "GET",
@@ -3718,6 +3718,36 @@
     },
     {
       "method": "GET",
+      "path": "/me/payments/:paymentId",
+      "normalizedPath": "/me/payments/:parameter",
+      "key": "GET /me/payments/:parameter",
+      "controller": "PaymentsController",
+      "handler": "getPaymentStatus",
+      "source": "src/modules/payments/payments.controller.ts",
+      "pathParameters": [
+        "paymentId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
       "path": "/me/subscription",
       "normalizedPath": "/me/subscription",
       "key": "GET /me/subscription",
@@ -3743,6 +3773,55 @@
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/me/subscription/checkout",
+      "normalizedPath": "/me/subscription/checkout",
+      "key": "POST /me/subscription/checkout",
+      "controller": "PaymentsController",
+      "handler": "createCheckout",
+      "source": "src/modules/payments/payments.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "CreateSubscriptionCheckoutDto",
+      "bodyFields": [
+        {
+          "name": "planType",
+          "optional": false,
+          "type": "SubscriptionPlanType"
+        },
+        {
+          "name": "roleContext",
+          "optional": false,
+          "type": "SubscriptionUserRoleContext"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
     },
     {
       "method": "GET",
@@ -4907,6 +4986,28 @@
       ],
       "roles": [],
       "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/subscriptions/plans",
+      "normalizedPath": "/subscriptions/plans",
+      "key": "GET /subscriptions/plans",
+      "controller": "SubscriptionCatalogController",
+      "handler": "getPlans",
+      "source": "src/modules/subscriptions/subscription-catalog.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
       "idempotency": false,
       "successStatus": 200
     },

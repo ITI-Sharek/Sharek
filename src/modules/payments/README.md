@@ -23,11 +23,16 @@ identifiers, amount, currency, integration, pending, and success.
 
 The public routes currently are:
 
-- `GET /subscriptions/plans` — the backend-owned Bronze/Silver/Gold catalog;
+- `GET /subscriptions/plans` — the backend-owned Free/Gold catalog;
 - `POST /me/subscription/checkout` — an authenticated, role-context-checked
   Paymob checkout command;
 - `GET /me/payments/:paymentId` — an authenticated owner/contributor read of
   payment state.
+
+The catalog currently exposes Free at `0 EGP` with no checkout and Gold at
+`50,000` minor units (`500 EGP`) for 30 days in both role contexts. Prices and
+duration are resolved by the subscriptions module; clients cannot override
+them.
 
 The checkout command never writes Subscription rows and never activates a plan.
 `PaymentAttemptStatus` permits only `pending -> paid|failed|cancelled` and the
