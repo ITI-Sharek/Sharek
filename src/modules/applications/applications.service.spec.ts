@@ -28,6 +28,7 @@ describe('ApplicationsService owner-workspace summary', () => {
     undefined as never,
     undefined as never,
     undefined as never,
+    undefined as never,
   );
 
   beforeEach(() => jest.resetAllMocks());
@@ -144,6 +145,13 @@ describe('ApplicationsService submission and withdrawal', () => {
   };
   // The real quota service over the same mocked client, so the submission
   // tests exercise the advisory lock and the tally rather than a stub of them.
+  // The gate. Defaults to eligible in `beforeEach`, so every case that is not
+  // about eligibility exercises the same path it did before Phase 0.
+  const eligibility = {
+    evaluateForRequest: jest.fn(),
+    recordBlocked: jest.fn(),
+    blockedError: jest.fn(),
+  };
   const dailyQuota = new ApplicationDailyQuotaService(
     new EntitlementsService(database as never),
     database as never,
@@ -152,6 +160,7 @@ describe('ApplicationsService submission and withdrawal', () => {
     database as never,
     contributionTasks as never,
     skillProfiles as never,
+    eligibility as never,
     identity as never,
     notifications as never,
     contributorProfiles as never,
@@ -161,6 +170,10 @@ describe('ApplicationsService submission and withdrawal', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    eligibility.evaluateForRequest.mockResolvedValue({
+      outcome: 'eligible',
+      blockingSkills: [],
+    });
     database.$transaction.mockImplementation(
       (callback: (transaction: typeof database) => unknown) =>
         callback(database),

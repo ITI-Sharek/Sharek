@@ -716,6 +716,55 @@ The set **freezes at publication** and is copied into the Application's
 Requirement Snapshot at submission, so editing a later draft can never change
 why an earlier contributor was refused.
 
+## Eligibility Gate
+
+```text
+GET /tasks/:requestId/eligibility
+```
+
+Authenticated, and always the caller's own eligibility — there is no path to ask
+about anyone else. Returns the whole bar, not just the failures, so a
+contributor can see what is being asked before committing to a form:
+
+```json
+{
+  "contributionRequestId": "...",
+  "outcome": "blocked",
+  "blockingSkills": [
+    { "skillName": "react", "requiredLevel": "advanced", "contributorLevel": "beginner" }
+  ],
+  "requiredSkills": [
+    { "skillName": "react", "requiredLevel": "advanced", "contributorLevel": "beginner", "met": false }
+  ]
+}
+```
+
+`contributorLevel` is `null` when the contributor holds no approved evidence for
+that skill at all — a different situation from holding it too low, and one the
+UI must render differently because the recovery advice differs.
+
+**This endpoint is advisory.** Its verdict is never trusted at submission; the
+comparison is recomputed inside the submission transaction against the same
+locked rows. A contributor whose approval is revoked between the two calls is
+still blocked. An unpublished or unknown Request returns the same
+`CONTRIBUTION_REQUEST_NOT_FOUND` as the public detail route.
+
+`POST /tasks/:requestId/applications` may now return:
+
+```text
+APPLICATION_BLOCKED_SKILL_GAP  403  metadata.blockingSkills as above
+```
+
+The block happens **before an Application row exists**, so no Application status
+was added and every superseded AI-gate status stays deleted. A blocked attempt
+creates no Application, no snapshot, no Application audit row, and **consumes no
+daily Application slot** (DEC-079). It records exactly one `EligibilityEvaluation`
+with `outcome: blocked`.
+
+Only `required` skill rows can block; `preferred` rows are advisory. Pending,
+rejected, and disputed skills never count toward the bar. Approving a higher
+level flips the verdict with no other action.
+
 ## Contribution Request Public Lifecycle
 
 Owner commands require an authenticated active `owner`, an owned published

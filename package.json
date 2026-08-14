@@ -16,6 +16,7 @@
     "test:migrations:subscriptions": "node scripts/test-subscription-plan-migration.mjs",
     "test:migrations:matching": "node scripts/test-ai-match-result-migration.mjs",
     "test:migrations:skill-requirements": "node scripts/test-contribution-request-skill-requirements-migration.mjs",
+    "test:migrations:eligibility": "node scripts/test-eligibility-evaluations-migration.mjs",
     "test:concurrency:application-quota": "ts-node --project tsconfig.json scripts/test-application-daily-quota-concurrency.ts",
     "test:api-clients": "node scripts/validate-api-clients.mjs",
     "test:postman": "node scripts/validate-postman-coverage.mjs",

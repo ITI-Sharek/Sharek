@@ -3015,3 +3015,51 @@ This keeps the system strong without making it heavy:
 - `UnprocessableApplicationError` gained an optional `metadata` argument,
   matching `ConflictApplicationError`. A 422 that names which of fifteen skill
   rows was the duplicate saves the caller a second request.
+
+### 2026-08-14 - P0-B03 the eligibility gate
+
+- New module `eligibility`, owning `EligibilityEvaluation` and nothing else. The
+  bar comes from `contribution-tasks` and approved skills from `skill-profiles`,
+  both through exported services.
+- **It reverses the application-blocking clauses of DEC-030 and DEC-036** and is
+  the first place an AI-derived value can prevent an action. Advisory Fit is
+  untouched and stays decision-neutral; the two answer different questions.
+- The comparison is a pure, clock-free function in
+  `services/skill-level-comparison.ts`. That is what makes a refusal
+  reproducible for a dispute months later — identical inputs, identical verdict.
+  `LEVEL_RANK` is a map, not an array index, so a fourth level cannot be added
+  without explicitly deciding where it sits.
+- **Exactly meeting the bar clears it** (`>=`, not `>`). Otherwise every stated
+  level would silently mean one level higher and no owner could express
+  "intermediate is enough".
+- A skill the contributor does not hold is listed with `contributorLevel: null`
+  rather than omitted, and a contributor with no approved skills sees **every**
+  required skill named. An empty list would read as "blocked for no stated
+  reason", which is the dead end DEC-078 exists to remove.
+- Approved skills are read through
+  `SkillProfileSummaryService.listAuthorizedSkillsForApplicationSnapshot` — the
+  same capability the Application evidence snapshot uses. Restating the status
+  filter here would let the gate's definition of "approved" drift from the one
+  recorded on the Application.
+- Where a contributor holds several approved rows for one skill the **highest**
+  wins; picking arbitrarily would make the verdict depend on row order.
+- **The eligible verdict is written inside the caller's transaction; the blocked
+  verdict is not.** A block throws to refuse the submission, which rolls that
+  transaction back — a row written inside it would vanish and the refusal would
+  leave no trace. `recordBlocked` persists it on a fresh connection afterwards,
+  which is why `submit` carries an internal marker error out of the transaction
+  rather than throwing the 403 directly.
+- Placed after the duplicate check and before `dailyQuota.reserve`, so a blocked
+  attempt costs no daily slot (DEC-079) and someone who already applied gets the
+  accurate duplicate error instead of a skill block.
+- `GET /tasks/:requestId/eligibility` writes no evaluation row and is advisory
+  by construction. The tempting optimisation — "we already checked, skip it in
+  the transaction" — is precisely the TOCTOU bug, and a test asserts a
+  revocation between the two calls still blocks.
+- The CHECK permitting exactly one evaluation target lives in the raw migration
+  because Prisma cannot express one; `pnpm run test:migrations:eligibility`
+  proves it, the outcome vocabulary, and the contributor `ON DELETE RESTRICT`
+  against real Postgres.
+- `contribution_proposal_id` ships now though only `P0-B04` writes it: adding it
+  later would mean writing the CHECK twice and leaving a window where a Proposal
+  evaluation is unstorable.
