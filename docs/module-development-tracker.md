@@ -3113,6 +3113,75 @@ This keeps the system strong without making it heavy:
   later would mean writing the CHECK twice and leaving a window where a Proposal
   evaluation is unstorable.
 
+### 2026-08-14 - P0-B04 the eligibility gate on Contribution Proposals
+
+- Module: `contribution-proposals`, new `ProposalEligibilityService`. It imports
+  `AiModule` and `EligibilityModule`; the comparison itself is reused from
+  `eligibility`, not reimplemented — one comparison, one payload shape, two
+  triggers.
+- **Why it exists:** without it the Application gate is trivially avoidable by
+  describing the same work as a Proposal instead of applying for it.
+- The bar is inferred from the proposal's own content because a proposer has no
+  owner-authored Request. The wire field `contributionRequestId` carries the
+  Proposal id — it is an opaque correlation id the agent never resolves, and the
+  alternative was a second FastAPI contract differing by one field name.
+- Inference runs **outside** the transaction (an HTTP call must not hold a
+  database connection); the comparison runs **inside** it, before any row is
+  written.
+- **The deliberate asymmetry:** inference failure raises
+  `PROPOSAL_ELIGIBILITY_UNAVAILABLE` (503, retriable), never a verdict. The
+  Application path needs no provider at submit time because its bar was frozen
+  at publication. Distinguishable by code *and* status so a client cannot
+  conflate an outage with a judgement about a person.
+- **A blocked create records no `EligibilityEvaluation`.** The CHECK permits
+  exactly one target and the Proposal was never created — the constraint working
+  as intended. The 403 still names every blocking skill, so the refusal is
+  explained; only the durable record is unavailable, and only a stored Proposal
+  could anchor one. A blocked version does record it.
+- `requiredSkills` is `null` when the gate is off, distinct from `[]` meaning
+  the agent found nothing to demand. Only the first skips the evaluation and the
+  evaluation row.
+- `PROPOSAL_ELIGIBILITY_GATE_ENABLED` defaults on outside tests, off in them:
+  this path needs a live provider on the request thread, and the existing
+  proposal suite is about the lifecycle, not the gate.
+- The E2E suite was verified by mutation: neutralising "a missing skill blocks"
+  fails 3 tests, and making every level clear the bar fails 4. An earlier
+  version of the fixture left proposal intake disabled, so the blocked-create
+  assertions passed for the wrong reason — intake is now explicitly enabled.
+
+### 2026-08-14 - P0-B05 skill-gap guidance triggered by a block
+
+- Module: `skill-guidance`, new `EligibilityGuidance` table plus
+  `EligibilityGuidanceService`, its processor, queue and worker. The existing
+  ADR 0014 contributor-requested route is untouched.
+- **Scoped to an `EligibilityEvaluation`, not an Application.** Under a hard
+  block no Application exists, and `SkillGapGuidance.application_id` is
+  `@unique` and NOT NULL — the retired entity is unrepresentable here, not just
+  undesirable. It stays unused.
+- **The request does not wait on the provider.** The deterministic
+  blocking-skill list is copied onto the row and returned immediately; the
+  narrative is queued and polled for.
+- `blocking_skills` is copied rather than joined, so the row keeps explaining
+  the refusal even if generation never succeeds. `recordFailure` touches only
+  `status` — a test asserts it never writes `blocking_skills`.
+- `no_assessable_evidence` and `system_limit` are recorded as **failures**, not
+  as empty successes: both are honest non-answers, and `ready` with nothing in
+  it would show an empty panel and call it help.
+- Re-requesting reuses a `pending` or `ready` row; a `failed` row is not reused,
+  so a retry after a provider outage is possible without spamming the provider
+  while one is in flight.
+- Enqueue happens **after** the row is written, so a Redis outage leaves a
+  `pending` row the contributor can see and retry rather than losing the
+  request. The queue never throws.
+- **No plan check anywhere on this path** (DEC-076), asserted by a test. A block
+  is the moment a paywall would be least defensible.
+- History is keyset-paginated on `(created_at desc, id desc)` with a covering
+  index; cursors are base64url and round-trip-validated, so a tampered cursor is
+  a 400 rather than a silent first page.
+- The E2E uses an in-memory store rather than per-call jest mocks, because the
+  property under test is temporal: the row must be readable and *useful* between
+  the request and the provider answering, which a per-call mock cannot express.
+
 ### 2026-08-14 - X-Q01 cross-repo AI route contract
 
 - `npm run test:ai-routes` fails when the AI service stops serving a route this

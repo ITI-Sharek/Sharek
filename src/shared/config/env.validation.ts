@@ -221,6 +221,10 @@ export const envValidationSchema = Joi.object({
     .min(1)
     .max(1_000_000)
     .default(250_000),
+  PROPOSAL_ELIGIBILITY_GATE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
   REQUIREMENT_INFERENCE_QUEUE_ENABLED: Joi.boolean()
     .truthy('true')
     .falsy('false')

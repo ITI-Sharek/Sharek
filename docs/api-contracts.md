@@ -782,6 +782,80 @@ Only `required` skill rows can block; `preferred` rows are advisory. Pending,
 rejected, and disputed skills never count toward the bar. Approving a higher
 level flips the verdict with no other action.
 
+### The Proposal path (P0-B04)
+
+The same gate applies to `POST /contribution-proposals` and
+`POST /contribution-proposals/:proposalId/versions`. A proposer has no
+owner-authored Request to be measured against, so the bar is inferred from the
+**proposal content** and compared against their approved skills by the same
+comparison:
+
+```text
+PROPOSAL_BLOCKED_SKILL_GAP      403  metadata.blockingSkills, identical shape
+PROPOSAL_ELIGIBILITY_UNAVAILABLE 503  metadata.retriable: true
+```
+
+A blocked create leaves **no** Proposal row, version row, or audit row. A
+blocked new version leaves the prior version as the latest.
+
+**Inference failure fails open** with the 503, never a block — distinguishable
+from a refusal by both code and status. The Application path has no equivalent
+because its bar is already frozen on the Request and needs no provider at submit
+time; here the provider is on the critical path, and an outage presented as a
+skill judgement would be a false statement the proposer cannot appeal.
+
+A blocked create records no `EligibilityEvaluation`: the CHECK permits exactly
+one target and the Proposal was never created. The 403 still names every
+blocking skill. A blocked version does record one.
+
+## Block-triggered Skill-Gap Guidance
+
+The ADR 0014 contributor-requested route is unchanged. These are additional,
+scoped to a recorded block (DEC-078, `P0-B05`):
+
+```text
+POST /contributors/me/eligibility-guidance      { eligibilityEvaluationId }
+GET  /contributors/me/eligibility-guidance      ?cursor&limit
+GET  /contributors/me/eligibility-guidance/:id
+```
+
+`POST` **returns immediately**, without waiting for the provider:
+
+```json
+{
+  "id": "...",
+  "eligibilityEvaluationId": "...",
+  "status": "pending",
+  "blockingSkills": [
+    { "skillName": "react", "requiredLevel": "advanced", "contributorLevel": "beginner" }
+  ],
+  "narrative": null,
+  "recommendations": null
+}
+```
+
+`status` moves once, to `ready` or `failed`. **`blockingSkills` is present in
+every state** — failure removes the narrative, never the reason, so a
+contributor is never told only "you are blocked" with no explanation.
+
+Re-requesting while one is `pending` or `ready` returns the existing row. A
+`failed` row is not reused, so a retry after a provider outage is possible.
+
+Guidance is scoped to an eligibility evaluation rather than an Application,
+because under a hard block no Application exists. It is **never tier-gated**
+(DEC-076).
+
+`GET` (list) is keyset-paginated on `created_at desc, id desc` and returns
+`pageInfo { hasNextPage, nextCursor }`. Cursors are base64url and strictly
+validated.
+
+```text
+ELIGIBILITY_GUIDANCE_NOT_FOUND        404  unknown id, another contributor, or an owner
+ELIGIBILITY_GUIDANCE_NOT_BLOCKED      400  the evaluation was `eligible`
+ELIGIBILITY_GUIDANCE_CURSOR_INVALID   400  tampered cursor
+SKILL_GAP_GUIDANCE_FORBIDDEN          403  not an active contributor
+```
+
 ## Contribution Request Public Lifecycle
 
 Owner commands require an authenticated active `owner`, an owned published

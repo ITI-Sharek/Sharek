@@ -6,7 +6,7 @@ import {
 } from '@prisma/client';
 
 /**
- * What the agent is allowed to see: the Contribution Request, and nothing else.
+ * What the agent is allowed to see: the work, and nothing else.
  *
  * There is deliberately no contributor field here. The FastAPI contract forbids
  * extras and would reject one, but the absence is worth preserving on this side
@@ -14,6 +14,14 @@ import {
  * express a contributor would eventually be handed one.
  */
 export interface RequirementInferenceInput {
+  /**
+   * The correlation id the wire contract names `contributionRequestId`.
+   *
+   * On the Proposal path (`P0-B04`) it carries a Contribution Proposal id
+   * instead. The field is opaque to the agent — it is never compared against
+   * anything and never resolved — so reusing it is honest enough, and the
+   * alternative was a second FastAPI contract that differs by one field name.
+   */
   contributionRequestId: string;
   title: string;
   description: string;

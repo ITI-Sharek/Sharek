@@ -19,6 +19,8 @@ import {
 import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProjectsService } from '../projects/projects.service';
+import { BlockingSkillDto } from '../eligibility/dto/eligibility.dto';
+import { ProposalEligibilityService } from './services/proposal-eligibility.service';
 import { ContributionProposalPageQueryDto } from './dto/contribution-proposal-input.dto';
 import {
   ContributionProposalDto,
@@ -53,6 +55,7 @@ export class ContributionProposalsService {
     private readonly projects: ProjectsService,
     private readonly contributionTasks: ContributionTasksService,
     private readonly notifications: NotificationsService,
+    private readonly proposalEligibility: ProposalEligibilityService,
   ) {}
 
   async submit(input: {
@@ -82,6 +85,18 @@ export class ContributionProposalsService {
     });
     if (replay) return toContributionProposalDto(replay);
 
+    // Generated here rather than inside the transaction so the same id can be
+    // sent as the inference correlation id and then used for the row.
+    const proposalId = randomUUID();
+    // Outside the transaction: this is an HTTP call to a provider, and holding
+    // a database connection across one would tie up the pool for as long as the
+    // model takes. Nothing can make it stale — the bar comes from content
+    // submitted in this same request. `null` means the gate is off, which is
+    // distinct from an empty bar meaning the agent found nothing to demand.
+    const requiredSkills = this.proposalEligibility.isEnabled()
+      ? await this.proposalEligibility.inferRequiredSkills(proposalId, input)
+      : null;
+
     let proposal: ContributionProposalWithDetail;
     try {
       proposal = await this.database.$transaction(async (transaction) => {
@@ -107,8 +122,21 @@ export class ContributionProposalsService {
           transaction,
         );
 
+        // THE GATE (DEC-078). Inside the transaction, so the proposer's approved
+        // skills are read under the same locks the write will use — and before
+        // any row is created, so a refusal leaves the aggregate untouched.
+        const verdict = requiredSkills
+          ? await this.proposalEligibility.evaluate({
+              contributorId: input.actor.id,
+              requiredSkills,
+              transaction,
+            })
+          : null;
+        if (verdict?.outcome === 'blocked') {
+          throw new ProposalBlockedBySkillGap(verdict.blockingSkills);
+        }
+
         const now = new Date();
-        const proposalId = randomUUID();
         await transaction.contributionProposal.create({
           data: {
             id: proposalId,
@@ -143,12 +171,33 @@ export class ContributionProposalsService {
             metadata: { payloadVersion: 2 },
           },
         });
+        // Recorded only now, because the CHECK permits exactly one target and
+        // the Proposal it points at has just come into existence.
+        if (verdict) {
+          await this.proposalEligibility.recordEvaluation({
+            contributorId: input.actor.id,
+            contributionProposalId: proposalId,
+            verdict,
+            transaction,
+          });
+        }
         return transaction.contributionProposal.findUniqueOrThrow({
           where: { id: proposalId },
           include: PROPOSAL_DETAIL_INCLUDE,
         });
       });
     } catch (error) {
+      if (error instanceof ProposalBlockedBySkillGap) {
+        // No Proposal row and no version row exist: the transaction rolled back
+        // and the block happened before either was written.
+        //
+        // Unlike the Application path there is no EligibilityEvaluation to
+        // record here — the CHECK requires a target, and the Proposal this
+        // would point at was never created. The 403 still names every blocking
+        // skill, so the refusal is explained; what is lost is the durable
+        // record, which only a stored Proposal could anchor.
+        throw this.proposalEligibility.blockedError(error.blockingSkills);
+      }
       const lostRace = await this.recoverFromIdempotencyRace({
         error,
         actorId: input.actor.id,
@@ -189,6 +238,15 @@ export class ContributionProposalsService {
     });
     if (replay) return toContributionProposalDto(replay);
 
+    // A new version can escalate scope beyond what the proposer can evidence,
+    // so the bar is re-inferred from the *new* content rather than reused.
+    const requiredSkills = this.proposalEligibility.isEnabled()
+      ? await this.proposalEligibility.inferRequiredSkills(
+          input.proposalId,
+          input,
+        )
+      : null;
+
     let proposal: ContributionProposalWithDetail;
     try {
       proposal = await this.database.$transaction(async (transaction) => {
@@ -212,6 +270,19 @@ export class ContributionProposalsService {
             'PROPOSAL_NO_REVISION_REQUESTED',
           );
         }
+        // Before the version row is written and before `current_version` moves,
+        // so a blocked version leaves the prior one as the latest.
+        const verdict = requiredSkills
+          ? await this.proposalEligibility.evaluate({
+              contributorId: input.actor.id,
+              requiredSkills,
+              transaction,
+            })
+          : null;
+        if (verdict?.outcome === 'blocked') {
+          throw new ProposalBlockedBySkillGap(verdict.blockingSkills);
+        }
+
         const nextVersion = current.current_version + 1;
         const updated = await transaction.contributionProposal.updateMany({
           where: {
@@ -252,12 +323,32 @@ export class ContributionProposalsService {
             },
           },
         });
+        if (verdict) {
+          await this.proposalEligibility.recordEvaluation({
+            contributorId: input.actor.id,
+            contributionProposalId: input.proposalId,
+            verdict,
+            transaction,
+          });
+        }
         return transaction.contributionProposal.findUniqueOrThrow({
           where: { id: input.proposalId },
           include: PROPOSAL_DETAIL_INCLUDE,
         });
       });
     } catch (error) {
+      if (error instanceof ProposalBlockedBySkillGap) {
+        // The Proposal already exists here, so unlike a blocked create the
+        // refusal has something to attach to and is recorded durably — on a
+        // fresh connection, because the transaction that carried the verdict
+        // has just rolled back.
+        await this.proposalEligibility.recordBlocked({
+          contributorId: input.actor.id,
+          contributionProposalId: input.proposalId,
+          blockingSkills: error.blockingSkills,
+        });
+        throw this.proposalEligibility.blockedError(error.blockingSkills);
+      }
       const lostRace = await this.recoverFromIdempotencyRace({
         error,
         actorId: input.actor.id,
@@ -1226,5 +1317,19 @@ export class ContributionProposalsService {
 
   private fingerprint(value: unknown): string {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  }
+}
+
+/**
+ * Internal marker for a submission refused by the eligibility gate.
+ *
+ * Not the HTTP error: it carries the blocking skills out through the
+ * transaction rollback so the refusal can be recorded — where there is
+ * something to record it against — before the 403 is raised. Never escapes
+ * this module.
+ */
+class ProposalBlockedBySkillGap extends Error {
+  constructor(readonly blockingSkills: BlockingSkillDto[]) {
+    super('Contribution Proposal blocked by a skill gap');
   }
 }
