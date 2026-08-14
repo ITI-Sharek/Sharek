@@ -96,6 +96,58 @@ export class EligibilityService {
   }
 
   /**
+   * The comparison alone, with nothing persisted.
+   *
+   * The Proposal path needs this split because the thing an evaluation would
+   * point at does not exist yet: a proposal must be refused *before* its row is
+   * created, so the verdict has to be computable before there is anything to
+   * attach it to. The Application path keeps its combined
+   * `evaluateForRequest`, where the target is the Request and already exists.
+   */
+  async computeVerdict(input: {
+    contributorId: string;
+    requiredSkills: RequiredSkillLevelDto[];
+    transaction: Prisma.TransactionClient;
+  }): Promise<EligibilityVerdictDto> {
+    const approvedSkills = await this.readApprovedSkills(
+      input.contributorId,
+      input.transaction,
+    );
+    const blockingSkills = findBlockingSkills(
+      input.requiredSkills,
+      approvedSkills,
+    );
+    return {
+      outcome:
+        blockingSkills.length === 0
+          ? EligibilityOutcome.eligible
+          : EligibilityOutcome.blocked,
+      blockingSkills,
+    };
+  }
+
+  /**
+   * Record a Proposal-scoped evaluation on the caller's transaction.
+   *
+   * Called after the Proposal (or its new version) exists, because the CHECK
+   * permits exactly one target and a row pointing at nothing is not storable —
+   * deliberately, since a refusal nobody can attribute is not reproducible.
+   */
+  async recordProposalEvaluation(input: {
+    contributorId: string;
+    contributionProposalId: string;
+    verdict: EligibilityVerdictDto;
+    transaction: Prisma.TransactionClient;
+  }): Promise<void> {
+    await this.writeEvaluation(input.transaction, {
+      contributorId: input.contributorId,
+      contributionProposalId: input.contributionProposalId,
+      outcome: input.verdict.outcome,
+      blockingSkills: input.verdict.blockingSkills,
+    });
+  }
+
+  /**
    * Persist a refusal on its own connection, so it survives the rollback that
    * the refusal itself causes.
    *

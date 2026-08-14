@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **153**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **156**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -208,11 +208,14 @@ Unique controller method/path pairs: **153**. WebSocket events are excluded from
 | --- | --- | --- | ---: | --- |
 | `POST` | `/contributors/profiles/me/ensure` | Bearer / resource-scoped | 201 | Ensure My Profile |
 | `POST` | `/contributors/me/skill-gap-guidance` | Bearer / resource-scoped | 201 | Generate |
+| `GET` | `/contributors/me/eligibility-guidance/:guidanceId` | Bearer / resource-scoped | 200 | Get |
 | `GET` | `/contributors/profiles/:username/avatar` | Public | 200 | Get Contributor Avatar |
 | `GET` | `/contributors/profiles/:username` | Bearer / resource-scoped | 200 | Get Contributor Profile |
+| `GET` | `/contributors/me/eligibility-guidance` | Bearer / resource-scoped | 200 | List |
 | `GET` | `/contributors/me/recommended-tasks` | contributor | 200 | List |
 | `GET` | `/contributors/profile-fields` | Bearer / resource-scoped | 200 | List Contributor Fields |
 | `GET` | `/contributors/experience-levels` | Public | 200 | List Experience Levels |
+| `POST` | `/contributors/me/eligibility-guidance` | Bearer / resource-scoped | 201 | Request |
 | `PATCH` | `/contributors/profiles/me` | Bearer / resource-scoped | 200 | Update My Profile |
 | `PUT` | `/contributors/profiles/me/avatar` | Bearer / resource-scoped | 200 | Upload My Avatar |
 

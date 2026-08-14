@@ -68,7 +68,19 @@ describe('LocalMaterialStorage', () => {
     expect(first.startsWith(`${materialId}/`)).toBe(true);
     // No version in the key. It is not known until the write transaction
     // resolves it under lock, so encoding it would mean encoding a guess.
-    expect(first).not.toMatch(/\/\d+-/);
+    //
+    // Asserted by pinning the suffix to a UUID rather than by searching the key
+    // for a version-like prefix. A UUID is definitionally not a version number,
+    // and the search was unsound: `/\/\d+-/` also matches a legitimate UUID
+    // whose first group happens to be all decimal digits, which is
+    // `(10/16) ** 8` — about one run in forty-three. Do not put a pattern
+    // search back.
+    const [prefix, suffix, ...extra] = first.split('/');
+    expect(prefix).toBe(materialId);
+    expect(extra).toEqual([]);
+    expect(suffix).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
   });
 
   it('treats deleting a missing object as done, so purge can be repeated', async () => {
