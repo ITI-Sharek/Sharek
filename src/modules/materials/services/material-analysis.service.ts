@@ -1,8 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  ContributionRequestAuditAction,
   MaterialAnalysisRunStatus,
   MaterialAnalysisSetStatus,
   MaterialAnalysisPurpose,
@@ -345,7 +346,13 @@ export class MaterialAnalysisService {
     this.assertActiveOwner(actor);
     await this.assertEntitled(actor);
     const suggestion = await this.findSuggestion(actor, suggestionId);
-    this.assertReviewable(suggestion);
+    const adoptionReplay = await this.findAdoptionReplay(
+      actor,
+      suggestion,
+      'project',
+      input.idempotencyKey,
+    );
+    this.assertReviewable(suggestion, adoptionReplay);
     if (
       suggestion.suggestion_type !== MaterialDraftSuggestionType.project_update ||
       !suggestion.target_field
@@ -379,6 +386,9 @@ export class MaterialAnalysisService {
       } as never,
       input.idempotencyKey,
     );
+    if (adoptionReplay) {
+      return { suggestion: this.toSuggestionDto(suggestion), project };
+    }
     const reviewed = await this.database.materialDraftSuggestion.update({
       where: { id: suggestion.id },
       data: {
@@ -401,7 +411,13 @@ export class MaterialAnalysisService {
     this.assertActiveOwner(actor);
     await this.assertEntitled(actor);
     const suggestion = await this.findSuggestion(actor, suggestionId);
-    this.assertReviewable(suggestion);
+    const adoptionReplay = await this.findAdoptionReplay(
+      actor,
+      suggestion,
+      'contribution_request',
+      input.idempotencyKey,
+    );
+    this.assertReviewable(suggestion, adoptionReplay);
     if (suggestion.suggestion_type !== MaterialDraftSuggestionType.contribution_request) {
       throw new ConflictApplicationError(
         'This suggestion is not a Contribution Request draft',
@@ -439,6 +455,12 @@ export class MaterialAnalysisService {
       body,
       idempotencyKey: input.idempotencyKey,
     });
+    if (adoptionReplay) {
+      return {
+        suggestion: this.toSuggestionDto(suggestion),
+        contributionRequest: request,
+      };
+    }
     const reviewed = await this.database.materialDraftSuggestion.update({
       where: { id: suggestion.id },
       data: {
@@ -778,14 +800,54 @@ export class MaterialAnalysisService {
     return suggestion;
   }
 
-  private assertReviewable(suggestion: { status: string; source_removed_at: Date | null }) {
+  private async findAdoptionReplay(
+    actor: AuthenticatedUser,
+    suggestion: {
+      status: string;
+      adopted_entity_id: string | null;
+      source_removed_at: Date | null;
+    },
+    adoptionType: 'project' | 'contribution_request',
+    idempotencyKey: string,
+  ): Promise<boolean> {
+    if (suggestion.status !== 'accepted') return false;
+
+    if (adoptionType === 'project') {
+      const receipt = await this.database.projectOperation.findUnique({
+        where: {
+          actor_id_operation_key_hash: {
+            actor_id: actor.id,
+            operation: 'update',
+            key_hash: this.hash(idempotencyKey),
+          },
+        },
+        select: { project_id: true },
+      });
+      return receipt?.project_id === suggestion.adopted_entity_id;
+    }
+
+    const receipt = await this.database.contributionRequestAudit.findFirst({
+      where: {
+        actor_id: actor.id,
+        action: ContributionRequestAuditAction.created,
+        idempotency_key: idempotencyKey,
+      },
+      select: { contribution_request_id: true },
+    });
+    return receipt?.contribution_request_id === suggestion.adopted_entity_id;
+  }
+
+  private assertReviewable(
+    suggestion: { status: string; source_removed_at: Date | null },
+    adoptionReplay = false,
+  ) {
     if (suggestion.source_removed_at) {
       throw new ConflictApplicationError(
         'The source Material was deleted; this draft cannot be adopted',
         'MATERIAL_ANALYSIS_SOURCE_REMOVED',
       );
     }
-    if (suggestion.status !== 'pending') {
+    if (suggestion.status !== 'pending' && !adoptionReplay) {
       throw new ConflictApplicationError(
         'This draft suggestion has already been reviewed',
         'MATERIAL_ANALYSIS_SUGGESTION_ALREADY_REVIEWED',
@@ -812,6 +874,10 @@ export class MaterialAnalysisService {
       );
     }
     return value.trim();
+  }
+
+  private hash(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
   }
 
   private projectNotFound() {
