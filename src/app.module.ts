@@ -18,6 +18,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { ReputationModule } from './modules/reputation/reputation.module';
 import { SkillProfilesModule } from './modules/skill-profiles/skill-profiles.module';
 import { SkillGuidanceModule } from './modules/skill-guidance/skill-guidance.module';
+import { MatchingModule } from './modules/matching/matching.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AuthModule } from './shared/auth/auth.module';
 import { envValidationSchema } from './shared/config/env.validation';
@@ -60,6 +61,7 @@ import { RealtimeModule } from './shared/realtime/realtime.module';
     AiModule,
     AssignmentConversationsModule,
     SkillGuidanceModule,
+    MatchingModule,
   ],
 })
 export class AppModule { }
