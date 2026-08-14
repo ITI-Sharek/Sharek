@@ -484,8 +484,8 @@ drafts. It is an owner workspace endpoint, not contributor discovery. Contributo
 discovery must continue to filter on published projects only. `quota.used`
 counts Contribution Requests whose `published_at` falls in the current UTC
 calendar month, including Requests later cancelled. `monthlyLimit` is the
-caller's current owner entitlement: Bronze 10, Silver 20, Gold 30; no active
-assignment defaults to Bronze.
+caller's current owner entitlement: Free 5, Gold 30; no active assignment
+defaults to Free.
 
 The canonical publication workflow separates source inspection, persistence,
 and public state:
@@ -677,8 +677,8 @@ POST /contribution-requests/:requestId/cancel
 Publication is the only `draft -> published` path. It revalidates the complete
 work contract and Applications Close Time, then enforces the current owner plan
 against publications in the current UTC calendar month. Owners without a
-current plan assignment use Bronze. Limits are Bronze 10, Silver 20, and Gold
-30. Cancelled Requests still count in the month in which they were published.
+current plan assignment use Free. Limits are Free 5 and Gold 30. Cancelled
+Requests still count in the month in which they were published.
 For local QA only, `NODE_ENV=development` bypasses the enforcement check while
 leaving the entitlement and usage data unchanged; test and production retain
 the limits.
@@ -1653,6 +1653,34 @@ before calling FastAPI. The validated result may contain missing or
 below-target skills, technologies, source-backed resources, practice projects,
 and improvement steps. It never changes eligibility, Application state, owner
 decisions, rank, or score.
+
+## Paymob checkout and payment status (PAY-03 / #105)
+
+The payment slice is disabled by default and exposes a backend-owned Free/Gold
+catalog plus authenticated checkout/status operations:
+
+```http
+GET  /subscriptions/plans
+POST /me/subscription/checkout
+GET  /me/payments/:paymentId
+```
+
+The catalog is the only source of plan amount, currency, duration, role-context
+eligibility, and checkout availability. Free is `0 EGP` with no checkout; Gold
+is `50,000` minor units (`500 EGP`) for 30 days in either role context.
+
+Checkout accepts `planType`, `roleContext`, and an optional 8–128 character
+`idempotencyKey` in the body; the `Idempotency-Key` header is also accepted.
+The server resolves all commercial values and rejects a mismatched active role
+context. Repeating the same key for the same pending checkout returns the same
+payment ID and browser-safe Paymob client secret. A key reused for different
+commercial facts or a terminal attempt is rejected.
+
+Payment status is scoped to the authenticated payer and returns only the
+payment ID, selected role context and plan, server-owned amount/currency,
+status, creation time, and paid time. Checkout creation and redirect data do
+not activate a Subscription; only the later verified callback workflow may do
+so.
 
 ## Contract Change Rules
 

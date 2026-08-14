@@ -23,6 +23,7 @@ limit, a cap, or a commission rate.
 | Route | Returns |
 |---|---|
 | `GET /me/subscription` | The caller's own resolved plan, usage, benefits, and entitlements |
+| `GET /subscriptions/plans` | The backend-owned Free/Gold commercial catalog |
 
 The route takes no user parameter, so there is no path through this module's
 HTTP surface to another user's subscription.
@@ -38,6 +39,8 @@ HTTP surface to another user's subscription.
 | `resolve(userId, roleContext, database?, now?)` | Either of the above, when the role is only known at runtime |
 | `hasMinimumOwnerPlan(userId, minimumPlan, now?)` | Whether an owner's plan clears a threshold |
 | `resolveMaterialAnalysisEntitlement(userId, roleContext, now?)` | Whether Material analysis is available right now |
+| `getPlanCatalog()` / `getPlanCatalogEntry(planType)` | Server-owned checkout price, currency, duration, and role eligibility |
+| `assertPlanPurchaseAllowed(userId, roleContext, planType, now?)` | Whether the requested plan is an allowed upgrade |
 | `assignPlan(input, database?)` | Records a plan an administrator or a payment provider granted |
 
 Every read takes an optional Prisma client so callers can resolve **inside their
@@ -50,7 +53,10 @@ own transaction**, which is where authorization and invariant checks belong.
 | **Owner** | 5 published Contribution Requests per month | 30 per month · top priority |
 | **Contributor** | 1 Application per day · no matched projects | 5 per day · 10 matched projects |
 
-The numbers live in `plan-catalog.ts` and nowhere else.
+Entitlement numbers live in `plan-catalog.ts`; checkout amount, currency,
+duration, and role eligibility live in `subscription-catalog.ts`. Payment
+callers receive these through `EntitlementsService` and never write the
+Subscription table directly.
 
 `commissionRate` is modelled in the catalog because Phase 2 will need one home
 for it, but **no Phase 1 surface may present it**: there are no paid tasks yet,
@@ -100,7 +106,10 @@ state, so the route never 404s.
 
 ## Not here
 
-Checkout, webhooks, and payment persistence are the PAY-xx issues.
+Checkout creation, payment persistence, and payment status are owned by the
+payments module. This module supplies the catalog and purchase-policy seam;
+verified webhook activation remains PAY-04 and is the first workflow allowed
+to call `assignPlan()` for a payment.
 
 Usage **counting** lives with the module that owns the thing being counted:
 published Contribution Requests in projects, Applications in applications. This

@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **150**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **153**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -248,7 +248,10 @@ Unique controller method/path pairs: **150**. WebSocket events are excluded from
 
 | Method | Path | Auth | Success | Purpose |
 | --- | --- | --- | ---: | --- |
+| `POST` | `/me/subscription/checkout` | owner / contributor | 201 | Create Checkout |
 | `GET` | `/me/subscription` | owner / contributor | 200 | Get Current Plan |
+| `GET` | `/me/payments/:paymentId` | owner / contributor | 200 | Get Payment Status |
+| `GET` | `/subscriptions/plans` | Public | 200 | Get Plans |
 
 ### Admin
 

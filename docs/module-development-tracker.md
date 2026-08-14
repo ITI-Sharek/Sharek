@@ -2992,10 +2992,10 @@ This keeps the system strong without making it heavy:
 ### 2026-08-13 - Paymob catalog and payment persistence (PAY-02 / #103)
 
 - Modules: `payments`, `subscriptions`, and Prisma migrations.
-- Requirement IDs: PAY-02, DEC-077, and DEC-078. The approved shared catalog is
-  Bronze `0 EGP` with no expiry and no checkout, Silver `29,900` minor units in
-  `EGP` for 30 days, and Gold `59,900` minor units in `EGP` for 30 days. Both
-  owner and contributor role contexts use the same catalog.
+- Requirement IDs: PAY-02, DEC-077, and DEC-078. The current shared catalog is
+  Free `0 EGP` with no expiry and no checkout, and Gold `50,000` minor units in
+  `EGP` for 30 days. Both owner and contributor role contexts use the same
+  catalog.
 - Change: added the code-owned subscription catalog and exported service seam;
   added payment provider/purpose/status enums plus `PaymentAttempt` and
   `PaymentWebhookEvent` persistence. Attempts are unique per user and
@@ -3009,9 +3009,29 @@ This keeps the system strong without making it heavy:
 - Database: migration
   `20260813120000_payment_attempts_and_webhook_events` adds the payment enums,
   tables, foreign keys, uniqueness constraints, and lookup indexes. A fresh
-  PostgreSQL migration round-trip fixture inserts representative attempt and
-  webhook rows and proves duplicate protection.
+  PostgreSQL migration round-trip fixture is available to insert representative
+  attempt and webhook rows and prove duplicate protection.
 - Verification: focused catalog/state/webhook-normalization/migration-contract
-  tests passed 4 suites / 20 tests; the PostgreSQL migration round-trip passed;
-  architecture, lint, exact TypeScript, Prisma validation, and build passed.
-  Full Jest passed 142 suites with 1 skipped and 907 tests with 2 skipped.
+  tests passed; the PostgreSQL migration round-trip could not connect because
+  the configured `postgres` host is unavailable in this environment.
+
+### 2026-08-13 - Paymob checkout and payment status (PAY-03 / #105)
+
+- Requirement IDs: PAY-03, DEC-077, and DEC-078. Added public plan catalog and
+  authenticated owner/contributor checkout and payment-status routes.
+- Policy: checkout validates the caller's active role context, resolves the
+  Free/Gold plan amount, currency, duration, and eligibility on the backend,
+  and rejects browser-supplied commercial authority.
+- Idempotency: a pending `PaymentAttempt` is reused for the same user and key;
+  concurrent creation races recover through the unique constraint, while
+  mismatched or terminal replays fail closed. Paymob client secrets are
+  persisted only to replay the safe hosted-checkout handoff.
+- Boundary: checkout creation and browser redirects never activate a
+  `Subscription`; payment reads are scoped to the authenticated payer. PAY-04
+  remains responsible for verified callbacks and exactly-once activation.
+- Verification: focused payment/catalog/migration tests passed 9 suites / 64
+  tests; architecture, lint, exact TypeScript, Prisma validation/generation,
+  build, and Postman/API-client coverage passed. Full Jest passed 147 suites
+  with 1 skipped and 997 tests with 2 skipped. The local PostgreSQL migration
+  round-trip could not connect because the configured `postgres` host is
+  unavailable in this environment.
