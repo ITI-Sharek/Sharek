@@ -10,6 +10,7 @@ import {
   MaterialScanStatus,
   Prisma,
   ProjectStatus,
+  SubscriptionPlanType,
 } from '@prisma/client';
 
 import { AiService } from '../../ai/ai.service';
@@ -26,6 +27,7 @@ import {
   NotFoundApplicationError,
 } from '../../../shared/errors/application.error';
 import { ProjectsService } from '../../projects/projects.service';
+import { EntitlementsService } from '../../subscriptions/entitlements.service';
 import { MaterialAnalysisQueue } from '../jobs/material-analysis.queue';
 import {
   AdoptContributionRequestSuggestionDto,
@@ -68,6 +70,7 @@ export class MaterialAnalysisService {
     private readonly projects: ProjectsService,
     private readonly storage: MaterialStorage,
     private readonly ai: AiService,
+    private readonly entitlements: EntitlementsService,
     @Optional() private readonly queue?: MaterialAnalysisQueue,
     @Optional() private readonly publication?: ProjectPublicationService,
     @Optional() private readonly contributionTasks?: ContributionTasksService,
@@ -651,11 +654,11 @@ export class MaterialAnalysisService {
     if (!this.config.get<boolean>('MATERIAL_ANALYSIS_REQUIRE_SUBSCRIPTION', false)) {
       return;
     }
-    const minimumPlan = this.config.get<'free' | 'gold'>(
+    const minimumPlan = this.config.get<SubscriptionPlanType>(
       'MATERIAL_ANALYSIS_MIN_PLAN',
-      'gold',
+      SubscriptionPlanType.gold,
     );
-    const entitlement = await this.projects.getMaterialAnalysisEntitlement(
+    const entitlement = await this.entitlements.hasMinimumOwnerPlan(
       actor.id,
       minimumPlan,
     );

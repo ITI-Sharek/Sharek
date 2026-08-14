@@ -40,6 +40,7 @@ describe('MaterialAnalysisService', () => {
   const projects = { getMaterialProjectContext: jest.fn() };
   const storage = { getStream: jest.fn() };
   const ai = { requestMaterialAnalysis: jest.fn() };
+  const entitlements = { hasMinimumOwnerPlan: jest.fn() };
   const queue = { enqueueRun: jest.fn() };
   const publication = { updateProject: jest.fn() };
   const contributionTasks = { createDraft: jest.fn() };
@@ -49,6 +50,7 @@ describe('MaterialAnalysisService', () => {
     projects as never,
     storage as never,
     ai as never,
+    entitlements as never,
     queue as never,
     publication as never,
     contributionTasks as never,

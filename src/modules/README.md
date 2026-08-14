@@ -12,6 +12,7 @@ business decisions, and its database writes.
 | `skill-profiles` | implemented | asynchronous skill generation and candidate state |
 | `notifications` | implemented | in-app notification rows and notification writes |
 | `reputation` | partial | reputation summaries and future history |
+| `subscriptions` | implemented | plan entitlements and every plan limit in the backend |
 | `health` | implemented | backend health endpoint |
 | `contribution-tasks` | implemented | project task requirements and lifecycle |
 | `applications` | implemented | contributor applications and owner review |

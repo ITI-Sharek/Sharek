@@ -18,6 +18,10 @@ import {
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { ApplicationsService } from '../applications/applications.service';
+import {
+  EntitlementsDatabase,
+  EntitlementsService,
+} from '../subscriptions/entitlements.service';
 import { AdminPublishedProjectOwnerDto } from './dto/admin-published-project-owner.dto';
 import { ContributionRequestProjectAccessDto } from './dto/contribution-request-project-access.dto';
 import { ContributionRequestProjectReferenceDto } from './dto/contribution-request-project-reference.dto';
@@ -27,14 +31,6 @@ import { MyProjectsResponseDto } from './dto/my-projects.dto';
 import { ProjectPageQueryDto } from './dto/project-publication.dto';
 import { ProposalProjectContextDto } from './dto/proposal-project-context.dto';
 import { toDiscoveredProjectDto } from './mappers/project.mapper';
-
-const OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS: Record<
-  SubscriptionPlanType,
-  number
-> = {
-  free: 5,
-  gold: 30,
-};
 
 interface ContributionRequestProjectRow {
   id: string;
@@ -46,6 +42,7 @@ interface ContributionRequestProjectRow {
 export class ProjectsService {
   constructor(
     private readonly database: DatabaseService,
+    private readonly entitlements: EntitlementsService,
     @Inject(forwardRef(() => ApplicationsService))
     private readonly applications: ApplicationsService,
   ) {}
@@ -297,51 +294,27 @@ export class ProjectsService {
     };
   }
 
+  /**
+   * The owner's monthly publication allowance. This module owns neither the
+   * number nor the Subscription table, so both come from
+   * {@link EntitlementsService}; the method stays here because publication
+   * quota is a Project-owner question the contribution-tasks module already
+   * asks through this service.
+   */
   async getContributionRequestPublicationEntitlement(
     ownerId: string,
-    database: Pick<Prisma.TransactionClient, 'subscription'> = this.database,
+    database: EntitlementsDatabase = this.database,
     now = new Date(),
   ): Promise<{ planType: SubscriptionPlanType; monthlyLimit: number }> {
-    const plan = await database.subscription.findFirst({
-      where: {
-        user_id: ownerId,
-        user_role_context: 'owner',
-        status: 'active',
-        starts_at: { lte: now },
-        OR: [{ expires_at: null }, { expires_at: { gt: now } }],
-      },
-      orderBy: { starts_at: 'desc' },
-      select: { plan_type: true },
-    });
-    const planType = plan?.plan_type ?? SubscriptionPlanType.free;
+    const entitlements = await this.entitlements.resolveForOwner(
+      ownerId,
+      database,
+      now,
+    );
     return {
-      planType,
-      monthlyLimit: OWNER_MONTHLY_CONTRIBUTION_REQUEST_LIMITS[planType],
+      planType: entitlements.planType,
+      monthlyLimit: entitlements.monthlyContributionRequestLimit,
     };
-  }
-
-  async getMaterialAnalysisEntitlement(
-    ownerId: string,
-    minimumPlan: SubscriptionPlanType = SubscriptionPlanType.gold,
-    now = new Date(),
-  ): Promise<{ planType: SubscriptionPlanType; entitled: boolean }> {
-    const plan = await this.database.subscription.findFirst({
-      where: {
-        user_id: ownerId,
-        user_role_context: 'owner',
-        status: 'active',
-        starts_at: { lte: now },
-        OR: [{ expires_at: null }, { expires_at: { gt: now } }],
-      },
-      orderBy: { starts_at: 'desc' },
-      select: { plan_type: true },
-    });
-    const planType = plan?.plan_type ?? SubscriptionPlanType.free;
-    const rank: Record<SubscriptionPlanType, number> = {
-      free: 1,
-      gold: 2,
-    };
-    return { planType, entitled: rank[planType] >= rank[minimumPlan] };
   }
 
   async lockContributionRequestProjectAccess(
