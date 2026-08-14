@@ -221,6 +221,12 @@ export const envValidationSchema = Joi.object({
     .min(1)
     .max(1_000_000)
     .default(250_000),
+  REQUIREMENT_INFERENCE_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  AI_REQUIREMENT_INFERENCE_PATH: Joi.string().default('/requirements/infer'),
+  AI_REQUIREMENT_INFERENCE_TIMEOUT_MS: Joi.number().integer().min(1000).default(60000),
   MATERIAL_ANALYSIS_QUEUE_ENABLED: Joi.boolean()
     .truthy('true')
     .falsy('false')

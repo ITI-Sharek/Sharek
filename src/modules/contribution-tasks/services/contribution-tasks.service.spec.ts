@@ -437,6 +437,49 @@ describe('ContributionTasksService', () => {
     expect(database.contributionRequest.updateMany).not.toHaveBeenCalled();
   });
 
+  it('refuses publication when no required skill level exists', async () => {
+    // Publishing with no bar produces a Request nobody can be measured against,
+    // so every contributor passes and the differentiator silently does not
+    // exist for that Request. It is always fixable by hand, so a provider
+    // outage never prevents publication.
+    database.contributionRequest.findFirst.mockResolvedValue(
+      makeRequest({ skillRequirements: [] }),
+    );
+
+    await expect(
+      publicationService.publishRequest({ user: owner, requestId }),
+    ).rejects.toMatchObject({
+      code: 'REQUEST_SKILL_REQUIREMENTS_MISSING',
+      statusCode: 422,
+    } satisfies Partial<ApplicationError>);
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('refuses publication when the only skill level is preferred', async () => {
+    database.contributionRequest.findFirst.mockResolvedValue(
+      makeRequest({
+        skillRequirements: [
+          {
+            id: 'skill-preferred-0',
+            skill_name: 'GraphQL',
+            skill_name_normalized: 'graphql',
+            required_level: SkillProfileProficiencyLevel.beginner,
+            kind: ContributionRequestRequirementKind.preferred,
+            source: ContributionRequestSkillRequirementSource.ai_inferred,
+            confidence: ContributionRequestSkillRequirementConfidence.low,
+            position: 0,
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      publicationService.publishRequest({ user: owner, requestId }),
+    ).rejects.toMatchObject({
+      code: 'REQUEST_SKILL_REQUIREMENTS_MISSING',
+    } satisfies Partial<ApplicationError>);
+  });
+
   it('rejects publication when the draft is no longer complete', async () => {
     database.contributionRequest.findFirst.mockResolvedValue(
       makeRequest({ requirements: [] }),
@@ -1384,9 +1427,21 @@ function baseRequest() {
       makeRequirement('required', 0, 'Build a tested NestJS endpoint'),
       makeRequirement('preferred', 0, 'Document the API examples'),
     ],
-    // Empty by default: a draft carries no level bar until inference runs or
-    // the owner writes one, and most of these cases predate the gate entirely.
-    skillRequirements: [] as Array<{
+    // A complete draft now carries a level bar — publication refuses without
+    // one (DEC-078). Cases that need the empty state override this explicitly,
+    // so the precondition stays visible rather than being the fixture default.
+    skillRequirements: [
+      {
+        id: 'skill-required-0',
+        skill_name: 'NestJS',
+        skill_name_normalized: 'nestjs',
+        required_level: SkillProfileProficiencyLevel.intermediate,
+        kind: ContributionRequestRequirementKind.required,
+        source: ContributionRequestSkillRequirementSource.ai_inferred,
+        confidence: ContributionRequestSkillRequirementConfidence.high,
+        position: 0,
+      },
+    ] as Array<{
       id: string;
       skill_name: string;
       skill_name_normalized: string;
