@@ -27,6 +27,11 @@ import {
   RequirementInferenceResult,
 } from './dto/requirement-inference.dto';
 import { RequirementInferenceClient } from './integrations/requirement-inference.client';
+import {
+  MatchingRankInput,
+  MatchingRankResult,
+} from './dto/matching-rank.dto';
+import { MatchingRankClient } from './integrations/matching-rank.client';
 
 @Injectable()
 export class AiService {
@@ -37,7 +42,26 @@ export class AiService {
     @Optional() private readonly skillGapGuidanceClient?: SkillGapGuidanceClient,
     @Optional()
     private readonly requirementInferenceClient?: RequirementInferenceClient,
+    @Optional() private readonly matchingRankClient?: MatchingRankClient,
   ) {}
+
+  /**
+   * Reorder a shortlist this backend already computed, and explain each match.
+   *
+   * Advisory in the strongest sense: the caller has a complete, correct answer
+   * before this is called and keeps it if anything goes wrong. Nothing here can
+   * change which Requests a contributor sees, only the order they appear in.
+   */
+  async rankMatches(input: MatchingRankInput): Promise<MatchingRankResult> {
+    if (!this.matchingRankClient) {
+      throw new ApplicationError(
+        'Matching rank client is not configured',
+        'AI_MATCHING_RANK_CLIENT_NOT_CONFIGURED',
+        503,
+      );
+    }
+    return this.matchingRankClient.rank(input);
+  }
 
   /**
    * Infer the skills and levels a Contribution Request demands.
