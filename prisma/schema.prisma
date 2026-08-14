@@ -96,6 +96,14 @@ enum ContributionRequestRequirementKind {
   preferred
 }
 
+/// The verdict of one Eligibility Evaluation. There is no third value on
+/// purpose: a provider outage or an evaluation that could not run is a
+/// retriable error, never an outcome recorded against a contributor (ADR 0015).
+enum EligibilityOutcome {
+  eligible
+  blocked
+}
+
 /// Whether inference has produced a level bar for a draft yet.
 ///
 /// Owner-visible, because a draft that cannot be published until it has a
@@ -467,6 +475,7 @@ model User {
   reportsResolved                   Report[]                           @relation("ReportResolver")
   reportsReceived                   Report[]                           @relation("ReportReportedUser")
   skillGapContributions             SkillGapGuidance[]                 @relation("SkillGapContributor")
+  eligibilityEvaluations            EligibilityEvaluation[]            @relation("EligibilityEvaluationContributor")
   authSessions                      AuthSession[]
   authProviderAccounts              AuthProviderAccount[]
   authOAuthStates                   AuthOAuthState[]
@@ -782,6 +791,7 @@ model ContributionRequest {
   attributedContributor User?                            @relation("ContributionRequestAttributedContributor", fields: [attributed_contributor_id], references: [id], onDelete: SetNull)
   requirements          ContributionRequestRequirement[]
   skillRequirements     ContributionRequestSkillRequirement[]
+  eligibilityEvaluations EligibilityEvaluation[]
   auditEvents           ContributionRequestAudit[]
   applications          Application[]
   aiMatchResults        AiMatchResult[]
@@ -847,6 +857,45 @@ model ContributionRequestSkillRequirement {
 
   @@unique([contribution_request_id, skill_name_normalized])
   @@index([contribution_request_id, kind])
+}
+
+/// Append-only record of one gate decision (DEC-078, ADR 0015).
+///
+/// Never updated and never deleted. A refusal has to stay reproducible for a
+/// dispute months later, which means recording what was compared at the time —
+/// `blocking_skills` carries each blocking skill with the level demanded and
+/// the level the contributor held, so the reason survives even if the
+/// contributor's profile changes afterwards.
+///
+/// Written for BOTH outcomes. Recording only refusals would make the table a
+/// list of accusations with no denominator, and "was this person evaluated at
+/// all?" unanswerable.
+model EligibilityEvaluation {
+  id                       String             @id @default(uuid()) @db.Uuid
+  contributor_id           String             @db.Uuid
+  /// Exactly one of these is set, enforced by a CHECK constraint in the raw
+  /// migration: an evaluation belongs to one contribution path.
+  contribution_request_id  String?            @db.Uuid
+  contribution_proposal_id String?            @db.Uuid
+  outcome                  EligibilityOutcome
+  /// `[{ skillName, requiredLevel, contributorLevel }]`. Empty for `eligible`.
+  /// `contributorLevel` is null when the contributor holds no approved evidence
+  /// for that skill at all — a distinction the UI has to render differently.
+  blocking_skills          Json               @default("[]")
+  /// The version of the comparison contract that produced this row, not a
+  /// version of the Request. The bar itself is frozen at publication, so the
+  /// Request identifies it; this column exists so that a later change to the
+  /// comparison rules is visible in an append-only log rather than making old
+  /// rows silently unreproducible.
+  requirement_snapshot_version Int            @default(1)
+  evaluated_at             DateTime           @default(now())
+
+  contributor         User                  @relation("EligibilityEvaluationContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+  contributionRequest ContributionRequest?  @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
+  contributionProposal ContributionProposal? @relation(fields: [contribution_proposal_id], references: [id], onDelete: Cascade)
+
+  @@index([contributor_id, evaluated_at])
+  @@index([contribution_request_id, evaluated_at])
 }
 
 model ContributionRequestAudit {
@@ -1205,6 +1254,7 @@ model ContributionProposal {
   proposer          User                               @relation("ContributionProposalProposer", fields: [proposer_id], references: [id], onDelete: Restrict)
   versions          ContributionProposalVersion[]
   auditEvents       ContributionProposalAudit[]
+  eligibilityEvaluations EligibilityEvaluation[]
   misuseReports     ContributionProposalMisuseReport[]
   originatedRequest ContributionRequest?               @relation("ProposalOriginatedRequest")
 
