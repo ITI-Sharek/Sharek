@@ -10,6 +10,7 @@ import * as request from 'supertest';
 import { ContributionTasksController } from '../src/modules/contribution-tasks/controllers/contribution-tasks.controller';
 import { PublicContributionRequestsController } from '../src/modules/contribution-tasks/controllers/public-contribution-requests.controller';
 import { ContributionRequestPublicationService } from '../src/modules/contribution-tasks/services/contribution-request-publication.service';
+import { ContributionRequestSkillRequirementsService } from '../src/modules/contribution-tasks/services/contribution-request-skill-requirements.service';
 import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
 import { PublicContributionRequestsService } from '../src/modules/contribution-tasks/services/public-contribution-requests.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
@@ -43,6 +44,10 @@ describe('Contribution Request draft HTTP contract', () => {
     list: jest.fn(),
     getById: jest.fn(),
   };
+  const skillRequirementsService = {
+    listForOwner: jest.fn(),
+    replaceOwnerSkillRequirements: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -53,6 +58,10 @@ describe('Contribution Request draft HTTP contract', () => {
       providers: [
         { provide: ContributionTasksService, useValue: service },
         { provide: ContributionRequestPublicationService, useValue: service },
+        {
+          provide: ContributionRequestSkillRequirementsService,
+          useValue: skillRequirementsService,
+        },
         { provide: PublicContributionRequestsService, useValue: service },
       ],
     })
@@ -280,6 +289,13 @@ describe('Contribution Request draft HTTP contract', () => {
       .post(`/contribution-requests/${requestId}/cancel`)
       .send({})
       .expect(401);
+    await request(server)
+      .get(`/contribution-requests/${requestId}/skill-requirements`)
+      .expect(401);
+    await request(server)
+      .put(`/contribution-requests/${requestId}/skill-requirements`)
+      .send({ skillRequirements: [] })
+      .expect(401);
 
     expect(service.getOwnedRequest).not.toHaveBeenCalled();
     expect(service.listForOwnedProject).not.toHaveBeenCalled();
@@ -476,6 +492,121 @@ describe('Contribution Request draft HTTP contract', () => {
       .expect(({ body }) =>
         expect(body.code).toBe('CONTRIBUTION_REQUEST_NOT_CANCELLABLE'),
       );
+  });
+
+  describe('skill requirements', () => {
+    it('replaces the whole set through one idempotent PUT', async () => {
+      // PUT, not PATCH: the owner sends the set they want to exist. A partial
+      // patch would make "remove the last required skill" unexpressible.
+      skillRequirementsService.replaceOwnerSkillRequirements.mockResolvedValue([
+        {
+          id: 'skill-1',
+          skillName: 'React',
+          requiredLevel: 'advanced',
+          kind: 'required',
+          source: 'owner_override',
+          confidence: null,
+          position: 0,
+        },
+      ]);
+
+      await request(app.getHttpServer())
+        .put(`/contribution-requests/${requestId}/skill-requirements`)
+        .send({
+          skillRequirements: [
+            {
+              skillName: 'React',
+              requiredLevel: 'advanced',
+              kind: 'required',
+            },
+          ],
+        })
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body).toHaveLength(1);
+          expect(body[0]).toMatchObject({
+            skillName: 'React',
+            requiredLevel: 'advanced',
+            source: 'owner_override',
+          });
+        });
+
+      expect(
+        skillRequirementsService.replaceOwnerSkillRequirements,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId,
+          skillRequirements: [
+            expect.objectContaining({ skillName: 'React' }),
+          ],
+        }),
+      );
+    });
+
+    it('rejects a client-supplied source or confidence', async () => {
+      // The owner must not be able to write `source: ai_inferred` and disguise
+      // their own override as model output — that would let it be silently
+      // overwritten by the next inference run.
+      await request(app.getHttpServer())
+        .put(`/contribution-requests/${requestId}/skill-requirements`)
+        .send({
+          skillRequirements: [
+            {
+              skillName: 'React',
+              requiredLevel: 'advanced',
+              kind: 'required',
+              source: 'ai_inferred',
+              confidence: 'high',
+            },
+          ],
+        })
+        .expect(400);
+      expect(
+        skillRequirementsService.replaceOwnerSkillRequirements,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('rejects a level outside the platform vocabulary', async () => {
+      await request(app.getHttpServer())
+        .put(`/contribution-requests/${requestId}/skill-requirements`)
+        .send({
+          skillRequirements: [
+            { skillName: 'React', requiredLevel: 'expert', kind: 'required' },
+          ],
+        })
+        .expect(400);
+    });
+
+    it('surfaces the freeze as a stable domain conflict', async () => {
+      skillRequirementsService.replaceOwnerSkillRequirements.mockRejectedValue(
+        new ConflictApplicationError(
+          'Skill requirements freeze when a Contribution Request is published',
+          'REQUEST_SKILL_REQUIREMENTS_FROZEN',
+          { status: 'published' },
+        ),
+      );
+
+      await request(app.getHttpServer())
+        .put(`/contribution-requests/${requestId}/skill-requirements`)
+        .send({ skillRequirements: [] })
+        .expect(409)
+        .expect(({ body }) =>
+          expect(body.code).toBe('REQUEST_SKILL_REQUIREMENTS_FROZEN'),
+        );
+    });
+
+    it('returns the owner view on read', async () => {
+      skillRequirementsService.listForOwner.mockResolvedValue([]);
+
+      await request(app.getHttpServer())
+        .get(`/contribution-requests/${requestId}/skill-requirements`)
+        .expect(200)
+        .expect(({ body }) => expect(body).toEqual([]));
+      expect(skillRequirementsService.listForOwner).toHaveBeenCalledWith(
+        expect.objectContaining({ id: owner.id }),
+        requestId,
+      );
+    });
   });
 });
 

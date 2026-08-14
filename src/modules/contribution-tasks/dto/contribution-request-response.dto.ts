@@ -4,6 +4,8 @@ import {
   ContributionRequestStatus,
 } from '@prisma/client';
 
+import { ContributionRequestSkillRequirementDto } from './contribution-request-skill-requirement.dto';
+
 export interface ContributionRequestRequirementDto {
   id: string;
   kind: ContributionRequestRequirementKind;
@@ -32,6 +34,12 @@ export interface ContributionRequestDto {
   description: string;
   requiredRequirements: ContributionRequestRequirementDto[];
   preferredRequirements: ContributionRequestRequirementDto[];
+  /**
+   * The machine-comparable level bar (DEC-078). Empty until inference runs or
+   * the owner writes one; `P0-B02` makes at least one `required` row a
+   * precondition of publishing.
+   */
+  skillRequirements: ContributionRequestSkillRequirementDto[];
   technologyTags: string[];
   applicationsCloseTime: Date | null;
   targetCompletionDate: string | null;

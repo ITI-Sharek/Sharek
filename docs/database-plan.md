@@ -47,7 +47,7 @@ contributor-profiles  contributor_profiles, contributor_fields, contributor_prof
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications, notification_events, notification_preferences, notification_category_preferences
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
-contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_audits
+contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_skill_requirements, contribution_request_audits
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
 contribution-proposals contribution_proposals, contribution_proposal_versions, contribution_proposal_audits, project_proposal_intakes, contribution_proposal_misuse_reports
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits, owner_decisions, assignments
@@ -314,6 +314,41 @@ than by the writer remembering to delete first.
 `match_score` remains an internal ordering signal and is never returned:
 DEC-010 forbids presenting fit as a number, so the API exposes an ordinal
 `rank` and a categorical `confidence` instead.
+
+## Required skill levels
+
+`ContributionRequestSkillRequirement` is owned by `contribution-tasks`.
+Migration `20260814101636_contribution_request_skill_requirements` creates it
+with **`UNIQUE (contribution_request_id, skill_name_normalized)`** and an
+`ON DELETE CASCADE` from the Request.
+
+The unique index is the actual invariant, not a convenience. The service
+rejects duplicates before they reach the database, but that check reads and
+writes in separate statements and is racy across two concurrent draft edits;
+the index is what makes "one normalized skill name per Request" true rather
+than usually true. It matters because an Eligibility Evaluation compares a
+contributor against this set — a Request demanding both `advanced Node.js` and
+`beginner nodejs` would contradict itself and produce an unexplainable refusal.
+`skill_name_normalized` is written by `shared/skills/skill-name.ts`, the same
+function `matching` compares with.
+
+`required_level` uses the existing `SkillProfileProficiencyLevel` enum rather
+than a parallel one, so the stored bar and a contributor's approved proficiency
+are values of one type. A separate enum could gain a fourth value on one side
+only, and the level comparison has no defined answer for a level it has never
+seen.
+
+The same migration adds `ApplicationRequirementSnapshot.skill_requirements`
+(`JSONB NOT NULL DEFAULT '[]'`). It is a copy, not a foreign key: ADR 0015
+requires that a published Request's edit history can never change why an
+earlier contributor was blocked, which is only true if the Application holds
+its own frozen record. The default means Applications predating the gate read
+as "no bar", which is what they were — no backfill is needed or correct.
+
+Because mocked jest suites cannot prove DDL,
+`pnpm run test:migrations:skill-requirements` replays every migration against a
+throwaway database and asserts the index, the cascade, the level vocabulary,
+and that a snapshot survives its source rows being deleted and replaced.
 
 ## Migration Rules
 

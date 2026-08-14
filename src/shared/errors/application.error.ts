@@ -38,7 +38,14 @@ export class ConflictApplicationError extends ApplicationError {
 }
 
 export class UnprocessableApplicationError extends ApplicationError {
-  constructor(message: string, code = 'UNPROCESSABLE_ENTITY') {
-    super(message, code, 422);
+  constructor(
+    message: string,
+    code = 'UNPROCESSABLE_ENTITY',
+    // Optional, matching ConflictApplicationError. A 422 that names which of
+    // fifteen skill rows was the duplicate saves the caller a second request to
+    // find out; existing two-argument call sites are unaffected.
+    metadata?: Record<string, unknown>,
+  ) {
+    super(message, code, 422, metadata);
   }
 }

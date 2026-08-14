@@ -79,6 +79,8 @@
 # - [DONE] POST /projects/:projectId/contribution-requests
 # - [DONE] GET /contribution-requests/:requestId
 # - [DONE] PATCH /contribution-requests/:requestId
+# - [DONE] GET /contribution-requests/:requestId/skill-requirements
+# - [DONE] PUT /contribution-requests/:requestId/skill-requirements
 # - [DONE] POST /contribution-requests/:requestId/discard
 # - [DONE] POST /contribution-requests/:requestId/publish
 # - [DONE] POST /contribution-requests/:requestId/cancel
@@ -852,10 +854,47 @@ Content-Type: application/json
 }
 
 
+### 11A.4b - DONE - Read the required skill levels on my draft
+GET {{baseUrl}}/contribution-requests/{{contributionRequestId}}/skill-requirements
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 11A.4c - DONE - Set the required skill levels on my draft
+# Replaces the whole set. Only `required` rows can ever block a contributor;
+# `preferred` rows are advisory. `source` and `confidence` are not accepted here
+# — an owner write is always the override, so sending them returns 400.
+# Run 11A.4d after publishing to see this refused with
+# REQUEST_SKILL_REQUIREMENTS_FROZEN.
+PUT {{baseUrl}}/contribution-requests/{{contributionRequestId}}/skill-requirements
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "skillRequirements": [
+    { "skillName": "NestJS", "requiredLevel": "intermediate", "kind": "required" },
+    { "skillName": "PostgreSQL", "requiredLevel": "beginner", "kind": "preferred" }
+  ]
+}
+
+
 ### 11A.5 - DONE - Publish my complete Contribution Request draft
 POST {{baseUrl}}/contribution-requests/{{contributionRequestId}}/publish
 Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
 Idempotency-Key: publish-contribution-request-001
+
+
+### 11A.4d - DONE - The freeze: editing skill levels after publication is refused
+# Expect 409 REQUEST_SKILL_REQUIREMENTS_FROZEN. The set an Application was
+# judged against can never change retroactively (ADR 0015).
+PUT {{baseUrl}}/contribution-requests/{{contributionRequestId}}/skill-requirements
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Content-Type: application/json
+
+{
+  "skillRequirements": [
+    { "skillName": "Rust", "requiredLevel": "advanced", "kind": "required" }
+  ]
+}
 
 
 ### 11A.6 - DONE - Browse actionable Contribution Requests (public)

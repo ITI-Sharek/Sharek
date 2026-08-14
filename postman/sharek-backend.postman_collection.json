@@ -3165,6 +3165,53 @@
           ]
         },
         {
+          "name": "List Skill Requirements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/contribution-requests/{{requestId}}/skill-requirements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contribution-requests",
+                "{{requestId}}",
+                "skill-requirements"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "List Skill Requirements. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the requestId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Publish Request",
           "request": {
             "method": "POST",
@@ -3195,6 +3242,67 @@
                   "type": "string"
                 }
               ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Replace Skill Requirements",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/contribution-requests/{{requestId}}/skill-requirements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contribution-requests",
+                "{{requestId}}",
+                "skill-requirements"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Replace Skill Requirements. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the requestId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skillRequirements\": [\n    {\n      \"skillName\": \"NestJS\",\n      \"requiredLevel\": \"intermediate\",\n      \"kind\": \"required\"\n    },\n    {\n      \"skillName\": \"PostgreSQL\",\n      \"requiredLevel\": \"beginner\",\n      \"kind\": \"preferred\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [

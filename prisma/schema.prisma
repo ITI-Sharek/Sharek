@@ -96,6 +96,22 @@ enum ContributionRequestRequirementKind {
   preferred
 }
 
+/// Where a required skill level came from. An `owner_override` row always wins
+/// over re-inference: a human who has corrected the bar must not have their
+/// correction overwritten by the next model run (ADR 0015).
+enum ContributionRequestSkillRequirementSource {
+  ai_inferred
+  owner_override
+}
+
+/// Categorical by design. A percentage invites the reader to treat an inferred
+/// level as a measurement, and it is not one.
+enum ContributionRequestSkillRequirementConfidence {
+  high
+  medium
+  low
+}
+
 enum ContributionRequestAuditAction {
   created
   updated
@@ -748,6 +764,7 @@ model ContributionRequest {
   originProposal        ContributionProposal?            @relation("ProposalOriginatedRequest", fields: [origin_proposal_id], references: [id], onDelete: SetNull)
   attributedContributor User?                            @relation("ContributionRequestAttributedContributor", fields: [attributed_contributor_id], references: [id], onDelete: SetNull)
   requirements          ContributionRequestRequirement[]
+  skillRequirements     ContributionRequestSkillRequirement[]
   auditEvents           ContributionRequestAudit[]
   applications          Application[]
   aiMatchResults        AiMatchResult[]
@@ -775,6 +792,43 @@ model ContributionRequestRequirement {
   contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
 
   @@unique([contribution_request_id, kind, position])
+  @@index([contribution_request_id, kind])
+}
+
+/// The level bar a Contribution Request sets, one row per named skill.
+///
+/// `ContributionRequestRequirement` above is owner-authored prose — what the
+/// work involves. This is the machine-comparable half: a skill name and the
+/// proficiency it demands, which is the only thing an Eligibility Evaluation
+/// can compare a contributor's approved skills against (DEC-078, ADR 0015).
+///
+/// `required_level` deliberately reuses `SkillProfileProficiencyLevel` rather
+/// than declaring a parallel enum: the two sides of the comparison must share
+/// one vocabulary, and a separate enum would let them drift apart silently.
+///
+/// Rows are editable only while the owning Request is a draft. They freeze at
+/// publication and are copied into `ApplicationRequirementSnapshot`, so editing
+/// a later draft can never change why an earlier contributor was blocked.
+model ContributionRequestSkillRequirement {
+  id                      String                                         @id @default(uuid()) @db.Uuid
+  contribution_request_id String                                         @db.Uuid
+  skill_name              String                                         @db.VarChar(100)
+  /// Identity form from `shared/skills/skill-name.ts`. The unique index below
+  /// is built on it, so `Node.js` and `nodejs` cannot both attach to one Request.
+  skill_name_normalized   String                                         @db.VarChar(100)
+  required_level          SkillProfileProficiencyLevel
+  kind                    ContributionRequestRequirementKind
+  source                  ContributionRequestSkillRequirementSource
+  /// Categorical, never a percentage, and never exposed publicly. Null on
+  /// owner overrides — a human who states the bar is not expressing confidence.
+  confidence              ContributionRequestSkillRequirementConfidence?
+  position                Int
+  created_at              DateTime                                       @default(now())
+  updated_at              DateTime                                       @default(now()) @updatedAt
+
+  contributionRequest ContributionRequest @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
+
+  @@unique([contribution_request_id, skill_name_normalized])
   @@index([contribution_request_id, kind])
 }
 
@@ -844,6 +898,12 @@ model ApplicationRequirementSnapshot {
   contribution_request_id   String   @db.Uuid
   source_request_updated_at DateTime
   requirements              Json
+  /// The frozen level bar this Application was judged against (DEC-078).
+  /// A separate column rather than a key inside `requirements`, because the
+  /// two have different readers: Advisory Fit consumes the prose requirements,
+  /// the Eligibility Evaluation consumes these. Defaults to `[]` so every
+  /// Application that predates the gate reads as "no bar", which is what it was.
+  skill_requirements        Json     @default("[]")
   created_at                DateTime @default(now())
 
   application        Application?
