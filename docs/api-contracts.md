@@ -1280,6 +1280,58 @@ Authorized Application projections also include `reviewDueAt`, `expiresAt`,
 nullable `expiredAt`, and `overdue`. `overdue` becomes true at the inclusive
 day-5 boundary only while the Application remains `PENDING_OWNER_REVIEW`.
 
+## Phase 1 subscription status (#108)
+
+```http
+GET /me/subscription
+Authorization: Bearer <owner or contributor access token>
+```
+
+Returns the caller's own resolved plan. The route takes no user parameter, so
+there is no path through it to another user's subscription. An admin receives
+`403 SUBSCRIPTION_ACCOUNT_NOT_ELIGIBLE`: an admin holds no plan in either role
+context.
+
+```json
+{
+  "roleContext": "contributor",
+  "plan": "free",
+  "status": "active",
+  "source": "default",
+  "usage": {
+    "used": 0,
+    "limit": 1,
+    "periodStart": "2026-08-14T00:00:00.000Z",
+    "periodEnd": "2026-08-15T00:00:00.000Z"
+  },
+  "benefits": [
+    { "key": "CONTRIBUTOR_DAILY_APPLICATIONS", "state": "included", "label": "1 Application per day" },
+    { "key": "CONTRIBUTOR_MATCHED_PROJECTS", "state": "unavailable", "label": "Matched projects" }
+  ],
+  "entitlements": [
+    { "key": "PROJECT_MATERIAL_ANALYSIS", "state": "unavailable" }
+  ]
+}
+```
+
+A free user receives a complete payload, never a 404: the absence of a
+subscription is a valid state.
+
+`usage` is the window the `used` count is measured over, not the billing period
+— a UTC calendar day of Applications for a contributor, a UTC calendar month of
+published Contribution Requests for an owner. It is therefore present and
+meaningful for free users, who have an allowance but no billing period.
+
+`benefits` are server-authored, including the label, so the sentence a user
+reads and the limit the backend enforces come from one place. Only the caller's
+own role context is described. **No commission benefit is emitted in Phase 1**:
+there are no paid tasks for a commission to apply to, and advertising a waiver
+the user cannot benefit from would be advertising an unusable benefit.
+
+`entitlements` reports `PROJECT_MATERIAL_ANALYSIS` exactly as the materials
+command enforces it — both read the same resolution — so what a user is shown
+and what they can do cannot drift apart.
+
 ## Sprint 4 Owner Decisions and Assignments (#51)
 
 ```http

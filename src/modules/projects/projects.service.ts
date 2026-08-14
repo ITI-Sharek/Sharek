@@ -98,15 +98,7 @@ export class ProjectsService {
           },
         },
       }),
-      this.database.contributionRequest.count({
-        where: {
-          owner_id: ownerId,
-          published_at: {
-            gte: monthStart,
-            lt: monthEnd,
-          },
-        },
-      }),
+      this.countPublishedInPeriod(ownerId, monthStart, monthEnd),
       this.getContributionRequestPublicationEntitlement(
         ownerId,
         this.database,
@@ -315,6 +307,53 @@ export class ProjectsService {
       planType: entitlements.planType,
       monthlyLimit: entitlements.monthlyContributionRequestLimit,
     };
+  }
+
+  /**
+   * The owner's publication allowance and what they have spent of it this
+   * month, in the shape the subscription status endpoint reports. The window is
+   * the UTC calendar month, matching the limit the entitlement describes.
+   */
+  async getOwnerPublicationUsage(
+    ownerId: string,
+    now = new Date(),
+  ): Promise<{
+    used: number;
+    limit: number;
+    periodStart: Date;
+    periodEnd: Date;
+  }> {
+    const periodStart = this.getCurrentMonthStart(now);
+    const periodEnd = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+    );
+    const [used, entitlement] = await Promise.all([
+      this.countPublishedInPeriod(ownerId, periodStart, periodEnd),
+      this.getContributionRequestPublicationEntitlement(
+        ownerId,
+        this.database,
+        now,
+      ),
+    ]);
+    return {
+      used,
+      limit: entitlement.monthlyLimit,
+      periodStart,
+      periodEnd,
+    };
+  }
+
+  private async countPublishedInPeriod(
+    ownerId: string,
+    periodStart: Date,
+    periodEnd: Date,
+  ): Promise<number> {
+    return this.database.contributionRequest.count({
+      where: {
+        owner_id: ownerId,
+        published_at: { gte: periodStart, lt: periodEnd },
+      },
+    });
   }
 
   async lockContributionRequestProjectAccess(

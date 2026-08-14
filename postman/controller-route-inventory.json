@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 148,
+  "routeCount": 149,
   "routes": [
     {
       "method": "GET",
@@ -3685,6 +3685,34 @@
         "AccessTokenGuard"
       ],
       "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/me/subscription",
+      "normalizedPath": "/me/subscription",
+      "key": "GET /me/subscription",
+      "controller": "SubscriptionsController",
+      "handler": "getCurrentPlan",
+      "source": "src/modules/subscriptions/subscriptions.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200

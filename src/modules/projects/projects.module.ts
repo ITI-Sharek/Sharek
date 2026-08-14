@@ -15,7 +15,7 @@ import { PublicProjectsService } from './services/public-projects.service';
     forwardRef(() => ApplicationsModule),
     GithubModule,
     IdentityModule,
-    SubscriptionsModule,
+    forwardRef(() => SubscriptionsModule),
   ],
   controllers: [ProjectsController, PublicProjectsController],
   providers: [

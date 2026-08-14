@@ -30,7 +30,7 @@ import { ApplicationDailyQuotaService } from './services/application-daily-quota
     IdentityModule,
     NotificationsModule,
     SkillProfilesModule,
-    SubscriptionsModule,
+    forwardRef(() => SubscriptionsModule),
   ],
   controllers: [ApplicationsController],
   providers: [

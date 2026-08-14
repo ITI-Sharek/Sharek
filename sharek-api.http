@@ -1459,3 +1459,18 @@ Content-Type: application/json
   "idempotencyKey": "message-rest-001",
   "body": "Hello from the Assignment conversation."
 }
+
+
+### 52 - Read the authenticated owner's subscription status
+# The route takes no user parameter: it always returns the caller's own plan.
+# `usage` is the window the count is measured over — the calendar month for an
+# owner — not the billing period. A free user gets a complete payload, not a 404.
+GET {{baseUrl}}/me/subscription
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
+
+### 53 - Read the authenticated contributor's subscription status
+# For a contributor `usage` counts Applications submitted today (UTC) against
+# the daily allowance, and `periodEnd` is the instant that allowance refills.
+GET {{baseUrl}}/me/subscription
+Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}

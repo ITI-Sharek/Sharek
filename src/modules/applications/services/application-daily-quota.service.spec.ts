@@ -14,6 +14,7 @@ describe('ApplicationDailyQuotaService', () => {
   };
   const service = new ApplicationDailyQuotaService(
     new EntitlementsService(transaction as never),
+    transaction as never,
   );
 
   function goldSubscription() {
@@ -197,7 +198,6 @@ describe('ApplicationDailyQuotaService', () => {
       await expect(
         service.read({
           contributorId,
-          database: transaction as never,
           now: new Date('2026-08-14T09:30:00.000Z'),
         }),
       ).resolves.toEqual({
@@ -213,7 +213,6 @@ describe('ApplicationDailyQuotaService', () => {
       await expect(
         service.read({
           contributorId,
-          database: transaction as never,
           now: new Date('2026-08-14T09:30:00.000Z'),
         }),
       ).resolves.toMatchObject({ used: 3 });
