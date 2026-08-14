@@ -1,0 +1,28 @@
+{
+  "$comment": [
+    "The AI routes this backend depends on. Asserted by scripts/validate-ai-route-contract.mjs.",
+    "`calledByBackend` must match what src/modules/ai/integrations/*.client.ts actually calls;",
+    "the script fails if the two drift, so this file cannot quietly go stale.",
+    "`routes` is what the AI service serves, used only when the service is unreachable.",
+    "Regenerate from a running service: curl -s $AI_SERVICE_URL/openapi.json | jq -r '.paths | keys[]'"
+  ],
+  "aiServiceRepository": "ITI-Sharek/AI_Agents",
+  "verifiedAgainst": "AI_Agents main @ aaee770 (PR #15)",
+  "calledByBackend": [
+    "/advisory-fit/assess",
+    "/material-analysis/analyze",
+    "/requirements/infer",
+    "/skill-gap-guidance/generate",
+    "/skill-profiles/generate"
+  ],
+  "routes": [
+    "/advisory-fit/assess",
+    "/health",
+    "/material-analysis/analyze",
+    "/requirements/infer",
+    "/skill-gap-guidance/generate",
+    "/skill-gap-guidance/stream",
+    "/skill-profiles/generate",
+    "/skill-profiles/{username}"
+  ]
+}

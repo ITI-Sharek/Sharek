@@ -37,6 +37,9 @@ A backend change is done only when the applicable items below are complete.
 - Relevant tests and the full test suite pass.
 - `npm run build` passes.
 - `npx prisma validate` passes when Prisma is relevant.
+- `npm run test:ai-routes` passes when an `ai` client changes. It fails when the
+  AI service no longer serves a route this backend calls — a mismatch the mocked
+  client suites cannot see, because each repository mocks the other.
 
 ## Documentation And Handoff
 

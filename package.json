@@ -20,6 +20,7 @@
     "test:concurrency:application-quota": "ts-node --project tsconfig.json scripts/test-application-daily-quota-concurrency.ts",
     "test:api-clients": "node scripts/validate-api-clients.mjs",
     "test:postman": "node scripts/validate-postman-coverage.mjs",
+    "test:ai-routes": "node scripts/validate-ai-route-contract.mjs",
     "postman:generate": "node scripts/sync-postman-artifacts.mjs",
     "postman:validate": "node sync_postman.js",
     "postman:upload": "node sync_postman.js --upload",
