@@ -15,6 +15,7 @@ import { GithubModule } from './modules/github/github.module';
 import { HealthModule } from './modules/health/health.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { ReputationModule } from './modules/reputation/reputation.module';
 import { SkillProfilesModule } from './modules/skill-profiles/skill-profiles.module';
@@ -48,6 +49,7 @@ import { RealtimeModule } from './shared/realtime/realtime.module';
     IdentityModule,
     GithubModule,
     NotificationsModule,
+    PaymentsModule,
     SkillProfilesModule,
     SubscriptionsModule,
     ProjectsModule,

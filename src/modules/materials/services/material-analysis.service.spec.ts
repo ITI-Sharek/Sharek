@@ -33,6 +33,8 @@ describe('MaterialAnalysisService', () => {
     materialAnalysisSetVersion: { findMany: jest.fn() },
     materialVersion: { findUnique: jest.fn() },
     materialDraftSuggestion: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    projectOperation: { findUnique: jest.fn() },
+    contributionRequestAudit: { findFirst: jest.fn() },
     subscription: { findFirst: jest.fn() },
     $transaction: jest.fn(),
   };
@@ -416,5 +418,84 @@ describe('MaterialAnalysisService', () => {
     );
     expect(result.suggestion.status).toBe('ACCEPTED');
     expect(result.contributionRequest.id).toBe('88888888-8888-4888-8888-888888888888');
+  });
+
+  it('replays an accepted Project suggestion from the owning service receipt', async () => {
+    const suggestion = {
+      id: '77777777-7777-4777-8777-777777777777',
+      suggestion_type: 'project_update',
+      target_field: 'title',
+      payload: { value: 'A better title' },
+      rationale: 'The brief names the project.',
+      source_versions: [{ materialId, version: 2 }],
+      status: 'accepted',
+      reviewed_by: ownerId,
+      reviewed_at: new Date(),
+      source_removed_at: null,
+      adopted_entity_type: 'project',
+      adopted_entity_id: projectId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      run: { analysisSet: { project_id: projectId } },
+    };
+    database.materialDraftSuggestion.findFirst.mockResolvedValue(suggestion);
+    database.projectOperation.findUnique.mockResolvedValue({ project_id: projectId });
+    publication.updateProject.mockResolvedValue({ id: projectId, revision: 2 });
+
+    const result = await service.adoptProjectSuggestion(actor, suggestion.id, {
+      expectedRevision: 1,
+      idempotencyKey: 'project-adoption-key',
+    });
+
+    expect(publication.updateProject).toHaveBeenCalled();
+    expect(database.materialDraftSuggestion.update).not.toHaveBeenCalled();
+    expect(result.suggestion.status).toBe('ACCEPTED');
+    expect(result.project).toEqual({ id: projectId, revision: 2 });
+  });
+
+  it('replays an accepted Contribution Request suggestion from the owning service receipt', async () => {
+    const requestId = '88888888-8888-4888-8888-888888888888';
+    const suggestion = {
+      id: '77777777-7777-4777-8777-777777777777',
+      suggestion_type: 'contribution_request',
+      target_field: null,
+      payload: {
+        title: 'Add API tests',
+        description: 'Create focused tests for the API boundary.',
+        requirements: [{ kind: 'required', text: 'Write API tests' }],
+        technologyTags: ['TypeScript'],
+        difficulty: 'intermediate',
+      },
+      rationale: 'The brief identifies an API surface without test coverage.',
+      source_versions: [{ materialId, version: 2 }],
+      status: 'accepted',
+      reviewed_by: ownerId,
+      reviewed_at: new Date(),
+      source_removed_at: null,
+      adopted_entity_type: 'contribution_request',
+      adopted_entity_id: requestId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      run: { analysisSet: { project_id: projectId } },
+    };
+    database.materialDraftSuggestion.findFirst.mockResolvedValue(suggestion);
+    database.contributionRequestAudit.findFirst.mockResolvedValue({
+      contribution_request_id: requestId,
+    });
+    contributionTasks.createDraft.mockResolvedValue({ id: requestId });
+
+    const result = await service.adoptContributionRequestSuggestion(
+      actor,
+      suggestion.id,
+      {
+        applicationsCloseTime: '2099-08-09T12:00:00.000Z',
+        idempotencyKey: 'contribution-adoption-key',
+      },
+    );
+
+    expect(contributionTasks.createDraft).toHaveBeenCalled();
+    expect(database.materialDraftSuggestion.update).not.toHaveBeenCalled();
+    expect(result.suggestion.status).toBe('ACCEPTED');
+    expect(result.contributionRequest.id).toBe(requestId);
   });
 });

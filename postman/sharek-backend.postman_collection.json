@@ -3033,6 +3033,54 @@
           ]
         },
         {
+          "name": "Generate",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/contribution-requests/{{requestId}}/matches/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contribution-requests",
+                "{{requestId}}",
+                "matches",
+                "generate"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Generate. Requires an active bearer session with role: owner. Set the requestId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Get Owned Request",
           "request": {
             "method": "GET",
@@ -3227,7 +3275,7 @@
                 "eligibility"
               ]
             },
-            "description": "Preview For Request. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the requestId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+            "description": "Preview For Request. Requires an active bearer session with role: contributor. Set the requestId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
           },
           "event": [
             {
@@ -7388,6 +7436,61 @@
       "name": "Subscriptions",
       "item": [
         {
+          "name": "Create Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{projectCommandIdempotencyKey}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me/subscription/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me",
+                "subscription",
+                "checkout"
+              ]
+            },
+            "description": "Create Checkout. Requires an active bearer session with role: owner or contributor. No route identifier prerequisite. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planType\": \"gold\",\n  \"roleContext\": \"owner\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Get Current Plan",
           "request": {
             "method": "GET",
@@ -7403,6 +7506,82 @@
               ]
             },
             "description": "Get Current Plan. Requires an active bearer session with role: owner or contributor. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Payment Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/me/payments/{{paymentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me",
+                "payments",
+                "{{paymentId}}"
+              ]
+            },
+            "description": "Get Payment Status. Requires an active bearer session with role: owner or contributor. Set the paymentId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/subscriptions/plans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "subscriptions",
+                "plans"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Get Plans. Public; no bearer token is required. No route identifier prerequisite. Expected status: 200. Important errors use the global stable application-error envelope."
           },
           "event": [
             {

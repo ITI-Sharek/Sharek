@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 156,
+  "routeCount": 160,
   "routes": [
     {
       "method": "GET",
@@ -2146,6 +2146,35 @@
       "successStatus": 200
     },
     {
+      "method": "POST",
+      "path": "/contribution-requests/:requestId/matches/generate",
+      "normalizedPath": "/contribution-requests/:parameter/matches/generate",
+      "key": "POST /contribution-requests/:parameter/matches/generate",
+      "controller": "OwnerContributorMatchingController",
+      "handler": "generate",
+      "source": "src/modules/matching/owner-contributor-matching.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
       "method": "GET",
       "path": "/contribution-requests/:requestId/materials",
       "normalizedPath": "/contribution-requests/:parameter/materials",
@@ -3867,6 +3896,36 @@
     },
     {
       "method": "GET",
+      "path": "/me/payments/:paymentId",
+      "normalizedPath": "/me/payments/:parameter",
+      "key": "GET /me/payments/:parameter",
+      "controller": "PaymentsController",
+      "handler": "getPaymentStatus",
+      "source": "src/modules/payments/payments.controller.ts",
+      "pathParameters": [
+        "paymentId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
       "path": "/me/subscription",
       "normalizedPath": "/me/subscription",
       "key": "GET /me/subscription",
@@ -3892,6 +3951,55 @@
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/me/subscription/checkout",
+      "normalizedPath": "/me/subscription/checkout",
+      "key": "POST /me/subscription/checkout",
+      "controller": "PaymentsController",
+      "handler": "createCheckout",
+      "source": "src/modules/payments/payments.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": true
+        }
+      ],
+      "bodyDto": "CreateSubscriptionCheckoutDto",
+      "bodyFields": [
+        {
+          "name": "planType",
+          "optional": false,
+          "type": "SubscriptionPlanType"
+        },
+        {
+          "name": "roleContext",
+          "optional": false,
+          "type": "SubscriptionUserRoleContext"
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
     },
     {
       "method": "GET",
@@ -5061,6 +5169,28 @@
     },
     {
       "method": "GET",
+      "path": "/subscriptions/plans",
+      "normalizedPath": "/subscriptions/plans",
+      "key": "GET /subscriptions/plans",
+      "controller": "SubscriptionCatalogController",
+      "handler": "getPlans",
+      "source": "src/modules/subscriptions/subscription-catalog.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
       "path": "/tasks",
       "normalizedPath": "/tasks",
       "key": "GET /tasks",
@@ -5218,9 +5348,12 @@
       "contentType": null,
       "multipartFields": [],
       "guards": [
-        "AccessTokenGuard"
+        "AccessTokenGuard",
+        "RolesGuard"
       ],
-      "roles": [],
+      "roles": [
+        "contributor"
+      ],
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200

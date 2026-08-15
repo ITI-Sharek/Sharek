@@ -10,12 +10,14 @@ the owner's optional per-Requirement read on the applicants who got through.
 
 ## The comparison
 
-`services/skill-level-comparison.ts` is pure and clock-free, so identical inputs
+`shared/skills/skill-level.ts` owns the shared level order used by both
+eligibility and matching. `services/skill-level-comparison.ts` is pure and
+clock-free, so identical inputs
 always produce an identical verdict — which is what makes a refusal reproducible
 for a dispute months later.
 
-- Ordering is `beginner < intermediate < advanced`, held in one `LEVEL_RANK` map
-  so a new level cannot be added without explicitly deciding where it sits.
+- Ordering is `beginner < intermediate < advanced`, held in one shared map so a
+  new level cannot be added without explicitly deciding where it sits.
 - **Exactly meeting the bar clears it.** Requiring strictly more would make
   every stated level mean one level higher than it says.
 - A required skill the contributor does not hold at all blocks, and is listed
@@ -66,11 +68,13 @@ The block itself surfaces from the submission routes as
 `403 APPLICATION_BLOCKED_SKILL_GAP`, with `metadata.blockingSkills` naming each
 skill, its `requiredLevel`, and the contributor's `contributorLevel` (`null`
 when they hold no approved evidence) — enough to explain the refusal without a
-second call.
+second call. Application refusals also carry
+`metadata.eligibilityEvaluationId`, the authorized handle for requesting
+block-triggered guidance.
 
 ## Persistence
 
-Migration `20260814143000_eligibility_evaluations` creates the append-only
+Migration `20260814120107_eligibility_evaluations` creates the append-only
 table with a **CHECK constraint permitting exactly one target** — a row must
 belong to a Contribution Request or a Contribution Proposal, never both and
 never neither. Prisma cannot express a CHECK, so it lives in the raw migration
@@ -79,3 +83,8 @@ present from the start; the Proposal path is wired in `P0-B04` (#117).
 
 The contributor foreign key is `ON DELETE RESTRICT`: the evaluation is the
 record of why a person was refused and must not vanish to an unrelated cleanup.
+
+P0-B05/#118 consumes a recorded blocked evaluation as the durable trigger for
+contributor-requested skill-gap guidance. An Application refusal returns that
+evaluation's id in the `403` metadata so the frontend can request guidance;
+the read-only preview still creates no row and therefore has no id.

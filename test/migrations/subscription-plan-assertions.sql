@@ -36,6 +36,26 @@ BEGIN
     RAISE EXCEPTION 'gold mapped to %, expected gold', actual;
   END IF;
 
+  -- Payment attempts use the same enum and must keep their historical plan
+  -- meaning while the enum type is replaced.
+  SELECT plan_type::text INTO actual
+    FROM "PaymentAttempt" WHERE id = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1';
+  IF actual <> 'free' THEN
+    RAISE EXCEPTION 'PaymentAttempt bronze mapped to %, expected free', actual;
+  END IF;
+
+  SELECT plan_type::text INTO actual
+    FROM "PaymentAttempt" WHERE id = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2';
+  IF actual <> 'gold' THEN
+    RAISE EXCEPTION 'PaymentAttempt silver mapped to %, expected gold', actual;
+  END IF;
+
+  SELECT plan_type::text INTO actual
+    FROM "PaymentAttempt" WHERE id = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd3';
+  IF actual <> 'gold' THEN
+    RAISE EXCEPTION 'PaymentAttempt gold mapped to %, expected gold', actual;
+  END IF;
+
   -- Every pre-existing row is `default`: none of them came from a provider.
   SELECT string_agg(DISTINCT source::text, ',') INTO actual FROM "Subscription";
   IF actual <> 'default' THEN

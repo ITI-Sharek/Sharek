@@ -7,6 +7,28 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(4000),
   DATABASE_URL: Joi.string().required(),
   REDIS_URL: Joi.string().required(),
+  PAYMENTS_PAYMOB_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
+  PAYMOB_API_BASE_URL: Joi.string()
+    .uri()
+    .default('https://accept.paymob.com')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string().uri({ scheme: ['https'] }),
+    }),
+  PAYMOB_INTENTION_PATH: Joi.string()
+    .pattern(/^\/[a-zA-Z0-9/_-]+$/)
+    .default('/v1/intention/'),
+  PAYMOB_SECRET_KEY: Joi.string().trim().allow('').default(''),
+  PAYMOB_HMAC_SECRET: Joi.string().trim().allow('').default(''),
+  PAYMOB_INTEGRATION_IDS: Joi.string().allow('').default(''),
+  PAYMOB_REQUEST_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(30_000)
+    .default(10_000),
   REALTIME_NOTIFICATIONS_ENABLED: Joi.boolean()
     .truthy('true')
     .falsy('false')
@@ -234,6 +256,13 @@ export const envValidationSchema = Joi.object({
     .pattern(/^\/[a-zA-Z0-9/_-]+$/)
     .default('/matching/rank'),
   AI_MATCHING_RANK_TIMEOUT_MS: Joi.number().integer().min(1000).default(30000),
+  AI_CONTRIBUTOR_MATCHING_PATH: Joi.string()
+    .pattern(/^\/[a-zA-Z0-9/_-]+$/)
+    .default('/contributor-matching/generate'),
+  AI_CONTRIBUTOR_MATCHING_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(75000),
   /**
    * Off by default. The deterministic shortlist is a complete answer, so the
    * ranker is an improvement to switch on once the agent is deployed and
@@ -262,6 +291,33 @@ export const envValidationSchema = Joi.object({
     }),
   AI_LOW_CONFIDENCE_THRESHOLD: Joi.number().min(0).max(1).default(0.7),
 }).custom((value, helpers) => {
+  if (value.PAYMENTS_PAYMOB_ENABLED) {
+    if (!value.PAYMOB_SECRET_KEY || !value.PAYMOB_HMAC_SECRET) {
+      return helpers.error('any.invalid', {
+        message:
+          'PAYMOB_SECRET_KEY and PAYMOB_HMAC_SECRET are required when Paymob is enabled',
+      });
+    }
+
+    const integrationIds = String(value.PAYMOB_INTEGRATION_IDS ?? '')
+      .split(',')
+      .map((id) => id.trim());
+    const hasInvalidIntegrationId = integrationIds.some((id) => {
+      const parsed = Number(id);
+      return (
+        !/^\d+$/.test(id) ||
+        !Number.isSafeInteger(parsed) ||
+        parsed <= 0
+      );
+    });
+    if (hasInvalidIntegrationId) {
+      return helpers.error('any.invalid', {
+        message:
+          'PAYMOB_INTEGRATION_IDS must be a non-empty comma-separated list of positive safe integers when Paymob is enabled',
+      });
+    }
+  }
+
   if (
     value.GITHUB_API_REQUEST_TIMEOUT_MS > value.GITHUB_API_OVERALL_TIMEOUT_MS
   ) {

@@ -1,8 +1,8 @@
 # Applications Module
 
-Owns contributor Applications and their owner-review state transitions. Every
-otherwise-valid Application enters `pending_owner_review`; AI eligibility is not
-an Application gate.
+Owns contributor Applications and their owner-review state transitions. The
+DEC-078 Eligibility Evaluation runs before an Application exists; every
+otherwise-valid submission that clears it enters `pending_owner_review`.
 
 ## Implemented: legacy state migration (#47)
 
@@ -36,9 +36,14 @@ inform an owner but cannot write Application state.
 
 Active contributors submit through `POST /tasks/:requestId/applications` with a
 Contribution Approach, Proposed Delivery Duration, and UUID idempotency key.
-Every valid Application enters `pending_owner_review` immediately. Submission
-does not call AI. It does spend one of the contributor's daily Applications —
-see the daily allowance section below.
+The service recomputes the DEC-078 gate inside the submission transaction; a
+blocked request returns `403 APPLICATION_BLOCKED_SKILL_GAP` before creating an
+Application. Its metadata includes the recorded `eligibilityEvaluationId` so
+the contributor can request block-triggered guidance. Every gate-passing
+Application enters `pending_owner_review`
+immediately. Submission does not call the inference provider. It spends one of
+the contributor's daily Applications only after the gate passes — see the daily
+allowance section below.
 
 The service fixes ordered Requirement and approved, audience-bounded Evidence
 Snapshots plus contributor profile context in the submission transaction.
@@ -100,9 +105,10 @@ so the UI can state it rather than approximate it. The boundary is UTC, not the
 contributor's local midnight: one global boundary is the only version of the
 rule that stays true when a contributor travels or changes their device clock.
 
-If the Phase 0 eligibility gate ships, it must be checked **before** this
-reservation, so a contributor never burns a daily Application on a task the gate
-would have blocked.
+The Phase 0 eligibility gate is checked **before** this reservation, so a
+contributor never burns a daily Application on a task the gate blocks. A blocked
+submission creates no Application, snapshot, or Application audit row and
+records one append-only Eligibility Evaluation instead.
 
 ## Implemented: Owner Decisions and Assignments (#51)
 

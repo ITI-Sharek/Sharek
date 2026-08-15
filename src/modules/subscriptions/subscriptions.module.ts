@@ -4,6 +4,7 @@ import { ApplicationsModule } from '../applications/applications.module';
 import { ProjectsModule } from '../projects/projects.module';
 import { EntitlementsService } from './entitlements.service';
 import { SubscriptionStatusService } from './subscription-status.service';
+import { SubscriptionCatalogController } from './subscription-catalog.controller';
 import { SubscriptionsController } from './subscriptions.controller';
 
 /**
@@ -14,7 +15,7 @@ import { SubscriptionsController } from './subscriptions.controller';
  */
 @Module({
   imports: [forwardRef(() => ProjectsModule), forwardRef(() => ApplicationsModule)],
-  controllers: [SubscriptionsController],
+  controllers: [SubscriptionsController, SubscriptionCatalogController],
   providers: [EntitlementsService, SubscriptionStatusService],
   exports: [EntitlementsService],
 })

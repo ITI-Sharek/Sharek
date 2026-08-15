@@ -17,7 +17,7 @@ project visibility.
   `pendingApplicationsCount` includes only `pending_owner_review` Applications;
   legacy AI eligibility states are not treated as an owner queue. Quota usage
   counts Request publications by `published_at` in the current UTC month and
-  reports the same Bronze 10 / Silver 20 / Gold 30 entitlement used at
+  reports the same Free 5 / Gold 30 entitlement used at
   publication.
 - `GET|PATCH /projects/me/:projectId`: persisted-owner detail and editable
   presentation fields. Unknown and non-owned IDs share `PROJECT_NOT_FOUND`.

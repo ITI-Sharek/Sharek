@@ -29,6 +29,7 @@ describe('RecommendedTasksService', () => {
       title: 'Build the ingestion worker',
       technologyTags: ['NestJS'],
       requirementTexts: ['Write tested services.'],
+      skillRequirements: [],
       difficulty: 'intermediate',
       applicationsCloseAt: new Date('2026-09-01T00:00:00.000Z'),
       targetCompletionDate: new Date('2026-09-15T00:00:00.000Z'),
@@ -228,6 +229,84 @@ describe('RecommendedTasksService', () => {
         '33333333-3333-4333-8333-333333333331',
       ]);
       expect(response.recommendations.map((entry) => entry.rank)).toEqual([1, 2]);
+    });
+
+    it('returns and persists the explanation supplied for a safe reordering', async () => {
+      const first = match({
+        request: request({ id: '33333333-3333-4333-8333-333333333331' }),
+      });
+      const second = match({
+        request: request({ id: '33333333-3333-4333-8333-333333333332' }),
+      });
+      matching.shortlistForContributor.mockResolvedValue(
+        goldShortlist([first, second]),
+      );
+      const ranker = {
+        rerank: jest.fn().mockResolvedValue([
+          { ...second, rankerJustification: 'Your NestJS evidence fits this request.' },
+          { ...first, rankerJustification: 'Your delivery experience fits this work.' },
+        ]),
+      };
+
+      const response = await build(ranker).listForContributor(contributor, now);
+
+      expect(response.recommendations.map((entry) => entry.justification)).toEqual([
+        'Your NestJS evidence fits this request.',
+        'Your delivery experience fits this work.',
+      ]);
+      expect(database.aiMatchResult.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            contribution_request_id: second.request.id,
+            justification: 'Your NestJS evidence fits this request.',
+          }),
+        ]),
+      });
+    });
+
+    it('ignores ranker edits to server-authored match facts', async () => {
+      const first = match({
+        request: request({ id: '33333333-3333-4333-8333-333333333331' }),
+      });
+      const second = match({
+        request: request({ id: '33333333-3333-4333-8333-333333333332' }),
+      });
+      matching.shortlistForContributor.mockResolvedValue(
+        goldShortlist([first, second]),
+      );
+      const ranker = {
+        rerank: jest.fn().mockResolvedValue([
+          {
+            ...second,
+            matchedSkills: [],
+            confidence: 'LOW',
+            request: { ...second.request, title: 'tampered' },
+          },
+          {
+            ...first,
+            matchedSkills: [],
+            confidence: 'LOW',
+            request: { ...first.request, title: 'tampered' },
+          },
+        ]),
+      };
+
+      const response = await build(ranker).listForContributor(contributor, now);
+
+      expect(response.recommendations).toEqual([
+        expect.objectContaining({
+          requestId: second.request.id,
+          title: second.request.title,
+          confidence: second.confidence,
+          matchedSkills: second.matchedSkills,
+        }),
+        expect.objectContaining({
+          requestId: first.request.id,
+          title: first.request.title,
+          confidence: first.confidence,
+          matchedSkills: first.matchedSkills,
+        }),
+      ]);
     });
 
     it('refuses a ranker that adds a Request the exclusions rejected', async () => {

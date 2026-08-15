@@ -8,11 +8,11 @@ import { ShortlistedMatch } from './matching.service';
  * functional without one: nothing here waits for it, and a shortlist is a
  * finished answer before it is ever consulted.
  *
- * The contract is deliberately narrow. A ranker may **reorder** matches; it may
- * not add, remove, or edit them. So a ranker cannot surface a Request the
- * deterministic exclusions rejected, cannot invent a justification, and cannot
- * raise a contributor above their entitlement cap — the worst a broken or
- * hostile ranker can do is return a worse order, and
+ * The contract is deliberately narrow. A ranker may **reorder** matches and
+ * attach one bounded explanation; it may not add, remove, or edit any
+ * server-authored match fact. So it cannot surface a Request the deterministic
+ * exclusions rejected or raise a contributor above their entitlement cap —
+ * the worst a broken or hostile ranker can do is return a worse order, and
  * {@link MatchRanker.rerank} failing at all leaves the deterministic order in
  * place rather than failing the request.
  */

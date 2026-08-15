@@ -12,6 +12,7 @@
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:migrations": "node scripts/test-application-status-migration.mjs",
+    "test:migrations:payments": "node scripts/test-payment-persistence-migration.mjs",
     "test:migrations:notifications": "node scripts/test-notification-semantic-migration.mjs",
     "test:migrations:subscriptions": "node scripts/test-subscription-plan-migration.mjs",
     "test:migrations:matching": "node scripts/test-ai-match-result-migration.mjs",
@@ -36,7 +37,8 @@
     "check:architecture": "node scripts/check-architecture.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "node scripts/run-with-service-urls.mjs prisma migrate dev",
-    "prisma:studio": "node scripts/run-with-service-urls.mjs prisma studio"
+    "prisma:studio": "node scripts/run-with-service-urls.mjs prisma studio",
+    "seed": "prisma db seed"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.27",

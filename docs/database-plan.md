@@ -48,6 +48,7 @@ skill-guidance        eligibility_guidance
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications, notification_events, notification_preferences, notification_category_preferences
 projects              projects, project_operations, project_state_transitions, project_technologies, project_tags
+payments              payment_attempts, payment_webhook_events, persisted hosted checkout handoff
 contribution-tasks    contribution_requests, contribution_request_requirements, contribution_request_skill_requirements, contribution_request_audits
 eligibility           eligibility_evaluations
 applications          applications, application_requirement_snapshots, application_evidence_snapshots, application_audits
@@ -354,7 +355,7 @@ and that a snapshot survives its source rows being deleted and replaced.
 
 ### Inference status
 
-Migration `20260814132500_contribution_request_skill_inference_status` adds
+Migration `20260814113531_contribution_request_skill_inference_status` adds
 `ContributionRequest.skill_inference_status` (`not_started | pending |
 succeeded | failed`) and `skill_inference_ran_at`.
 
@@ -371,7 +372,7 @@ set by hand stays in that state and publishes normally.
 ## Eligibility evaluations
 
 `EligibilityEvaluation` is owned by the `eligibility` module. Migration
-`20260814143000_eligibility_evaluations` creates it append-only, with a **CHECK
+`20260814120107_eligibility_evaluations` creates it append-only, with a **CHECK
 permitting exactly one target**:
 
 ```sql

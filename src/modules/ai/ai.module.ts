@@ -7,6 +7,7 @@ import { MatchingRankClient } from './integrations/matching-rank.client';
 import { MaterialAnalysisClient } from './integrations/material-analysis.client';
 import { RequirementInferenceClient } from './integrations/requirement-inference.client';
 import { SkillGapGuidanceClient } from './integrations/skill-gap-guidance.client';
+import { ContributorMatchingClient } from './integrations/contributor-matching.client';
 
 @Module({
   providers: [
@@ -17,6 +18,7 @@ import { SkillGapGuidanceClient } from './integrations/skill-gap-guidance.client
     SkillGapGuidanceClient,
     RequirementInferenceClient,
     MatchingRankClient,
+    ContributorMatchingClient,
   ],
   exports: [AiService],
 })

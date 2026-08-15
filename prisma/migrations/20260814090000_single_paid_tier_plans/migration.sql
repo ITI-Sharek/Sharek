@@ -22,5 +22,15 @@ ALTER TABLE "Subscription"
     END
   )::"SubscriptionPlanType_new";
 
+ALTER TABLE "PaymentAttempt"
+  ALTER COLUMN "plan_type" TYPE "SubscriptionPlanType_new"
+  USING (
+    CASE "plan_type"::text
+      WHEN 'bronze' THEN 'free'
+      WHEN 'silver' THEN 'gold'
+      WHEN 'gold'   THEN 'gold'
+    END
+  )::"SubscriptionPlanType_new";
+
 DROP TYPE "SubscriptionPlanType";
 ALTER TYPE "SubscriptionPlanType_new" RENAME TO "SubscriptionPlanType";

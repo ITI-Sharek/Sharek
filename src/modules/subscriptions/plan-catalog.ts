@@ -13,6 +13,8 @@ export interface OwnerPlanPolicy {
   readonly monthlyContributionRequestLimit: number;
   /** Top placement for the owner's requests on the orders page. */
   readonly priorityPlacement: boolean;
+  /** Contributors an owner may receive from one explicit matching request. */
+  readonly contributorMatchLimit: number;
   /**
    * Phase 2 concern. Modelled here so Phase 2 has one place to read it from;
    * no Phase 1 surface may present it, because there are no paid tasks for a
@@ -39,11 +41,13 @@ export const OWNER_PLAN_CATALOG: Record<SubscriptionPlanType, OwnerPlanPolicy> =
     free: {
       monthlyContributionRequestLimit: 5,
       priorityPlacement: false,
+      contributorMatchLimit: 0,
       commissionRate: STANDARD_COMMISSION_RATE,
     },
     gold: {
       monthlyContributionRequestLimit: 30,
       priorityPlacement: true,
+      contributorMatchLimit: 10,
       commissionRate: WAIVED_COMMISSION_RATE,
     },
   };

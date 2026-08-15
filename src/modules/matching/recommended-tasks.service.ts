@@ -25,8 +25,8 @@ export class RecommendedTasksService {
   constructor(
     private readonly matching: MatchingService,
     private readonly database: DatabaseService,
-    // Absent in this repository: the AI ranker lives in AI_Agents. Its absence
-    // is a supported state, not a degraded one.
+    // Optional at this seam: the bound adapter is feature-flagged and every
+    // unavailable/invalid response falls back to the deterministic shortlist.
     @Optional() private readonly ranker?: MatchRanker,
   ) {}
 
@@ -78,13 +78,14 @@ export class RecommendedTasksService {
     if (!this.ranker) return matches;
     try {
       const reranked = await this.ranker.rerank({ contributorId, matches });
-      if (!isPermutationOf(matches, reranked)) {
+      const reordered = reorderOnly(matches, reranked);
+      if (!reordered) {
         this.logger.warn(
           'Match ranker returned a set that was not a permutation of the shortlist; keeping the deterministic order',
         );
         return matches;
       }
-      return reranked;
+      return reordered;
     } catch (error) {
       this.logger.warn(
         `Match ranker failed, keeping the deterministic order: ${
@@ -170,6 +171,7 @@ function toRecommendedTask(
  * and never a number.
  */
 function justificationFor(match: ShortlistedMatch): string {
+  if (match.rankerJustification) return match.rankerJustification;
   const matched = match.matchedSkills.map((skill) => skill.name);
   const sentence =
     matched.length === 1
@@ -198,20 +200,45 @@ function coverageFor(confidence: 'HIGH' | 'MEDIUM' | 'LOW'): number {
   return 0;
 }
 
-function isPermutationOf(
+function reorderOnly(
   original: ShortlistedMatch[],
   candidate: unknown,
-): candidate is ShortlistedMatch[] {
+): ShortlistedMatch[] | null {
   if (!Array.isArray(candidate) || candidate.length !== original.length) {
-    return false;
+    return null;
   }
-  const originalIds = new Set(original.map((match) => match.request.id));
-  const candidateIds = new Set(
-    candidate.map((match: ShortlistedMatch) => match?.request?.id),
+  const originalById = new Map(
+    original.map((match) => [match.request.id, match]),
   );
-  if (candidateIds.size !== originalIds.size) return false;
-  for (const id of candidateIds) {
-    if (!originalIds.has(id)) return false;
+  const reordered: ShortlistedMatch[] = [];
+  const seen = new Set<string>();
+  for (const item of candidate) {
+    const id = (item as { request?: { id?: unknown } } | null)?.request?.id;
+    if (typeof id !== 'string' || seen.has(id)) return null;
+    const match = originalById.get(id);
+    if (!match) return null;
+    seen.add(id);
+    // Keep every server-authored fact from the deterministic object. The only
+    // ranker-authored value allowed through this seam is its bounded,
+    // non-numeric explanation.
+    const justification = (
+      item as { rankerJustification?: unknown }
+    ).rankerJustification;
+    reordered.push({
+      ...match,
+      ...(isSafeRankerJustification(justification)
+        ? { rankerJustification: justification }
+        : {}),
+    });
   }
-  return true;
+  return reordered.length === original.length ? reordered : null;
+}
+
+function isSafeRankerJustification(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= 300 &&
+    !value.includes('%')
+  );
 }

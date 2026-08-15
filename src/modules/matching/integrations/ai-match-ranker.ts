@@ -75,9 +75,16 @@ export class AiMatchRanker extends MatchRanker {
         contractVersion: 'matching-rank-v1',
       });
 
-      const reordered = result.matches
-        .map((ranked) => byRequestId.get(ranked.requestId))
-        .filter((match): match is ShortlistedMatch => match !== undefined);
+      const reordered: ShortlistedMatch[] = [];
+      for (const ranked of result.matches) {
+        const match = byRequestId.get(ranked.requestId);
+        if (match) {
+          reordered.push({
+            ...match,
+            rankerJustification: ranked.whyThisMatches,
+          });
+        }
+      }
 
       // Belt and braces: the client already refused a non-permutation, and the
       // caller refuses one again. If either check were ever relaxed, this stops

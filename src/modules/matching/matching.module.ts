@@ -11,6 +11,8 @@ import { AiMatchRanker } from './integrations/ai-match-ranker';
 import { MatchingService } from './matching.service';
 import { RecommendationsController } from './recommendations.controller';
 import { RecommendedTasksService } from './recommended-tasks.service';
+import { OwnerContributorMatchingController } from './owner-contributor-matching.controller';
+import { OwnerContributorMatchingService } from './owner-contributor-matching.service';
 
 /**
  * Matching owns `AiMatchResult` and nothing else. Every fact it ranks on is read
@@ -30,10 +32,11 @@ import { RecommendedTasksService } from './recommended-tasks.service';
     ReputationModule,
     AiModule,
   ],
-  controllers: [RecommendationsController],
+  controllers: [RecommendationsController, OwnerContributorMatchingController],
   providers: [
     MatchingService,
     RecommendedTasksService,
+    OwnerContributorMatchingService,
     // Binds the port. Off unless MATCH_RANKER_ENABLED; every failure mode
     // falls back to the deterministic order.
     { provide: MatchRanker, useClass: AiMatchRanker },
