@@ -137,23 +137,31 @@ export class ProposalEligibilityService {
     await this.eligibility.recordProposalEvaluation(input);
   }
 
-  /** Record a refusal after the transaction carrying it has rolled back. */
+  /**
+   * Record a refusal after the transaction carrying it has rolled back, and
+   * return the evaluation id so the caller can hand it to the client for
+   * guidance.
+   */
   async recordBlocked(input: {
     contributorId: string;
     contributionProposalId: string;
     blockingSkills: BlockingSkillDto[];
-  }): Promise<void> {
-    await this.eligibility.recordBlocked(input);
+  }): Promise<string> {
+    return this.eligibility.recordBlocked(input);
   }
 
   /**
    * The same payload shape the Application block returns — one shape, two
    * triggers. A contributor who hits both should not have to learn two formats.
    */
-  blockedError(blockingSkills: BlockingSkillDto[]): ApplicationError {
+  blockedError(
+    blockingSkills: BlockingSkillDto[],
+    eligibilityEvaluationId?: string,
+  ): ApplicationError {
     return this.eligibility.blockedError(
       'PROPOSAL_BLOCKED_SKILL_GAP',
       blockingSkills,
+      eligibilityEvaluationId,
     );
   }
 

@@ -342,12 +342,16 @@ export class ContributionProposalsService {
         // refusal has something to attach to and is recorded durably — on a
         // fresh connection, because the transaction that carried the verdict
         // has just rolled back.
-        await this.proposalEligibility.recordBlocked({
-          contributorId: input.actor.id,
-          contributionProposalId: input.proposalId,
-          blockingSkills: error.blockingSkills,
-        });
-        throw this.proposalEligibility.blockedError(error.blockingSkills);
+        const eligibilityEvaluationId =
+          await this.proposalEligibility.recordBlocked({
+            contributorId: input.actor.id,
+            contributionProposalId: input.proposalId,
+            blockingSkills: error.blockingSkills,
+          });
+        throw this.proposalEligibility.blockedError(
+          error.blockingSkills,
+          eligibilityEvaluationId,
+        );
       }
       const lostRace = await this.recoverFromIdempotencyRace({
         error,
