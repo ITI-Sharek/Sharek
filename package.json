@@ -26,6 +26,8 @@
     "postman:validate": "node sync_postman.js",
     "postman:upload": "node sync_postman.js --upload",
     "test:realtime:profile": "node scripts/profile-realtime.mjs",
+    "test:release-gate:p0": "node scripts/verify-phase-0-release-gate.mjs",
+    "test:release-gate:p0:cross-repo": "node scripts/verify-phase-0-release-gate.mjs --cross-repo",
     "test:release-gate:s4-core": "node scripts/verify-sprint4-core-release-gate.mjs",
     "test:release-gate:s4-core:cross-repo": "node scripts/verify-sprint4-core-release-gate.mjs --cross-repo",
     "test:release-gate:s4-materials": "node scripts/run-sprint4-materials-runtime-demo.mjs",

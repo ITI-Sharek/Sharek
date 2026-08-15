@@ -3314,3 +3314,34 @@ This keeps the system strong without making it heavy:
   `gold-contributor@sharek.local` accounts with idempotent open-ended demo Gold
   subscriptions. The login screen exposes both as development-only quick-login
   buttons alongside the existing Free contributor, Free owner, and admin.
+### 2026-08-15 - P0-Q01 Phase 0 release gate
+
+- `pnpm run test:release-gate:p0` runs 15 named suites (273 assertions);
+  `:cross-repo` adds 3 Frontend suites and the AI inference contract, so the
+  three repositories are proven against each other rather than each against its
+  own mocks. Evidence: `docs/release-gates/phase-0-release-gate.md`.
+- **The independence gate is the point of this issue**, and every line of it is
+  an executed assertion rather than a claim: the block and the recovery both
+  complete with `subscription.findFirst` returning null throughout; a guidance
+  request performs zero subscription lookups (DEC-076); and the Request under
+  test carries no reward at all.
+- Two static checks in the script complement the behavioural ones, because
+  behaviour only proves what today's code path does. The first reads eight
+  Phase 0 source files for `gold`/`upgrade`/`paymob`/`checkout`/`commission`/
+  `payout`/`escrow` — **comments included**, since a `TODO: gate this behind
+  Gold` is still a surface that mentions a tier and is how the next person
+  learns one is expected. The second walks the import graph: a Phase 0 file that
+  imports `modules/subscriptions` has taken the dependency whether or not the
+  current path executes it.
+- Verified by mutation rather than assumed: adding exactly that TODO comment to
+  `eligibility.controller.ts` fails the gate and names the offending file.
+- **Fixed a gap this issue surfaced.** `ApplicationsService.submit` discarded
+  the evaluation id `recordBlocked` returns, so the `403` named the gap but a
+  client could never ask for guidance about it — half of `P0-B05` was
+  unreachable from the UI. The id now travels in
+  `metadata.eligibilityEvaluationId`, and the blocked-Proposal-version path
+  carries it too. A blocked Proposal *create* still has none, because no
+  Proposal exists to anchor it.
+- The gate is a contract gate, not a browser walkthrough: mocked database,
+  controlled clock fixed at `2026-08-14T12:00:00.000Z`, stubbed providers, and
+  no paid model call. A live provider is never release authority.
