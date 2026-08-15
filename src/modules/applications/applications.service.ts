@@ -290,14 +290,19 @@ export class ApplicationsService {
         // The refusal is recorded now, on a fresh connection, because it is the
         // artefact a dispute is argued from and the handle skill-gap guidance
         // will hang on.
-        await this.eligibility.recordBlocked({
+        const eligibilityEvaluationId = await this.eligibility.recordBlocked({
           contributorId: input.actor.id,
           contributionRequestId: input.contributionRequestId,
           blockingSkills: error.blockingSkills,
         });
+        // Returned to the caller, because guidance is scoped to the recorded
+        // evaluation and this refusal is the only place its id exists. Without
+        // it the UI can name the gap but never ask for the narrative, which is
+        // the whole second half of P0-B05.
         throw this.eligibility.blockedError(
           'APPLICATION_BLOCKED_SKILL_GAP',
           error.blockingSkills,
+          eligibilityEvaluationId,
         );
       }
       if (

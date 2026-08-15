@@ -207,6 +207,13 @@ export class EligibilityService {
   blockedError(
     code: 'APPLICATION_BLOCKED_SKILL_GAP' | 'PROPOSAL_BLOCKED_SKILL_GAP',
     blockingSkills: BlockingSkillDto[],
+    /**
+     * The recorded evaluation, when the caller has one. Guidance is scoped to
+     * it, so without it a client can name the gap but never ask for the
+     * narrative. Absent on a blocked Proposal *create*, where the CHECK permits
+     * no evaluation because the Proposal was never written.
+     */
+    eligibilityEvaluationId?: string,
   ): ForbiddenApplicationError {
     const error = new ForbiddenApplicationError(
       'Your approved skills do not yet meet the level this work requires',
@@ -216,6 +223,7 @@ export class EligibilityService {
     // each skill, the level demanded, and the level held (null when none).
     (error as { metadata?: Record<string, unknown> }).metadata = {
       blockingSkills,
+      ...(eligibilityEvaluationId ? { eligibilityEvaluationId } : {}),
     };
     return error;
   }
