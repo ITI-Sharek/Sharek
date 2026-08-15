@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 159,
+  "routeCount": 160,
   "routes": [
     {
       "method": "GET",
@@ -2144,6 +2144,35 @@
       "authentication": "bearer",
       "idempotency": true,
       "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/contribution-requests/:requestId/matches/generate",
+      "normalizedPath": "/contribution-requests/:parameter/matches/generate",
+      "key": "POST /contribution-requests/:parameter/matches/generate",
+      "controller": "OwnerContributorMatchingController",
+      "handler": "generate",
+      "source": "src/modules/matching/owner-contributor-matching.controller.ts",
+      "pathParameters": [
+        "requestId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
     },
     {
       "method": "GET",

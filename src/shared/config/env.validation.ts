@@ -256,6 +256,13 @@ export const envValidationSchema = Joi.object({
     .pattern(/^\/[a-zA-Z0-9/_-]+$/)
     .default('/matching/rank'),
   AI_MATCHING_RANK_TIMEOUT_MS: Joi.number().integer().min(1000).default(30000),
+  AI_CONTRIBUTOR_MATCHING_PATH: Joi.string()
+    .pattern(/^\/[a-zA-Z0-9/_-]+$/)
+    .default('/contributor-matching/generate'),
+  AI_CONTRIBUTOR_MATCHING_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .default(75000),
   /**
    * Off by default. The deterministic shortlist is a complete answer, so the
    * ranker is an improvement to switch on once the agent is deployed and

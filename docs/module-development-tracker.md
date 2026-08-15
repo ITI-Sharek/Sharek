@@ -2935,9 +2935,9 @@ This keeps the system strong without making it heavy:
   then owner reputation, then recency, then `id`. The `id` key is what makes the
   order total: without it the same contributor refreshing sees a different list.
 - No AI, no HTTP route, no notifications in this change.
-- **Owner-side matching is not present and must not be added.** No method takes
-  a Request and returns contributors; a test walks the service prototype to
-  assert that structurally rather than by convention.
+- At completion of P1-B04, owner-side matching was excluded. DEC-080 later
+  restored it through a separate explicit Gold-owner interface; the
+  contributor shortlist in this entry remains unchanged.
 - `skill-fit.ts` holds the one function that decides fit, documented as the
   Phase 0 upgrade point. Today it compares approved skill names against
   technology tags and requirement text; when
@@ -3282,3 +3282,35 @@ This keeps the system strong without making it heavy:
   matches, unreachable service, non-ok response, malformed body, drifted id
   set. Verified live against the running agent for the reachable-but-failing
   and unreachable cases; neither threw.
+
+### 2026-08-15 - Reconcile block guidance and AI ranking explanations
+
+- Application skill-gap refusals now return the durable
+  `eligibilityEvaluationId` created after rollback, allowing the existing
+  P0-B05 frontend panel to request guidance without weakening the read-only
+  pre-flight or creating an Application.
+- The optional match ranker may now carry its already-validated bounded
+  explanation through the backend seam. The backend still owns the shortlist,
+  entitlement cap, request facts, persistence, and fallback; only the order and
+  non-numeric explanation can come from FastAPI.
+- `PaymentsModule` keeps its provider token private and exports only the
+  service that forms the module interface.
+- Verification: focused eligibility/matching tests, architecture, lint,
+  type-check, full backend tests, build, and AI route contract.
+
+### 2026-08-15 - Restore explicit Gold-owner contributor matching
+
+- Added `POST /contribution-requests/:requestId/matches/generate`, gated by the
+  owner role, Request ownership/publication, and the owner plan's
+  `contributorMatchLimit` (Free 0, Gold 10).
+- The backend supplies a bounded set of active contributors with approved
+  skills, verified reputation, and closed evidence IDs to
+  `POST /contributor-matching/generate`. Provider scores are used only for
+  ordering and are stripped from the owner response.
+- Generation is explicit and side-effect free: it does not invite, assign, or
+  notify, and publishing remains notification-free. This preserves the
+  contributor pull-recommendation interface as a separate workflow.
+- The development seed now supplies dedicated `gold-owner@sharek.local` and
+  `gold-contributor@sharek.local` accounts with idempotent open-ended demo Gold
+  subscriptions. The login screen exposes both as development-only quick-login
+  buttons alongside the existing Free contributor, Free owner, and admin.

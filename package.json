@@ -35,7 +35,8 @@
     "check:architecture": "node scripts/check-architecture.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "node scripts/run-with-service-urls.mjs prisma migrate dev",
-    "prisma:studio": "node scripts/run-with-service-urls.mjs prisma studio"
+    "prisma:studio": "node scripts/run-with-service-urls.mjs prisma studio",
+    "seed": "prisma db seed"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.27",

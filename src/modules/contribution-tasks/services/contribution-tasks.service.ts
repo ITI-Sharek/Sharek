@@ -26,6 +26,7 @@ import {
   UpdateContributionRequestDto,
 } from '../dto/contribution-request-input.dto';
 import { ApplicationRequestContextDto } from '../dto/application-request-context.dto';
+import { ContributorMatchingRequestContext } from '../dto/contributor-matching-context.dto';
 import { MatchingCandidateRequestDto } from '../dto/matching-candidate.dto';
 import {
   ContributionRequestDto,
@@ -62,6 +63,42 @@ export class ContributionTasksService {
     @Optional()
     private readonly requirementInference?: RequirementInferenceQueue,
   ) {}
+
+  /**
+   * The owner-authorized Request snapshot consumed by owner contributor
+   * matching. Only published Requests qualify; candidate discovery remains in
+   * the matching module.
+   */
+  async getPublishedMatchingContext(
+    requestId: string,
+  ): Promise<ContributorMatchingRequestContext | null> {
+    const request = await this.database.contributionRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        owner_id: true,
+        title: true,
+        description: true,
+        technology_tags: true,
+        status: true,
+        requirements: {
+          select: { id: true, kind: true, position: true, text: true },
+          orderBy: [{ kind: 'asc' }, { position: 'asc' }],
+        },
+      },
+    });
+    if (!request || request.status !== ContributionRequestStatus.published) {
+      return null;
+    }
+    return {
+      id: request.id,
+      ownerId: request.owner_id,
+      title: request.title,
+      description: request.description,
+      technologyTags: this.normalizeTechnologyTags(request.technology_tags),
+      requirements: request.requirements,
+    };
+  }
 
   /**
    * Ask for a level bar for this draft, after the transaction has committed.

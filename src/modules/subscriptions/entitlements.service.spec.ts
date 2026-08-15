@@ -50,6 +50,7 @@ describe('EntitlementsService', () => {
         periodEnd: null,
         monthlyContributionRequestLimit: 5,
         priorityPlacement: false,
+        contributorMatchLimit: 0,
         commissionRate: 0.2,
       });
     });
@@ -98,6 +99,7 @@ describe('EntitlementsService', () => {
         planType: SubscriptionPlanType.gold,
         monthlyContributionRequestLimit: 30,
         priorityPlacement: true,
+        contributorMatchLimit: 10,
       });
     });
 
@@ -252,6 +254,7 @@ describe('EntitlementsService', () => {
         planType: SubscriptionPlanType.free,
         monthlyContributionRequestLimit: 5,
         priorityPlacement: false,
+        contributorMatchLimit: 0,
       });
     });
   });

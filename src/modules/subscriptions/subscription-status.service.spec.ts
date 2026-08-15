@@ -148,6 +148,11 @@ describe('SubscriptionStatusService', () => {
             state: 'included',
             label: '5 published Contribution Requests per month',
           },
+          {
+            key: 'OWNER_CONTRIBUTOR_MATCHING',
+            state: 'unavailable',
+            label: 'AI contributor matching',
+          },
         ],
         // Material analysis is not subscription-gated by default, so a free
         // owner is entitled to it exactly as before this endpoint existed.
@@ -173,6 +178,12 @@ describe('SubscriptionStatusService', () => {
             key: 'OWNER_MONTHLY_CONTRIBUTION_REQUESTS',
             state: 'included',
             label: '30 published Contribution Requests per month',
+          },
+          {
+            key: 'OWNER_CONTRIBUTOR_MATCHING',
+            state: 'included',
+            label:
+              'AI contributor matching with up to 10 suggestions per Request',
           },
         ],
       });

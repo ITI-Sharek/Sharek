@@ -17,6 +17,6 @@ import { PAYMENT_PROVIDER } from './payments.types';
       useExisting: PaymobClient,
     },
   ],
-  exports: [PAYMENT_PROVIDER, PaymentsService],
+  exports: [PaymentsService],
 })
 export class PaymentsModule {}

@@ -213,6 +213,20 @@ docker compose exec api npx prisma db seed
 docker compose exec api npm run prisma:studio
 ```
 
+The seed enables the frontend's development-only quick sign-in buttons. All
+five accounts use `Admin@1234`:
+
+| Button | Account | Plan |
+|---|---|---|
+| Contributor | `contributor@sharek.local` | Free contributor |
+| Gold contributor | `gold-contributor@sharek.local` | Gold contributor |
+| Project owner | `owner@sharek.local` | Free owner |
+| Gold owner | `gold-owner@sharek.local` | Gold owner |
+| Admin | `admin@sharek.local` | No member subscription |
+
+Re-running the seed is safe and repairs the two demo Gold subscriptions without
+creating duplicate accounts or Subscription rows.
+
 Docker Compose uses `tsconfig.docker.json` and keeps the API container's watch
 output under `.docker-build/dist` in the `api_build` volume. This prevents the
 root-owned watch output inside the container from overwriting the host user's

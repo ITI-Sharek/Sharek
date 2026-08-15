@@ -40,6 +40,8 @@ export interface ShortlistedMatch {
    * ordering but never leaves this module as a number.
    */
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  /** Optional bounded explanation added by the ranker; never a score. */
+  rankerJustification?: string;
 }
 
 export interface MatchShortlist {
@@ -69,10 +71,10 @@ const CANDIDATE_LIMIT = 500;
  * without it two Requests published in the same millisecond with equal coverage
  * would come back in whatever order Postgres felt like.
  *
- * **Owner-side matching does not exist and must not be added.** There is no
- * method here that takes a Request and returns contributors. The owner-facing
- * matching UI was removed on 2026-08-14; matching is pull-only, and publishing
- * a Request notifies nobody.
+ * This class owns the contributor→Request direction only. The separate
+ * `OwnerContributorMatchingService` owns explicit Gold owner Request→contributor
+ * analysis. Keeping the interfaces separate prevents either workflow from
+ * weakening the other's authorization or entitlement rules.
  */
 @Injectable()
 export class MatchingService {

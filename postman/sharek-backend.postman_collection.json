@@ -3033,6 +3033,54 @@
           ]
         },
         {
+          "name": "Generate",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/contribution-requests/{{requestId}}/matches/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contribution-requests",
+                "{{requestId}}",
+                "matches",
+                "generate"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Generate. Requires an active bearer session with role: owner. Set the requestId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Get Owned Request",
           "request": {
             "method": "GET",

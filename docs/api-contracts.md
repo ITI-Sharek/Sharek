@@ -773,7 +773,9 @@ still blocked. An unpublished or unknown Request returns the same
 `POST /tasks/:requestId/applications` may now return:
 
 ```text
-APPLICATION_BLOCKED_SKILL_GAP  403  metadata.blockingSkills as above
+APPLICATION_BLOCKED_SKILL_GAP  403  metadata.blockingSkills as above;
+                                      metadata.eligibilityEvaluationId identifies
+                                      the recorded refusal used for guidance
 ```
 
 The block happens **before an Application row exists**, so no Application status
@@ -1600,9 +1602,9 @@ DEC-010 forbids presenting fit as a number; `rank` is an ordinal position and
 `confidence` is a categorical band. Coverage is computed internally for ordering
 and never leaves the backend as a number.
 
-**Matching is pull-only.** Publishing a Contribution Request emits no
-notification to matching contributors, in either owner tier. Owner-side
-auto-notification is out of scope and must not be built; the
+**Contributor recommendations are pull-only.** Publishing a Contribution
+Request emits no notification to matching contributors, in either owner tier.
+Owner-side auto-notification remains out of scope; the
 `AiMatchResult.notification_sent` column that existed for it was dropped in
 `20260814120000_drop_ai_match_notification_sent`.
 
@@ -1618,6 +1620,42 @@ them. AI ranking is an optional re-order over the deterministic shortlist: if
 no ranker is bound, or it fails, or it returns anything other than a
 permutation of the shortlist, the deterministic order stands and the request
 still succeeds.
+
+## Gold owner contributor matching (DEC-080)
+
+```http
+POST /contribution-requests/:requestId/matches/generate
+Authorization: Bearer <owner access token>
+```
+
+The Request must be published and owned by the caller. A Free owner receives
+`403 OWNER_CONTRIBUTOR_MATCHING_PLAN_REQUIRED`; a Gold owner receives up to 10
+advisory suggestions from the active contributors whose approved skills were
+included in the backend-authorized candidate snapshot.
+
+```json
+{
+  "requestId": "…",
+  "planType": "gold",
+  "resultLimit": 10,
+  "status": "completed",
+  "matches": [
+    {
+      "contributorId": "…",
+      "contributorName": "Sara Ahmed",
+      "contributorUsername": "sara",
+      "rank": 1,
+      "confidence": "HIGH",
+      "justification": "Strong approved Node.js evidence.",
+      "matchedSkills": [{ "name": "Node.js", "proficiency": "advanced" }]
+    }
+  ]
+}
+```
+
+Provider scores and evidence IDs are validated inside the backend but do not
+leave it. Generation is explicit and side-effect free: it does not invite,
+assign, notify, or persist over the contributor recommendation rows.
 
 ## Sprint 4 Owner Decisions and Assignments (#51)
 
