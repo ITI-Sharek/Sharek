@@ -8,6 +8,7 @@ ai.service.ts
 dto/
 integrations/fastapi-skill-profile.client.ts
 integrations/advisory-fit.client.ts
+integrations/requirement-inference.client.ts
 integrations/skill-gap-guidance.client.ts
 README.md
 ```
@@ -43,3 +44,9 @@ The `skill-guidance` module owns contributor authorization and context assembly;
 this module remains only the NestJS AI facade and FastAPI adapter. Guidance is
 not connected to Application rejection, Advisory Fit decisions, subscription
 tiers, or the retired Application-linked Prisma model.
+
+The Requirement Inference client sends bounded Contribution Request content to
+FastAPI and validates every returned skill level, kind, confidence, cap, and
+normalized-name uniqueness before the contribution-tasks worker persists it.
+Inference is asynchronous and advisory to the owner authoring flow: provider
+failure records a retriable draft status and never writes a partial skill bar.

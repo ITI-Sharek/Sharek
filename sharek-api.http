@@ -1529,6 +1529,29 @@ GET {{baseUrl}}/contributors/me/recommended-tasks
 Authorization: Bearer {{contributorLogin.response.body.$.tokens.accessToken}}
 
 
+### 55 - Read the public subscription plan catalog
+GET {{baseUrl}}/subscriptions/plans
+
+
+### 56 - Start an isolated Paymob subscription checkout
+# Checkout is disabled unless the Paymob sandbox feature flag and credentials
+# are enabled in the local environment. Price and currency are server-owned.
+POST {{baseUrl}}/me/subscription/checkout
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+Idempotency-Key: checkout-rest-001
+Content-Type: application/json
+
+{
+  "planType": "gold",
+  "roleContext": "owner"
+}
+
+
+### 57 - Read the authenticated user's payment status
+# Replace paymentId with the paymentId returned by the checkout command.
+GET {{baseUrl}}/me/payments/{{paymentId}}
+Authorization: Bearer {{ownerLogin.response.body.$.tokens.accessToken}}
+
 ### 11E - Eligibility gate (DEC-078)
 
 ### 11E.1 - DONE - Check my eligibility before opening the form

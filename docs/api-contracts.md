@@ -226,7 +226,11 @@ Contributor profile response shape:
   },
   "reputationSummary": {
     "rating": null,
-    "reviewsCount": 0
+    "reviewsCount": 0,
+    "completedContributions": 0,
+    "totalAssignedTasks": 0,
+    "successRate": 0,
+    "topVerifiedSkills": []
   },
   "contributionHistory": [],
   "completionPrompts": ["add_bio", "add_experience", "add_fields", "generate_skills", "connect_github"],
@@ -484,8 +488,8 @@ drafts. It is an owner workspace endpoint, not contributor discovery. Contributo
 discovery must continue to filter on published projects only. `quota.used`
 counts Contribution Requests whose `published_at` falls in the current UTC
 calendar month, including Requests later cancelled. `monthlyLimit` is the
-caller's current owner entitlement: Bronze 10, Silver 20, Gold 30; no active
-assignment defaults to Bronze.
+caller's current owner entitlement: Free 5, Gold 30; no active assignment
+defaults to Free.
 
 The canonical publication workflow separates source inspection, persistence,
 and public state:
@@ -769,7 +773,9 @@ still blocked. An unpublished or unknown Request returns the same
 `POST /tasks/:requestId/applications` may now return:
 
 ```text
-APPLICATION_BLOCKED_SKILL_GAP  403  metadata.blockingSkills as above
+APPLICATION_BLOCKED_SKILL_GAP  403  metadata.blockingSkills as above;
+                                      metadata.eligibilityEvaluationId identifies
+                                      the recorded refusal used for guidance
 ```
 
 The block happens **before an Application row exists**, so no Application status
@@ -869,8 +875,8 @@ POST /contribution-requests/:requestId/cancel
 Publication is the only `draft -> published` path. It revalidates the complete
 work contract and Applications Close Time, then enforces the current owner plan
 against publications in the current UTC calendar month. Owners without a
-current plan assignment use Bronze. Limits are Bronze 10, Silver 20, and Gold
-30. Cancelled Requests still count in the month in which they were published.
+current plan assignment use Free. Limits are Free 5 and Gold 30. Cancelled
+Requests still count in the month in which they were published.
 For local QA only, `NODE_ENV=development` bypasses the enforcement check while
 leaving the entitlement and usage data unchanged; test and production retain
 the limits.
@@ -1596,11 +1602,17 @@ DEC-010 forbids presenting fit as a number; `rank` is an ordinal position and
 `confidence` is a categorical band. Coverage is computed internally for ordering
 and never leaves the backend as a number.
 
-**Matching is pull-only.** Publishing a Contribution Request emits no
-notification to matching contributors, in either owner tier. Owner-side
-auto-notification is out of scope and must not be built; the
+**Contributor recommendations are pull-only.** Publishing a Contribution
+Request emits no notification to matching contributors, in either owner tier.
+Owner-side auto-notification remains out of scope; the
 `AiMatchResult.notification_sent` column that existed for it was dropped in
 `20260814120000_drop_ai_match_notification_sent`.
+
+The shortlist uses the Request's frozen required skill levels when present:
+only contributors meeting every required `beginner < intermediate < advanced`
+level are recommended. Preferred rows may explain a match but never make an
+under-levelled contributor eligible. Legacy Requests without a stored skill bar
+use the earlier normalized-name fallback.
 
 Results are persisted to `AiMatchResult` with rank and matched skills.
 Recomputing replaces the contributor's previous rows rather than accumulating
@@ -1608,6 +1620,42 @@ them. AI ranking is an optional re-order over the deterministic shortlist: if
 no ranker is bound, or it fails, or it returns anything other than a
 permutation of the shortlist, the deterministic order stands and the request
 still succeeds.
+
+## Gold owner contributor matching (DEC-080)
+
+```http
+POST /contribution-requests/:requestId/matches/generate
+Authorization: Bearer <owner access token>
+```
+
+The Request must be published and owned by the caller. A Free owner receives
+`403 OWNER_CONTRIBUTOR_MATCHING_PLAN_REQUIRED`; a Gold owner receives up to 10
+advisory suggestions from the active contributors whose approved skills were
+included in the backend-authorized candidate snapshot.
+
+```json
+{
+  "requestId": "…",
+  "planType": "gold",
+  "resultLimit": 10,
+  "status": "completed",
+  "matches": [
+    {
+      "contributorId": "…",
+      "contributorName": "Sara Ahmed",
+      "contributorUsername": "sara",
+      "rank": 1,
+      "confidence": "HIGH",
+      "justification": "Strong approved Node.js evidence.",
+      "matchedSkills": [{ "name": "Node.js", "proficiency": "advanced" }]
+    }
+  ]
+}
+```
+
+Provider scores and evidence IDs are validated inside the backend but do not
+leave it. Generation is explicit and side-effect free: it does not invite,
+assign, notify, or persist over the contributor recommendation rows.
 
 ## Sprint 4 Owner Decisions and Assignments (#51)
 
@@ -1873,6 +1921,34 @@ before calling FastAPI. The validated result may contain missing or
 below-target skills, technologies, source-backed resources, practice projects,
 and improvement steps. It never changes eligibility, Application state, owner
 decisions, rank, or score.
+
+## Paymob checkout and payment status (PAY-03 / #105)
+
+The payment slice is disabled by default and exposes a backend-owned Free/Gold
+catalog plus authenticated checkout/status operations:
+
+```http
+GET  /subscriptions/plans
+POST /me/subscription/checkout
+GET  /me/payments/:paymentId
+```
+
+The catalog is the only source of plan amount, currency, duration, role-context
+eligibility, and checkout availability. Free is `0 EGP` with no checkout; Gold
+is `50,000` minor units (`500 EGP`) for 30 days in either role context.
+
+Checkout accepts `planType`, `roleContext`, and an optional 8–128 character
+`idempotencyKey` in the body; the `Idempotency-Key` header is also accepted.
+The server resolves all commercial values and rejects a mismatched active role
+context. Repeating the same key for the same pending checkout returns the same
+payment ID and browser-safe Paymob client secret. A key reused for different
+commercial facts or a terminal attempt is rejected.
+
+Payment status is scoped to the authenticated payer and returns only the
+payment ID, selected role context and plan, server-owned amount/currency,
+status, creation time, and paid time. Checkout creation and redirect data do
+not activate a Subscription; only the later verified callback workflow may do
+so.
 
 ## Contract Change Rules
 

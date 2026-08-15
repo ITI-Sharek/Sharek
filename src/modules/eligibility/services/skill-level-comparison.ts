@@ -2,6 +2,10 @@ import { SkillProfileProficiencyLevel } from '@prisma/client';
 
 import { normalizeSkillName } from '../../../shared/skills/skill-name';
 import {
+  compareSkillLevels,
+  meetsSkillLevel,
+} from '../../../shared/skills/skill-level';
+import {
   ApprovedSkillLevelDto,
   BlockingSkillDto,
   RequiredSkillLevelDto,
@@ -15,12 +19,6 @@ import {
  * sits — the comparison is a total order and has no defined answer for a level
  * it has never seen.
  */
-const LEVEL_RANK: Record<SkillProfileProficiencyLevel, number> = {
-  [SkillProfileProficiencyLevel.beginner]: 0,
-  [SkillProfileProficiencyLevel.intermediate]: 1,
-  [SkillProfileProficiencyLevel.advanced]: 2,
-};
-
 export function meetsLevel(
   held: SkillProfileProficiencyLevel,
   required: SkillProfileProficiencyLevel,
@@ -28,7 +26,7 @@ export function meetsLevel(
   // `>=`, not `>`. A contributor who exactly meets the bar clears it; requiring
   // strictly more would make every stated level mean one level higher than it
   // says, and no owner would be able to express "intermediate is enough".
-  return LEVEL_RANK[held] >= LEVEL_RANK[required];
+  return meetsSkillLevel(held, required);
 }
 
 /**
@@ -52,7 +50,7 @@ export function indexApprovedSkills(
     const current = held.get(key);
     if (
       current === undefined ||
-      LEVEL_RANK[skill.proficiencyLevel] > LEVEL_RANK[current]
+      compareSkillLevels(skill.proficiencyLevel, current) > 0
     ) {
       held.set(key, skill.proficiencyLevel);
     }

@@ -411,6 +411,10 @@ function applyBodyCorrections(route, request) {
       quietHours: { enabled: true, startLocal: '22:00', endLocal: '07:00', timeZone: 'Africa/Cairo' },
       categories: [{ type: 'match_found', inAppEnabled: false, browserEnabled: false }],
     }],
+    ['POST /me/subscription/checkout', {
+      planType: 'gold',
+      roleContext: 'owner',
+    }],
   ]);
   if (bodies.has(key)) request.body = jsonBody(bodies.get(key));
   if (
@@ -484,7 +488,11 @@ function folderFor(route) {
   if (routePath.startsWith('/skill-profiles')) return 'Skill Profiles';
   if (routePath.startsWith('/assignment-conversations')) return 'Assignment Conversations';
   if (routePath.startsWith('/notifications') || routePath.startsWith('/me/notification')) return 'Notifications';
-  if (routePath.startsWith('/me/subscription')) return 'Subscriptions';
+  if (
+    routePath === '/subscriptions/plans' ||
+    routePath.startsWith('/me/subscription') ||
+    routePath.startsWith('/me/payments/')
+  ) return 'Subscriptions';
   throw new Error(`No Postman folder mapping for ${route.key}`);
 }
 

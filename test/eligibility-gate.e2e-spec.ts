@@ -161,6 +161,7 @@ describe('Eligibility gate end to end', () => {
         code: 'APPLICATION_BLOCKED_SKILL_GAP',
         statusCode: 403,
         metadata: {
+          eligibilityEvaluationId: 'eval-1',
           blockingSkills: [
             {
               skillName: 'react',

@@ -23,6 +23,7 @@ describe('AiMatchRanker', () => {
         title: `Request ${id}`,
         technologyTags: ['NestJS'],
         requirementTexts: ['Write tested services.'],
+        skillRequirements: [],
         difficulty: 'intermediate',
         applicationsCloseAt: new Date('2026-09-01T00:00:00.000Z'),
         targetCompletionDate: null,
@@ -90,6 +91,10 @@ describe('AiMatchRanker', () => {
       expect(result.map((entry) => entry.request.id)).toEqual([
         'request-2',
         'request-1',
+      ]);
+      expect(result.map((entry) => entry.rankerJustification)).toEqual([
+        'Closer to your skills.',
+        'Also a fit.',
       ]);
     });
 

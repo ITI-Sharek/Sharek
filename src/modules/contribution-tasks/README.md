@@ -61,10 +61,10 @@ sections without reconstructing them from local state.
 
 - Publication is an explicit active-owner command. It rechecks owned published
   Project access, draft completeness, close-time validity, and the active owner
-  plan in the transaction. Owners without a current assignment receive the
-  default Bronze entitlement. Monthly publication limits are Bronze 10, Silver
-  20, and Gold 30; prior publications continue to count for their UTC calendar
-  month after cancellation. The monthly enforcement gate is intentionally open
+  plan in the transaction. Owners without a current assignment use the default
+  Free entitlement. Monthly publication limits are Free 5 and Gold 30; prior
+  publications continue to count for their UTC calendar month after
+  cancellation. The monthly enforcement gate is intentionally open
   in `NODE_ENV=development` for local QA against existing Projects, while test
   and production environments keep the plan limits enforced.
 - `GET /tasks` and `GET /tasks/:requestId` are public reads. Both query only
@@ -155,8 +155,10 @@ bar to compare anyone against (DEC-078, ADR 0015).
   `confidence` and `source` are excluded by a narrow Prisma `select` rather than
   by mapping, so no later change can leak them by spreading the row.
 
-Out of scope for that issue and tracked separately: the evaluation that blocks
-a submission (`P0-B03`, #116).
+The deterministic evaluation that blocks under-levelled submissions is owned by
+the `eligibility` module (`P0-B03`, #116). This module supplies its frozen bar
+and the caller's transaction-scoped request context; it does not duplicate the
+comparison or write evaluation rows.
 
 ## Implemented: inference and the publication precondition (#115, P0-B02)
 

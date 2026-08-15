@@ -168,7 +168,7 @@ needs workflow code.
 | `delivery-reviews` | Implemented delivery submission, owner review, and durable reputation projection coordination | HTTP workflow, immutable history, approval outbox, worker, tests | additional reporting | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Implemented verified reputation projection and contributor-profile summary | projection calculator/writer and deterministic skill ranking | score history and public reviews | Update when scoring rules, history, public reputation APIs, or events are added |
 | `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, Subscription provenance and billing-period columns, and the `GET /me/subscription` status endpoint | `EntitlementsService`, `SubscriptionStatusService`, controller, DTO, `plan-catalog.ts`, migration regression harness, tests, module README | checkout and webhook activation | Update when a plan limit, a tier, resolution rules, the status payload, or Subscription columns change |
-| `matching` | Implemented the deterministic contributor-to-Request shortlist, `GET /contributors/me/recommended-tasks`, AiMatchResult persistence, and the optional AI re-rank seam | `MatchingService`, `RecommendedTasksService`, controller, DTO, `skill-fit.ts`, `MatchRanker` port, migration regression, tests, module README | binding an AI ranker once AI_Agents P1-A01 ships | Update when ranking keys, exclusions, the fit comparison, the response shape, or the candidate bound change |
+| `matching` | Implemented the deterministic contributor-to-Request shortlist using the frozen Phase 0 skill bar, `GET /contributors/me/recommended-tasks`, AiMatchResult persistence, and the optional AI re-rank seam | `MatchingService`, `RecommendedTasksService`, controller, DTO, `skill-fit.ts`, shared skill-level comparison, `MatchRanker` port, migration regression, tests, module README | binding an AI ranker once AI_Agents P1-A01 ships | Update when ranking keys, exclusions, the fit comparison, the response shape, or the candidate bound change |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
 | `skill-guidance` | Implemented explicit contributor-requested source-scoped guidance | controller, service, DTO, context adapter, tests | saved plans require a separate decision | Update when guidance authorization, source policy, routes, or persistence changes |
@@ -2935,9 +2935,9 @@ This keeps the system strong without making it heavy:
   then owner reputation, then recency, then `id`. The `id` key is what makes the
   order total: without it the same contributor refreshing sees a different list.
 - No AI, no HTTP route, no notifications in this change.
-- **Owner-side matching is not present and must not be added.** No method takes
-  a Request and returns contributors; a test walks the service prototype to
-  assert that structurally rather than by convention.
+- At completion of P1-B04, owner-side matching was excluded. DEC-080 later
+  restored it through a separate explicit Gold-owner interface; the
+  contributor shortlist in this entry remains unchanged.
 - `skill-fit.ts` holds the one function that decides fit, documented as the
   Phase 0 upgrade point. Today it compares approved skill names against
   technology tags and requirement text; when
@@ -2974,6 +2974,67 @@ This keeps the system strong without making it heavy:
 - The response carries `rank` and a categorical `confidence`, and no
   `matchScore`. DEC-010 forbids presenting fit as a number, and tests assert no
   score and no percentage appear anywhere in the payload.
+
+### 2026-08-13 - Paymob sandbox provider foundation (PAY-01 / #102)
+
+- Module: new `payments` module. Added a disabled-by-default Paymob provider
+  seam for one-time Intention creation and verified transaction callback
+  normalization using the documented SHA-512 HMAC field order.
+- Configuration: added conditional Paymob credentials/integration-ID
+  validation, an HTTPS production boundary, and a bounded request timeout.
+- Scope: no controller, route, Prisma schema/migration, payment persistence,
+  checkout behavior, or Subscription mutation was added; the provider is
+  registered in `AppModule` only for later consumers.
+- Verification: focused tests passed 2 suites / 24 tests; full Jest passed 138
+  suites with 1 skipped and 885 tests with 2 skipped; architecture, lint, exact
+  TypeScript, build, and diff checks passed.
+
+### 2026-08-13 - Paymob catalog and payment persistence (PAY-02 / #103)
+
+- Modules: `payments`, `subscriptions`, and Prisma migrations.
+- Requirement IDs: PAY-02 and DEC-077. The current shared catalog is
+  Free `0 EGP` with no expiry and no checkout, and Gold `50,000` minor units in
+  `EGP` for 30 days. Both owner and contributor role contexts use the same
+  catalog.
+- Change: added the code-owned subscription catalog and exported service seam;
+  added payment provider/purpose/status enums plus `PaymentAttempt` and
+  `PaymentWebhookEvent` persistence. Attempts are unique per user and
+  idempotency key, webhook events are protected by provider identity and
+  fingerprint, callback verification and processing statuses are separate, and
+  the state helper makes repeated callbacks idempotent while rejecting unsafe
+  retries or terminal-state changes.
+- API/authorization: no routes or browser checkout were added. `Subscription`
+  rows remain owned by `subscriptions`; the payment migration writes only
+  payment-owned rows and leaves provider activation for PAY-04.
+- Database: migration
+  `20260813120000_payment_attempts_and_webhook_events` adds the payment enums,
+  tables, foreign keys, uniqueness constraints, and lookup indexes. A fresh
+  PostgreSQL migration round-trip fixture is available to insert representative
+  attempt and webhook rows and prove duplicate protection.
+- Verification: focused catalog/state/webhook-normalization/migration-contract
+  tests passed; the PostgreSQL migration round-trip could not connect because
+  the configured `postgres` host is unavailable in this environment.
+
+### 2026-08-13 - Paymob checkout and payment status (PAY-03 / #105)
+
+- Requirement IDs: PAY-03 and DEC-077. Added public plan catalog and
+  authenticated owner/contributor checkout and payment-status routes.
+- Policy: checkout validates the caller's active role context, resolves the
+  Free/Gold plan amount, currency, duration, and eligibility on the backend,
+  and rejects browser-supplied commercial authority.
+- Idempotency: a pending `PaymentAttempt` is reused for the same user and key;
+  concurrent creation races recover through the unique constraint, while
+  mismatched or terminal replays fail closed. Paymob client secrets are
+  persisted only to replay the safe hosted-checkout handoff.
+- Boundary: checkout creation and browser redirects never activate a
+  `Subscription`; payment reads are scoped to the authenticated payer. PAY-04
+  remains responsible for verified callbacks and exactly-once activation.
+- Verification: focused payment/catalog/migration tests passed 9 suites / 64
+  tests; architecture, lint, exact TypeScript, Prisma validation/generation,
+  build, and Postman/API-client coverage passed. Full Jest passed 147 suites
+  with 1 skipped and 997 tests with 2 skipped. The local PostgreSQL migration
+  round-trip could not connect because the configured `postgres` host is
+  unavailable in this environment.
 
 ### 2026-08-14 - P0-B01 required skill levels on Contribution Requests
 
@@ -3222,6 +3283,37 @@ This keeps the system strong without making it heavy:
   set. Verified live against the running agent for the reachable-but-failing
   and unreachable cases; neither threw.
 
+### 2026-08-15 - Reconcile block guidance and AI ranking explanations
+
+- Application skill-gap refusals now return the durable
+  `eligibilityEvaluationId` created after rollback, allowing the existing
+  P0-B05 frontend panel to request guidance without weakening the read-only
+  pre-flight or creating an Application.
+- The optional match ranker may now carry its already-validated bounded
+  explanation through the backend seam. The backend still owns the shortlist,
+  entitlement cap, request facts, persistence, and fallback; only the order and
+  non-numeric explanation can come from FastAPI.
+- `PaymentsModule` keeps its provider token private and exports only the
+  service that forms the module interface.
+- Verification: focused eligibility/matching tests, architecture, lint,
+  type-check, full backend tests, build, and AI route contract.
+
+### 2026-08-15 - Restore explicit Gold-owner contributor matching
+
+- Added `POST /contribution-requests/:requestId/matches/generate`, gated by the
+  owner role, Request ownership/publication, and the owner plan's
+  `contributorMatchLimit` (Free 0, Gold 10).
+- The backend supplies a bounded set of active contributors with approved
+  skills, verified reputation, and closed evidence IDs to
+  `POST /contributor-matching/generate`. Provider scores are used only for
+  ordering and are stripped from the owner response.
+- Generation is explicit and side-effect free: it does not invite, assign, or
+  notify, and publishing remains notification-free. This preserves the
+  contributor pull-recommendation interface as a separate workflow.
+- The development seed now supplies dedicated `gold-owner@sharek.local` and
+  `gold-contributor@sharek.local` accounts with idempotent open-ended demo Gold
+  subscriptions. The login screen exposes both as development-only quick-login
+  buttons alongside the existing Free contributor, Free owner, and admin.
 ### 2026-08-15 - P0-Q01 Phase 0 release gate
 
 - `pnpm run test:release-gate:p0` runs 15 named suites (273 assertions);

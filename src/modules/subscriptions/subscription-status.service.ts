@@ -161,6 +161,17 @@ export class SubscriptionStatusService {
         state: 'included',
         label: `${entitlements.monthlyContributionRequestLimit} published Contribution Requests per month`,
       },
+      entitlements.contributorMatchLimit > 0
+        ? {
+            key: 'OWNER_CONTRIBUTOR_MATCHING',
+            state: 'included',
+            label: `AI contributor matching with up to ${entitlements.contributorMatchLimit} suggestions per Request`,
+          }
+        : {
+            key: 'OWNER_CONTRIBUTOR_MATCHING',
+            state: 'unavailable',
+            label: 'AI contributor matching',
+          },
     ];
   }
 
