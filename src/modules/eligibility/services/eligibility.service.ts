@@ -207,6 +207,12 @@ export class EligibilityService {
   blockedError(
     code: 'APPLICATION_BLOCKED_SKILL_GAP' | 'PROPOSAL_BLOCKED_SKILL_GAP',
     blockingSkills: BlockingSkillDto[],
+    /**
+     * The recorded evaluation, when the caller has one. Guidance is scoped to
+     * it, so without it a client can name the gap but never ask for the
+     * narrative. Absent on a blocked Proposal *create*, where the CHECK permits
+     * no evaluation because the Proposal was never written.
+     */
     eligibilityEvaluationId?: string,
   ): ForbiddenApplicationError {
     const error = new ForbiddenApplicationError(

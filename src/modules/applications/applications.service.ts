@@ -295,6 +295,10 @@ export class ApplicationsService {
           contributionRequestId: input.contributionRequestId,
           blockingSkills: error.blockingSkills,
         });
+        // Returned to the caller, because guidance is scoped to the recorded
+        // evaluation and this refusal is the only place its id exists. Without
+        // it the UI can name the gap but never ask for the narrative, which is
+        // the whole second half of P0-B05.
         throw this.eligibility.blockedError(
           'APPLICATION_BLOCKED_SKILL_GAP',
           error.blockingSkills,
