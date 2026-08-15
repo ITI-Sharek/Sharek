@@ -290,7 +290,7 @@ export class ApplicationsService {
         // The refusal is recorded now, on a fresh connection, because it is the
         // artefact a dispute is argued from and the handle skill-gap guidance
         // will hang on.
-        await this.eligibility.recordBlocked({
+        const eligibilityEvaluationId = await this.eligibility.recordBlocked({
           contributorId: input.actor.id,
           contributionRequestId: input.contributionRequestId,
           blockingSkills: error.blockingSkills,
@@ -298,6 +298,7 @@ export class ApplicationsService {
         throw this.eligibility.blockedError(
           'APPLICATION_BLOCKED_SKILL_GAP',
           error.blockingSkills,
+          eligibilityEvaluationId,
         );
       }
       if (

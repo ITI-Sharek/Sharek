@@ -32,6 +32,11 @@ import {
   MatchingRankResult,
 } from './dto/matching-rank.dto';
 import { MatchingRankClient } from './integrations/matching-rank.client';
+import {
+  ContributorMatchingInput,
+  ContributorMatchingResult,
+} from './dto/contributor-matching.dto';
+import { ContributorMatchingClient } from './integrations/contributor-matching.client';
 
 @Injectable()
 export class AiService {
@@ -43,7 +48,22 @@ export class AiService {
     @Optional()
     private readonly requirementInferenceClient?: RequirementInferenceClient,
     @Optional() private readonly matchingRankClient?: MatchingRankClient,
+    @Optional()
+    private readonly contributorMatchingClient?: ContributorMatchingClient,
   ) {}
+
+  async requestContributorMatching(
+    input: ContributorMatchingInput,
+  ): Promise<ContributorMatchingResult> {
+    if (!this.contributorMatchingClient) {
+      throw new ApplicationError(
+        'Contributor matching client is not configured',
+        'AI_CONTRIBUTOR_MATCHING_CLIENT_NOT_CONFIGURED',
+        503,
+      );
+    }
+    return this.contributorMatchingClient.generate(input);
+  }
 
   /**
    * Reorder a shortlist this backend already computed, and explain each match.

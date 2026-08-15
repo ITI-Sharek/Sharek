@@ -25,8 +25,8 @@ export class RecommendedTasksService {
   constructor(
     private readonly matching: MatchingService,
     private readonly database: DatabaseService,
-    // Absent in this repository: the AI ranker lives in AI_Agents. Its absence
-    // is a supported state, not a degraded one.
+    // Optional at this seam: the bound adapter is feature-flagged and every
+    // unavailable/invalid response falls back to the deterministic shortlist.
     @Optional() private readonly ranker?: MatchRanker,
   ) {}
 
@@ -171,6 +171,7 @@ function toRecommendedTask(
  * and never a number.
  */
 function justificationFor(match: ShortlistedMatch): string {
+  if (match.rankerJustification) return match.rankerJustification;
   const matched = match.matchedSkills.map((skill) => skill.name);
   const sentence =
     matched.length === 1
@@ -217,10 +218,27 @@ function reorderOnly(
     const match = originalById.get(id);
     if (!match) return null;
     seen.add(id);
-    // Return the deterministic object, not the ranker's object. The ranker may
-    // reorder a shortlist, but it cannot edit the request, evidence, reason,
-    // entitlement cap, or any other server-authored fact.
-    reordered.push(match);
+    // Keep every server-authored fact from the deterministic object. The only
+    // ranker-authored value allowed through this seam is its bounded,
+    // non-numeric explanation.
+    const justification = (
+      item as { rankerJustification?: unknown }
+    ).rankerJustification;
+    reordered.push({
+      ...match,
+      ...(isSafeRankerJustification(justification)
+        ? { rankerJustification: justification }
+        : {}),
+    });
   }
   return reordered.length === original.length ? reordered : null;
+}
+
+function isSafeRankerJustification(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= 300 &&
+    !value.includes('%')
+  );
 }

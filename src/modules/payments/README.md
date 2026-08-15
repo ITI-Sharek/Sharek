@@ -7,9 +7,9 @@ transaction callback HMAC verification/normalization, payment-attempt rows,
 checkout idempotency, payment status reads, and deduplicated webhook-event
 rows.
 
-## Public provider seam
+## Internal provider seam
 
-`PAYMENT_PROVIDER` is the exported NestJS provider token implementing
+`PAYMENT_PROVIDER` is a module-private NestJS provider token implementing
 `PaymentProvider` from `payments.types.ts`. The seam currently exposes only:
 
 - `createPaymentIntention()` for a one-time intention;
@@ -20,6 +20,9 @@ Intention creation returns only the Paymob intention identifier and client
 secret needed by a later checkout service. Callback normalization returns only
 the transaction facts a later payment workflow must compare: transaction/order
 identifiers, amount, currency, integration, pending, and success.
+
+Other modules call the exported `PaymentsService`; the Paymob adapter and its
+provider token are not part of the module's public interface.
 
 The public routes currently are:
 

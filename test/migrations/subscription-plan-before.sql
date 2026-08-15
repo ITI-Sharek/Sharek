@@ -20,3 +20,17 @@ VALUES
   -- An open-ended row: the backfill must leave its period end NULL rather than
   -- inventing one, because a NULL end means "not elapsed" downstream.
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4', 'gold', 'owner', 'active', '2026-07-01T00:00:00Z', NULL);
+
+-- Payment attempts were added before the tier-collapse migration and use the
+-- same enum. They must be rewritten before the old enum can be dropped.
+INSERT INTO "PaymentAttempt" (
+  id, user_id, purpose, user_role_context, plan_type, amount_cents, currency,
+  idempotency_key
+)
+VALUES
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+   'subscription_purchase', 'owner', 'bronze', 0, 'EGP', 'subscription-bronze'),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+   'subscription_purchase', 'owner', 'silver', 50000, 'EGP', 'subscription-silver'),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd3', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3',
+   'subscription_purchase', 'contributor', 'gold', 50000, 'EGP', 'subscription-gold');

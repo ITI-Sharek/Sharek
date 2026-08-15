@@ -13,4 +13,5 @@ WHERE a."user_id" = b."user_id"
   AND (a."count", a."id") < (b."count", b."id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UsageTracker_user_id_action_type_period_date_key" ON "UsageTracker"("user_id", "action_type", "period_date");
+CREATE UNIQUE INDEX IF NOT EXISTS "UsageTracker_user_id_action_type_period_date_key"
+ON "UsageTracker"("user_id", "action_type", "period_date");

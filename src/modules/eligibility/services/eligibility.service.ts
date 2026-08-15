@@ -207,6 +207,7 @@ export class EligibilityService {
   blockedError(
     code: 'APPLICATION_BLOCKED_SKILL_GAP' | 'PROPOSAL_BLOCKED_SKILL_GAP',
     blockingSkills: BlockingSkillDto[],
+    eligibilityEvaluationId?: string,
   ): ForbiddenApplicationError {
     const error = new ForbiddenApplicationError(
       'Your approved skills do not yet meet the level this work requires',
@@ -216,6 +217,7 @@ export class EligibilityService {
     // each skill, the level demanded, and the level held (null when none).
     (error as { metadata?: Record<string, unknown> }).metadata = {
       blockingSkills,
+      ...(eligibilityEvaluationId ? { eligibilityEvaluationId } : {}),
     };
     return error;
   }

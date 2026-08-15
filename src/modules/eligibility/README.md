@@ -68,7 +68,9 @@ The block itself surfaces from the submission routes as
 `403 APPLICATION_BLOCKED_SKILL_GAP`, with `metadata.blockingSkills` naming each
 skill, its `requiredLevel`, and the contributor's `contributorLevel` (`null`
 when they hold no approved evidence) — enough to explain the refusal without a
-second call.
+second call. Application refusals also carry
+`metadata.eligibilityEvaluationId`, the authorized handle for requesting
+block-triggered guidance.
 
 ## Persistence
 
@@ -82,5 +84,7 @@ present from the start; the Proposal path is wired in `P0-B04` (#117).
 The contributor foreign key is `ON DELETE RESTRICT`: the evaluation is the
 record of why a person was refused and must not vanish to an unrelated cleanup.
 
-P0-B05/#118 remains a follow-up: a recorded blocked evaluation is the durable
-trigger for contributor-requested skill-gap guidance.
+P0-B05/#118 consumes a recorded blocked evaluation as the durable trigger for
+contributor-requested skill-gap guidance. An Application refusal returns that
+evaluation's id in the `403` metadata so the frontend can request guidance;
+the read-only preview still creates no row and therefore has no id.

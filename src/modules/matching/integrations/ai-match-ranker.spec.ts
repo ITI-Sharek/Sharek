@@ -92,6 +92,10 @@ describe('AiMatchRanker', () => {
         'request-2',
         'request-1',
       ]);
+      expect(result.map((entry) => entry.rankerJustification)).toEqual([
+        'Closer to your skills.',
+        'Also a fit.',
+      ]);
     });
 
     it('sends no contributor identity', async () => {

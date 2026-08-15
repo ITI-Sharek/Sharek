@@ -38,7 +38,9 @@ Active contributors submit through `POST /tasks/:requestId/applications` with a
 Contribution Approach, Proposed Delivery Duration, and UUID idempotency key.
 The service recomputes the DEC-078 gate inside the submission transaction; a
 blocked request returns `403 APPLICATION_BLOCKED_SKILL_GAP` before creating an
-Application. Every gate-passing Application enters `pending_owner_review`
+Application. Its metadata includes the recorded `eligibilityEvaluationId` so
+the contributor can request block-triggered guidance. Every gate-passing
+Application enters `pending_owner_review`
 immediately. Submission does not call the inference provider. It spends one of
 the contributor's daily Applications only after the gate passes — see the daily
 allowance section below.

@@ -231,6 +231,39 @@ describe('RecommendedTasksService', () => {
       expect(response.recommendations.map((entry) => entry.rank)).toEqual([1, 2]);
     });
 
+    it('returns and persists the explanation supplied for a safe reordering', async () => {
+      const first = match({
+        request: request({ id: '33333333-3333-4333-8333-333333333331' }),
+      });
+      const second = match({
+        request: request({ id: '33333333-3333-4333-8333-333333333332' }),
+      });
+      matching.shortlistForContributor.mockResolvedValue(
+        goldShortlist([first, second]),
+      );
+      const ranker = {
+        rerank: jest.fn().mockResolvedValue([
+          { ...second, rankerJustification: 'Your NestJS evidence fits this request.' },
+          { ...first, rankerJustification: 'Your delivery experience fits this work.' },
+        ]),
+      };
+
+      const response = await build(ranker).listForContributor(contributor, now);
+
+      expect(response.recommendations.map((entry) => entry.justification)).toEqual([
+        'Your NestJS evidence fits this request.',
+        'Your delivery experience fits this work.',
+      ]);
+      expect(database.aiMatchResult.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            contribution_request_id: second.request.id,
+            justification: 'Your NestJS evidence fits this request.',
+          }),
+        ]),
+      });
+    });
+
     it('ignores ranker edits to server-authored match facts', async () => {
       const first = match({
         request: request({ id: '33333333-3333-4333-8333-333333333331' }),

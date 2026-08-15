@@ -1,7 +1,8 @@
 # Matching
 
-Computes, for a contributor, the open Contribution Requests their **approved**
-skills fit. Deterministic and explainable. No AI.
+Owns two separate matching interfaces: deterministic contributor pull
+recommendations, and explicit AI-assisted contributor suggestions for a Gold
+owner's published Request.
 
 ## Tables owned
 
@@ -21,6 +22,7 @@ module that owns it — skills from `skill-profiles`, Requests from
 | Route | Returns |
 |---|---|
 | `GET /contributors/me/recommended-tasks` | The caller's own matched projects |
+| `POST /contribution-requests/:requestId/matches/generate` | Up to 10 advisory contributor suggestions for the owning Gold user |
 
 Gold contributors receive up to 10 ranked matches. **A free contributor receives
 `200` with an empty list and `MATCHING_REQUIRES_SUBSCRIPTION`, not a `403`** —
@@ -36,16 +38,17 @@ UI to render when the correct answer is an upgrade prompt. An owner receives
 |---|---|
 | `shortlistForContributor({ contributorId, now? })` | The ranked Requests this contributor fits, capped by their plan |
 
-## Matching is pull-only
+## Two explicit directions
 
-**There is no owner-side matching, and none may be added.** No method here takes
-a Contribution Request and returns contributors, and **publishing a Request
-notifies nobody**, in either owner tier. The owner-facing matching UI was
-removed on 2026-08-14.
+Contributor recommendations remain pull-only and deterministic. Separately, a
+Gold owner may explicitly generate contributor suggestions for one owned,
+published Request. The backend enforces ownership and the Gold cap, discovers
+the bounded candidate set, and strips numeric scores before responding. The AI
+may rank and explain that supplied set only.
 
-Two tests hold that line: one walks the service prototype to assert no
-owner-facing or invite method exists, and one publishes a Request through HTTP
-and asserts the Notifications service was not called.
+Publishing a Request still notifies nobody. Owner generation does not invite,
+assign, or notify; profile review and the normal Application flow remain the
+next actions.
 
 `AiMatchResult.notification_sent` existed for owner-side auto-notification and
 is dropped. The column went rather than being left unused because a boolean by
@@ -66,16 +69,18 @@ no results at all.
 
 ## The AI ranker seam
 
-`MatchRanker` is a port with **no implementation in this repository**. The
-ranking agent lives in AI_Agents (`P1-A01`), and its absence is a supported
-state: a shortlist is a finished answer before a ranker is ever consulted.
+`MatchRanker` is bound by `AiMatchRanker` to the ranking agent in AI_Agents
+(`P1-A01`) behind `MATCH_RANKER_ENABLED`, which defaults off. An unavailable or
+disabled agent is a supported state: a shortlist is a finished answer before a
+ranker is ever consulted.
 
-The contract is deliberately narrow. A ranker may **reorder** matches; it may
-not add, remove, or edit them. So it cannot surface a Request the exclusions
-rejected, cannot invent a justification, and cannot raise a contributor above
-their entitlement cap. If no ranker is bound, or it throws, or it returns
-anything other than a permutation of the shortlist, the deterministic order
-stands and the request still succeeds.
+The contract is deliberately narrow. A ranker may **reorder** matches and add
+one bounded explanation; it may not add or remove a Request or edit any
+server-authored match fact. So it cannot surface a Request the exclusions
+rejected or raise a contributor above their entitlement cap. If no ranker is
+bound, or it throws, or it returns anything other than a permutation of the
+shortlist, the deterministic order and explanation stand and the request still
+succeeds.
 
 ## Ranking
 
