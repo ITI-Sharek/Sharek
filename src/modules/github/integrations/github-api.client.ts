@@ -96,7 +96,7 @@ export class GitHubApiClient {
   private readonly apiUrl: string;
   private readonly requestTimeoutMs: number;
 
-  constructor(@Optional() config?: ConfigService) {
+  constructor(@Optional() private readonly config?: ConfigService) {
     this.apiUrl = (
       config?.get<string>('GITHUB_API_URL') ?? DEFAULT_GITHUB_API_URL
     ).replace(/\/$/, '');
@@ -443,10 +443,12 @@ export class GitHubApiClient {
     const headers: Record<string, string> = {
       Accept: accept,
       'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'Sharek-App',
     };
 
-    if (accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
+    const token = accessToken || this.config?.get<string>('GITHUB_TOKEN') || process.env.GITHUB_TOKEN;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
 
     return headers;

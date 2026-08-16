@@ -69,6 +69,15 @@ completion. One organization installation
 can therefore have multiple isolated user links. Local disconnect clears only
 one link and never uninstalls the provider app or removes identity login.
 
+Repository authorization is separate consent but not a separate GitHub
+identity. Starting a connection requires an identity-owned GitHub provider link;
+the callback's immutable GitHub user ID, completion attempt, and every later
+repository read must match that same ID. Missing identity returns
+`GITHUB_APP_IDENTITY_REQUIRED`; choosing a different GitHub account or using a
+stale link returns `GITHUB_APP_ACCOUNT_MISMATCH`. The matching account may still
+select personal repositories and organization repositories it can currently
+access.
+
 Installation tokens are minted on demand and never stored or returned. Member
 user/refresh tokens are encrypted per link, rotated on refresh, and used only
 for member-access verification. Evidence reads require live member and selected

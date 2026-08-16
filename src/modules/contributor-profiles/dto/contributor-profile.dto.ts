@@ -1,6 +1,7 @@
 import {
   ContributorExperienceLevel,
   ContributorField,
+  ContributorFieldCategory,
   ContributorProfile,
   ContributorProfileField,
   User,
@@ -9,17 +10,31 @@ import {
 export type ContributorProfileWithUser = ContributorProfile & {
   user: User;
   experience_level: ContributorExperienceLevel | null;
-  fields: Array<ContributorProfileField & { field: ContributorField }>;
+  fields: Array<
+    ContributorProfileField & {
+      field: ContributorField & { category: ContributorFieldCategory };
+    }
+  >;
 };
 
-export interface ContributorFieldDto {
+export interface ContributorCatalogOptionDto {
   id: string;
   key: string;
   labelEn: string;
   labelAr: string;
 }
 
-export type ContributorExperienceLevelDto = ContributorFieldDto;
+export interface ContributorFieldDto extends ContributorCatalogOptionDto {
+  categoryId: string;
+  category: {
+    id: string;
+    key: string;
+    labelEn: string;
+    labelAr: string;
+  } | null;
+}
+
+export type ContributorExperienceLevelDto = ContributorCatalogOptionDto;
 
 export interface ContributorProfileSkillDto {
   name: string;

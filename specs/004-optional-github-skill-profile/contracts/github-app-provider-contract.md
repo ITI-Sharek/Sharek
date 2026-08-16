@@ -19,16 +19,18 @@
 1. Generate a short-lived app JWT using App ID and private key.
 2. Exchange the user authorization code once using Client ID/Client Secret;
    refresh expiring user authorization with the rotating refresh token.
-3. List installations/repositories accessible to the user token to prove the
+3. Resolve the token's immutable GitHub user ID and require it to match the
+   GitHub identity linked to the initiating Share-k user.
+4. List installations/repositories accessible to the user token to prove the
    initiating user currently has access to the callback's installation. One
    organization installation may be linked by multiple independently verified
    Share-k users.
-4. Query installation details as the app and verify app ID, account, status,
+5. Query installation details as the app and verify app ID, account, status,
    repository-selection mode, and permissions.
-5. Generate a short-lived installation access token on demand after member and
+6. Generate a short-lived installation access token on demand after member and
    repository authorization succeeds.
-6. List repositories accessible to the installation with pagination.
-7. Use the installation token for existing README/language/activity/commit/file
+7. List repositories accessible to the installation with pagination.
+8. Use the installation token for existing README/language/activity/commit/file
    evidence reads.
 
 ## Credential rules

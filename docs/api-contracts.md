@@ -74,6 +74,14 @@ contributor
 
 `admin` is reserved for role assignment by an authenticated admin.
 
+Social OAuth start requests require `role=owner|contributor` and
+`intent=login|register`. The one-time state persists that intent and the
+callback enforces it: `login` returns `404 SOCIAL_AUTH_ACCOUNT_NOT_FOUND` for
+an unknown provider identity, while `register` returns
+`409 SOCIAL_AUTH_ACCOUNT_ALREADY_EXISTS` for an already linked provider
+identity. The role is used only if an allowed registration creates a new user.
+GitHub identity authentication remains separate from repository authorization.
+
 Email/password registration creates a `pending` user, sends a 6-digit email OTP,
 and returns the user plus `emailVerificationRequired: true` and
 `verificationExpiresAt`. It does not return tokens until email verification is
@@ -190,8 +198,10 @@ the authenticated settings/registration-completion flow (looked up by key
 after signup, not rendered pre-auth). `PATCH` accepts any subset of `bio`,
 `availability`, `experienceLevelId`, `fieldIds`, and `declaredSkills`.
 `experienceLevelId` must reference an active option returned by
-`GET /contributors/experience-levels`; `fieldIds` must reference active options
-returned by `GET /contributors/profile-fields`.
+`GET /contributors/experience-levels`; `fieldIds` must reference active fields
+returned by `GET /contributors/profile-fields`. The field response remains a
+flat list for update/registration compatibility and includes `categoryId` plus
+the bilingual `category` object for grouped rendering.
 
 `PUT /contributors/profiles/me/avatar` accepts multipart field `file`; PNG,
 JPEG, and WebP are validated by file signature and limited to 2 MB. An explicit
@@ -257,12 +267,16 @@ Profile responses must not include password hashes, access/refresh tokens,
 token hashes, private session fields, OAuth credentials, or internal security
 metadata.
 
-Admin field catalog endpoints require an active admin. `POST
-/admin/contributor-fields` creates a stable kebab-case key with Arabic and
-English labels and optional sort order. `PATCH /admin/contributor-fields/:id`
-updates labels, sort order, or active state. Deactivated fields stop appearing
-in profile responses and as selectable options; catalog rows are retained so
-the option can be reactivated without recreating its identity.
+Admin field catalog endpoints require an active admin. Categories are managed
+through `GET|POST /admin/contributor-field-categories` and
+`PATCH /admin/contributor-field-categories/:categoryId`; fields are managed
+through `GET|POST /admin/contributor-fields` and
+`PATCH /admin/contributor-fields/:id`. A field creation request requires a
+`categoryId`. Both categories and fields use stable kebab-case keys, bilingual
+labels, sort order, and soft active/inactive state. Inactive categories hide
+their fields from contributors; inactive fields stop appearing as selectable
+options. Rows are retained so they can be reactivated without recreating their
+identity.
 
 Admin experience-level catalog endpoints (`GET|POST /admin/experience-levels`,
 `PATCH /admin/experience-levels/:levelId`) follow the identical contract and
@@ -1288,9 +1302,12 @@ deduplicate event IDs and reconcile aggregate gaps through HTTP.
 
 ## GitHub App repository evidence
 
-Repository evidence is optional and is authorized separately from GitHub social
-login. The GitHub App requests only Metadata read and Contents read for selected
-repositories. Installation alone never creates a skill generation.
+Repository evidence is optional and its read consent is authorized separately
+from GitHub social login. Both flows must resolve to the same immutable GitHub
+user ID: the account authorizing the GitHub App must be the account linked to the
+authenticated Sharek user. The GitHub App requests only Metadata read and
+Contents read for selected repositories. Installation alone never creates a
+skill generation.
 
 ```text
 POST   /github/app/installations/start
@@ -1307,8 +1324,10 @@ The browser callback exchanges the single-use provider code on the backend and
 redirects with only `attemptId` or a stable error code. The authenticated
 attempt endpoint returns safe provider installation candidates for that owned,
 unexpired, unconsumed attempt. Protected completion accepts the opaque attempt
-plus one candidate provider installation ID and revalidates access. Installation
-and repository responses are allowlisted and never include credentials or raw
+plus one candidate provider installation ID and revalidates both the immutable
+GitHub identity match and current installation access. Every later repository
+read repeats the identity check before provider access. Installation and
+repository responses are allowlisted and never include credentials or raw
 provider payloads.
 
 Generation now requires an owned active installation link, immutable GitHub
@@ -1332,6 +1351,7 @@ generation is `failed` or `needs_more_evidence`. Access is revalidated.
 start includes the active `generationId` in the error envelope metadata.
 
 Stable errors include `GITHUB_APP_NOT_CONFIGURED`, `GITHUB_APP_STATE_INVALID`,
+`GITHUB_APP_IDENTITY_REQUIRED`, `GITHUB_APP_ACCOUNT_MISMATCH`,
 `GITHUB_APP_INSTALLATION_ACCESS_NOT_VERIFIED`,
 `GITHUB_APP_REPOSITORY_NOT_SELECTED`,
 `GITHUB_APP_WEBHOOK_SIGNATURE_INVALID`,

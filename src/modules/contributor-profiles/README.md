@@ -18,6 +18,12 @@ Owns contributor profile records and assembles authenticated profile views.
 - `GET /contributors/profiles/:username`
 - `GET /contributors/profiles/:username/avatar`
 
+`GET /contributors/profile-fields` returns the active field options as a flat
+list for compatibility with the `fieldIds` update contract. Each field also
+carries its `categoryId` and bilingual `category` metadata, so clients can
+render the same catalog grouped by category. Admins manage the nested catalog
+through the `admin` module's category and field routes.
+
 The update contract persists the brief (`bio`), availability, an
 `experienceLevelId` referencing an admin-managed `ContributorExperienceLevel`
 row, admin-managed field selections, and self-declared skills. Explicit

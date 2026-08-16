@@ -19,7 +19,9 @@ export function presentContributorProfile(input: {
   const { profile, viewerRelationship, githubStatus, skills } = input;
   const displayName = `${profile.user.first_name} ${profile.user.last_name}`.trim();
   const isOwner = viewerRelationship === 'owner';
-  const activeFields = profile.fields.filter(({ field }) => field.active);
+  const activeFields = profile.fields.filter(
+    ({ field }) => field.active && field.category.active,
+  );
 
   return {
     username: profile.user.username ?? '',
@@ -39,9 +41,16 @@ export function presentContributorProfile(input: {
       : null,
     fields: activeFields.map(({ field }) => ({
       id: field.id,
+      categoryId: field.category_id,
       key: field.key,
       labelEn: field.label_en,
       labelAr: field.label_ar,
+      category: {
+        id: field.category.id,
+        key: field.category.key,
+        labelEn: field.category.label_en,
+        labelAr: field.category.label_ar,
+      },
     })),
     declaredSkills: profile.declared_skills,
     skills,

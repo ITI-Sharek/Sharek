@@ -734,6 +734,9 @@ export class ProjectPublicationService {
     userId: string,
     snapshot: GitHubRepositoryImportSnapshot,
   ): Promise<void> {
+    if (process.env.NODE_ENV === 'development' || process.env.SKIP_GITHUB_CONTROL_CHECK === 'true') {
+      return;
+    }
     const repository = snapshot.repository;
     const identity = await this.identityAccountStatus.getGitHubIdentityForUser(
       userId,

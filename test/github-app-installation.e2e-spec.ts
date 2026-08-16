@@ -7,6 +7,7 @@ import { GitHubAppCallbackController } from '../src/modules/github/controllers/g
 import { GitHubAppController } from '../src/modules/github/controllers/github-app.controller';
 import { GitHubAppService } from '../src/modules/github/services/github-app.service';
 import { AccessTokenGuard } from '../src/shared/auth/guards/access-token.guard';
+import { ApplicationError } from '../src/shared/errors/application.error';
 import { HttpExceptionFilter } from '../src/shared/errors/http-exception.filter';
 
 const linkId = '11111111-1111-4111-8111-111111111111';
@@ -99,6 +100,26 @@ describe('GitHub App installation HTTP contract', () => {
     );
   });
 
+  it('returns a stable conflict when no GitHub sign-in identity is linked', async () => {
+    service.startConnection.mockRejectedValueOnce(
+      new ApplicationError(
+        'Connect the GitHub account used to sign in before linking repositories',
+        'GITHUB_APP_IDENTITY_REQUIRED',
+        409,
+      ),
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/github/app/installations/start')
+      .send({ flowType: 'install_and_authorize' })
+      .expect(409);
+
+    expect(response.body).toMatchObject({
+      statusCode: 409,
+      code: 'GITHUB_APP_IDENTITY_REQUIRED',
+    });
+  });
+
   it('redirects callback with only an opaque attempt ID, never code or tokens', async () => {
     const response = await request(app.getHttpServer())
       .get('/auth/github/app/callback?code=single-use-code&state=opaque-state')
@@ -118,6 +139,27 @@ describe('GitHub App installation HTTP contract', () => {
       'GITHUB_APP_STATE_INVALID',
     );
     expect(service.processBrowserCallback).not.toHaveBeenCalled();
+  });
+
+  it('redirects an account mismatch using only the stable safe error code', async () => {
+    service.processBrowserCallback.mockRejectedValueOnce(
+      new ApplicationError(
+        'Use the same GitHub account for Sharek sign-in and repository access',
+        'GITHUB_APP_ACCOUNT_MISMATCH',
+        409,
+      ),
+    );
+
+    const response = await request(app.getHttpServer())
+      .get('/auth/github/app/callback?code=single-use-code&state=opaque-state')
+      .expect(302);
+    const location = new URL(response.headers.location);
+
+    expect(location.searchParams.get('error')).toBe(
+      'GITHUB_APP_ACCOUNT_MISMATCH',
+    );
+    expect(location.searchParams.has('code')).toBe(false);
+    expect(location.searchParams.has('message')).toBe(false);
   });
 
   it('protects completion and passes one opaque attempt/provider choice', async () => {

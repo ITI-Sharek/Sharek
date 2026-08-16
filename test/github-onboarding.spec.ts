@@ -254,7 +254,7 @@ describe('GitHub onboarding flow', () => {
 
   it('uses minimal GitHub scope for social signup before repository consent', async () => {
     const startResponse = await request(app.getHttpServer())
-      .get('/auth/github/start?role=contributor')
+      .get('/auth/github/start?intent=register&role=contributor')
       .expect(200);
 
     const scope = new URL(

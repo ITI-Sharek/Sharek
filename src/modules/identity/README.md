@@ -46,6 +46,11 @@ owns reset-code lifecycle. `SocialAuthService` links providers and reuses
 `SessionService`. Browser OAuth GET callbacks validate and forward only
 `code`, `state`, and provider error details while ignoring unrelated provider
 metadata. Frontend POST callback bodies remain strictly DTO-validated.
+`GET /auth/:provider/start` requires `intent=login|register` and an eligible
+role. The intent is persisted on the one-time OAuth state: `login` can only
+issue a session for an existing provider-linked account, while `register` can
+only create a new account. This prevents a social-login click from silently
+changing into registration (or the reverse) after the provider redirect.
 GitHub authorization starts request `prompt=select_account`, so repeated login
 attempts do not silently reuse the last GitHub browser identity. Provider
 account uniqueness remains enforced; a GitHub identity linked to another
@@ -67,8 +72,10 @@ leave a passwordless user with no login method.
 The module exports `IdentityUsernameService` for profile workflows and
 `IdentityAccountStatusService` for contributor activation after skill review
 and an allowlisted immutable GitHub identity lookup used by project publication
-control checks. The lookup exposes only provider account ID and username; it
-does not expose provider tokens or raw profile data.
+control checks and GitHub App repository authorization. The GitHub App flow
+requires its provider user ID to match this identity at connection and later
+repository-read boundaries. The lookup exposes only provider account ID and
+username; it does not expose provider tokens or raw profile data.
 Password hashing, token generation, and provider clients remain private.
 
 `PATCH /auth/me/preferences` accepts only `preferredLanguage: ar | en`, updates

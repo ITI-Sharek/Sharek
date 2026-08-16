@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 
 import { GithubModule } from '../github/github.module';
 import { AuthService } from './services/auth.service';
@@ -18,7 +18,7 @@ import { GitHubAuthController } from './controllers/github-auth.controller';
 import { GoogleAuthController } from './controllers/google-auth.controller';
 
 @Module({
-  imports: [GithubModule],
+  imports: [forwardRef(() => GithubModule)],
   controllers: [
     ManualAuthController,
     SessionController,
