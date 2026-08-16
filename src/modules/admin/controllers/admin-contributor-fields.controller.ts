@@ -16,7 +16,9 @@ import { RolesGuard } from '../../../shared/auth/guards/roles.guard';
 import { Roles } from '../../../shared/auth/roles.decorator';
 import { ContributorProfilesService } from '../../contributor-profiles/contributor-profiles.service';
 import {
+  CreateContributorFieldCategoryRequest,
   CreateContributorFieldRequest,
+  UpdateContributorFieldCategoryRequest,
   UpdateContributorFieldRequest,
 } from '../dto/contributor-field.request';
 
@@ -46,5 +48,34 @@ export class AdminContributorFieldsController {
     @Body() body: UpdateContributorFieldRequest,
   ) {
     return this.contributorProfiles.updateField(admin, fieldId, body);
+  }
+}
+
+@UseGuards(AccessTokenGuard, RolesGuard)
+@Roles('admin')
+@Controller('admin/contributor-field-categories')
+export class AdminContributorFieldCategoriesController {
+  constructor(private readonly contributorProfiles: ContributorProfilesService) {}
+
+  @Get()
+  list() {
+    return this.contributorProfiles.listFieldCategories(true);
+  }
+
+  @Post()
+  create(
+    @CurrentUser() admin: AuthenticatedUser,
+    @Body() body: CreateContributorFieldCategoryRequest,
+  ) {
+    return this.contributorProfiles.createFieldCategory(admin, body);
+  }
+
+  @Patch(':categoryId')
+  update(
+    @CurrentUser() admin: AuthenticatedUser,
+    @Param('categoryId', new ParseUUIDPipe({ version: '4' })) categoryId: string,
+    @Body() body: UpdateContributorFieldCategoryRequest,
+  ) {
+    return this.contributorProfiles.updateFieldCategory(admin, categoryId, body);
   }
 }
