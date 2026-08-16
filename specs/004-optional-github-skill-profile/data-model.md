@@ -51,6 +51,11 @@ installation.
 | `encrypted_user_token` / `user_token_expires_at` | Expiring member credential used only for current-access verification |
 | `encrypted_refresh_token` / `refresh_token_expires_at` | Rotating credential used only to refresh member authorization |
 | `status` | `active`, `disconnected`, `reauthorization_required`, or `revoked` |
+
+Invariant: `github_user_id` must equal the immutable GitHub provider account ID
+owned by the link's Share-k user in `AuthProviderAccount`. The backend verifies
+this at authorization callback, protected completion, and every later repository
+read; the login snapshot is never used for equality or authorization.
 | `last_verified_at` | Audit time of the latest live GitHub access verification |
 | `linked_at` / `disconnected_at` / `revoked_at` | User-link lifecycle timestamps |
 | timestamps | Created/updated audit times |

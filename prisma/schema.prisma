@@ -25,6 +25,14 @@ enum AuthProvider {
   google
 }
 
+/// Binds the social OAuth callback to the entry point that initiated it.
+/// A login flow may only issue a session for an existing account; a register
+/// flow may only create a new account.
+enum SocialAuthIntent {
+  login
+  register
+}
+
 enum LanguageCode {
   ar
   en
@@ -573,19 +581,21 @@ model AuthProviderAccount {
 }
 
 model AuthOAuthState {
-  id             String       @id @default(uuid()) @db.Uuid
-  user_id        String?      @db.Uuid
-  provider       AuthProvider
-  state_hash     String       @unique @db.VarChar(128)
-  requested_role UserRole
-  expires_at     DateTime
-  consumed_at    DateTime?
-  created_at     DateTime     @default(now())
+  id               String           @id @default(uuid()) @db.Uuid
+  user_id          String?          @db.Uuid
+  provider         AuthProvider
+  state_hash       String           @unique @db.VarChar(128)
+  requested_role   UserRole
+  requested_intent SocialAuthIntent @default(login)
+  expires_at       DateTime
+  consumed_at      DateTime?
+  created_at       DateTime         @default(now())
 
   user User? @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([provider])
   @@index([requested_role])
+  @@index([requested_intent])
 }
 
 model EmailVerificationOtp {
@@ -638,17 +648,34 @@ model ContributorProfile {
   @@index([experience_level_id])
 }
 
-model ContributorField {
-  id         String                    @id @default(uuid()) @db.Uuid
-  key        String                    @unique @db.VarChar(50)
-  label_en   String                    @db.VarChar(100)
-  label_ar   String                    @db.VarChar(100)
-  active     Boolean                   @default(true)
-  sort_order Int                       @default(0)
-  created_at DateTime                  @default(now())
-  updated_at DateTime                  @default(now()) @updatedAt
-  profiles   ContributorProfileField[]
+model ContributorFieldCategory {
+  id         String             @id @default(uuid()) @db.Uuid
+  key        String             @unique @db.VarChar(50)
+  label_en   String             @db.VarChar(100)
+  label_ar   String             @db.VarChar(100)
+  active     Boolean            @default(true)
+  sort_order Int                @default(0)
+  created_at DateTime           @default(now())
+  updated_at DateTime           @default(now()) @updatedAt
+  fields     ContributorField[]
 
+  @@index([active, sort_order])
+}
+
+model ContributorField {
+  id          String                    @id @default(uuid()) @db.Uuid
+  category_id String                    @db.Uuid
+  key         String                    @unique @db.VarChar(50)
+  label_en    String                    @db.VarChar(100)
+  label_ar    String                    @db.VarChar(100)
+  active      Boolean                   @default(true)
+  sort_order  Int                       @default(0)
+  created_at  DateTime                  @default(now())
+  updated_at  DateTime                  @default(now()) @updatedAt
+  category    ContributorFieldCategory  @relation(fields: [category_id], references: [id], onDelete: Restrict)
+  profiles    ContributorProfileField[]
+
+  @@index([category_id, active, sort_order])
   @@index([active, sort_order])
 }
 

@@ -1,6 +1,7 @@
 import {
   AuthProvider,
   LanguageCode,
+  SocialAuthIntent,
   UserRole,
   UserStatus,
 } from '@prisma/client';
@@ -74,12 +75,17 @@ describe('SocialAuthService', () => {
       'https://github.com/login/oauth/authorize?scope=read%3Auser+user%3Aemail',
     );
 
-    const result = await service.start(AuthProvider.github, UserRole.contributor);
+    const result = await service.start(
+      AuthProvider.github,
+      UserRole.contributor,
+      SocialAuthIntent.login,
+    );
 
     expect(database.authOAuthState.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         provider: AuthProvider.github,
         requested_role: UserRole.contributor,
+        requested_intent: SocialAuthIntent.login,
         state_hash: expect.any(String),
         expires_at: expect.any(Date),
       }),
@@ -116,6 +122,7 @@ describe('SocialAuthService', () => {
     database.authOAuthState.findFirst.mockResolvedValue({
       id: 'state-id',
       requested_role: UserRole.contributor,
+      requested_intent: SocialAuthIntent.login,
     });
     gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue(
       githubIdentity,
@@ -160,6 +167,7 @@ describe('SocialAuthService', () => {
     database.authOAuthState.findFirst.mockResolvedValue({
       id: 'state-id',
       requested_role: UserRole.contributor,
+      requested_intent: SocialAuthIntent.register,
     });
     gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
       provider: AuthProvider.github,
@@ -217,6 +225,82 @@ describe('SocialAuthService', () => {
     });
   });
 
+  it('does not create a user when an unknown GitHub identity starts from login', async () => {
+    database.authOAuthState.findFirst.mockResolvedValue({
+      id: 'state-id',
+      requested_role: UserRole.contributor,
+      requested_intent: SocialAuthIntent.login,
+    });
+    gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
+      provider: AuthProvider.github,
+      providerUserId: 'new-github-id',
+      email: 'new@example.com',
+      emailVerified: true,
+      username: 'new-github-user',
+      rawProfileData: {},
+    });
+    database.authProviderAccount.findUnique.mockResolvedValue(null);
+    gitHubOAuthService.findLinkedUserId.mockResolvedValue(null);
+    database.user.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.complete({
+        provider: AuthProvider.github,
+        code: 'oauth-code',
+        state: 'oauth-state',
+        context: {},
+      }),
+    ).rejects.toMatchObject({
+      code: 'SOCIAL_AUTH_ACCOUNT_NOT_FOUND',
+      statusCode: 404,
+    });
+
+    expect(database.user.create).not.toHaveBeenCalled();
+    expect(sessionService.create).not.toHaveBeenCalled();
+  });
+
+  it('does not sign in a GitHub account that starts from register', async () => {
+    const existingUser = getUser({
+      id: 'github-user-id',
+      email: 'github@example.com',
+      role: UserRole.contributor,
+    });
+    database.authOAuthState.findFirst.mockResolvedValue({
+      id: 'state-id',
+      requested_role: UserRole.contributor,
+      requested_intent: SocialAuthIntent.register,
+    });
+    gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
+      provider: AuthProvider.github,
+      providerUserId: 'known-github-id',
+      email: 'github@example.com',
+      emailVerified: true,
+      username: 'known-github-user',
+      rawProfileData: {},
+    });
+    database.authProviderAccount.findUnique.mockResolvedValue({
+      user: existingUser,
+    });
+    gitHubOAuthService.findLinkedGitHubIdForUser.mockResolvedValue(
+      'known-github-id',
+    );
+
+    await expect(
+      service.complete({
+        provider: AuthProvider.github,
+        code: 'oauth-code',
+        state: 'oauth-state',
+        context: {},
+      }),
+    ).rejects.toMatchObject({
+      code: 'SOCIAL_AUTH_ACCOUNT_ALREADY_EXISTS',
+      statusCode: 409,
+    });
+
+    expect(database.authProviderAccount.upsert).not.toHaveBeenCalled();
+    expect(sessionService.create).not.toHaveBeenCalled();
+  });
+
   it('does not sign in an existing user only because GitHub reports the same email', async () => {
     const existingUser = getUser({
       id: 'manual-user-id',
@@ -226,6 +310,7 @@ describe('SocialAuthService', () => {
     database.authOAuthState.findFirst.mockResolvedValue({
       id: 'state-id',
       requested_role: UserRole.contributor,
+      requested_intent: SocialAuthIntent.login,
     });
     gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
       provider: AuthProvider.github,
@@ -265,6 +350,7 @@ describe('SocialAuthService', () => {
     database.authOAuthState.findFirst.mockResolvedValue({
       id: 'state-id',
       requested_role: UserRole.contributor,
+      requested_intent: SocialAuthIntent.login,
     });
     gitHubOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
       provider: AuthProvider.github,
@@ -401,6 +487,7 @@ describe('SocialAuthService', () => {
     database.authOAuthState.findFirst.mockResolvedValue({
       id: 'state-id',
       requested_role: UserRole.contributor,
+      requested_intent: SocialAuthIntent.login,
     });
     googleOAuthService.exchangeCodeForSocialIdentity.mockResolvedValue({
       provider: AuthProvider.google,

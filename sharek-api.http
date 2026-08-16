@@ -35,10 +35,11 @@
 #
 # Test account rules:
 # - You can register/login with email/password, Google, or GitHub.
-# - Direct Google/GitHub auth creates or logs into one Share-k user. If the
-#   provider email matches an existing user, the provider is linked to that user.
-# - The role in /auth/google/start or /auth/github/start is used only when a
-#   new user is created. Existing users keep their current role.
+# - Direct Google/GitHub OAuth must declare intent=login or intent=register.
+#   Login never creates a user; registration never issues a session for an
+#   existing provider-linked user. The backend stores this intent in OAuth state.
+# - The role in /auth/google/start or /auth/github/start is used only when an
+#   allowed registration creates a new user.
 # - You can create one owner user and one contributor user with different
 #   emails in this file.
 # - The same real GitHub account cannot be connected to both users at the same
@@ -352,17 +353,19 @@ Content-Type: application/json
 }
 
 
-### 04C - DONE - Start Google sign up/sign in
+### 04C - DONE - Start Google registration
 # @name googleAuthStart
 # What it does:
-# Starts direct Google social auth. Use this for either signup or signin.
+# Starts direct Google registration. Use intent=login for an existing linked
+# account; that flow will never create a user.
 #
 # Auth:
 # Public.
 #
 # Query:
-# - role: "owner" or "contributor". This is used only if a new Share-k user
-#   must be created. Existing users keep their saved role.
+# - intent: "login" or "register". It is persisted in the one-time state.
+# - role: "owner" or "contributor". It is used only when registration creates
+#   a new Share-k user.
 #
 # Manual test:
 # 1. Click "Send Request".
@@ -370,7 +373,7 @@ Content-Type: application/json
 # 3. Approve Google.
 # 4. Google redirects to /auth/google/callback with code/state.
 # 5. Use that real code/state in Step 04D if your browser does not show JSON.
-GET {{baseUrl}}/auth/google/start?role=contributor
+GET {{baseUrl}}/auth/google/start?intent=register&role=contributor
 
 
 ### 04C-B - DONE - Google browser callback to frontend
@@ -383,7 +386,7 @@ GET {{baseUrl}}/auth/google/start?role=contributor
 GET {{baseUrl}}/auth/google/callback?code=replace-with-google-code&state=replace-with-google-state
 
 
-### 04D - DONE - Complete Google sign up/sign in from frontend
+### 04D - DONE - Complete Google registration from frontend
 # What it does:
 # Exchanges the real Google OAuth code/state and returns the normal Share-k
 # AuthSessionDto: user + accessToken + refreshToken.
@@ -399,25 +402,29 @@ Content-Type: application/json
 }
 
 
-### 04E - DONE - Start GitHub sign up/sign in
+### 04E - DONE - Start GitHub registration
 # @name githubAuthStart
 # What it does:
 # Starts direct GitHub social auth. This is different from Step 06:
-# - This endpoint logs a user in or creates a Share-k account.
+# - This endpoint creates a Share-k account only when started with
+#   intent=register. Start it with intent=login to sign in to an existing linked
+#   account only.
 # - Step 06 connects GitHub for an already logged-in user.
 #
 # Auth:
 # Public.
 #
 # Role behavior:
-# - role is used only when a new Share-k user must be created.
+# - role is used only when an allowed registration creates a new Share-k user.
+# - intent is persisted in the one-time state and cannot be changed after the
+#   provider redirect.
 # - this social auth endpoint requests only GitHub identity scope:
 #   `read:user user:email`.
 # - it does not request private repository access and does not complete the
 #   repository-evidence connection.
 # - after signup/login, contributors should use Step 06 to explicitly connect
 #   GitHub repositories from profile/onboarding.
-GET {{baseUrl}}/auth/github/start?role=contributor
+GET {{baseUrl}}/auth/github/start?intent=register&role=contributor
 
 
 ### 04E-B - DONE - GitHub identity browser callback to frontend
@@ -429,7 +436,7 @@ GET {{baseUrl}}/auth/github/start?role=contributor
 GET {{baseUrl}}/auth/github/callback?code=replace-with-github-code&state=replace-with-github-state
 
 
-### 04F - DONE - Complete GitHub sign up/sign in from frontend
+### 04F - DONE - Complete GitHub registration from frontend
 # What it does:
 # Exchanges the real GitHub OAuth code/state and returns the normal Share-k
 # AuthSessionDto. Direct GitHub auth only proves identity and links the auth

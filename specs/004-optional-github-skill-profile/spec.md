@@ -13,7 +13,7 @@
 ## Source Classification *(mandatory for brownfield features)*
 
 - **Current behavior**: Registration and profile APIs already exist. GitHub social sign-in is separated from authenticated repository connection. The repository connection currently stores a broad OAuth repository token. Contributors can select up to ten accessible repositories, consent to analysis, start durable skill generation, poll generation status, and submit generated skills for admin review.
-- **Approved target behavior**: Registration and normal profile use remain independent of GitHub. Repository evidence comes only from repositories selected in a verified, active Share-k GitHub App installation. Installation does not start analysis. The contributor explicitly selects repositories, consents, and starts generation from the profile. Generated skills remain pending until admin review.
+- **Approved target behavior**: Registration and normal profile use remain independent of repository analysis. Repository evidence comes only from repositories selected in a verified, active Share-k GitHub App installation authorized by the same immutable GitHub account linked to the Share-k user. Installation does not start analysis. The contributor explicitly selects repositories, consents, and starts generation from the profile. Generated skills remain pending until admin review.
 - **Assumptions**: Existing registration, profile editing, skill-generation, evidence, queue, AI, and admin-review behavior will be adapted rather than rebuilt. Optional GitHub social sign-in may remain identity-only.
 - **Unresolved decisions**: No product ambiguity remains after the clarification sessions below. Planning must still validate provider permissions, token handling, webhook behavior, public DTO projection, and migration mechanics against current code and official provider contracts.
 
@@ -35,6 +35,10 @@
 - Q: Which GitHub-supported redirect flow completes installation and member authorization? → A: Request GitHub App user authorization during installation, carry Share-k's user-bound state on the installation URL, and complete through the configured OAuth callback without a setup URL; additional members linking an existing organization installation use the normal GitHub App web authorization flow.
 - Q: When are legacy broad repository credentials and raw private evidence removed? → A: Revoke and purge broad repository credentials at production cutover; keep raw private evidence non-reusable for 30 days, then redact or purge it while preserving approved skills, admin decisions, and minimal public-safe audit attribution.
 - Q: Who may see private repository identifiers and evidence details? → A: Contributors may view details for their own generations, admins receive a bounded review DTO, and all other profile/project/discovery/retrieval responses expose only approved skill fields and public-safe attribution without private repository identifiers.
+
+### Session 2026-08-16
+
+- Q: May repository authorization use a different GitHub user from the one linked to Sharek sign-in? → A: No. Repository consent remains a separate OAuth/GitHub App operation, but its immutable GitHub user ID must match the GitHub identity linked to the authenticated Sharek user. That same account may select its personal repositories and organization repositories it can currently access.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -70,6 +74,7 @@ An authenticated contributor chooses to connect GitHub from their profile, insta
 4. **Given** the contributor cancels installation, **When** they return to Share-k, **Then** their existing profile remains usable and they can retry later.
 5. **Given** a contributor already has a linked installation, **When** they link another personal or organization installation, **Then** both remain independently visible and manageable.
 6. **Given** an organization installation is already linked by one Share-k user, **When** another organization member completes the normal GitHub App user-authorization flow and independently proves current access, **Then** that member may create their own link without receiving the first user's repository selections, consent, generations, or skills.
+7. **Given** a contributor starts repository authorization with a different GitHub account from the identity linked to Sharek, **When** the callback resolves that immutable provider ID, **Then** Sharek rejects the attempt before listing installations or storing member credentials.
 
 ---
 
@@ -112,6 +117,7 @@ A contributor can inspect their GitHub connection, change repository access thro
 ### Edge Cases
 
 - The installation reference is missing, spoofed, or the authenticated GitHub user cannot currently access it; an existing link by another authorized organization member is not by itself a conflict.
+- The GitHub App callback or an existing installation link resolves to a different immutable GitHub user ID from the contributor's linked sign-in identity; Sharek rejects it before repository access.
 - The install-and-authorize callback contains a missing, expired, consumed, or user-mismatched state; Share-k rejects it without creating a link and offers a safe restart.
 - An organization owner must approve an installation request before repositories become available.
 - The user installs the app for no repositories or later removes all repositories.
@@ -129,10 +135,10 @@ A contributor can inspect their GitHub connection, change repository access thro
 
 - **FR-001**: Registration and email verification MUST work without GitHub; successful email verification MUST activate the contributor account so the contributor can manage their normal profile and browse projects.
 - **FR-002**: The product MUST present GitHub repository connection as an optional action within the authenticated profile experience, not as a mandatory registration or single-screen onboarding step.
-- **FR-003**: Optional GitHub sign-in identity MUST remain logically separate from authorization to read repository evidence.
+- **FR-003**: GitHub sign-in identity MUST remain logically separate from consent to read repository evidence, while both operations MUST resolve to the same immutable GitHub user ID.
 - **FR-004**: Repository evidence access MUST require a verified, active Share-k GitHub App installation.
 - **FR-005**: Contributors MUST be able to limit the installation to explicitly selected repositories using read-only permissions.
-- **FR-006**: Share-k MUST independently verify the authenticated contributor's current access to the installation and repositories; a client-supplied installation or repository identifier MUST NOT be trusted by itself.
+- **FR-006**: Share-k MUST independently verify that the GitHub App user matches the authenticated contributor's linked immutable GitHub identity and that this user currently accesses the installation and repositories; a client-supplied installation or repository identifier MUST NOT be trusted by itself.
 - **FR-007**: Installing or authorizing GitHub MUST NOT automatically start repository ingestion or skill generation.
 - **FR-008**: Before generation, contributors MUST explicitly select one or more currently authorized repositories and grant analysis consent.
 - **FR-009**: Contributors MUST explicitly start each skill-generation request.
@@ -145,7 +151,7 @@ A contributor can inspect their GitHub connection, change repository access thro
 - **FR-016**: Disconnecting an installation from Share-k MUST immediately disable the local installation link and further Share-k repository reads without deleting identity-only GitHub login or unrelated profile capabilities; uninstalling the GitHub App remains a separate GitHub-managed action.
 - **FR-017**: At production cutover, migration MUST stop using and revoke/purge broad repository OAuth credentials without deleting or silently breaking separate Share-k social-identity links.
 - **FR-018**: Duplicate callbacks, webhook deliveries, and generation requests MUST be handled idempotently.
-- **FR-019**: A Share-k user MUST be able to link multiple personal or organization installations. One organization installation MAY be linked by multiple Share-k users only after GitHub independently verifies each user's current access; each user's repository choices for analysis, consent, generations, skills, and local disconnect MUST remain isolated.
+- **FR-019**: A Share-k user MUST be able to link multiple installations available to the same linked GitHub identity, including its personal and organization installations. One organization installation MAY be linked by multiple Share-k users only when each user has a distinct matching GitHub identity with independently verified current access; each user's repository choices for analysis, consent, generations, skills, and local disconnect MUST remain isolated.
 - **FR-020**: At GitHub App production cutover, the system MUST stop reusing legacy private OAuth evidence for new analysis and classify retained raw private evidence as non-authorizing and non-reusable; 30 days later it MUST redact or purge that raw private evidence while preserving approved skills, admin decisions, and minimal public-safe audit attribution.
 - **FR-021**: Legacy skill candidates still unresolved when the 30-day migration window expires MUST transition to `needs_more_evidence` and MUST NOT become approved without newly authorized evidence.
 

@@ -267,13 +267,16 @@ Unique controller method/path pairs: **160**. WebSocket events are excluded from
 | `PATCH` | `/admin/skill-reviews/:skillProfileId/proficiency` | admin | 200 | Adjust Skill Proficiency |
 | `POST` | `/admin/skill-reviews/:skillProfileId/approve` | admin | 200 | Approve Skill |
 | `POST` | `/admin/contributor-fields` | admin | 201 | Create Contributor Field |
+| `POST` | `/admin/contributor-field-categories` | admin | 201 | Create Contributor Field Category |
 | `POST` | `/admin/experience-levels` | admin | 201 | Create Experience Level |
 | `GET` | `/admin/contributor-fields` | admin | 200 | List Contributor Fields |
+| `GET` | `/admin/contributor-field-categories` | admin | 200 | List Contributor Field Categories |
 | `GET` | `/admin/experience-levels` | admin | 200 | List Experience Levels |
 | `GET` | `/admin/skill-reviews/pending` | admin | 200 | List Pending Skill Reviews |
 | `GET` | `/admin/published-project-owners` | admin | 200 | List Published Project Owners |
 | `POST` | `/admin/skill-reviews/:skillProfileId/reject` | admin | 200 | Reject Skill |
 | `PATCH` | `/admin/contributor-fields/:fieldId` | admin | 200 | Update Contributor Field |
+| `PATCH` | `/admin/contributor-field-categories/:categoryId` | admin | 200 | Update Contributor Field Category |
 | `PATCH` | `/admin/experience-levels/:levelId` | admin | 200 | Update Experience Level |
 
 ## Realtime events (not HTTP endpoints)
