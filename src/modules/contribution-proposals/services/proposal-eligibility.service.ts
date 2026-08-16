@@ -107,6 +107,12 @@ export class ProposalEligibilityService {
         }))
         .filter((skill) => skill.skillNameNormalized.length > 0);
     } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.warn(
+          `Requirement inference unavailable for proposal ${subjectId} in dev mode — proceeding without AI requirement gate`,
+        );
+        return [];
+      }
       this.logger.warn(
         `Requirement inference unavailable for proposal ${subjectId}`,
         error instanceof Error ? error.stack : undefined,

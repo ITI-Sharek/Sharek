@@ -391,6 +391,8 @@ async function main() {
  * onDelete: Restrict and have to go by hand; requirements, proposal versions
  * and project operations/transitions cascade. AssessmentRequest holds Restrict
  * references onto both snapshot tables, so it must be deleted before them.
+ * Assignment conversations and their messages/events are also Restrict-linked
+ * and must be removed before their Assignment rows.
  *
  * AuthSession rows are deliberately left alone: deleting them by user_id would
  * sign out anyone else sharing the seeded accounts on the same database.
@@ -420,6 +422,18 @@ async function cleanupFixture(projectId) {
   });
   const assessmentRequestIds = assessmentRequests.map((request) => request.id);
 
+  const assignments = await prisma.assignment.findMany({
+    where: { application_id: { in: applicationIds } },
+    select: { id: true },
+  });
+  const assignmentIds = assignments.map((assignment) => assignment.id);
+
+  const conversations = await prisma.assignmentConversation.findMany({
+    where: { assignment_id: { in: assignmentIds } },
+    select: { id: true },
+  });
+  const conversationIds = conversations.map((conversation) => conversation.id);
+
   const proposals = await prisma.contributionProposal.findMany({
     where: { project_id: projectId },
     select: { id: true },
@@ -443,6 +457,9 @@ async function cleanupFixture(projectId) {
       where: { assessment_request_id: { in: assessmentRequestIds } },
     }),
     prisma.assessmentRequest.deleteMany({ where: { id: { in: assessmentRequestIds } } }),
+    prisma.messageEvent.deleteMany({ where: { conversation_id: { in: conversationIds } } }),
+    prisma.message.deleteMany({ where: { conversation_id: { in: conversationIds } } }),
+    prisma.assignmentConversation.deleteMany({ where: { id: { in: conversationIds } } }),
     prisma.assignment.deleteMany({ where: { application_id: { in: applicationIds } } }),
     prisma.ownerDecision.deleteMany({ where: { application_id: { in: applicationIds } } }),
     prisma.applicationAudit.deleteMany({ where: { application_id: { in: applicationIds } } }),

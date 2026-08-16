@@ -123,7 +123,11 @@ export class ContributorProfilesService {
 
     if (fieldIds) {
       const availableFields = await this.database.contributorField.count({
-        where: { id: { in: fieldIds }, active: true },
+        where: {
+          id: { in: fieldIds },
+          active: true,
+          category: { active: true },
+        },
       });
       if (availableFields !== fieldIds.length) {
         throw new BadRequestApplicationError(
@@ -262,13 +266,35 @@ export class ContributorProfilesService {
 
   async listFields(includeInactive = false) {
     const fields = await this.database.contributorField.findMany({
-      where: includeInactive ? undefined : { active: true },
-      orderBy: [{ sort_order: 'asc' }, { label_en: 'asc' }],
+      where: includeInactive
+        ? undefined
+        : { active: true, category: { active: true } },
+      include: { category: true },
+      orderBy: [
+        { category: { sort_order: 'asc' } },
+        { sort_order: 'asc' },
+        { label_en: 'asc' },
+      ],
     });
     return fields.map((field) => this.presentField(field));
   }
 
-  async createField(
+  async listFieldCategories(includeInactive = false) {
+    const categories = await this.database.contributorFieldCategory.findMany({
+      where: includeInactive ? undefined : { active: true },
+      include: {
+        fields: {
+          where: includeInactive ? undefined : { active: true },
+          include: { category: true },
+          orderBy: [{ sort_order: 'asc' }, { label_en: 'asc' }],
+        },
+      },
+      orderBy: [{ sort_order: 'asc' }, { label_en: 'asc' }],
+    });
+    return categories.map((category) => this.presentFieldCategory(category));
+  }
+
+  async createFieldCategory(
     admin: AuthenticatedUser,
     input: {
       key: string;
@@ -279,13 +305,100 @@ export class ContributorProfilesService {
   ) {
     this.assertActiveAdmin(admin);
     try {
-      const field = await this.database.contributorField.create({
+      const category = await this.database.contributorFieldCategory.create({
         data: {
           key: input.key,
           label_en: input.labelEn.trim(),
           label_ar: input.labelAr.trim(),
           sort_order: input.sortOrder ?? 0,
         },
+        include: { fields: true },
+      });
+      return this.presentFieldCategory(category);
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw new ConflictApplicationError(
+          'Contributor field category key already exists',
+          'CONTRIBUTOR_FIELD_CATEGORY_KEY_TAKEN',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async updateFieldCategory(
+    admin: AuthenticatedUser,
+    categoryId: string,
+    input: {
+      labelEn?: string;
+      labelAr?: string;
+      active?: boolean;
+      sortOrder?: number;
+    },
+  ) {
+    this.assertActiveAdmin(admin);
+    try {
+      const category = await this.database.contributorFieldCategory.update({
+        where: { id: categoryId },
+        data: {
+          ...(input.labelEn !== undefined
+            ? { label_en: input.labelEn.trim() }
+            : {}),
+          ...(input.labelAr !== undefined
+            ? { label_ar: input.labelAr.trim() }
+            : {}),
+          ...(input.active !== undefined ? { active: input.active } : {}),
+          ...(input.sortOrder !== undefined
+            ? { sort_order: input.sortOrder }
+            : {}),
+        },
+        include: { fields: true },
+      });
+      return this.presentFieldCategory(category);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundApplicationError(
+          'Contributor field category was not found',
+          'CONTRIBUTOR_FIELD_CATEGORY_NOT_FOUND',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async createField(
+    admin: AuthenticatedUser,
+    input: {
+      categoryId: string;
+      key: string;
+      labelEn: string;
+      labelAr: string;
+      sortOrder?: number;
+    },
+  ) {
+    this.assertActiveAdmin(admin);
+    try {
+      const category = await this.database.contributorFieldCategory.findUnique({
+        where: { id: input.categoryId },
+      });
+      if (!category) {
+        throw new BadRequestApplicationError(
+          'Contributor field category is unavailable',
+          'CONTRIBUTOR_FIELD_CATEGORY_INVALID',
+        );
+      }
+      const field = await this.database.contributorField.create({
+        data: {
+          category_id: input.categoryId,
+          key: input.key,
+          label_en: input.labelEn.trim(),
+          label_ar: input.labelAr.trim(),
+          sort_order: input.sortOrder ?? 0,
+        },
+        include: { category: true },
       });
       return this.presentField(field);
     } catch (error) {
@@ -303,6 +416,7 @@ export class ContributorProfilesService {
     admin: AuthenticatedUser,
     fieldId: string,
     input: {
+      categoryId?: string;
       labelEn?: string;
       labelAr?: string;
       active?: boolean;
@@ -311,9 +425,23 @@ export class ContributorProfilesService {
   ) {
     this.assertActiveAdmin(admin);
     try {
+      if (input.categoryId !== undefined) {
+        const category = await this.database.contributorFieldCategory.findUnique({
+          where: { id: input.categoryId },
+        });
+        if (!category) {
+          throw new BadRequestApplicationError(
+            'Contributor field category is unavailable',
+            'CONTRIBUTOR_FIELD_CATEGORY_INVALID',
+          );
+        }
+      }
       const field = await this.database.contributorField.update({
         where: { id: fieldId },
         data: {
+          ...(input.categoryId !== undefined
+            ? { category_id: input.categoryId }
+            : {}),
           ...(input.labelEn !== undefined
             ? { label_en: input.labelEn.trim() }
             : {}),
@@ -325,6 +453,7 @@ export class ContributorProfilesService {
             ? { sort_order: input.sortOrder }
             : {}),
         },
+        include: { category: true },
       });
       return this.presentField(field);
     } catch (error) {
@@ -493,7 +622,7 @@ export class ContributorProfilesService {
       include: {
         user: true,
         experience_level: true,
-        fields: { include: { field: true } },
+        fields: { include: { field: { include: { category: true } } } },
       },
     });
   }
@@ -506,7 +635,7 @@ export class ContributorProfilesService {
       include: {
         user: true,
         experience_level: true,
-        fields: { include: { field: true } },
+        fields: { include: { field: { include: { category: true } } } },
       },
     });
   }
@@ -520,7 +649,7 @@ export class ContributorProfilesService {
         include: {
           user: true,
           experience_level: true,
-          fields: { include: { field: true } },
+          fields: { include: { field: { include: { category: true } } } },
         },
       });
     } catch (error) {
@@ -607,19 +736,69 @@ export class ContributorProfilesService {
 
   private presentField(field: {
     id: string;
+    category_id: string;
     key: string;
     label_en: string;
     label_ar: string;
     active: boolean;
     sort_order: number;
+    category?: {
+      id: string;
+      key: string;
+      label_en: string;
+      label_ar: string;
+    } | null;
   }) {
     return {
       id: field.id,
+      categoryId: field.category_id,
       key: field.key,
       labelEn: field.label_en,
       labelAr: field.label_ar,
       active: field.active,
       sortOrder: field.sort_order,
+      category: field.category
+        ? {
+            id: field.category.id,
+            key: field.category.key,
+            labelEn: field.category.label_en,
+            labelAr: field.category.label_ar,
+          }
+        : null,
+    };
+  }
+
+  private presentFieldCategory(category: {
+    id: string;
+    key: string;
+    label_en: string;
+    label_ar: string;
+    active: boolean;
+    sort_order: number;
+    fields: Array<{
+      id: string;
+      category_id: string;
+      key: string;
+      label_en: string;
+      label_ar: string;
+      active: boolean;
+      sort_order: number;
+      category?: {
+        id: string;
+        key: string;
+        label_en: string;
+        label_ar: string;
+      } | null;
+    }>;
+  }) {
+    return {
+      id: category.id,
+      key: category.key,
+      labelEn: category.label_en,
+      labelAr: category.label_ar,
+      active: category.active,
+      sortOrder: category.sort_order,
+      fields: category.fields.map((field) => this.presentField(field)),
     };
   }
 

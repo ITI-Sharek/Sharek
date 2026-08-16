@@ -222,6 +222,78 @@ describe('ContributorProfilesService', () => {
     });
     expect(listInstallationLinks).toHaveBeenCalledWith(user.id);
   });
+
+  it('returns admin field categories with their nested fields', async () => {
+    const category = {
+      id: 'category-1',
+      key: 'technology',
+      label_en: 'Technology',
+      label_ar: 'التكنولوجيا',
+      active: true,
+      sort_order: 10,
+      created_at: new Date(),
+      updated_at: new Date(),
+      fields: [
+        {
+          id: 'field-1',
+          category_id: 'category-1',
+          key: 'web',
+          label_en: 'Web development',
+          label_ar: 'تطوير الويب',
+          active: true,
+          sort_order: 10,
+          created_at: new Date(),
+          updated_at: new Date(),
+          category: {
+            id: 'category-1',
+            key: 'technology',
+            label_en: 'Technology',
+            label_ar: 'التكنولوجيا',
+          },
+        },
+      ],
+    };
+    const database = {
+      contributorFieldCategory: {
+        findMany: jest.fn().mockResolvedValue([category]),
+      },
+    };
+    const service = new ContributorProfilesService(
+      database as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(service.listFieldCategories(true)).resolves.toEqual([
+      {
+        id: 'category-1',
+        key: 'technology',
+        labelEn: 'Technology',
+        labelAr: 'التكنولوجيا',
+        active: true,
+        sortOrder: 10,
+        fields: [
+          {
+            id: 'field-1',
+            categoryId: 'category-1',
+            key: 'web',
+            labelEn: 'Web development',
+            labelAr: 'تطوير الويب',
+            active: true,
+            sortOrder: 10,
+            category: {
+              id: 'category-1',
+              key: 'technology',
+              labelEn: 'Technology',
+              labelAr: 'التكنولوجيا',
+            },
+          },
+        ],
+      },
+    ]);
+  });
 });
 
 function emptyReputationSummary() {
