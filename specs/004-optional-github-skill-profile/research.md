@@ -19,15 +19,16 @@ access to everything the user can access.
 - Public repositories only: rejected because Feature 1 permits explicitly
   selected private evidence.
 
-## Decision 2: Keep registration and social identity independent
+## Decision 2: Keep repository consent separate while matching social identity
 
-**Decision**: Registration and profile access do not depend on GitHub. Existing
-GitHub social sign-in may remain identity-only during migration. It cannot
-authorize repository reads.
+**Decision**: Registration and profile access do not depend on repository
+analysis. GitHub social sign-in remains identity-only and cannot authorize
+repository reads by itself, but GitHub App user authorization must resolve to
+the same immutable GitHub user ID before repository access is accepted.
 
-**Rationale**: This implements the requested UX, prevents provider outages from
-blocking accounts, and preserves passwordless GitHub users without confusing
-identity consent with code-analysis consent.
+**Rationale**: This keeps identity consent distinct from code-analysis consent
+without allowing a contributor to claim repositories through a different
+personal identity. Provider outages still do not block normal profile access.
 
 **Alternatives considered**:
 
@@ -43,8 +44,10 @@ GitHub App installation URL. Enable user authorization during installation and
 complete through the configured OAuth callback; do not configure or depend on a
 setup URL. Exchange the code immediately on the backend, then query GitHub for
 installations/repositories accessible to that user before accepting one untrusted
-provider installation choice. Additional members of an existing organization
-installation use the normal state-bound GitHub App web authorization flow.
+provider installation choice. Before those reads, compare the provider's
+immutable user ID with the identity linked to the initiating Share-k user.
+Additional members of an existing organization installation use the normal
+state-bound GitHub App web authorization flow through their own matching identity.
 
 **Rationale**: GitHub supports state on the installation URL, redirects
 authorization-during-install through the callback URL, and makes the setup URL
@@ -156,8 +159,9 @@ needed. Avoiding another credential-handling dependency reduces upgrade surface.
 ## Decision 8: Support multiple installations per user
 
 **Decision**: A Share-k user may link multiple personal or organization
-installations. Each installation has independent repository selection, status,
-authorization checks, disconnect, and webhook reconciliation.
+installations available to their one linked GitHub identity. Each installation
+has independent repository selection, status, authorization checks, disconnect,
+and webhook reconciliation.
 
 **Rationale**: Contributors commonly own personal repositories and participate
 in multiple organizations. A one-installation constraint would force destructive
