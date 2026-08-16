@@ -43,7 +43,7 @@ Every table has one owning module:
 ```text
 identity              users, auth_sessions, auth_provider_accounts, auth_oauth_states, email_verification_otps
 github                github_accounts, github_oauth_states, github_repositories, github_evidence
-contributor-profiles  contributor_profiles, contributor_fields, contributor_profile_fields
+contributor-profiles  contributor_profiles, contributor_field_categories, contributor_fields, contributor_profile_fields
 skill-guidance        eligibility_guidance
 skill-profiles        skill_profiles, skill_profile_generations, skill_profile_review_decisions, skills, skill_evidence, skill_reviews
 notifications         notifications, notification_events, notification_preferences, notification_category_preferences
@@ -65,6 +65,12 @@ ai                    ai_call_audit, AI service response snapshots, embeddings w
 ```
 
 Only the owning module writes its tables.
+
+`AuthOAuthState` stores the provider, requested role, and `requested_intent`
+(`login` or `register`) for a short-lived one-time social OAuth callback. The
+identity module uses the persisted intent—not browser session state—to prevent
+the callback from creating a user during login or issuing a session during
+registration.
 
 Contribution Proposal submissions are serialized per proposer and bounded by a
 daily rate limit. Migration `20260730131000_allow_multiple_pending_proposals`
