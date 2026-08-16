@@ -106,6 +106,14 @@ describe('GitHubAppService', () => {
       encrypt: jest.fn((value: string) => `encrypted:${value}`),
       decrypt: jest.fn(() => 'plain-user-token'),
     };
+    const identityAccountStatus = {
+      getGitHubIdentityForUser: jest.fn().mockImplementation((userId: string) =>
+        Promise.resolve({
+          providerAccountId: userId === 'user-1' ? '42' : '43',
+          username: userId,
+        }),
+      ),
+    };
     return {
       service: new GitHubAppService(
         database as never,
@@ -117,11 +125,13 @@ describe('GitHubAppService', () => {
         }),
         apiClient as never,
         tokenEncryption as never,
+        identityAccountStatus as never,
       ),
       database,
       transaction,
       apiClient,
       tokenEncryption,
+      identityAccountStatus,
       repository,
     };
   }
@@ -166,6 +176,17 @@ describe('GitHubAppService', () => {
     });
   });
 
+  it('requires a linked GitHub sign-in identity before starting repository authorization', async () => {
+    const { service, database, identityAccountStatus } = createService();
+    identityAccountStatus.getGitHubIdentityForUser.mockResolvedValue(null);
+
+    await expect(service.startConnection('user-1')).rejects.toMatchObject({
+      code: 'GITHUB_APP_IDENTITY_REQUIRED',
+      statusCode: 409,
+    });
+    expect(database.gitHubAppLinkState.create).not.toHaveBeenCalled();
+  });
+
   it('binds authorize-existing flow to an owned target installation', async () => {
     const { service, database } = createService();
     database.gitHubAppInstallationLink.findFirst.mockResolvedValue({
@@ -203,6 +224,7 @@ describe('GitHubAppService', () => {
     const { service, database, apiClient, tokenEncryption } = createService();
     database.gitHubAppLinkState.findUnique.mockResolvedValue({
       id: 'attempt-1',
+      user_id: 'user-1',
       status: 'issued',
       expires_at: new Date(Date.now() + 60_000),
     });
@@ -229,6 +251,46 @@ describe('GitHubAppService', () => {
         encrypted_pending_user_token: 'encrypted:user-token',
         encrypted_pending_refresh_token: 'encrypted:refresh-token',
       }),
+    });
+  });
+
+  it('rejects repository authorization from a different GitHub account', async () => {
+    const { service, database, apiClient, identityAccountStatus } = createService();
+    database.gitHubAppLinkState.findUnique.mockResolvedValue({
+      id: 'attempt-1',
+      user_id: 'user-1',
+      status: 'issued',
+      expires_at: new Date(Date.now() + 60_000),
+    });
+    database.gitHubAppLinkState.updateMany.mockResolvedValue({ count: 1 });
+    database.gitHubAppLinkState.update.mockResolvedValue({});
+    apiClient.exchangeUserCode.mockResolvedValue({
+      access_token: 'user-token',
+      expires_in: 3600,
+      refresh_token: 'refresh-token',
+      refresh_token_expires_in: 7200,
+    });
+    apiClient.getAuthenticatedUser.mockResolvedValue({
+      id: 99,
+      login: 'different-account',
+    });
+
+    await expect(
+      service.processBrowserCallback('code', 'state'),
+    ).rejects.toMatchObject({
+      code: 'GITHUB_APP_ACCOUNT_MISMATCH',
+      statusCode: 409,
+    });
+    expect(identityAccountStatus.getGitHubIdentityForUser).toHaveBeenCalledWith(
+      'user-1',
+    );
+    expect(apiClient.listUserInstallations).not.toHaveBeenCalled();
+    expect(database.gitHubAppLinkState.update).toHaveBeenLastCalledWith({
+      where: { id: 'attempt-1' },
+      data: {
+        status: 'rejected',
+        failure_code: 'GITHUB_APP_ACCOUNT_MISMATCH',
+      },
     });
   });
 
@@ -276,6 +338,32 @@ describe('GitHubAppService', () => {
       code: 'GITHUB_APP_INSTALLATION_ACCESS_NOT_VERIFIED',
     });
     expect(apiClient.getInstallation).not.toHaveBeenCalled();
+  });
+
+  it('rejects completion when the linked sign-in identity changed after callback', async () => {
+    const { service, database, apiClient, identityAccountStatus } = createService();
+    database.gitHubAppLinkState.findFirst.mockResolvedValue({
+      id: 'attempt-1',
+      user_id: 'user-1',
+      encrypted_pending_user_token: 'encrypted',
+      verified_github_user_id: '42',
+      accessible_installation_candidates: [
+        {
+          installationId: '987',
+          accountLogin: 'sharek-org',
+          accountType: 'Organization',
+        },
+      ],
+    });
+    identityAccountStatus.getGitHubIdentityForUser.mockResolvedValue({
+      providerAccountId: '99',
+      username: 'changed-account',
+    });
+
+    await expect(
+      service.completeConnection('user-1', 'attempt-1', '987'),
+    ).rejects.toMatchObject({ code: 'GITHUB_APP_ACCOUNT_MISMATCH' });
+    expect(apiClient.listUserInstallations).not.toHaveBeenCalled();
   });
 
   it('accepts GitHub read permissions in addition to the required repository permissions', async () => {
@@ -525,5 +613,20 @@ describe('GitHubAppService', () => {
         where: { installation_id: installation.id, removed_at: null },
       }),
     );
+  });
+
+  it('rejects repository reads when an existing link belongs to a different GitHub identity', async () => {
+    const { service, database, apiClient, identityAccountStatus } = createService();
+    database.gitHubAppInstallationLink.findFirst.mockResolvedValue(activeLink());
+    identityAccountStatus.getGitHubIdentityForUser.mockResolvedValue({
+      providerAccountId: '99',
+      username: 'changed-account',
+    });
+
+    await expect(
+      service.listSelectedRepositories('user-1', 'link-user-1', 1, 30),
+    ).rejects.toMatchObject({ code: 'GITHUB_APP_ACCOUNT_MISMATCH' });
+    expect(apiClient.listUserInstallations).not.toHaveBeenCalled();
+    expect(apiClient.listUserInstallationRepositories).not.toHaveBeenCalled();
   });
 });

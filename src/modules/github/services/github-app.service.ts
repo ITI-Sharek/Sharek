@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   GitHubAppAccountType,
@@ -13,6 +13,7 @@ import { createHash, randomBytes } from 'crypto';
 
 import { DatabaseService } from '../../../shared/database/database.service';
 import { ApplicationError } from '../../../shared/errors/application.error';
+import { IdentityAccountStatusService } from '../../identity/services/identity-account-status.service';
 import {
   GitHubAppConnectionStartDto,
   GitHubAppConnectionAttemptDto,
@@ -44,6 +45,8 @@ export class GitHubAppService {
     private readonly config: ConfigService,
     private readonly apiClient: GitHubAppApiClient,
     private readonly tokenEncryption: GitHubTokenEncryptionService,
+    @Inject(forwardRef(() => IdentityAccountStatusService))
+    private readonly identityAccountStatus: IdentityAccountStatusService,
   ) {}
 
   async startConnection(
@@ -51,6 +54,7 @@ export class GitHubAppService {
     flowType: GitHubAppLinkFlowType = 'install_and_authorize',
     installationLinkId?: string,
   ): Promise<GitHubAppConnectionStartDto> {
+    await this.requireMatchingGitHubIdentity(userId);
     const installationUrl = this.required('GITHUB_APP_INSTALLATION_URL');
     let targetInstallationId: string | undefined;
     if (flowType === 'authorize_existing_installation') {
@@ -99,6 +103,7 @@ export class GitHubAppService {
     try {
       const token = await this.apiClient.exchangeUserCode(code);
       const user = await this.apiClient.getAuthenticatedUser(token.access_token);
+      await this.requireMatchingGitHubIdentity(attempt.user_id, String(user.id));
       const installations = await this.apiClient.listUserInstallations(
         token.access_token,
       );
@@ -156,6 +161,10 @@ export class GitHubAppService {
     if (!attempt?.encrypted_pending_user_token || !attempt.verified_github_user_id) {
       throw this.stateError();
     }
+    await this.requireMatchingGitHubIdentity(
+      userId,
+      attempt.verified_github_user_id,
+    );
 
     const candidates = this.readCandidateIds(
       attempt.accessible_installation_candidates,
@@ -523,6 +532,7 @@ export class GitHubAppService {
       include: { installation: true },
     });
     if (!link || link.installation.status !== 'active') throw this.accessError();
+    await this.requireMatchingGitHubIdentity(userId, link.github_user_id);
     const providerInstallationId = link.installation.installation_id;
 
     let userToken: string;
@@ -665,6 +675,32 @@ export class GitHubAppService {
         403,
       );
     }
+  }
+
+  private async requireMatchingGitHubIdentity(
+    userId: string,
+    authorizedGitHubUserId?: string,
+  ): Promise<{ providerAccountId: string; username: string | null }> {
+    const identity =
+      await this.identityAccountStatus.getGitHubIdentityForUser(userId);
+    if (!identity) {
+      throw new ApplicationError(
+        'Connect the GitHub account used to sign in before linking repositories',
+        'GITHUB_APP_IDENTITY_REQUIRED',
+        409,
+      );
+    }
+    if (
+      authorizedGitHubUserId &&
+      identity.providerAccountId !== authorizedGitHubUserId
+    ) {
+      throw new ApplicationError(
+        'Use the same GitHub account for Sharek sign-in and repository access',
+        'GITHUB_APP_ACCOUNT_MISMATCH',
+        409,
+      );
+    }
+    return identity;
   }
 
   private presentLink(link: LinkWithInstallation): GitHubAppInstallationLinkDto {
