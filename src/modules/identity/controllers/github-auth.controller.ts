@@ -29,7 +29,7 @@ export class GitHubAuthController {
 
   @Get('start')
   startGitHub(@Query() query: SocialAuthStartRequest) {
-    return this.socialAuthService.startGitHub(query.role);
+    return this.socialAuthService.startGitHub(query.role, query.intent);
   }
 
   @Get('callback')
