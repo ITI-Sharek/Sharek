@@ -3,6 +3,7 @@ import {
   AuthProvider,
   LanguageCode,
   Prisma,
+  SocialAuthIntent as PrismaSocialAuthIntent,
   User,
   UserRole,
   UserStatus,
@@ -19,6 +20,7 @@ import { GoogleOAuthService } from './google-oauth.service';
 import { AuthSessionDto } from '../dto/auth-session.dto';
 import {
   SocialAuthCallbackInput,
+  SocialAuthIntent,
   SocialAuthRole,
   SocialAuthStartDto,
 } from '../dto/social-auth.dto';
@@ -56,9 +58,11 @@ export class SocialAuthService {
   async start(
     provider: AuthProvider,
     role: SocialAuthRole,
+    intent: SocialAuthIntent,
   ): Promise<SocialAuthStartDto> {
     this.assertSupportedProvider(provider);
     this.assertSupportedRole(role);
+    this.assertSupportedIntent(intent);
 
     const state = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + SOCIAL_AUTH_STATE_TTL_MS);
@@ -68,12 +72,14 @@ export class SocialAuthService {
         provider,
         state_hash: hashToken(state),
         requested_role: role,
+        requested_intent: intent,
         expires_at: expiresAt,
       },
     });
 
     return {
       provider,
+      intent,
       role,
       state,
       expiresAt,
@@ -81,8 +87,11 @@ export class SocialAuthService {
     };
   }
 
-  startGitHub(role: SocialAuthRole): Promise<SocialAuthStartDto> {
-    return this.start(AuthProvider.github, role);
+  startGitHub(
+    role: SocialAuthRole,
+    intent: SocialAuthIntent,
+  ): Promise<SocialAuthStartDto> {
+    return this.start(AuthProvider.github, role, intent);
   }
 
   completeGitHub(
@@ -94,8 +103,11 @@ export class SocialAuthService {
     });
   }
 
-  startGoogle(role: SocialAuthRole): Promise<SocialAuthStartDto> {
-    return this.start(GOOGLE_AUTH_PROVIDER, role);
+  startGoogle(
+    role: SocialAuthRole,
+    intent: SocialAuthIntent,
+  ): Promise<SocialAuthStartDto> {
+    return this.start(GOOGLE_AUTH_PROVIDER, role, intent);
   }
 
   completeGoogle(
@@ -150,7 +162,11 @@ export class SocialAuthService {
     });
 
     const user = await this.activatePendingUserIfEmailVerified(
-      await this.resolveUser(identity, storedState.requested_role),
+      await this.resolveUser(
+        identity,
+        storedState.requested_role,
+        storedState.requested_intent,
+      ),
       identity,
     );
 
@@ -232,6 +248,7 @@ export class SocialAuthService {
   private async resolveUser(
     identity: ProviderIdentity,
     requestedRole: UserRole,
+    intent: SocialAuthIntent,
   ): Promise<User> {
     const providerAccount = await this.database.authProviderAccount.findUnique({
       where: {
@@ -253,6 +270,8 @@ export class SocialAuthService {
         );
       }
 
+      this.assertIntentAllowsExistingUser(intent);
+
       return providerAccount.user;
     }
 
@@ -269,6 +288,7 @@ export class SocialAuthService {
         });
 
         if (linkedUser) {
+          this.assertIntentAllowsExistingUser(intent);
           return linkedUser;
         }
       }
@@ -281,6 +301,8 @@ export class SocialAuthService {
     });
 
     if (existingUser) {
+      this.assertIntentAllowsExistingUser(intent);
+
       if (identity.provider === AuthProvider.github) {
         throw new ApplicationError(
           'A Sharek account with this email already exists. Sign in to that account and connect this GitHub account explicitly.',
@@ -291,6 +313,8 @@ export class SocialAuthService {
 
       return existingUser;
     }
+
+    this.assertIntentAllowsNewUser(intent);
 
     const name = this.getNameParts(identity);
     const username = await this.getSocialSignupUsername(identity);
@@ -532,6 +556,40 @@ export class SocialAuthService {
       firstName: parts[0] ?? 'Sharek',
       lastName: parts.slice(1).join(' ') || 'User',
     };
+  }
+
+  private assertIntentAllowsExistingUser(intent: SocialAuthIntent): void {
+    if (intent === PrismaSocialAuthIntent.register) {
+      throw new ApplicationError(
+        'A Sharek account is already linked to this provider. Sign in instead.',
+        'SOCIAL_AUTH_ACCOUNT_ALREADY_EXISTS',
+        409,
+      );
+    }
+  }
+
+  private assertIntentAllowsNewUser(intent: SocialAuthIntent): void {
+    if (intent === PrismaSocialAuthIntent.login) {
+      throw new ApplicationError(
+        'No Sharek account is linked to this provider. Create an account first.',
+        'SOCIAL_AUTH_ACCOUNT_NOT_FOUND',
+        404,
+      );
+    }
+  }
+
+  private assertSupportedIntent(
+    intent: SocialAuthIntent,
+  ): asserts intent is SocialAuthIntent {
+    if (
+      intent !== PrismaSocialAuthIntent.login &&
+      intent !== PrismaSocialAuthIntent.register
+    ) {
+      throw new ApplicationError(
+        'Unsupported social auth intent',
+        'SOCIAL_AUTH_INTENT_UNSUPPORTED',
+      );
+    }
   }
 
   private assertSupportedProvider(provider: AuthProvider): void {

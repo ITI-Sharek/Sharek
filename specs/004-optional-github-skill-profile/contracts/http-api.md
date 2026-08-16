@@ -10,7 +10,8 @@ request data never authorize another user's installation or generation.
 Returns the configured GitHub App installation URL with a cryptographically
 random state and expiry. GitHub App user authorization during installation is
 enabled; no setup URL is used. The backend stores only a hash of the state before
-the callback.
+the callback. Starting requires an existing GitHub identity link for the
+authenticated Sharek user.
 
 ## Complete GitHub App connection
 
@@ -23,7 +24,9 @@ Protected frontend completion: `POST /github/app/installations/callback`
 The browser callback receives provider `code` and `state`, consumes the state,
 exchanges the single-use code immediately, and redirects with only an opaque
 connection-attempt ID or safe error code. It never forwards the code, user token,
-refresh token, or provider payload to the frontend.
+refresh token, or provider payload to the frontend. Before listing installations
+or retaining member credentials, it requires the provider's immutable GitHub user
+ID to match the GitHub identity linked to the state owner.
 
 The authenticated candidate lookup accepts only a UUID attempt owned by the
 current user that is callback-processed, unexpired, and not completion-consumed.
@@ -137,6 +140,8 @@ provider delivery ID.
 - `GITHUB_APP_NOT_CONFIGURED`
 - `GITHUB_APP_STATE_INVALID`
 - `GITHUB_APP_STATE_USER_MISMATCH`
+- `GITHUB_APP_IDENTITY_REQUIRED`
+- `GITHUB_APP_ACCOUNT_MISMATCH`
 - `GITHUB_APP_INSTALLATION_NOT_VERIFIED`
 - `GITHUB_APP_INSTALLATION_ACCESS_NOT_VERIFIED`
 - `GITHUB_APP_INSTALLATION_INACTIVE`

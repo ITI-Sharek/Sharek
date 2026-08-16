@@ -16,7 +16,7 @@ export class GoogleAuthController {
 
   @Get('start')
   startGoogle(@Query() query: SocialAuthStartRequest) {
-    return this.socialAuthService.startGoogle(query.role);
+    return this.socialAuthService.startGoogle(query.role, query.intent);
   }
 
   @Get('callback')

@@ -3345,3 +3345,66 @@ This keeps the system strong without making it heavy:
 - The gate is a contract gate, not a browser walkthrough: mocked database,
   controlled clock fixed at `2026-08-14T12:00:00.000Z`, stubbed providers, and
   no paid model call. A live provider is never release authority.
+
+### 2026-08-16 - Require one GitHub identity for sign-in and repository evidence
+
+- Modules: `identity`, `github`; frontend GitHub App profile flow.
+- Requirement IDs: Feature 1 `FR-003`, `FR-006`, `FR-019`, `TS-001`.
+- Summary: GitHub App repository consent remains an explicit separate operation,
+  but it must use the same immutable GitHub user ID linked to the authenticated
+  Sharek account. The backend checks identity before issuing state, immediately
+  after provider callback, again at protected completion, and before every later
+  repository read. Personal and organization repositories remain available when
+  that same GitHub account has current access.
+- API changes: added stable `409 GITHUB_APP_IDENTITY_REQUIRED` and
+  `409 GITHUB_APP_ACCOUNT_MISMATCH` errors; routes and success DTOs are unchanged.
+- Database changes: none. Existing numeric identity and installation-link fields
+  are reused; stale mismatching links are rejected rather than migrated silently.
+- Frontend: added bilingual actionable errors, removed copy suggesting multiple
+  personal GitHub identities, and offers callback restart only for recoverable
+  mismatch errors.
+- Authorization/security review: client IDs remain untrusted; equality uses
+  immutable provider IDs rather than logins, and mismatch is rejected before
+  installation listing, credential persistence, or repository reads.
+- Verification: backend architecture, lint, type-check, focused 27-test service
+  and HTTP-contract suite, full 166-suite/1258-test suite, and build passed.
+  Frontend type-check, lint,
+  focused 23-test suite, full 120-suite/633-test suite, translation JSON parse,
+  production build, and `git diff --check` passed.
+
+### 2026-08-16 - Group contributor profile fields under admin-managed categories
+
+- Modules: `contributor-profiles`, `admin`, and frontend contributor settings.
+- Summary: Replaced the admin's flat field catalog workflow with categories
+  containing nested fields. Admins can create, order, activate, and deactivate
+  both categories and fields; a field must belong to a category.
+- API changes: added `GET|POST /admin/contributor-field-categories` and
+  `PATCH /admin/contributor-field-categories/:categoryId`. Existing admin field
+  routes remain available, with field creation now requiring `categoryId`.
+  `GET /contributors/profile-fields` remains flat for `fieldIds` compatibility
+  and now includes bilingual category metadata for grouped clients.
+- Database changes: migration `20260816100000_contributor_field_categories`
+  adds `ContributorFieldCategory`, assigns existing fields without changing
+  profile selections, and enforces the field-to-category foreign key.
+- Authorization/security review: category and field mutations require an
+  active admin; inactive categories hide their fields from contributor
+  selection while preserving historical profile joins.
+
+### 2026-08-16 - Bind social OAuth to login or registration intent
+
+- Modules: `identity`; frontend auth callback presentation.
+- Requirement IDs: user-requested social auth flow correction.
+- Summary: Social OAuth start now requires a `login` or `register` intent that
+  is persisted in `AuthOAuthState` and enforced after the provider callback.
+  Login rejects unknown identities without creating users; registration rejects
+  already-linked identities without issuing a session.
+- API changes: `GET /auth/google/start` and `GET /auth/github/start` now require
+  `intent=login|register`; callbacks return stable
+  `SOCIAL_AUTH_ACCOUNT_NOT_FOUND` or `SOCIAL_AUTH_ACCOUNT_ALREADY_EXISTS`
+  errors for the blocked paths.
+- Database changes: migration `20260816213500_social_auth_intent` adds the
+  `SocialAuthIntent` enum, persisted state column, and lookup index. Existing
+  unconsumed states default to `login` for a safe rollout.
+- Authorization/security review: intent is bound to server-side one-time OAuth
+  state rather than a browser-provided callback value; no provider tokens or
+  repository permissions are exposed or expanded.
