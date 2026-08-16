@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: sha-rek-api
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:dev:docker"
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npx prisma db seed && npm run start:dev:docker"
     ports:
       - "${API_HOST_PORT:-4000}:${PORT:-4000}"
       - "${PRISMA_STUDIO_PORT:-5555}:5555"
