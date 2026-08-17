@@ -91,6 +91,25 @@ export interface GitHubRepositoryFilePayload {
   content?: string;
 }
 
+export interface GitHubRepositoryRootEntryPayload {
+  name?: string;
+  path?: string;
+  type?: string;
+  size?: number;
+  html_url?: string | null;
+}
+
+export interface GitHubRepositoryTreePayload {
+  truncated?: boolean;
+  tree?: GitHubRepositoryTreeEntryPayload[];
+}
+
+export interface GitHubRepositoryTreeEntryPayload {
+  path?: string;
+  type?: string;
+  size?: number;
+}
+
 @Injectable()
 export class GitHubApiClient {
   private readonly apiUrl: string;
@@ -286,6 +305,29 @@ export class GitHubApiClient {
     }
 
     return payload.content;
+  }
+
+  listRepositoryRootEntries(
+    accessToken: string | null,
+    fullName: string,
+    branch?: string,
+  ): Promise<GitHubOptionalResult<GitHubRepositoryRootEntryPayload[]>> {
+    const query = branch ? `?ref=${encodeURIComponent(branch)}` : '';
+    return this.fetchOptionalGitHub<GitHubRepositoryRootEntryPayload[]>(
+      `/repos/${this.encodeFullName(fullName)}/contents${query}`,
+      accessToken,
+    );
+  }
+
+  getRepositoryTree(
+    accessToken: string | null,
+    fullName: string,
+    branch: string,
+  ): Promise<GitHubOptionalResult<GitHubRepositoryTreePayload>> {
+    return this.fetchOptionalGitHub<GitHubRepositoryTreePayload>(
+      `/repos/${this.encodeFullName(fullName)}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+      accessToken,
+    );
   }
 
   getRepositoryContributionStats(

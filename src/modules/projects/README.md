@@ -31,7 +31,20 @@ project visibility.
   transition. Published projects never return directly to draft.
 - `GET /public/projects` and `GET /public/projects/:projectSlug`: public,
   cursor-paginated, allowlisted reads that query only `published` rows. Private
-  source attribution is withheld.
+  source attribution is withheld. Public GitHub-backed responses additionally
+  expose only persisted `stars`, `forks`, contributor count, default branch,
+  latest commit time, source-update time, bounded recent-commit summaries,
+  root file-entry summaries, and a bounded default-branch recursive tree; they
+  never spread the provider snapshot JSON. The Project owner card is present
+  only for an active owner with a public profile and contains name, username,
+  avatar URL, and published-Project count.
+- `GET /public/projects/:projectSlug/applicants`: public, bounded applicant
+  cards for the published Project. Only active contributors whose profile is
+  public are included; the projection excludes contribution approaches,
+  evidence, assessments, requirements, owner decisions, and delivery data.
+- `GET|POST|DELETE /public/projects/:projectSlug/save`: authenticated reader
+  saved-state read, idempotent save, and idempotent unsave for a published
+  Project. Saved Projects are private to the reader.
 - `GET /projects/discover`: authenticated filtered discovery over published
   projects only (existing Sprint 3 contract).
 - `POST /projects/import/github`: retired compatibility route; returns
@@ -81,3 +94,6 @@ Migration `20260728120000_project_publication_owner_flow` adds platform slugs,
 optimistic revisions, source status fields, archive timestamps, command
 receipts, transition audits, removes global draft URL uniqueness, and adds the
 partial unique published-repository guard.
+
+Migration `20260817193000_saved_projects` adds the reader-private
+`SavedProject` join table with a composite primary key and cascade cleanup.

@@ -83,6 +83,15 @@ const snapshot: GitHubRepositoryImportSnapshot = {
     recentCommits: [],
     unavailableReason: null,
   },
+  rootEntries: {
+    entries: [],
+    unavailableReason: null,
+  },
+  repositoryTree: {
+    entries: [],
+    truncated: false,
+    unavailableReason: null,
+  },
   authorship: {
     githubLogin: 'owner',
     repositoryOwned: true,

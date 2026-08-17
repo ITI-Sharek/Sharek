@@ -3418,3 +3418,40 @@ This keeps the system strong without making it heavy:
 - Authorization/security review: intent is bound to server-side one-time OAuth
   state rather than a browser-provided callback value; no provider tokens or
   repository permissions are exposed or expanded.
+
+### 2026-08-17 - Public Project Detail source statistics foundation
+
+- Modules: `projects`; frontend public Project Detail composition.
+- Requirement IDs: user-requested Project Details integration, source-refresh
+  decision.
+- Summary: Public project reads now expose a narrow, persisted GitHub statistics
+  projection. Source refresh stores bounded root file-entry, recursive tree,
+  and recent-commit summaries, which the redesigned Project Detail renders alongside real
+  published Contribution Requests and the existing Application command. The
+  sidebar renders an active public owner's real display details and Project
+  count. Authenticated readers can persist a private saved-Project bookmark.
+  Public applicant cards now use a bounded privacy-aware API. Discussions still
+  state their pending backend dependency instead of rendering fabricated data.
+- API changes: public GitHub-backed project projections add `source.statistics`
+  with stars, forks, nullable contributor count, default branch, latest commit
+  time, source update time, bounded recent commits, bounded root entries, and
+  a bounded default-branch recursive tree. Private-backed projects remain
+  source-withheld.
+- API changes: public Project responses add a nullable public-owner card
+  projection (display identity and published-Project count only).
+- API changes: authenticated `GET|POST|DELETE /public/projects/:slug/save`
+  reads and changes the reader-private saved state.
+- API changes: `GET /public/projects/:projectSlug/applicants` returns bounded
+  public-profile Application cards without contribution approaches, evidence,
+  assessment, decision, or delivery fields.
+- Database changes: migration `20260817193000_saved_projects` adds the private
+  `SavedProject` join table; source data continues to use the existing
+  `Project.repo_statistics` snapshot.
+- Authorization/security review: the presenter allowlists scalar snapshot
+  values and does not serialize raw provider JSON, GitHub identifiers beyond
+  existing public attribution, or any private-source data. Applicant cards are
+  restricted to active public profiles and exclude all review-private fields;
+  owner cards use the same active/public-profile gate.
+- Verification: focused frontend Project Detail/service tests and frontend
+  TypeScript check passed; focused backend public-project service test and
+  backend type check with incremental output disabled passed.

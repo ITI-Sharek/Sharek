@@ -7,6 +7,8 @@ import {
   GitHubFrameworkDetectionEvidence,
   GitHubRepositoryImportSnapshot,
   GitHubRepositoryRecentCommitDto,
+  GitHubRepositoryRootEntriesDto,
+  GitHubRepositoryTreeDto,
   GitHubSelectedSkillProfilingEvidenceDto,
 } from '../dto/github-repository.dto';
 import { ApplicationError } from '../../../shared/errors/application.error';
@@ -15,6 +17,8 @@ import {
   GitHubCommitPayload,
   GitHubContributorStatsPayload,
   GitHubOptionalResult,
+  GitHubRepositoryRootEntryPayload,
+  GitHubRepositoryTreePayload,
   GitHubRepositoryPayload,
   GitHubWeeklyCommitActivityPayload,
 } from '../integrations/github-api.client';
@@ -379,6 +383,16 @@ export class GitHubEvidenceService {
         accessToken,
         repository.full_name,
       ),
+      this.gitHubApiClient.listRepositoryRootEntries(
+        accessToken,
+        repository.full_name,
+        repository.default_branch,
+      ),
+      this.gitHubApiClient.getRepositoryTree(
+        accessToken,
+        repository.full_name,
+        repository.default_branch ?? 'main',
+      ),
     ]);
     const evidenceFailures: string[] = [];
     const [
@@ -387,6 +401,8 @@ export class GitHubEvidenceService {
       contributionStats,
       commitActivity,
       recentCommits,
+      rootEntries,
+      repositoryTree,
     ] = [
       this.readSettledEvidence(
         settledEvidence[0],
@@ -418,6 +434,18 @@ export class GitHubEvidenceService {
         'recent_commits_unavailable',
         evidenceFailures,
       ),
+      this.readSettledEvidence(
+        settledEvidence[5],
+        { data: null, unavailableReason: 'github_request_failed' },
+        'root_entries_unavailable',
+        evidenceFailures,
+      ),
+      this.readSettledEvidence(
+        settledEvidence[6],
+        { data: null, unavailableReason: 'github_request_failed' },
+        'repository_tree_unavailable',
+        evidenceFailures,
+      ),
     ];
     const repositoryDto = this.toRepositoryDto(repository, languages);
     const contributionActivity = this.toContributionActivity(
@@ -425,6 +453,11 @@ export class GitHubEvidenceService {
       commitActivity,
     );
     const commitSignals = this.toCommitSignals(recentCommits);
+    const rootEntriesDto = this.toRootEntries(rootEntries);
+    const repositoryTreeDto = this.toRepositoryTree(
+      repositoryTree,
+      repositoryDto,
+    );
     const frameworkDetection = await this.collectFrameworkDetection(
       accessToken,
       repository,
@@ -440,10 +473,14 @@ export class GitHubEvidenceService {
         repositoryDto,
         contributionActivity,
         commitSignals,
+        rootEntriesDto,
+        repositoryTreeDto,
       ),
       readmeContent,
       contributionActivity,
       commitSignals,
+      rootEntries: rootEntriesDto,
+      repositoryTree: repositoryTreeDto,
       authorship: githubLogin
         ? this.toRepositoryAuthorship(
             repositoryDto,
@@ -595,6 +632,106 @@ export class GitHubEvidenceService {
     };
   }
 
+  private toRootEntries(
+    result: GitHubOptionalResult<GitHubRepositoryRootEntryPayload[]>,
+  ): GitHubRepositoryRootEntriesDto {
+    const entries = Array.isArray(result.data) ? result.data : [];
+    return {
+      entries: entries
+        .filter(
+          (entry) =>
+            typeof entry.name === 'string' &&
+            entry.name.length > 0 &&
+            typeof entry.path === 'string' &&
+            entry.path.length > 0,
+        )
+        .slice(0, 100)
+        .map((entry) => ({
+          name: entry.name as string,
+          path: entry.path as string,
+          type: this.rootEntryType(entry.type),
+          size:
+            typeof entry.size === 'number' && entry.size >= 0
+              ? Math.floor(entry.size)
+              : null,
+          url: typeof entry.html_url === 'string' ? entry.html_url : null,
+        })),
+      unavailableReason: Array.isArray(result.data)
+        ? result.unavailableReason
+        : (result.unavailableReason ?? 'github_invalid_root_entries_response'),
+    };
+  }
+
+  private rootEntryType(
+    value: unknown,
+  ): GitHubRepositoryRootEntriesDto['entries'][number]['type'] {
+    if (value === 'file') return 'file';
+    if (value === 'dir') return 'directory';
+    if (value === 'symlink') return 'symlink';
+    if (value === 'submodule') return 'submodule';
+    return 'unknown';
+  }
+
+  private toRepositoryTree(
+    result: GitHubOptionalResult<GitHubRepositoryTreePayload>,
+    repository: GitHubRepositoryDto,
+  ): GitHubRepositoryTreeDto {
+    const tree = result.data;
+    const entries = Array.isArray(tree?.tree) ? tree.tree : [];
+    return {
+      entries: entries
+        .filter(
+          (entry) =>
+            typeof entry.path === 'string' &&
+            entry.path.length > 0 &&
+            !entry.path.startsWith('/') &&
+            !entry.path.includes('..'),
+        )
+        .slice(0, 500)
+        .map((entry) => ({
+          path: entry.path as string,
+          type: this.treeEntryType(entry.type),
+          size:
+            typeof entry.size === 'number' && entry.size >= 0
+              ? Math.floor(entry.size)
+              : null,
+          url: this.repositoryTreeEntryUrl(
+            repository.htmlUrl,
+            repository.defaultBranch,
+            entry.path as string,
+            entry.type,
+          ),
+        })),
+      truncated: Boolean(tree?.truncated) || entries.length > 500,
+      unavailableReason: tree
+        ? result.unavailableReason
+        : (result.unavailableReason ?? 'github_invalid_repository_tree_response'),
+    };
+  }
+
+  private treeEntryType(
+    value: unknown,
+  ): GitHubRepositoryTreeDto['entries'][number]['type'] {
+    if (value === 'blob') return 'file';
+    if (value === 'tree') return 'directory';
+    if (value === 'commit') return 'submodule';
+    return 'unknown';
+  }
+
+  private repositoryTreeEntryUrl(
+    repositoryUrl: string,
+    branch: string,
+    path: string,
+    type: unknown,
+  ): string {
+    const entryKind = type === 'tree' ? 'tree' : 'blob';
+    const encodedPath = path
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    return `${repositoryUrl}/${entryKind}/${encodeURIComponent(branch)}/${encodedPath}`;
+  }
+
   private toCommitSignals(
     recentCommitsResult: GitHubOptionalResult<GitHubCommitPayload[]>,
   ): GitHubRepositoryCommitSignalsDto {
@@ -693,6 +830,8 @@ export class GitHubEvidenceService {
     repository: GitHubRepositoryDto,
     contributionActivity: GitHubRepositoryContributionActivityDto,
     commitSignals: GitHubRepositoryCommitSignalsDto,
+    rootEntries: GitHubRepositoryRootEntriesDto,
+    repositoryTree: GitHubRepositoryTreeDto,
   ): Record<string, unknown> {
     return {
       stars: repository.stars,
@@ -728,6 +867,8 @@ export class GitHubEvidenceService {
         })),
         unavailableReason: commitSignals.unavailableReason,
       },
+      rootEntries,
+      repositoryTree,
     };
   }
 
