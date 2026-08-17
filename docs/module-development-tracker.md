@@ -152,6 +152,16 @@ Before finishing, review:
 
 ## Module Status Dashboard
 
+### 2026-08-17 — Identity account settings
+
+Implemented authenticated account-settings APIs for password, email, username,
+personal details, phone, privacy, identity-document upload, and safe account
+data export. Identity owns the added User columns and migration
+`20260817160000_identity_account_settings`. Phone persistence intentionally
+remains unverified pending a real SMS provider; identity-document upload sets
+only `pending` status. Verified with Prisma generation, no-incremental TypeScript,
+and focused identity tests.
+
 Use this table to see what is implemented, what is prepared, and what still
 needs workflow code.
 

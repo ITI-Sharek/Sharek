@@ -62,6 +62,14 @@ POST /auth/github/callback
 POST /auth/refresh
 POST /auth/logout
 GET /auth/me
+PATCH /auth/me/password
+PATCH /auth/me/email
+PATCH /auth/me/username
+PATCH /auth/me/details
+PATCH /auth/me/phone
+PATCH /auth/me/privacy
+PUT /auth/me/identity-document
+GET /auth/me/export
 PATCH /auth/users/:id/role
 ```
 

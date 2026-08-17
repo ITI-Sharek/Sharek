@@ -31,7 +31,7 @@ const profile = {
     updated_at: new Date(),
     last_login_at: null,
   },
-} as ContributorProfileWithUser;
+} as unknown as ContributorProfileWithUser;
 
 describe('contributor profile presenter', () => {
   it('returns owner completion prompts without private fields', () => {
