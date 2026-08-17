@@ -6,6 +6,7 @@ import { AccessTokenGuard } from '../../../shared/auth/guards/access-token.guard
 import { createApplicationValidationPipe } from '../../../shared/validation/application-validation.pipe';
 import { AuthService } from '../services/auth.service';
 import { SessionService } from '../services/session.service';
+import { AccountSettingsService } from '../services/account-settings.service';
 import { SessionController } from './session.controller';
 
 interface TestRequest {
@@ -28,6 +29,7 @@ describe('SessionController preferences', () => {
       providers: [
         { provide: AuthService, useValue: { getCurrentUser: jest.fn() } },
         { provide: SessionService, useValue: session },
+        { provide: AccountSettingsService, useValue: {} },
       ],
     })
       .overrideGuard(AccessTokenGuard)

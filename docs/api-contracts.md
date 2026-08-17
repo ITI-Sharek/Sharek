@@ -62,6 +62,14 @@ POST /auth/github/callback
 POST /auth/refresh
 POST /auth/logout
 GET /auth/me
+PATCH /auth/me/password
+PATCH /auth/me/email
+PATCH /auth/me/username
+PATCH /auth/me/details
+PATCH /auth/me/phone
+PATCH /auth/me/privacy
+PUT /auth/me/identity-document
+GET /auth/me/export
 PATCH /auth/users/:id/role
 ```
 
@@ -347,6 +355,35 @@ POST /projects/me/:projectId/archive
 GET /public/projects
 GET /public/projects/:projectSlug
 ```
+
+Public GitHub-backed Project responses include an allowlisted persisted source
+statistics object: `stars`, `forks`, `contributors` (nullable when GitHub
+could not provide it), `defaultBranch`, `latestCommitAt`, and
+`sourceUpdatedAt`, together with bounded allowlisted recent-commit and root
+file-entry summaries, plus a bounded recursive default-branch tree and its
+truncation state. The response never exposes raw repository evidence,
+contributor lists, provider failures, or private-source data.
+
+Each public Project response additionally has an `owner` field. It is `null`
+unless the current owner is active and has a public profile; otherwise it
+contains only username, display name, avatar URL, and published-Project count.
+It does not expose email, contact details, rating, response rate, or private
+profile content.
+
+`GET /public/projects/:projectSlug/applicants` returns at most 50 public
+Application cards for a published Project. It includes only active contributors
+with `profile_visibility = public` and only Applications awaiting owner review
+or accepted for a Contribution Request in that Project. Each card contains the
+Application ID, Contribution Request ID/title, contributor username, display
+name, avatar URL, and submission time. It deliberately excludes the
+contribution approach, evidence, skill assessments, requirement snapshots,
+owner decisions, and delivery data.
+
+Authenticated readers can call `GET /public/projects/:projectSlug/save` to
+read `{ "saved": boolean }`, `POST` to idempotently save the published Project,
+and `DELETE` to idempotently remove it. The state is private to the bearer and
+unknown, draft, or archived Project slugs use the same `PROJECT_NOT_FOUND`
+response as public detail.
 
 `GET /github/oauth/start` requires an authenticated Share-k user. It stores a
 short-lived OAuth state and returns the GitHub authorization URL. Browser flows

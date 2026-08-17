@@ -163,6 +163,71 @@ describe('GitHubApiClient', () => {
     );
   });
 
+  it('fetches root entries for the selected default branch', async () => {
+    jest.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: () => Promise.resolve([{ name: 'src', path: 'src', type: 'dir' }]),
+    } as Response);
+
+    await expect(
+      client.listRepositoryRootEntries(
+        'plain-token',
+        'ITI-Sharek/sharek-api',
+        'main',
+      ),
+    ).resolves.toEqual({
+      data: [{ name: 'src', path: 'src', type: 'dir' }],
+      unavailableReason: null,
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.github.com/repos/ITI-Sharek/sharek-api/contents?ref=main',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer plain-token',
+        }),
+      }),
+    );
+  });
+
+  it('fetches a recursive tree for the selected default branch', async () => {
+    jest.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: () =>
+        Promise.resolve({
+          truncated: false,
+          tree: [{ path: 'src/main.ts', type: 'blob', size: 42 }],
+        }),
+    } as Response);
+
+    await expect(
+      client.getRepositoryTree(
+        'plain-token',
+        'ITI-Sharek/sharek-api',
+        'main',
+      ),
+    ).resolves.toEqual({
+      data: {
+        truncated: false,
+        tree: [{ path: 'src/main.ts', type: 'blob', size: 42 }],
+      },
+      unavailableReason: null,
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.github.com/repos/ITI-Sharek/sharek-api/git/trees/main?recursive=1',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer plain-token',
+        }),
+      }),
+    );
+  });
+
   it('rejects an invalid repository list response shape', async () => {
     jest.mocked(global.fetch).mockResolvedValueOnce({
       ok: true,

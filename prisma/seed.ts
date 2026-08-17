@@ -84,6 +84,13 @@ const DEV_USERS: Array<{
     lastName: 'Contributor',
     gold: true,
   },
+  {
+    email: 'karim-muhammad@sharek.local',
+    username: 'Karim-Muhammad',
+    role: 'owner',
+    firstName: 'Karim',
+    lastName: 'Muhammad',
+  },
 ];
 
 const CATALOG_FIELD_CATEGORIES = [
@@ -631,6 +638,126 @@ interface ProjectSeedData {
 }
 
 const SEED_PROJECTS: ProjectSeedData[] = [
+  {
+    ownerEmail: 'karim-muhammad@sharek.local',
+    title: 'mentoor-swc-todo',
+    slug: 'mentoor-swc-todo',
+    description:
+      'Development seed for the public Karim-Muhammad/mentoor-swc-todo repository. Refresh the project source to load verified GitHub metadata.',
+    github_repo_url: 'https://github.com/Karim-Muhammad/mentoor-swc-todo',
+    category: ProjectCategory.web,
+    difficulty: ProjectDifficulty.beginner,
+    languages: [],
+    tags: [],
+    technologies: [],
+    readme: 'Source metadata is populated by the Project source refresh workflow.',
+    requests: [
+      {
+        title: 'Document the contribution setup',
+        description:
+          'Write a concise contributor setup guide after reviewing the repository structure and local development workflow.',
+        technology_tags: [],
+        difficulty: ContributionRequestDifficulty.beginner,
+        reward: 0,
+        reward_currency: 'USD',
+        requirements: [
+          {
+            kind: ContributionRequestRequirementKind.required,
+            position: 1,
+            text: 'Produce a clear local setup and contribution guide',
+          },
+        ],
+        skillRequirements: [
+          {
+            skill_name: 'Documentation',
+            required_level: SkillProfileProficiencyLevel.beginner,
+            kind: ContributionRequestRequirementKind.required,
+            position: 1,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    ownerEmail: 'karim-muhammad@sharek.local',
+    title: 'ecommerce-api2',
+    slug: 'ecommerce-api2',
+    description:
+      'Development seed for the public Karim-Muhammad/ecommerce-api2 repository. Refresh the project source to load verified GitHub metadata.',
+    github_repo_url: 'https://github.com/Karim-Muhammad/ecommerce-api2',
+    category: ProjectCategory.web,
+    difficulty: ProjectDifficulty.intermediate,
+    languages: [],
+    tags: [],
+    technologies: [],
+    readme: 'Source metadata is populated by the Project source refresh workflow.',
+    requests: [
+      {
+        title: 'Review API error handling',
+        description:
+          'Review the repository error-handling paths and propose a focused improvement with tests.',
+        technology_tags: [],
+        difficulty: ContributionRequestDifficulty.intermediate,
+        reward: 0,
+        reward_currency: 'USD',
+        requirements: [
+          {
+            kind: ContributionRequestRequirementKind.required,
+            position: 1,
+            text: 'Identify one error-handling improvement and cover it with tests',
+          },
+        ],
+        skillRequirements: [
+          {
+            skill_name: 'JavaScript',
+            required_level: SkillProfileProficiencyLevel.intermediate,
+            kind: ContributionRequestRequirementKind.required,
+            position: 1,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    ownerEmail: 'karim-muhammad@sharek.local',
+    title: 'laracommerce',
+    slug: 'laracommerce',
+    description:
+      'Development seed for the public Karim-Muhammad/laracommerce repository. Refresh the project source to load verified GitHub metadata.',
+    github_repo_url: 'https://github.com/Karim-Muhammad/laracommerce',
+    category: ProjectCategory.web,
+    difficulty: ProjectDifficulty.intermediate,
+    languages: [],
+    tags: [],
+    technologies: [],
+    readme: 'Source metadata is populated by the Project source refresh workflow.',
+    requests: [
+      {
+        title: 'Map the contribution workflow',
+        description:
+          'Map the repository contribution workflow and identify one small, well-scoped improvement for a new contributor.',
+        technology_tags: [],
+        difficulty: ContributionRequestDifficulty.intermediate,
+        reward: 0,
+        reward_currency: 'USD',
+        requirements: [
+          {
+            kind: ContributionRequestRequirementKind.required,
+            position: 1,
+            text: 'Describe one scoped improvement with acceptance criteria',
+          },
+        ],
+        skillRequirements: [
+          {
+            skill_name: 'PHP',
+            required_level: SkillProfileProficiencyLevel.beginner,
+            kind: ContributionRequestRequirementKind.required,
+            position: 1,
+          },
+        ],
+      },
+    ],
+  },
   {
     ownerEmail: 'owner@sharek.local',
     title: 'Share-k Community Platform',
