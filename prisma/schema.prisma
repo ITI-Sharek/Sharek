@@ -519,6 +519,7 @@ model User {
   projects                          Project[]                          @relation("ProjectOwner")
   contributionRequests              ContributionRequest[]              @relation("ContributionRequestOwner")
   applications                      Application[]                      @relation("ApplicationContributor")
+  savedProjects                     SavedProject[]
   notifications                     Notification[]
   notificationEvents                NotificationEvent[]
   notificationPreference            NotificationPreference?
@@ -868,10 +869,23 @@ model Project {
   proposalIntake        ProjectProposalIntake?   @relation("ProjectProposalIntake")
   materials             Material[]               @relation("ProjectMaterials")
   materialAnalysisSets  MaterialAnalysisSet[]
+  savedProjects         SavedProject[]
 
   @@unique([slug_normalized], map: "projects_slug_normalized_unique")
   @@index([github_repo_url])
   @@index([github_repo_id, status])
+}
+
+model SavedProject {
+  user_id    String   @db.Uuid
+  project_id String   @db.Uuid
+  created_at DateTime @default(now())
+
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, project_id])
+  @@index([project_id, created_at])
 }
 
 model ProjectOperation {
