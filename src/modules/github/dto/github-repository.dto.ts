@@ -59,6 +59,32 @@ export interface GitHubRepositoryRecentCommitDto {
   authoredAt: Date | null;
 }
 
+export interface GitHubRepositoryRootEntryDto {
+  name: string;
+  path: string;
+  type: 'file' | 'directory' | 'symlink' | 'submodule' | 'unknown';
+  size: number | null;
+  url: string | null;
+}
+
+export interface GitHubRepositoryRootEntriesDto {
+  entries: GitHubRepositoryRootEntryDto[];
+  unavailableReason: string | null;
+}
+
+export interface GitHubRepositoryTreeEntryDto {
+  path: string;
+  type: 'file' | 'directory' | 'submodule' | 'unknown';
+  size: number | null;
+  url: string;
+}
+
+export interface GitHubRepositoryTreeDto {
+  entries: GitHubRepositoryTreeEntryDto[];
+  truncated: boolean;
+  unavailableReason: string | null;
+}
+
 export interface GitHubRepositoryCommitSignalsDto {
   recentCommitCount: number;
   latestCommitAt: Date | null;
@@ -96,6 +122,8 @@ export interface GitHubRepositoryImportSnapshot {
   readmeContent: string | null;
   contributionActivity: GitHubRepositoryContributionActivityDto;
   commitSignals: GitHubRepositoryCommitSignalsDto;
+  rootEntries: GitHubRepositoryRootEntriesDto;
+  repositoryTree: GitHubRepositoryTreeDto;
   authorship: GitHubRepositoryAuthorshipDto | null;
   evidenceFailures: string[];
   frameworkDetection?: GitHubFrameworkDetectionEvidence;

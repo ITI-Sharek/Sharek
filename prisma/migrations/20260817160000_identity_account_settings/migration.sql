@@ -1,0 +1,17 @@
+ALTER TABLE "User"
+  ADD COLUMN "phone_number" VARCHAR(30),
+  ADD COLUMN "phone_verified_at" TIMESTAMP(3),
+  ADD COLUMN "country" VARCHAR(100),
+  ADD COLUMN "region" VARCHAR(100),
+  ADD COLUMN "city" VARCHAR(100),
+  ADD COLUMN "gender" VARCHAR(20),
+  ADD COLUMN "date_of_birth" DATE,
+  ADD COLUMN "profile_visibility" VARCHAR(20) NOT NULL DEFAULT 'public',
+  ADD COLUMN "show_email" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "show_phone" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "show_activity" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN "allow_indexing" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN "identity_verification_status" VARCHAR(20) NOT NULL DEFAULT 'unverified',
+  ADD COLUMN "identity_document_data" BYTEA,
+  ADD COLUMN "identity_document_mime_type" VARCHAR(100),
+  ADD COLUMN "identity_document_updated_at" TIMESTAMP(3);

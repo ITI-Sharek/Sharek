@@ -15,6 +15,8 @@ codes, and social identity linkage.
   forgot/reset password.
 - Sessions: refresh, logout, current user, current-user language preferences,
   admin role assignment.
+- Account settings: authenticated password, email, username, personal details,
+  phone, privacy, identity-document upload, and account-data export routes.
 - Social auth: GitHub and Google start/callback routes.
 
 ## Structure
@@ -83,3 +85,13 @@ the authenticated user's existing `preferred_language` field, and returns the
 same allowlisted public auth-user DTO as `GET /auth/me`. Notification
 presentation reads this identity-owned value; Identity does not duplicate
 language state in Notification preferences.
+
+`PATCH /auth/me/password`, `/email`, `/username`, `/details`, `/phone`, and
+`/privacy` own the matching User fields. Password changes revoke every other
+active session; email and username updates require the current password or the
+existing username policy respectively. Phone numbers are stored unverified
+until an SMS delivery/verification provider is introduced. `PUT
+/auth/me/identity-document` accepts PDF/PNG/JPEG documents up to 10 MB and
+sets the verification state to `pending`; it does not present a document as
+verified. `GET /auth/me/export` returns only the caller's public account and
+privacy data, never password hashes, sessions, or document bytes.
