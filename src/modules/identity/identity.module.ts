@@ -9,6 +9,7 @@ import { SessionService } from './services/session.service';
 import { SocialAuthService } from './services/social-auth.service';
 import { UsernameSuggestionService } from './services/username-suggestion.service';
 import { GoogleOAuthService } from './services/google-oauth.service';
+import { AccountSettingsService } from './services/account-settings.service';
 import { EmailVerificationSender } from './integrations/email-verification.sender';
 import { PasswordHasher } from './security/password-hasher.service';
 import { SessionTokenService } from './security/session-token.service';
@@ -27,6 +28,7 @@ import { GoogleAuthController } from './controllers/google-auth.controller';
   ],
   providers: [
     AuthService,
+    AccountSettingsService,
     IdentityAccountStatusService,
     IdentityUsernameService,
     PasswordResetService,
