@@ -3455,3 +3455,16 @@ This keeps the system strong without making it heavy:
 - Verification: focused frontend Project Detail/service tests and frontend
   TypeScript check passed; focused backend public-project service test and
   backend type check with incremental output disabled passed.
+
+### 2026-08-17 - Expose owner GitHub connection management
+
+- Modules: `github` and frontend owner project import/management surfaces.
+- Summary: the existing GitHub App endpoints already allow authenticated owners;
+  the frontend now exposes the matching GitHub identity and App installation
+  flow to owners without mounting contributor-only skill analysis.
+- API/database changes: none. Public repository preview remains connection
+  optional; private or organization repositories use the same-account GitHub
+  identity plus an active GitHub App installation.
+- Verification: frontend route guard, owner connection CTA, callback handling,
+  installation/repository access, and focused route/helper tests were added;
+  existing backend contracts remain unchanged.
