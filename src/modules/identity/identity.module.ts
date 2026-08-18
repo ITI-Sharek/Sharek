@@ -10,6 +10,7 @@ import { SocialAuthService } from './services/social-auth.service';
 import { UsernameSuggestionService } from './services/username-suggestion.service';
 import { GoogleOAuthService } from './services/google-oauth.service';
 import { AccountSettingsService } from './services/account-settings.service';
+import { PaymentCustomerProfileService } from './services/payment-customer-profile.service';
 import { EmailVerificationSender } from './integrations/email-verification.sender';
 import { PasswordHasher } from './security/password-hasher.service';
 import { SessionTokenService } from './security/session-token.service';
@@ -29,6 +30,7 @@ import { GoogleAuthController } from './controllers/google-auth.controller';
   providers: [
     AuthService,
     AccountSettingsService,
+    PaymentCustomerProfileService,
     IdentityAccountStatusService,
     IdentityUsernameService,
     PasswordResetService,
@@ -40,6 +42,10 @@ import { GoogleAuthController } from './controllers/google-auth.controller';
     PasswordHasher,
     SessionTokenService,
   ],
-  exports: [IdentityAccountStatusService, IdentityUsernameService],
+  exports: [
+    IdentityAccountStatusService,
+    IdentityUsernameService,
+    PaymentCustomerProfileService,
+  ],
 })
 export class IdentityModule {}

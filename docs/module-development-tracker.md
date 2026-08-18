@@ -177,7 +177,7 @@ needs workflow code.
 | `applications` | Implemented owner-review submission, review-window lifecycle, owner decisions, Assignments, bounded advisory Fit Assessment attempts/presentation auditing, and the contributor daily Application allowance | controller, services, DTOs, `ApplicationDailyQuotaService`, real-Postgres concurrency check, tests, module README | later moderation/reporting and broader workflow consumers | Update when application status, AI decision handling, application APIs, quota rules, or cancellation effects are added |
 | `delivery-reviews` | Implemented delivery submission, owner review, and durable reputation projection coordination | HTTP workflow, immutable history, approval outbox, worker, tests | additional reporting | Update when delivery status, ratings, review APIs, or events are added |
 | `reputation` | Implemented verified reputation projection and contributor-profile summary | projection calculator/writer and deterministic skill ranking | score history and public reviews | Update when scoring rules, history, public reputation APIs, or events are added |
-| `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, Subscription provenance and billing-period columns, and the `GET /me/subscription` status endpoint | `EntitlementsService`, `SubscriptionStatusService`, controller, DTO, `plan-catalog.ts`, migration regression harness, tests, module README | checkout and webhook activation | Update when a plan limit, a tier, resolution rules, the status payload, or Subscription columns change |
+| `subscriptions` | Implemented plan entitlement resolution as the single source of every plan number, Subscription provenance and billing-period columns, `GET /me/subscription`, and transaction-aware payment activation | `EntitlementsService`, `SubscriptionStatusService`, controller, DTO, `plan-catalog.ts`, migration regression harness, tests, module README | payment release evidence and future plan changes | Update when a plan limit, a tier, resolution rules, the status payload, payment activation, or Subscription columns change |
 | `matching` | Implemented the deterministic contributor-to-Request shortlist using the frozen Phase 0 skill bar, `GET /contributors/me/recommended-tasks`, AiMatchResult persistence, and the optional AI re-rank seam | `MatchingService`, `RecommendedTasksService`, controller, DTO, `skill-fit.ts`, shared skill-level comparison, `MatchRanker` port, migration regression, tests, module README | binding an AI ranker once AI_Agents P1-A01 ships | Update when ranking keys, exclusions, the fit comparison, the response shape, or the candidate bound change |
 | `admin` | Implemented admin skill review, contributor-field, and experience-level management HTTP routes | admin controllers, DTOs, module README and module file | disputes, reports, moderation views, and broader admin queues | Update when admin queues, review actions, moderation, or audit views are added |
 | `ai` | Implemented FastAPI skill-profile, Advisory Fit, Material Analysis, and Skill Gap Guidance facades | `AiService`, DTOs, strict FastAPI clients, response validation tests | broader contract tests and observability | Update when AI schemas, clients, audit metadata, or service behavior changes |
@@ -3045,6 +3045,47 @@ This keeps the system strong without making it heavy:
   with 1 skipped and 997 tests with 2 skipped. The local PostgreSQL migration
   round-trip could not connect because the configured `postgres` host is
   unavailable in this environment.
+
+### 2026-08-18 - Paymob callback activation and checkout hardening (PAY-01–PAY-04 / #102, #103, #105, #106)
+
+- **Requirements:** PAY-01, PAY-02, PAY-03, PAY-04, and DEC-077. The isolated
+  `feat/paymob-callback-activation` branch keeps Paymob disabled by default and
+  completes the provider-compatible checkout and verified callback workflow.
+- **Checkout boundary:** added the identity-owned allowlisted payment customer
+  profile, E.164 phone precondition, Paymob item/billing/customer fields,
+  configured HTTPS notification/redirection URLs, public-key validation, and a
+  backend-built Unified Checkout URL. Browser input cannot supply commercial or
+  provider configuration facts.
+- **Persistence/concurrency:** persisted `provider_checkout_url`; added one
+  pending subscription purchase per user/role/provider and unique non-null
+  provider order/transaction indexes; extended the PostgreSQL payment migration
+  fixture to assert the new constraints and handoff data.
+- **Callback authority:** added the public `POST /payments/paymob/webhook` route
+  and a transaction service that verifies the exact Paymob HMAC, requires the
+  Share-k merchant reference, compares amount/currency/integration/provider and
+  sandbox/live facts, deduplicates events, locks the attempt, and transitions
+  pending/paid/failed exactly once. Invalid callbacks retain only bounded
+  diagnostics; redirects never mutate state.
+- **Subscription ownership:** added the transaction-aware
+  `EntitlementsService.activatePurchasedPlan()` command. A verified success
+  retires the prior active role-context row and creates one 30-day Gold
+  `payment_provider` row atomically; decline and pending callbacks never grant
+  entitlement.
+- **API artifacts/docs:** regenerated the 176-route Postman collection,
+  environment, controller inventory, guide, API contract, database plan,
+  REST Client callback example, payment/subscription READMEs, and this tracker.
+  Added the implementation plan at `docs/paymob-payment-implementation-plan.md`
+  with the remaining live sandbox/PAY-00 release gate.
+- **Verification:** focused payment/subscription/identity/config and GitHub
+  regression tests passed 15 suites / 119 tests; the complete Jest run passed
+  170 suites (one optional realtime suite skipped) and 1,284 tests (two
+  optional tests skipped). Postman and API-client coverage passed for all 176
+  controller routes; architecture, lint, exact TypeScript, Prisma validation,
+  and build passed. The payment migration round-trip passed against the local
+  PostgreSQL service, and `prisma migrate deploy` applied
+  `20260818100000_payment_callback_invariants` to the local `sharek` database.
+  No live Paymob payment is claimed: the local Paymob flag remains disabled and
+  public notification/redirection URLs are not configured.
 
 ### 2026-08-14 - P0-B01 required skill levels on Contribution Requests
 

@@ -787,6 +787,7 @@ model PaymentAttempt {
   provider                PaymentProvider             @default(paymob)
   provider_intention_id   String?                     @db.VarChar(255)
   provider_client_secret  String?                     @db.VarChar(1000)
+  provider_checkout_url   String?                     @db.VarChar(2000)
   provider_order_id       String?                     @db.VarChar(255)
   provider_transaction_id String?                     @db.VarChar(255)
   status                  PaymentAttemptStatus        @default(pending)
@@ -825,7 +826,10 @@ model PaymentWebhookEvent {
 
   paymentAttempt PaymentAttempt? @relation(fields: [payment_attempt_id], references: [id], onDelete: SetNull)
 
-  @@unique([provider, provider_event_id])
+  // Paymob can report multiple states for the same transaction ID (for
+  // example pending and then success). The payload fingerprint remains the
+  // replay-protection key; the provider event ID is an audit/search index.
+  @@index([provider, provider_event_id])
   @@index([payment_attempt_id, processing_status])
   @@index([provider, created_at])
   @@index([verification_status, processing_status])

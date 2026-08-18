@@ -14,7 +14,7 @@ describe('EntitlementsService', () => {
   const periodEnd = new Date('2026-09-01T00:00:00.000Z');
 
   const database = {
-    subscription: { findFirst: jest.fn(), create: jest.fn() },
+    subscription: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
   };
   const service = new EntitlementsService(database as never);
 
@@ -375,6 +375,64 @@ describe('EntitlementsService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('activatePurchasedPlan', () => {
+    it('retires the active role row and creates a payment-provider Gold grant', async () => {
+      database.subscription.findFirst.mockResolvedValue({ id: 'old-subscription' });
+      database.subscription.update.mockResolvedValue({});
+      database.subscription.create.mockResolvedValue({});
+      const paidAt = new Date('2026-08-18T12:00:00.000Z');
+      const end = new Date('2026-09-17T12:00:00.000Z');
+
+      await service.activatePurchasedPlan(
+        {
+          userId,
+          roleContext: SubscriptionUserRoleContext.owner,
+          planType: SubscriptionPlanType.gold,
+          periodStart: paidAt,
+          periodEnd: end,
+        },
+        database as never,
+      );
+
+      expect(database.subscription.update).toHaveBeenCalledWith({
+        where: { id: 'old-subscription' },
+        data: {
+          status: SubscriptionStatus.expired,
+          expires_at: paidAt,
+          current_period_end: paidAt,
+        },
+      });
+      expect(database.subscription.create).toHaveBeenCalledWith({
+        data: {
+          user_id: userId,
+          user_role_context: SubscriptionUserRoleContext.owner,
+          plan_type: SubscriptionPlanType.gold,
+          status: SubscriptionStatus.active,
+          source: SubscriptionSource.payment_provider,
+          starts_at: paidAt,
+          expires_at: end,
+          current_period_start: paidAt,
+          current_period_end: end,
+        },
+      });
+    });
+
+    it('rejects a non-Gold or non-positive payment period', async () => {
+      await expect(
+        service.activatePurchasedPlan({
+          userId,
+          roleContext: SubscriptionUserRoleContext.owner,
+          planType: SubscriptionPlanType.free,
+          periodStart,
+          periodEnd,
+        }),
+      ).rejects.toMatchObject({
+        code: 'SUBSCRIPTION_PAYMENT_ACTIVATION_INVALID',
+        statusCode: 409,
+      });
     });
   });
 });

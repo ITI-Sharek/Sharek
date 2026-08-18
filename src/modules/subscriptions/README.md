@@ -107,9 +107,12 @@ state, so the route never 404s.
 ## Not here
 
 Checkout creation, payment persistence, and payment status are owned by the
-payments module. This module supplies the catalog and purchase-policy seam;
-verified webhook activation remains PAY-04 and is the first workflow allowed
-to call `assignPlan()` for a payment.
+payments module. This module supplies the catalog and purchase-policy seam and
+owns the final Subscription mutation for a verified payment. The
+transaction-aware `activatePurchasedPlan()` command is the only payment
+activation path: it retires the prior active role-context row and creates one
+30-day Gold row with `source = payment_provider`. Payments passes its Prisma
+transaction client to this command; it never writes `Subscription` directly.
 
 Usage **counting** lives with the module that owns the thing being counted:
 published Contribution Requests in projects, Applications in applications. This
