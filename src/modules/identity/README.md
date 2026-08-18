@@ -71,10 +71,14 @@ numeric ID. `DELETE /auth/github/account` removes both the repository connection
 and GitHub provider link, but refuses to disconnect GitHub when doing so would
 leave a passwordless user with no login method.
 
-The module exports `IdentityUsernameService` for profile workflows and
-`IdentityAccountStatusService` for contributor activation after skill review
-and an allowlisted immutable GitHub identity lookup used by project publication
-control checks and GitHub App repository authorization. The GitHub App flow
+The module exports `IdentityUsernameService` for profile workflows,
+`IdentityAccountStatusService` for contributor activation after skill review,
+and `PaymentCustomerProfileService` for the narrow allowlisted name, email,
+phone, and address facts needed to create a hosted payment intention. The
+payment profile service does not expose credentials, tokens, documents, or
+unrelated User fields.
+It also exports an allowlisted immutable GitHub identity lookup used by project
+publication control checks and GitHub App repository authorization. The GitHub App flow
 requires its provider user ID to match this identity at connection and later
 repository-read boundaries. The lookup exposes only provider account ID and
 username; it does not expose provider tokens or raw profile data.
