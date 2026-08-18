@@ -3,7 +3,7 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const targetMigration = '20260813150000_payment_checkout_handoff';
+const targetMigration = '20260818100000_payment_callback_invariants';
 const migrationsDirectory = fileURLToPath(
   new URL('../prisma/migrations/', import.meta.url),
 );
@@ -65,7 +65,7 @@ try {
 
   applySqlFile(`${migrationsDirectory}${targetMigration}/migration.sql`);
   applySqlFile(assertionsFile);
-  console.log('PAY-02/PAY-03 payment persistence migration round-trip passed.');
+  console.log('PAY-02/PAY-03/PAY-04 payment persistence migration round-trip passed.');
 } finally {
   if (created) {
     run('dropdb', ['--maintenance-db=postgres', databaseName]);
