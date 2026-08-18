@@ -38,6 +38,27 @@ describe('PublicProjectsService', () => {
     });
   });
 
+  it('serves a hero image only for a published Project', async () => {
+    const image = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const updatedAt = new Date('2026-08-18T10:00:00.000Z');
+    database.project.findFirst.mockResolvedValue({
+      hero_image_data: image,
+      hero_image_mime_type: 'image/png',
+      updated_at: updatedAt,
+    });
+
+    await expect(service.getHeroImage('published-project')).resolves.toEqual({
+      data: image,
+      mimeType: 'image/png',
+      updatedAt,
+    });
+    expect(database.project.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: ProjectStatus.published }),
+      }),
+    );
+  });
+
   it('withholds private GitHub source attribution from public responses', async () => {
     database.project.findFirst.mockResolvedValue({
       id: 'project-id',

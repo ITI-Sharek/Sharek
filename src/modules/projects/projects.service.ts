@@ -78,6 +78,15 @@ export class ProjectsService {
       this.database.project.findMany({
         where: {
           owner_id: ownerId,
+          ...(query.status ? { status: query.status } : {}),
+          ...(query.q
+            ? {
+                title: {
+                  contains: query.q,
+                  mode: 'insensitive' as const,
+                },
+              }
+            : {}),
           ...(cursor
             ? {
                 OR: [

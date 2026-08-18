@@ -348,12 +348,15 @@ GET /projects/discover
 GET /projects/me
 POST /projects/github/preview
 POST /projects
+PUT /projects/me/:projectId/hero-image
+GET /projects/me/:projectId/hero-image
 GET|PATCH /projects/me/:projectId
 POST /projects/me/:projectId/source/refresh
 POST /projects/me/:projectId/publish
 POST /projects/me/:projectId/archive
 GET /public/projects
 GET /public/projects/:projectSlug
+GET /public/projects/:projectSlug/hero-image
 ```
 
 Public GitHub-backed Project responses include an allowlisted persisted source
@@ -548,12 +551,15 @@ and public state:
 ```text
 POST /projects/github/preview
 POST /projects
+PUT /projects/me/:projectId/hero-image
+GET /projects/me/:projectId/hero-image
 GET|PATCH /projects/me/:projectId
 POST /projects/me/:projectId/source/refresh
 POST /projects/me/:projectId/publish
 POST /projects/me/:projectId/archive
 GET /public/projects
 GET /public/projects/:projectSlug
+GET /public/projects/:projectSlug/hero-image
 ```
 
 Preview accepts `{ "repositoryReference": "owner/repository" }` and writes no
@@ -563,6 +569,13 @@ preview fingerprint plus optional owner presentation fields; it never accepts
 also require `Idempotency-Key`, and mutable commands require
 `expectedRevision`. All `:projectId` values on owner routes must be UUIDv4, and
 project titles are trimmed before the non-empty length validation is applied.
+
+`PUT /projects/me/:projectId/hero-image` is a multipart command with a `file`
+part and `expectedRevision` field. It also requires `Idempotency-Key`; it
+signature-validates PNG, JPEG, and WebP files and limits them to 5 MB. A
+successful replacement increments the Project revision. JSON responses expose
+only a nullable `heroImageUrl`; bytes are delivered through the owner-only
+endpoint or `GET /public/projects/:projectSlug/hero-image` after publication.
 
 ```json
 {

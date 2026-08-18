@@ -77,7 +77,6 @@ export class ContributorProfilesController {
   }
 }
 
-@UseGuards(AccessTokenGuard)
 @Controller('contributors/profile-fields')
 export class ContributorFieldsController {
   constructor(private readonly contributorProfilesService: ContributorProfilesService) {}
@@ -88,9 +87,8 @@ export class ContributorFieldsController {
   }
 }
 
-// Public (no auth): registration step 3 collects experience level before an
-// account or session exists, unlike profile-fields which is only read once
-// authenticated.
+// Public catalogs: registration collects both experience and contributor fields
+// before an account or session exists.
 @Controller('contributors/experience-levels')
 export class ContributorExperienceLevelsController {
   constructor(private readonly contributorProfilesService: ContributorProfilesService) {}

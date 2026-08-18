@@ -25,6 +25,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { AuthModule } from './shared/auth/auth.module';
 import { envValidationSchema } from './shared/config/env.validation';
 import { DatabaseModule } from './shared/database/database.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EventsModule } from './shared/events/events.module';
 import { ObservabilityModule } from './shared/observability/observability.module';
 import { RealtimeModule } from './shared/realtime/realtime.module';
@@ -60,6 +61,7 @@ import { RealtimeModule } from './shared/realtime/realtime.module';
     MaterialsModule,
     ContributionProposalsModule,
     DeliveryReviewsModule,
+    DashboardModule,
     ReputationModule,
     AdminModule,
     AiModule,
