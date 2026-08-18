@@ -262,6 +262,32 @@ describe('ProjectsService', () => {
     });
   });
 
+  it('filters owner projects by status and search query', async () => {
+    database.project.findMany.mockResolvedValue([]);
+    database.contributionRequest.count.mockResolvedValue(0);
+    applications.summarizePendingByContributionRequests.mockResolvedValue({
+      projects: [],
+    });
+
+    await service.getMyProjects('owner-id', {
+      status: ProjectStatus.published,
+      q: 'api',
+    });
+
+    expect(database.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          owner_id: 'owner-id',
+          status: ProjectStatus.published,
+          title: {
+            contains: 'api',
+            mode: 'insensitive',
+          },
+        },
+      }),
+    );
+  });
+
   it('allows active contributors to use the persisted-owner workspace', async () => {
     database.project.findMany.mockResolvedValue([]);
     database.contributionRequest.count.mockResolvedValue(0);

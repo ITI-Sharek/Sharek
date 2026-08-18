@@ -9,15 +9,23 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
+  Res,
+  StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 
 import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
 import { RolesGuard } from '../../shared/auth/guards/roles.guard';
 import { Roles } from '../../shared/auth/roles.decorator';
 import { CurrentUser } from '../../shared/auth/current-user.decorator';
 import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
+import { BadRequestApplicationError } from '../../shared/errors/application.error';
 import { DiscoverProjectsQuery } from './dto/discover-projects.query';
 import {
   ConfirmProjectTransitionDto,
@@ -25,10 +33,15 @@ import {
   ProjectPageQueryDto,
   PreviewProjectSourceDto,
   RefreshProjectSourceDto,
+  UpdateProjectHeroImageDto,
   UpdateProjectDto,
 } from './dto/project-publication.dto';
 import { ProjectsService } from './projects.service';
 import { ProjectPublicationService } from './services/project-publication.service';
+import {
+  PROJECT_CATEGORY_CATALOG,
+  PROJECT_DIFFICULTY_CATALOG,
+} from './project-categories.catalog';
 
 @Controller('projects')
 export class ProjectsController {
@@ -36,6 +49,20 @@ export class ProjectsController {
     private readonly projectsService: ProjectsService,
     private readonly publicationService: ProjectPublicationService,
   ) {}
+
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles('owner', 'contributor', 'admin')
+  @Get('categories')
+  listCategories() {
+    return PROJECT_CATEGORY_CATALOG;
+  }
+
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles('owner', 'contributor', 'admin')
+  @Get('difficulties')
+  listDifficulties() {
+    return PROJECT_DIFFICULTY_CATALOG;
+  }
 
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles('contributor', 'owner', 'admin')
@@ -74,6 +101,49 @@ export class ProjectsController {
     @Body() body: CreateProjectDraftDto,
   ) {
     return this.publicationService.createDraft(user, body, idempotencyKey ?? '');
+  }
+
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles('owner', 'contributor')
+  @Put('me/:projectId/hero-image')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5_000_000 } }))
+  uploadHeroImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
+    @Headers('idempotency-key') idempotencyKey: string,
+    @Body() body: UpdateProjectHeroImageDto,
+    @UploadedFile() file?: { buffer: Buffer; mimetype: string; size: number },
+  ) {
+    if (!file) {
+      throw new BadRequestApplicationError(
+        'Hero image file is required',
+        'PROJECT_HERO_IMAGE_REQUIRED',
+      );
+    }
+    return this.publicationService.uploadHeroImage(
+      user,
+      projectId,
+      body.expectedRevision,
+      file,
+      idempotencyKey ?? '',
+    );
+  }
+
+  @UseGuards(AccessTokenGuard, RolesGuard)
+  @Roles('owner', 'contributor')
+  @Get('me/:projectId/hero-image')
+  async getHeroImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId', new ParseUUIDPipe({ version: '4' })) projectId: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const heroImage = await this.publicationService.getOwnerHeroImage(user, projectId);
+    response.set({
+      'Content-Type': heroImage.mimeType,
+      'Cache-Control': 'private, max-age=300',
+      'Last-Modified': heroImage.updatedAt.toUTCString(),
+    });
+    return new StreamableFile(heroImage.data);
   }
 
   @UseGuards(AccessTokenGuard, RolesGuard)

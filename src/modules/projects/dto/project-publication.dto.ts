@@ -17,7 +17,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { ProjectCategory, ProjectDifficulty } from '@prisma/client';
+import { ProjectCategory, ProjectDifficulty, ProjectStatus } from '@prisma/client';
 
 const REPOSITORY_REFERENCE_PATTERN =
   /^(?:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+|https:\/\/(?:www\.)?github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?\/?$)$/;
@@ -107,6 +107,13 @@ export class UpdateProjectDto extends ProjectPresentationDto {
   >;
 }
 
+export class UpdateProjectHeroImageDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  expectedRevision!: number;
+}
+
 export class RefreshProjectSourceDto {
   @IsInt()
   @Min(1)
@@ -131,6 +138,18 @@ export class ProjectPageQueryDto {
   @Min(1)
   @Max(50)
   limit?: number;
+
+  @IsOptional()
+  @IsEnum(ProjectStatus)
+  status?: ProjectStatus;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(100)
+  q?: string;
 }
 
 export function isValidRepositoryReference(value: string): boolean {

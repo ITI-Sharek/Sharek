@@ -9,6 +9,7 @@ export interface PublicProjectDto {
   technologies: string[];
   category: ProjectCategory | null;
   difficulty: ProjectDifficulty | null;
+  heroImageUrl: string | null;
   publishedAt: Date;
   owner: PublicProjectOwnerDto | null;
   source:

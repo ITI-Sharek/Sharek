@@ -3455,3 +3455,22 @@ This keeps the system strong without making it heavy:
 - Verification: focused frontend Project Detail/service tests and frontend
   TypeScript check passed; focused backend public-project service test and
   backend type check with incremental output disabled passed.
+
+### 2026-08-18 - Project hero-image upload in the creation wizard
+
+- Modules: `projects`; frontend project-import and public-project hero views.
+- Summary: Owners can select an optional hero image while creating a Project.
+  The wizard creates the GitHub-backed draft, persists the image, then uses the
+  new revision for publication so an upload cannot be silently lost.
+- API/database changes: migration `20260818110000_project_hero_images` adds
+  nullable hero-image bytes and MIME type to `Project`. Owner-only multipart
+  `PUT|GET /projects/me/:projectId/hero-image` and public
+  `GET /public/projects/:projectSlug/hero-image` deliver validated bytes; JSON
+  Project responses expose only a nullable URL.
+- Authorization/security review: only the active Project owner can upload or
+  read an owner image; public delivery requires `published` status. Server-side
+  file signatures must match PNG/JPEG/WebP MIME values and are limited to 5 MB.
+  Upload is idempotent and revision-protected.
+- Verification: Prisma validation/generation, focused backend project service
+  tests, targeted lint, backend type check with incremental output disabled,
+  frontend type check, targeted frontend lint, and focused frontend tests pass.
