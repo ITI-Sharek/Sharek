@@ -8,11 +8,13 @@ describe('payment webhook event normalization', () => {
   const transaction: NormalizedPaymentTransaction = {
     transactionId: 'transaction-1',
     orderId: 'order-1',
+    merchantOrderId: 'sharek:payment:11111111-1111-4111-8111-111111111111',
     amountCents: 50_000,
     currency: 'EGP',
     integrationId: 5_852_767,
     pending: false,
     success: true,
+    isLive: false,
   };
 
   it('keeps only normalized payment facts in the stored payload', () => {
