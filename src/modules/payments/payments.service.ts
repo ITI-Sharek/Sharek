@@ -18,6 +18,7 @@ import {
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { EntitlementsService } from '../subscriptions/entitlements.service';
+import { PaymentCustomerProfileService } from '../identity/services/payment-customer-profile.service';
 import { PaymentCheckoutDto, PaymentStatusDto } from './dto/payment-response.dto';
 import { PAYMENT_PROVIDER, PaymentProvider } from './payments.types';
 
@@ -26,6 +27,7 @@ export class PaymentsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly subscriptions: EntitlementsService,
+    private readonly customerProfile: PaymentCustomerProfileService,
     @Inject(PAYMENT_PROVIDER)
     private readonly provider: PaymentProvider,
   ) {}
@@ -78,6 +80,34 @@ export class PaymentsService {
       input.planType,
     );
 
+    const pendingPurchase = await this.database.paymentAttempt.findFirst({
+      where: {
+        user_id: input.actor.id,
+        purpose: PaymentAttemptPurpose.subscription_purchase,
+        user_role_context: input.roleContext,
+        provider: PrismaPaymentProvider.paymob,
+        status: PaymentAttemptStatus.pending,
+      },
+      orderBy: { created_at: 'asc' },
+    });
+    if (pendingPurchase) {
+      this.assertSameCheckout(pendingPurchase, {
+        planType: input.planType,
+        roleContext: input.roleContext,
+        amountCents: plan.amountCents,
+        currency: plan.currency,
+      });
+      return this.completePendingCheckout(pendingPurchase);
+    }
+
+    const customer = await this.customerProfile.getForUser(input.actor.id);
+    if (!/^\+[1-9]\d{7,14}$/.test(customer.phoneNumber ?? '')) {
+      throw new BadRequestApplicationError(
+        'A valid phone number is required before starting payment checkout',
+        'PAYMENT_CUSTOMER_PROFILE_INCOMPLETE',
+      );
+    }
+
     const attemptId = randomUUID();
     let attempt: PaymentAttemptRecord;
     try {
@@ -105,7 +135,28 @@ export class PaymentsService {
           },
         },
       });
-      if (!racedAttempt) throw error;
+      if (!racedAttempt) {
+        const racedPending = await this.database.paymentAttempt.findFirst({
+          where: {
+            user_id: input.actor.id,
+            purpose: PaymentAttemptPurpose.subscription_purchase,
+            user_role_context: input.roleContext,
+            provider: PrismaPaymentProvider.paymob,
+            status: PaymentAttemptStatus.pending,
+          },
+          orderBy: { created_at: 'asc' },
+        });
+        if (racedPending) {
+          this.assertSameCheckout(racedPending, {
+            planType: input.planType,
+            roleContext: input.roleContext,
+            amountCents: plan.amountCents,
+            currency: plan.currency,
+          });
+          return this.completePendingCheckout(racedPending);
+        }
+        throw error;
+      }
       this.assertSameCheckout(racedAttempt, {
         planType: input.planType,
         roleContext: input.roleContext,
@@ -115,7 +166,7 @@ export class PaymentsService {
       return this.completePendingCheckout(racedAttempt);
     }
 
-    return this.completePendingCheckout(attempt);
+    return this.completePendingCheckout(attempt, customer);
   }
 
   async getPaymentStatus(
@@ -147,6 +198,7 @@ export class PaymentsService {
 
   private async completePendingCheckout(
     attempt: PaymentAttemptRecord,
+    customer?: Awaited<ReturnType<PaymentCustomerProfileService['getForUser']>>,
   ): Promise<PaymentCheckoutDto> {
     return this.database.$transaction(async (transaction) => {
       // The provider call is deliberately inside the bounded transaction. A
@@ -176,19 +228,41 @@ export class PaymentsService {
         currentAttempt.provider_intention_id &&
         currentAttempt.provider_client_secret
       ) {
-        return this.toCheckoutDto(currentAttempt);
+        const checkoutUrl =
+          currentAttempt.provider_checkout_url ??
+          this.provider.createHostedCheckoutUrl?.(
+            currentAttempt.provider_client_secret,
+          ) ??
+          null;
+        if (
+          checkoutUrl &&
+          currentAttempt.provider_checkout_url !== checkoutUrl
+        ) {
+          await transaction.paymentAttempt.update({
+            where: { id: currentAttempt.id },
+            data: { provider_checkout_url: checkoutUrl },
+          });
+        }
+        return this.toCheckoutDto({
+          ...currentAttempt,
+          provider_checkout_url: checkoutUrl,
+        });
       }
 
       const intention = await this.provider.createPaymentIntention({
         amountCents: currentAttempt.amount_cents,
         currency: currentAttempt.currency,
         reference: `sharek:payment:${currentAttempt.id}`,
+        itemName: 'Sharek Gold subscription',
+        customer:
+          customer ?? (await this.customerProfile.getForUser(currentAttempt.user_id)),
       });
       const updatedAttempt = await transaction.paymentAttempt.update({
         where: { id: currentAttempt.id },
         data: {
           provider_intention_id: intention.intentionId,
           provider_client_secret: intention.clientSecret,
+          provider_checkout_url: intention.checkoutUrl,
         },
       });
       return this.toCheckoutDto(updatedAttempt);
@@ -196,7 +270,7 @@ export class PaymentsService {
   }
 
   private toCheckoutDto(attempt: PaymentAttemptRecord): PaymentCheckoutDto {
-    if (!attempt.provider_client_secret) {
+    if (!attempt.provider_client_secret || !attempt.provider_checkout_url) {
       throw new ConflictApplicationError(
         'Payment checkout data is not available yet',
         'PAYMENT_CHECKOUT_DATA_UNAVAILABLE',
@@ -207,6 +281,7 @@ export class PaymentsService {
       checkout: {
         provider: 'paymob',
         clientSecret: attempt.provider_client_secret,
+        checkoutUrl: attempt.provider_checkout_url,
       },
     };
   }
@@ -293,6 +368,7 @@ type PaymentAttemptRecord = {
   provider: PrismaPaymentProvider;
   provider_intention_id: string | null;
   provider_client_secret: string | null;
+  provider_checkout_url: string | null;
   provider_order_id: string | null;
   provider_transaction_id: string | null;
   status: PaymentAttemptStatus;
