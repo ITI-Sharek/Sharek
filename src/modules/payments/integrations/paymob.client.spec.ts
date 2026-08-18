@@ -20,7 +20,7 @@ const transaction = {
   is_refunded: false,
   is_standalone_payment: true,
   is_voided: false,
-  order: { id: 456789 },
+  order: { id: 456789, merchant_order_id: 'sharek:payment:11111111-1111-4111-8111-111111111111' },
   owner: 2468,
   pending: false,
   source_data: {
@@ -29,6 +29,7 @@ const transaction = {
     type: 'card',
   },
   success: true,
+  is_live: false,
 };
 
 function config(overrides: Record<string, unknown> = {}): ConfigService {
@@ -37,7 +38,11 @@ function config(overrides: Record<string, unknown> = {}): ConfigService {
     PAYMOB_API_BASE_URL: 'https://accept.paymob.com',
     PAYMOB_INTENTION_PATH: '/v1/intention/',
     PAYMOB_SECRET_KEY: 'sandbox-secret',
+    PAYMOB_PUBLIC_KEY: 'sandbox-public-key',
     PAYMOB_HMAC_SECRET: hmacSecret,
+    PAYMOB_NOTIFICATION_URL: 'https://api.example.test/payments/paymob/webhook',
+    PAYMOB_REDIRECTION_URL: 'https://app.example.test/payments/result',
+    PAYMOB_EXPECTED_LIVE: false,
     PAYMOB_INTEGRATION_IDS: '12345, 67890',
     PAYMOB_REQUEST_TIMEOUT_MS: 1000,
     ...overrides,
@@ -99,11 +104,23 @@ describe('PaymobClient', () => {
       new PaymobClient(config()).createPaymentIntention({
         amountCents: 12500,
         currency: 'EGP',
-        reference: 'sharek:checkout:123',
+        reference: 'sharek:payment:11111111-1111-4111-8111-111111111111',
+        itemName: 'Sharek Gold subscription',
+        customer: {
+          firstName: 'Test',
+          lastName: 'Customer',
+          email: 'test@example.com',
+          phoneNumber: '+201000000000',
+          country: 'EG',
+          region: null,
+          city: null,
+        },
       }),
     ).resolves.toEqual({
       intentionId: 'pi_test_123',
       clientSecret: 'client-secret-123',
+      checkoutUrl:
+        'https://accept.paymob.com/unifiedcheckout/?publicKey=sandbox-public-key&clientSecret=client-secret-123',
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
@@ -119,7 +136,38 @@ describe('PaymobClient', () => {
           amount: 12500,
           currency: 'EGP',
           payment_methods: [12345, 67890],
-          special_reference: 'sharek:checkout:123',
+          items: [
+            {
+              name: 'Sharek Gold subscription',
+              amount: 12500,
+              description: 'Sharek Gold subscription',
+              quantity: 1,
+            },
+          ],
+          billing_data: {
+            first_name: 'Test',
+            last_name: 'Customer',
+            email: 'test@example.com',
+            phone_number: '+201000000000',
+            apartment: 'NA',
+            floor: 'NA',
+            street: 'NA',
+            building: 'NA',
+            shipping_method: 'NA',
+            postal_code: 'NA',
+            city: 'NA',
+            country: 'EG',
+            state: 'NA',
+          },
+          customer: {
+            first_name: 'Test',
+            last_name: 'Customer',
+            email: 'test@example.com',
+          },
+          special_reference:
+            'sharek:payment:11111111-1111-4111-8111-111111111111',
+          notification_url: 'https://api.example.test/payments/paymob/webhook',
+          redirection_url: 'https://app.example.test/payments/result',
         }),
       }),
     );
@@ -134,7 +182,17 @@ describe('PaymobClient', () => {
       new PaymobClient(config()).createPaymentIntention({
         amountCents: 100,
         currency: 'EGP',
-        reference: 'sharek:reference',
+        reference: 'sharek:payment:11111111-1111-4111-8111-111111111111',
+        itemName: 'Sharek Gold subscription',
+        customer: {
+          firstName: 'Test',
+          lastName: 'Customer',
+          email: 'test@example.com',
+          phoneNumber: '+201000000000',
+          country: 'EG',
+          region: null,
+          city: null,
+        },
       }),
     ).rejects.toMatchObject({
       code: 'PAYMOB_PROVIDER_RESPONSE_INVALID',
@@ -150,31 +208,59 @@ describe('PaymobClient', () => {
       disabled.createPaymentIntention({
         amountCents: 100,
         currency: 'EGP',
-        reference: 'sharek:reference',
+        reference: 'sharek:payment:11111111-1111-4111-8111-111111111111',
+        itemName: 'Sharek Gold subscription',
+        customer: {
+          firstName: 'Test',
+          lastName: 'Customer',
+          email: 'test@example.com',
+          phoneNumber: '+201000000000',
+          country: 'EG',
+          region: null,
+          city: null,
+        },
       }),
     ).rejects.toMatchObject({ code: 'PAYMOB_PROVIDER_DISABLED' });
     expect(global.fetch).not.toHaveBeenCalled();
 
     const incomplete = new PaymobClient(
-      config({ PAYMOB_SECRET_KEY: '', PAYMOB_INTEGRATION_IDS: '' }),
+        config({ PAYMOB_SECRET_KEY: '', PAYMOB_INTEGRATION_IDS: '' }),
     );
     await expect(
       incomplete.createPaymentIntention({
         amountCents: 100,
         currency: 'EGP',
-        reference: 'sharek:reference',
+        reference: 'sharek:payment:11111111-1111-4111-8111-111111111111',
+        itemName: 'Sharek Gold subscription',
+        customer: {
+          firstName: 'Test',
+          lastName: 'Customer',
+          email: 'test@example.com',
+          phoneNumber: '+201000000000',
+          country: 'EG',
+          region: null,
+          city: null,
+        },
       }),
     ).rejects.toMatchObject({ code: 'PAYMOB_CONFIGURATION_INVALID' });
     expect(global.fetch).not.toHaveBeenCalled();
 
     for (const integrationIds of ['1e3', '1.0']) {
       await expect(
-        new PaymobClient(
-          config({ PAYMOB_INTEGRATION_IDS: integrationIds }),
-        ).createPaymentIntention({
+        new PaymobClient(config({ PAYMOB_INTEGRATION_IDS: integrationIds })).createPaymentIntention({
           amountCents: 100,
           currency: 'EGP',
-          reference: 'sharek:reference',
+          reference: 'sharek:payment:11111111-1111-4111-8111-111111111111',
+          itemName: 'Sharek Gold subscription',
+          customer: {
+            firstName: 'Test',
+            lastName: 'Customer',
+            email: 'test@example.com',
+            phoneNumber: '+201000000000',
+            country: 'EG',
+            region: null,
+            city: null,
+          },
         }),
       ).rejects.toMatchObject({ code: 'PAYMOB_CONFIGURATION_INVALID' });
     }
@@ -190,7 +276,17 @@ describe('PaymobClient', () => {
       new PaymobClient(config()).createPaymentIntention({
         amountCents: 100,
         currency: 'EGP',
-        reference: 'sharek:reference',
+        reference: 'sharek:payment:11111111-1111-4111-8111-111111111111',
+        itemName: 'Sharek Gold subscription',
+        customer: {
+          firstName: 'Test',
+          lastName: 'Customer',
+          email: 'test@example.com',
+          phoneNumber: '+201000000000',
+          country: 'EG',
+          region: null,
+          city: null,
+        },
       }),
     ).rejects.toMatchObject({
       code: 'PAYMOB_PROVIDER_HTTP_ERROR',
@@ -206,7 +302,17 @@ describe('PaymobClient', () => {
       new PaymobClient(config()).createPaymentIntention({
         amountCents: 100,
         currency: 'EGP',
-        reference: 'sharek:reference',
+        reference: 'sharek:payment:11111111-1111-4111-8111-111111111111',
+        itemName: 'Sharek Gold subscription',
+        customer: {
+          firstName: 'Test',
+          lastName: 'Customer',
+          email: 'test@example.com',
+          phoneNumber: '+201000000000',
+          country: 'EG',
+          region: null,
+          city: null,
+        },
       }),
     ).rejects.toMatchObject({ code: 'PAYMOB_PROVIDER_TIMEOUT', statusCode: 504 });
 
@@ -215,7 +321,17 @@ describe('PaymobClient', () => {
       new PaymobClient(config()).createPaymentIntention({
         amountCents: 100,
         currency: 'EGP',
-        reference: 'sharek:reference',
+        reference: 'sharek:payment:11111111-1111-4111-8111-111111111111',
+        itemName: 'Sharek Gold subscription',
+        customer: {
+          firstName: 'Test',
+          lastName: 'Customer',
+          email: 'test@example.com',
+          phoneNumber: '+201000000000',
+          country: 'EG',
+          region: null,
+          city: null,
+        },
       }),
     ).rejects.toMatchObject({
       code: 'PAYMOB_PROVIDER_UNAVAILABLE',
@@ -232,12 +348,20 @@ describe('PaymobClient', () => {
     expect(result).toEqual({
       transactionId: '987654',
       orderId: '456789',
+      merchantOrderId: 'sharek:payment:11111111-1111-4111-8111-111111111111',
       amountCents: 12500,
       currency: 'EGP',
       integrationId: 12345,
       pending: false,
       success: true,
+      isLive: false,
     });
+  });
+
+  it('rebuilds a hosted checkout URL for legacy attempts that predate URL persistence', () => {
+    expect(new PaymobClient(config()).createHostedCheckoutUrl('client-secret-123')).toBe(
+      'https://accept.paymob.com/unifiedcheckout/?publicKey=sandbox-public-key&clientSecret=client-secret-123',
+    );
   });
 
   it('rejects a callback when a signed field changes', () => {

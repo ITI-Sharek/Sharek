@@ -9,6 +9,7 @@ export interface PaymentCheckoutDto {
   checkout: {
     provider: 'paymob';
     clientSecret: string;
+    checkoutUrl: string;
   };
 }
 
