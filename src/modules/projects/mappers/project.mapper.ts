@@ -19,6 +19,9 @@ export function toProjectResponseDto(project: Project): ProjectResponseDto {
     readmeContent: project.readme_content,
     category: project.category,
     difficulty: project.difficulty,
+    heroImageUrl: project.hero_image_data
+      ? `/projects/me/${project.id}/hero-image`
+      : null,
     publishedAt: project.published_at,
     createdAt: project.created_at,
     updatedAt: project.updated_at,

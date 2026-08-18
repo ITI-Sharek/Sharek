@@ -846,6 +846,8 @@ model Project {
   repo_statistics       Json?
   category              ProjectCategory?
   difficulty            ProjectDifficulty?
+  hero_image_data       Bytes?
+  hero_image_mime_type  String?            @db.VarChar(50)
   status                ProjectStatus      @default(draft)
   readme_content        String?
   revision              Int                @default(1)
