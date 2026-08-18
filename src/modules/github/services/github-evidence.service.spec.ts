@@ -51,6 +51,14 @@ describe('GitHubEvidenceService GitHub App boundary', () => {
         data: [],
         unavailableReason: null,
       }),
+      listRepositoryRootEntries: jest.fn().mockResolvedValue({
+        data: [],
+        unavailableReason: null,
+      }),
+      getRepositoryTree: jest.fn().mockResolvedValue({
+        data: { tree: [], truncated: false },
+        unavailableReason: null,
+      }),
       getRepositoryFile: jest.fn().mockImplementation((_token, _fullName, path) =>
         Promise.resolve(
           path === 'package.json'

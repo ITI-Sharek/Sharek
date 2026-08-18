@@ -1979,7 +1979,7 @@ below-target skills, technologies, source-backed resources, practice projects,
 and improvement steps. It never changes eligibility, Application state, owner
 decisions, rank, or score.
 
-## Paymob checkout and payment status (PAY-03 / #105)
+## Paymob checkout, payment status, and verified callbacks (PAY-03 / #105, PAY-04 / #106)
 
 The payment slice is disabled by default and exposes a backend-owned Free/Gold
 catalog plus authenticated checkout/status operations:
@@ -2005,7 +2005,39 @@ Payment status is scoped to the authenticated payer and returns only the
 payment ID, selected role context and plan, server-owned amount/currency,
 status, creation time, and paid time. Checkout creation and redirect data do
 not activate a Subscription; only the later verified callback workflow may do
-so.
+so. A successful checkout response also includes the backend-built
+`checkoutUrl` alongside the browser-safe client secret:
+
+```json
+{
+  "paymentId": "<internal UUID>",
+  "checkout": {
+    "provider": "paymob",
+    "clientSecret": "<client secret>",
+    "checkoutUrl": "https://accept.paymob.com/unifiedcheckout/?publicKey=<public-key>&clientSecret=<client-secret>"
+  }
+}
+```
+
+Paymob sends the payment authority to the public callback endpoint:
+
+```http
+POST /payments/paymob/webhook?hmac=<sha512-hex>
+Content-Type: application/json
+```
+
+The callback is intentionally not bearer-authenticated. The backend verifies
+the exact Paymob transaction HMAC, requires a `TRANSACTION` envelope and a
+`sharek:payment:<paymentId>` merchant reference, then compares the signed
+transaction/order IDs, Gold amount (`50,000` EGP minor units), currency,
+configured integration ID, provider, and expected sandbox/live mode. A pending
+callback leaves the attempt pending; a later callback for the same Paymob
+transaction can carry distinct terminal facts. A final success marks it paid and creates
+one 30-day Gold `payment_provider` subscription for the stored role context in
+the same transaction; a final decline marks it failed. Duplicate, already
+terminal, and mismatched callbacks return a safe `200` outcome without
+repeating activation. Invalid signatures and malformed callbacks return the
+stable application error and never mutate payment or subscription state.
 
 ## Contract Change Rules
 

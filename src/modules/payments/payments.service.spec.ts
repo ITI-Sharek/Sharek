@@ -45,6 +45,17 @@ describe('PaymentsService', () => {
     getPlanCatalogEntry: jest.fn().mockReturnValue(plan),
     assertPlanPurchaseAllowed: jest.fn().mockResolvedValue(undefined),
   };
+  const customerProfile = {
+    getForUser: jest.fn().mockResolvedValue({
+      firstName: 'Test',
+      lastName: 'Customer',
+      email: 'test@example.com',
+      phoneNumber: '+201000000000',
+      country: 'EG',
+      region: null,
+      city: null,
+    }),
+  };
   const provider: jest.Mocked<PaymentProvider> = {
     createPaymentIntention: jest.fn(),
     verifyAndNormalizeTransactionCallback: jest.fn(),
@@ -52,6 +63,7 @@ describe('PaymentsService', () => {
   const service = new PaymentsService(
     database as never,
     subscriptions as never,
+    customerProfile as never,
     provider,
   );
 
@@ -69,6 +81,8 @@ describe('PaymentsService', () => {
     provider: PrismaPaymentProvider.paymob,
     provider_intention_id: 'intention-1',
     provider_client_secret: 'client-secret-1',
+    provider_checkout_url:
+      'https://accept.paymob.com/unifiedcheckout/?publicKey=public&clientSecret=client-secret-1',
     provider_order_id: null,
     provider_transaction_id: null,
     status: PaymentAttemptStatus.pending,
@@ -85,6 +99,15 @@ describe('PaymentsService', () => {
     jest.resetAllMocks();
     subscriptions.getPlanCatalogEntry.mockReturnValue(plan);
     subscriptions.assertPlanPurchaseAllowed.mockResolvedValue(undefined);
+    customerProfile.getForUser.mockResolvedValue({
+      firstName: 'Test',
+      lastName: 'Customer',
+      email: 'test@example.com',
+      phoneNumber: '+201000000000',
+      country: 'EG',
+      region: null,
+      city: null,
+    });
     lockedAttempt = pendingAttempt({
       provider_intention_id: null,
       provider_client_secret: null,
@@ -108,6 +131,8 @@ describe('PaymentsService', () => {
     provider.createPaymentIntention.mockResolvedValue({
       intentionId: 'intention-1',
       clientSecret: 'client-secret-1',
+      checkoutUrl:
+        'https://accept.paymob.com/unifiedcheckout/?publicKey=public&clientSecret=client-secret-1',
     });
   });
 
@@ -124,6 +149,8 @@ describe('PaymentsService', () => {
       checkout: {
         provider: 'paymob',
         clientSecret: 'client-secret-1',
+        checkoutUrl:
+          'https://accept.paymob.com/unifiedcheckout/?publicKey=public&clientSecret=client-secret-1',
       },
     });
 
@@ -144,12 +171,18 @@ describe('PaymentsService', () => {
       amountCents: 50_000,
       currency: 'EGP',
       reference: expect.stringMatching(/^sharek:payment:/),
+      itemName: 'Sharek Gold subscription',
+      customer: expect.objectContaining({
+        phoneNumber: '+201000000000',
+      }),
     });
     expect(database.paymentAttempt.update).toHaveBeenCalledWith({
       where: { id: paymentId },
       data: {
         provider_intention_id: 'intention-1',
         provider_client_secret: 'client-secret-1',
+        provider_checkout_url:
+          'https://accept.paymob.com/unifiedcheckout/?publicKey=public&clientSecret=client-secret-1',
       },
     });
   });
@@ -169,11 +202,47 @@ describe('PaymentsService', () => {
       checkout: {
         provider: 'paymob',
         clientSecret: 'client-secret-1',
+        checkoutUrl:
+          'https://accept.paymob.com/unifiedcheckout/?publicKey=public&clientSecret=client-secret-1',
       },
     });
 
     expect(provider.createPaymentIntention).not.toHaveBeenCalled();
     expect(database.paymentAttempt.create).not.toHaveBeenCalled();
+  });
+
+  it('backfills the hosted checkout URL when replaying a legacy attempt', async () => {
+    const legacy = pendingAttempt({
+      provider_checkout_url: null,
+    });
+    database.paymentAttempt.findUnique.mockResolvedValue(legacy);
+    provider.createHostedCheckoutUrl = jest
+      .fn()
+      .mockReturnValue('https://accept.paymob.com/unifiedcheckout/?clientSecret=legacy');
+
+    await expect(
+      service.createCheckout({
+        actor: owner,
+        planType: SubscriptionPlanType.gold,
+        roleContext: SubscriptionUserRoleContext.owner,
+        idempotencyKey,
+      }),
+    ).resolves.toMatchObject({
+      checkout: {
+        checkoutUrl:
+          'https://accept.paymob.com/unifiedcheckout/?clientSecret=legacy',
+      },
+    });
+    expect(provider.createHostedCheckoutUrl).toHaveBeenCalledWith(
+      'client-secret-1',
+    );
+    expect(database.paymentAttempt.update).toHaveBeenCalledWith({
+      where: { id: paymentId },
+      data: {
+        provider_checkout_url:
+          'https://accept.paymob.com/unifiedcheckout/?clientSecret=legacy',
+      },
+    });
   });
 
   it('rejects reusing an idempotency key for a different checkout', async () => {
@@ -189,6 +258,33 @@ describe('PaymentsService', () => {
         idempotencyKey,
       }),
     ).rejects.toMatchObject({ code: 'PAYMENT_IDEMPOTENCY_CONFLICT' });
+    expect(provider.createPaymentIntention).not.toHaveBeenCalled();
+  });
+
+  it('reuses the matching pending purchase when the browser minted a new key', async () => {
+    const pending = pendingAttempt();
+    database.paymentAttempt.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(pending);
+    database.paymentAttempt.findFirst.mockResolvedValue(pending);
+
+    await expect(
+      service.createCheckout({
+        actor: owner,
+        planType: SubscriptionPlanType.gold,
+        roleContext: SubscriptionUserRoleContext.owner,
+        idempotencyKey: 'another-checkout-key-2026',
+      }),
+    ).resolves.toEqual({
+      paymentId,
+      checkout: {
+        provider: 'paymob',
+        clientSecret: 'client-secret-1',
+        checkoutUrl:
+          'https://accept.paymob.com/unifiedcheckout/?publicKey=public&clientSecret=client-secret-1',
+      },
+    });
+    expect(database.paymentAttempt.create).not.toHaveBeenCalled();
     expect(provider.createPaymentIntention).not.toHaveBeenCalled();
   });
 

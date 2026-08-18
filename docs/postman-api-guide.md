@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **160**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **176**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -37,7 +37,9 @@ Unique controller method/path pairs: **160**. WebSocket events are excluded from
 | Method | Path | Auth | Success | Purpose |
 | --- | --- | --- | ---: | --- |
 | `PATCH` | `/auth/users/:id/role` | admin | 200 | Assign Role |
+| `PATCH` | `/auth/me/password` | Bearer / resource-scoped | 200 | Change My Password |
 | `GET` | `/auth/username-availability` | Public | 200 | Check Username Availability |
+| `GET` | `/auth/me/export` | Bearer / resource-scoped | 200 | Export My Account Data |
 | `POST` | `/auth/forgot-password` | Public | 201 | Forgot Password |
 | `GET` | `/auth/me` | Bearer / resource-scoped | 200 | Get Current User |
 | `POST` | `/auth/login` | Public | 201 | Login |
@@ -47,6 +49,12 @@ Unique controller method/path pairs: **160**. WebSocket events are excluded from
 | `POST` | `/auth/verify-email/resend` | Public | 201 | Resend Email Verification |
 | `POST` | `/auth/reset-password` | Public | 201 | Reset Password |
 | `PATCH` | `/auth/me/preferences` | Bearer / resource-scoped | 200 | Update Current User Language |
+| `PATCH` | `/auth/me/details` | Bearer / resource-scoped | 200 | Update My Details |
+| `PATCH` | `/auth/me/email` | Bearer / resource-scoped | 200 | Update My Email |
+| `PATCH` | `/auth/me/phone` | Bearer / resource-scoped | 200 | Update My Phone |
+| `PATCH` | `/auth/me/privacy` | Bearer / resource-scoped | 200 | Update My Privacy |
+| `PATCH` | `/auth/me/username` | Bearer / resource-scoped | 200 | Update My Username |
+| `PUT` | `/auth/me/identity-document` | Bearer / resource-scoped | 200 | Upload Identity Document |
 | `POST` | `/auth/verify-email` | Public | 201 | Verify Email |
 
 ### OAuth
@@ -101,12 +109,16 @@ Unique controller method/path pairs: **160**. WebSocket events are excluded from
 | `GET` | `/projects/discover` | contributor / owner / admin | 200 | Discover Published Projects |
 | `GET` | `/projects/me/:projectId` | owner / contributor | 200 | Get My Project |
 | `GET` | `/public/projects/:projectSlug` | Public | 200 | Get Public Project |
+| `GET` | `/public/projects/:projectSlug/save` | Bearer / resource-scoped | 200 | Get Saved State |
+| `GET` | `/public/projects/:projectSlug/applicants` | Public | 200 | List Applicants |
 | `GET` | `/projects/me` | owner / contributor | 200 | List My Projects |
 | `GET` | `/public/projects` | Public | 200 | List Public Projects |
 | `POST` | `/projects/github/preview` | owner / contributor | 200 | Preview GitHub Source |
 | `POST` | `/projects/me/:projectId/publish` | owner / contributor | 200 | Publish Project |
 | `POST` | `/projects/me/:projectId/source/refresh` | owner / contributor | 200 | Refresh Project Source |
 | `POST` | `/projects/import/github` | owner / contributor | 410 | Retired GitHub Import Compatibility Route |
+| `POST` | `/public/projects/:projectSlug/save` | Bearer / resource-scoped | 201 | Save |
+| `DELETE` | `/public/projects/:projectSlug/save` | Bearer / resource-scoped | 200 | Unsave |
 | `PATCH` | `/projects/me/:projectId` | owner / contributor | 200 | Update My Project |
 
 ### Contribution Requests
@@ -251,6 +263,12 @@ Unique controller method/path pairs: **160**. WebSocket events are excluded from
 | `GET` | `/notifications/unread-count` | Bearer / resource-scoped | 200 | Unread Notification Count |
 | `PATCH` | `/me/notification-preferences` | Bearer / resource-scoped | 200 | Update Notification Preferences |
 
+### Payments
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/payments/paymob/webhook` | Public | 200 | Receive |
+
 ### Subscriptions
 
 | Method | Path | Auth | Success | Purpose |
@@ -266,17 +284,17 @@ Unique controller method/path pairs: **160**. WebSocket events are excluded from
 | --- | --- | --- | ---: | --- |
 | `PATCH` | `/admin/skill-reviews/:skillProfileId/proficiency` | admin | 200 | Adjust Skill Proficiency |
 | `POST` | `/admin/skill-reviews/:skillProfileId/approve` | admin | 200 | Approve Skill |
+| `POST` | `/admin/contributor-field-categories` | admin | 201 | Create |
 | `POST` | `/admin/contributor-fields` | admin | 201 | Create Contributor Field |
-| `POST` | `/admin/contributor-field-categories` | admin | 201 | Create Contributor Field Category |
 | `POST` | `/admin/experience-levels` | admin | 201 | Create Experience Level |
+| `GET` | `/admin/contributor-field-categories` | admin | 200 | List |
 | `GET` | `/admin/contributor-fields` | admin | 200 | List Contributor Fields |
-| `GET` | `/admin/contributor-field-categories` | admin | 200 | List Contributor Field Categories |
 | `GET` | `/admin/experience-levels` | admin | 200 | List Experience Levels |
 | `GET` | `/admin/skill-reviews/pending` | admin | 200 | List Pending Skill Reviews |
 | `GET` | `/admin/published-project-owners` | admin | 200 | List Published Project Owners |
 | `POST` | `/admin/skill-reviews/:skillProfileId/reject` | admin | 200 | Reject Skill |
+| `PATCH` | `/admin/contributor-field-categories/:categoryId` | admin | 200 | Update |
 | `PATCH` | `/admin/contributor-fields/:fieldId` | admin | 200 | Update Contributor Field |
-| `PATCH` | `/admin/contributor-field-categories/:categoryId` | admin | 200 | Update Contributor Field Category |
 | `PATCH` | `/admin/experience-levels/:levelId` | admin | 200 | Update Experience Level |
 
 ## Realtime events (not HTTP endpoints)

@@ -12,17 +12,20 @@ export const envValidationSchema = Joi.object({
     .falsy('false')
     .default(false),
   PAYMOB_API_BASE_URL: Joi.string()
-    .uri()
-    .default('https://accept.paymob.com')
-    .when('NODE_ENV', {
-      is: 'production',
-      then: Joi.string().uri({ scheme: ['https'] }),
-    }),
+    .uri({ scheme: ['https'] })
+    .default('https://accept.paymob.com'),
   PAYMOB_INTENTION_PATH: Joi.string()
     .pattern(/^\/[a-zA-Z0-9/_-]+$/)
     .default('/v1/intention/'),
   PAYMOB_SECRET_KEY: Joi.string().trim().allow('').default(''),
+  PAYMOB_PUBLIC_KEY: Joi.string().trim().allow('').default(''),
   PAYMOB_HMAC_SECRET: Joi.string().trim().allow('').default(''),
+  PAYMOB_NOTIFICATION_URL: Joi.string().trim().allow('').default(''),
+  PAYMOB_REDIRECTION_URL: Joi.string().trim().allow('').default(''),
+  PAYMOB_EXPECTED_LIVE: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
   PAYMOB_INTEGRATION_IDS: Joi.string().allow('').default(''),
   PAYMOB_REQUEST_TIMEOUT_MS: Joi.number()
     .integer()
@@ -292,11 +295,38 @@ export const envValidationSchema = Joi.object({
   AI_LOW_CONFIDENCE_THRESHOLD: Joi.number().min(0).max(1).default(0.7),
 }).custom((value, helpers) => {
   if (value.PAYMENTS_PAYMOB_ENABLED) {
-    if (!value.PAYMOB_SECRET_KEY || !value.PAYMOB_HMAC_SECRET) {
+    if (
+      !value.PAYMOB_SECRET_KEY ||
+      !value.PAYMOB_PUBLIC_KEY ||
+      !value.PAYMOB_HMAC_SECRET ||
+      !value.PAYMOB_NOTIFICATION_URL ||
+      !value.PAYMOB_REDIRECTION_URL
+    ) {
       return helpers.error('any.invalid', {
         message:
-          'PAYMOB_SECRET_KEY and PAYMOB_HMAC_SECRET are required when Paymob is enabled',
+          'PAYMOB_SECRET_KEY, PAYMOB_PUBLIC_KEY, PAYMOB_HMAC_SECRET, PAYMOB_NOTIFICATION_URL, and PAYMOB_REDIRECTION_URL are required when Paymob is enabled',
       });
+    }
+
+    for (const key of ['PAYMOB_NOTIFICATION_URL', 'PAYMOB_REDIRECTION_URL']) {
+      let url: URL;
+      try {
+        url = new URL(value[key]);
+      } catch {
+        return helpers.error('any.invalid', {
+          message: `${key} must be a valid HTTPS URL when Paymob is enabled`,
+        });
+      }
+      const isDevelopmentLoopbackRedirect =
+        key === 'PAYMOB_REDIRECTION_URL' &&
+        value.NODE_ENV !== 'production' &&
+        url.protocol === 'http:' &&
+        ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+      if (url.protocol !== 'https:' && !isDevelopmentLoopbackRedirect) {
+        return helpers.error('any.invalid', {
+          message: `${key} must be HTTPS, except for a loopback frontend redirect outside production`,
+        });
+      }
     }
 
     const integrationIds = String(value.PAYMOB_INTEGRATION_IDS ?? '')

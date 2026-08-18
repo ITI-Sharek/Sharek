@@ -1,7 +1,132 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 160,
+  "routeCount": 176,
   "routes": [
+    {
+      "method": "GET",
+      "path": "/admin/contributor-field-categories",
+      "normalizedPath": "/admin/contributor-field-categories",
+      "key": "GET /admin/contributor-field-categories",
+      "controller": "AdminContributorFieldCategoriesController",
+      "handler": "list",
+      "source": "src/modules/admin/controllers/admin-contributor-fields.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/admin/contributor-field-categories",
+      "normalizedPath": "/admin/contributor-field-categories",
+      "key": "POST /admin/contributor-field-categories",
+      "controller": "AdminContributorFieldCategoriesController",
+      "handler": "create",
+      "source": "src/modules/admin/controllers/admin-contributor-fields.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateContributorFieldCategoryRequest",
+      "bodyFields": [
+        {
+          "name": "key",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "labelEn",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "labelAr",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "sortOrder",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/contributor-field-categories/:categoryId",
+      "normalizedPath": "/admin/contributor-field-categories/:parameter",
+      "key": "PATCH /admin/contributor-field-categories/:parameter",
+      "controller": "AdminContributorFieldCategoriesController",
+      "handler": "update",
+      "source": "src/modules/admin/controllers/admin-contributor-fields.controller.ts",
+      "pathParameters": [
+        "categoryId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdateContributorFieldCategoryRequest",
+      "bodyFields": [
+        {
+          "name": "labelEn",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "labelAr",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "active",
+          "optional": true,
+          "type": "boolean"
+        },
+        {
+          "name": "sortOrder",
+          "optional": true,
+          "type": "number"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
     {
       "method": "GET",
       "path": "/admin/contributor-fields",
@@ -42,6 +167,11 @@
       "headers": [],
       "bodyDto": "CreateContributorFieldRequest",
       "bodyFields": [
+        {
+          "name": "categoryId",
+          "optional": false,
+          "type": "string"
+        },
         {
           "name": "key",
           "optional": false,
@@ -92,6 +222,11 @@
       "headers": [],
       "bodyDto": "UpdateContributorFieldRequest",
       "bodyFields": [
+        {
+          "name": "categoryId",
+          "optional": true,
+          "type": "string"
+        },
         {
           "name": "labelEn",
           "optional": true,
@@ -1065,6 +1200,11 @@
           "name": "role",
           "optional": false,
           "type": "'owner' | 'contributor'"
+        },
+        {
+          "name": "intent",
+          "optional": false,
+          "type": "'login' | 'register'"
         }
       ],
       "headers": [],
@@ -1148,6 +1288,11 @@
           "name": "role",
           "optional": false,
           "type": "'owner' | 'contributor'"
+        },
+        {
+          "name": "intent",
+          "optional": false,
+          "type": "'login' | 'register'"
         }
       ],
       "headers": [],
@@ -1245,6 +1390,216 @@
     },
     {
       "method": "PATCH",
+      "path": "/auth/me/details",
+      "normalizedPath": "/auth/me/details",
+      "key": "PATCH /auth/me/details",
+      "controller": "SessionController",
+      "handler": "updateMyDetails",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdatePersonalDetailsRequest",
+      "bodyFields": [
+        {
+          "name": "firstName",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "lastName",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "country",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "region",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "city",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "gender",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "dateOfBirth",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/me/email",
+      "normalizedPath": "/auth/me/email",
+      "key": "PATCH /auth/me/email",
+      "controller": "SessionController",
+      "handler": "updateMyEmail",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdateEmailRequest",
+      "bodyFields": [
+        {
+          "name": "email",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "password",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me/export",
+      "normalizedPath": "/auth/me/export",
+      "key": "GET /auth/me/export",
+      "controller": "SessionController",
+      "handler": "exportMyAccountData",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/auth/me/identity-document",
+      "normalizedPath": "/auth/me/identity-document",
+      "key": "PUT /auth/me/identity-document",
+      "controller": "SessionController",
+      "handler": "uploadIdentityDocument",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": "multipart/form-data",
+      "multipartFields": [
+        "file"
+      ],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/me/password",
+      "normalizedPath": "/auth/me/password",
+      "key": "PATCH /auth/me/password",
+      "controller": "SessionController",
+      "handler": "changeMyPassword",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ChangePasswordRequest",
+      "bodyFields": [
+        {
+          "name": "currentPassword",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "newPassword",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/me/phone",
+      "normalizedPath": "/auth/me/phone",
+      "key": "PATCH /auth/me/phone",
+      "controller": "SessionController",
+      "handler": "updateMyPhone",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdatePhoneRequest",
+      "bodyFields": [
+        {
+          "name": "phoneNumber",
+          "optional": true,
+          "type": "string | null"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
       "path": "/auth/me/preferences",
       "normalizedPath": "/auth/me/preferences",
       "key": "PATCH /auth/me/preferences",
@@ -1260,6 +1615,86 @@
           "name": "preferredLanguage",
           "optional": false,
           "type": "'ar' | 'en'"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/me/privacy",
+      "normalizedPath": "/auth/me/privacy",
+      "key": "PATCH /auth/me/privacy",
+      "controller": "SessionController",
+      "handler": "updateMyPrivacy",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdatePrivacyRequest",
+      "bodyFields": [
+        {
+          "name": "profileVisibility",
+          "optional": false,
+          "type": "'public' | 'members' | 'private'"
+        },
+        {
+          "name": "showEmail",
+          "optional": false,
+          "type": "boolean"
+        },
+        {
+          "name": "showPhone",
+          "optional": false,
+          "type": "boolean"
+        },
+        {
+          "name": "showActivity",
+          "optional": false,
+          "type": "boolean"
+        },
+        {
+          "name": "allowIndexing",
+          "optional": false,
+          "type": "boolean"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/auth/me/username",
+      "normalizedPath": "/auth/me/username",
+      "key": "PATCH /auth/me/username",
+      "controller": "SessionController",
+      "handler": "updateMyUsername",
+      "source": "src/modules/identity/controllers/session.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "UpdateUsernameRequest",
+      "bodyFields": [
+        {
+          "name": "username",
+          "optional": false,
+          "type": "string"
         }
       ],
       "acceptsRawBody": false,
@@ -4284,6 +4719,34 @@
     },
     {
       "method": "POST",
+      "path": "/payments/paymob/webhook",
+      "normalizedPath": "/payments/paymob/webhook",
+      "key": "POST /payments/paymob/webhook",
+      "controller": "PaymobWebhookController",
+      "handler": "receive",
+      "source": "src/modules/payments/paymob-webhook.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "hmac",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": true,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
       "path": "/projects",
       "normalizedPath": "/projects",
       "key": "POST /projects",
@@ -5044,6 +5507,108 @@
       "authentication": "public",
       "idempotency": false,
       "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/public/projects/:projectSlug/applicants",
+      "normalizedPath": "/public/projects/:parameter/applicants",
+      "key": "GET /public/projects/:parameter/applicants",
+      "controller": "PublicProjectsController",
+      "handler": "listApplicants",
+      "source": "src/modules/projects/public-projects.controller.ts",
+      "pathParameters": [
+        "projectSlug"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "DELETE",
+      "path": "/public/projects/:projectSlug/save",
+      "normalizedPath": "/public/projects/:parameter/save",
+      "key": "DELETE /public/projects/:parameter/save",
+      "controller": "PublicProjectsController",
+      "handler": "unsave",
+      "source": "src/modules/projects/public-projects.controller.ts",
+      "pathParameters": [
+        "projectSlug"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/public/projects/:projectSlug/save",
+      "normalizedPath": "/public/projects/:parameter/save",
+      "key": "GET /public/projects/:parameter/save",
+      "controller": "PublicProjectsController",
+      "handler": "getSavedState",
+      "source": "src/modules/projects/public-projects.controller.ts",
+      "pathParameters": [
+        "projectSlug"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/public/projects/:projectSlug/save",
+      "normalizedPath": "/public/projects/:parameter/save",
+      "key": "POST /public/projects/:parameter/save",
+      "controller": "PublicProjectsController",
+      "handler": "save",
+      "source": "src/modules/projects/public-projects.controller.ts",
+      "pathParameters": [
+        "projectSlug"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
     },
     {
       "method": "POST",

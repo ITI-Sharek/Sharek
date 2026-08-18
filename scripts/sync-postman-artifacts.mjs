@@ -66,6 +66,7 @@ const orderedFolderNames = [
   'Skill Profiles',
   'Assignment Conversations',
   'Notifications',
+  'Payments',
   'Subscriptions',
   'Admin',
 ];
@@ -415,7 +416,79 @@ function applyBodyCorrections(route, request) {
       planType: 'gold',
       roleContext: 'owner',
     }],
+    ['PATCH /auth/me/password', {
+      currentPassword: '{{ownerPassword}}',
+      newPassword: '{{newPassword}}',
+    }],
+    ['PATCH /auth/me/email', {
+      email: '{{ownerEmail}}',
+      password: '{{ownerPassword}}',
+    }],
+    ['PATCH /auth/me/username', {
+      username: '{{ownerUsername}}-updated',
+    }],
+    ['PATCH /auth/me/details', {
+      firstName: 'Sharek',
+      lastName: 'Owner',
+      country: 'Egypt',
+      region: 'Cairo',
+      city: 'Cairo',
+    }],
+    ['PATCH /auth/me/phone', {
+      phoneNumber: '+201000000000',
+    }],
+    ['PATCH /auth/me/privacy', {
+      profileVisibility: 'public',
+      showEmail: false,
+      showPhone: false,
+      showActivity: true,
+      allowIndexing: true,
+    }],
+    ['PUT /auth/me/identity-document', {
+      file: { type: 'file', src: [] },
+    }],
+    ['POST /admin/contributor-field-categories', {
+      key: 'engineering',
+      labelEn: 'Engineering',
+      labelAr: 'هندسة',
+      sortOrder: 10,
+    }],
+    ['POST /admin/contributor-fields', {
+      categoryId: '{{categoryId}}',
+      key: 'backend',
+      labelEn: 'Backend',
+      labelAr: 'خلفية',
+      sortOrder: 10,
+    }],
+    ['PATCH /admin/contributor-field-categories/:parameter', {
+      labelEn: 'Engineering and delivery',
+      labelAr: 'الهندسة والتسليم',
+      active: true,
+      sortOrder: 10,
+    }],
+    ['POST /payments/paymob/webhook', {
+      type: 'TRANSACTION',
+      obj: {
+        id: 123456789,
+        amount_cents: 50000,
+        currency: 'EGP',
+        success: true,
+        pending: false,
+        is_live: false,
+        order: {
+          id: 987654321,
+          merchant_order_id: 'sharek:payment:00000000-0000-4000-8000-000000000001',
+        },
+      },
+    }],
   ]);
+  if (key === 'PUT /auth/me/identity-document') {
+    request.body = {
+      mode: 'formdata',
+      formdata: [{ key: 'file', type: 'file', src: [] }],
+    };
+    return;
+  }
   if (bodies.has(key)) request.body = jsonBody(bodies.get(key));
   if (
     key === 'POST /projects/import/github' ||
@@ -488,6 +561,7 @@ function folderFor(route) {
   if (routePath.startsWith('/skill-profiles')) return 'Skill Profiles';
   if (routePath.startsWith('/assignment-conversations')) return 'Assignment Conversations';
   if (routePath.startsWith('/notifications') || routePath.startsWith('/me/notification')) return 'Notifications';
+  if (routePath.startsWith('/payments/paymob/')) return 'Payments';
   if (
     routePath === '/subscriptions/plans' ||
     routePath.startsWith('/me/subscription') ||
@@ -757,6 +831,7 @@ function folderDescription(name) {
     'Skill Profiles': 'Explicit-consent GitHub-backed skill generation and retry.',
     'Assignment Conversations': 'Assignment participant conversation history and durable Message commands.',
     Notifications: 'Durable inbox, read state, preferences, and localized presentation.',
+    Payments: 'Provider checkout callbacks and payment-attempt state transitions. Callback examples require a signed Paymob sandbox payload.',
     Admin: 'Admin-only review/catalog/overview endpoints.',
   };
   return descriptions[name];

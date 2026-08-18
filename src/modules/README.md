@@ -13,7 +13,7 @@ business decisions, and its database writes.
 | `notifications` | implemented | in-app notification rows and notification writes |
 | `reputation` | partial | reputation summaries and future history |
 | `subscriptions` | implemented | plan entitlements and every plan limit in the backend |
-| `payments` | implemented (isolated sandbox) | Paymob provider, payment attempts, idempotent checkout/status, and webhook facts |
+| `payments` | implemented (isolated sandbox) | Paymob provider, idempotent checkout/status, verified callbacks, and payment attempts |
 | `matching` | implemented | deterministic contributor-to-Request shortlist, pull-only |
 | `health` | implemented | backend health endpoint |
 | `contribution-tasks` | implemented | project task requirements and lifecycle |

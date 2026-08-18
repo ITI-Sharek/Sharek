@@ -66,6 +66,33 @@ ai                    ai_call_audit, AI service response snapshots, embeddings w
 
 Only the owning module writes its tables.
 
+## Payment attempts and callback invariants
+
+The `payments` module owns `PaymentAttempt` and `PaymentWebhookEvent`. A
+`PaymentAttempt` stores the server-authored Gold amount/currency, role context,
+command idempotency key, Paymob intention/client secret, hosted checkout URL,
+provider order/transaction IDs, and terminal timestamps. The existing unique
+`(user_id, idempotency_key)` constraint supports command replay. Migration
+`20260818100000_payment_callback_invariants` adds a partial unique index allowing
+only one pending subscription purchase per `(user_id, user_role_context,
+provider)`, plus partial unique indexes for each non-null provider order and
+transaction ID. These are database guarantees for races, not service-level
+best-effort checks.
+
+`PaymentWebhookEvent` stores a minimized allowlisted payload, a SHA-256
+fingerprint, optional provider event identity, verification status, processing
+status, timestamps, and the matched attempt relation. The callback transaction
+inserts/deduplicates the event, locks the attempt, compares all stored payment
+facts, and marks the event processed only after the payment transition and
+subscription activation succeed. Invalid callbacks are recorded as ignored
+diagnostics without raw provider payloads or credentials.
+
+The payments module never writes `Subscription` directly. A verified successful
+callback passes its Prisma transaction client to the subscriptions module's
+`activatePurchasedPlan()` command, which retires the prior active row for that
+user/role context and creates one 30-day Gold row with
+`source = payment_provider`. Redirects are not persistence authorities.
+
 `AuthOAuthState` stores the provider, requested role, and `requested_intent`
 (`login` or `register`) for a short-lived one-time social OAuth callback. The
 identity module uses the persisted intent—not browser session state—to prevent
