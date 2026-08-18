@@ -255,6 +255,66 @@ export class EntitlementsService {
     });
   }
 
+  /**
+   * Activates a verified one-time payment inside the caller's transaction.
+   * Payments supplies facts; this method owns the active-row invariant and the
+   * payment-provider provenance stamp.
+   */
+  async activatePurchasedPlan(
+    input: {
+      userId: string;
+      roleContext: SubscriptionUserRoleContext;
+      planType: SubscriptionPlanType;
+      periodStart: Date;
+      periodEnd: Date;
+    },
+    database: EntitlementsDatabase = this.database,
+  ): Promise<void> {
+    if (
+      input.planType !== SubscriptionPlanType.gold ||
+      input.periodEnd <= input.periodStart
+    ) {
+      throw new ConflictApplicationError(
+        'Only a positive Gold payment period can activate a subscription',
+        'SUBSCRIPTION_PAYMENT_ACTIVATION_INVALID',
+      );
+    }
+
+    const active = await database.subscription.findFirst({
+      where: {
+        user_id: input.userId,
+        user_role_context: input.roleContext,
+        status: SubscriptionStatus.active,
+      },
+      orderBy: [{ starts_at: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
+    if (active) {
+      await database.subscription.update({
+        where: { id: active.id },
+        data: {
+          status: SubscriptionStatus.expired,
+          expires_at: input.periodStart,
+          current_period_end: input.periodStart,
+        },
+      });
+    }
+
+    await database.subscription.create({
+      data: {
+        user_id: input.userId,
+        user_role_context: input.roleContext,
+        plan_type: SubscriptionPlanType.gold,
+        status: SubscriptionStatus.active,
+        source: SubscriptionSource.payment_provider,
+        starts_at: input.periodStart,
+        expires_at: input.periodEnd,
+        current_period_start: input.periodStart,
+        current_period_end: input.periodEnd,
+      },
+    });
+  }
+
   private async resolvePlan(
     userId: string,
     roleContext: SubscriptionUserRoleContext,

@@ -15,11 +15,13 @@ export function minimizePaymentWebhookPayload(
   return {
     transactionId: transaction.transactionId,
     orderId: transaction.orderId,
+    merchantOrderId: transaction.merchantOrderId,
     amountCents: transaction.amountCents,
     currency: transaction.currency,
     integrationId: transaction.integrationId,
     pending: transaction.pending,
     success: transaction.success,
+    isLive: transaction.isLive,
   };
 }
 
