@@ -54,6 +54,7 @@ export interface ProjectOwnerViewDto {
     technologies: string[];
     category: ProjectCategory | null;
     difficulty: ProjectDifficulty | null;
+    heroImageUrl: string | null;
     manualOverrides: string[];
   };
   source: {

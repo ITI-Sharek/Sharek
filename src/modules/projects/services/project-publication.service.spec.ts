@@ -166,6 +166,58 @@ describe('ProjectPublicationService', () => {
     });
   });
 
+  it('stores a validated hero image with an optimistic revision update', async () => {
+    const image = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
+    database.project.findFirst.mockResolvedValue(project());
+    database.project.findUniqueOrThrow.mockResolvedValue(
+      project({
+        revision: 2,
+        hero_image_data: image,
+        hero_image_mime_type: 'image/png',
+      }),
+    );
+
+    await expect(
+      service.uploadHeroImage(
+        actor,
+        'project-id',
+        1,
+        { buffer: image, mimetype: 'image/png', size: image.length },
+        'hero-image-12345678',
+      ),
+    ).resolves.toMatchObject({
+      revision: 2,
+      project: { heroImageUrl: '/projects/me/project-id/hero-image' },
+    });
+    expect(database.project.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          hero_image_data: Uint8Array.from(image),
+          hero_image_mime_type: 'image/png',
+        }),
+      }),
+    );
+  });
+
+  it('rejects a hero image whose declared MIME type does not match its bytes', async () => {
+    const image = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
+
+    await expect(
+      service.uploadHeroImage(
+        actor,
+        'project-id',
+        1,
+        { buffer: image, mimetype: 'image/jpeg', size: image.length },
+        'hero-image-12345678',
+      ),
+    ).rejects.toMatchObject({ code: 'PROJECT_HERO_IMAGE_INVALID' });
+    expect(database.project.updateMany).not.toHaveBeenCalled();
+  });
+
   it('publishes once after live personal-repository control verification', async () => {
     database.project.findFirst
       .mockResolvedValueOnce(project())

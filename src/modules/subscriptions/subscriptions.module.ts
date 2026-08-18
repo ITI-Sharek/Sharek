@@ -17,6 +17,6 @@ import { SubscriptionsController } from './subscriptions.controller';
   imports: [forwardRef(() => ProjectsModule), forwardRef(() => ApplicationsModule)],
   controllers: [SubscriptionsController, SubscriptionCatalogController],
   providers: [EntitlementsService, SubscriptionStatusService],
-  exports: [EntitlementsService],
+  exports: [EntitlementsService, SubscriptionStatusService],
 })
 export class SubscriptionsModule {}

@@ -41,6 +41,6 @@ import { OwnerContributorMatchingService } from './owner-contributor-matching.se
     // falls back to the deterministic order.
     { provide: MatchRanker, useClass: AiMatchRanker },
   ],
-  exports: [MatchingService],
+  exports: [MatchingService, RecommendedTasksService],
 })
 export class MatchingModule {}

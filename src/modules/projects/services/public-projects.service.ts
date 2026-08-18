@@ -21,7 +21,22 @@ import {
 } from '../dto/project-public-response.dto';
 import { ProjectPageQueryDto } from '../dto/project-publication.dto';
 
-const PUBLIC_PROJECT_INCLUDE = {
+const PUBLIC_PROJECT_SELECT = {
+  id: true,
+  slug: true,
+  title: true,
+  description: true,
+  tags: true,
+  technologies: true,
+  category: true,
+  difficulty: true,
+  published_at: true,
+  source_visibility: true,
+  source_fetched_at: true,
+  source_updated_at: true,
+  github_repo_url: true,
+  repo_statistics: true,
+  hero_image_mime_type: true,
   owner: {
     select: {
       username: true,
@@ -42,10 +57,10 @@ const PUBLIC_PROJECT_INCLUDE = {
       },
     },
   },
-} satisfies Prisma.ProjectInclude;
+} satisfies Prisma.ProjectSelect;
 
 type PublicProjectRecord = Prisma.ProjectGetPayload<{
-  include: typeof PUBLIC_PROJECT_INCLUDE;
+  select: typeof PUBLIC_PROJECT_SELECT;
 }>;
 
 @Injectable()
@@ -74,7 +89,7 @@ export class PublicProjectsService {
       },
       orderBy: [{ published_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
-      include: PUBLIC_PROJECT_INCLUDE,
+      select: PUBLIC_PROJECT_SELECT,
     });
     const hasNextPage = projects.length > limit;
     const items = projects.slice(0, limit);
@@ -98,7 +113,7 @@ export class PublicProjectsService {
         status: ProjectStatus.published,
         published_at: { not: null },
       },
-      include: PUBLIC_PROJECT_INCLUDE,
+      select: PUBLIC_PROJECT_SELECT,
     });
     if (!project) {
       throw new NotFoundApplicationError(
@@ -107,6 +122,36 @@ export class PublicProjectsService {
       );
     }
     return this.present(project);
+  }
+
+  async getHeroImage(projectSlug: string): Promise<{
+    data: Buffer;
+    mimeType: string;
+    updatedAt: Date;
+  }> {
+    const project = await this.database.project.findFirst({
+      where: {
+        slug_normalized: projectSlug.trim().toLowerCase(),
+        status: ProjectStatus.published,
+        published_at: { not: null },
+      },
+      select: {
+        hero_image_data: true,
+        hero_image_mime_type: true,
+        updated_at: true,
+      },
+    });
+    if (!project?.hero_image_data || !project.hero_image_mime_type) {
+      throw new NotFoundApplicationError(
+        'Project hero image was not found',
+        'PROJECT_HERO_IMAGE_NOT_FOUND',
+      );
+    }
+    return {
+      data: Buffer.from(project.hero_image_data),
+      mimeType: project.hero_image_mime_type,
+      updatedAt: project.updated_at,
+    };
   }
 
   async listApplicantsByProjectSlug(
@@ -225,6 +270,9 @@ export class PublicProjectsService {
       technologies: this.stringArray(project.technologies),
       category: project.category,
       difficulty: project.difficulty,
+      heroImageUrl: project.hero_image_mime_type
+        ? `/public/projects/${encodeURIComponent(project.slug)}/hero-image`
+        : null,
       publishedAt: project.published_at,
       owner: this.publicOwner(project),
       source: publicAttribution

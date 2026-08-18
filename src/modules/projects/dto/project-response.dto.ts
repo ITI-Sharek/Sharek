@@ -13,6 +13,7 @@ export interface ProjectResponseDto {
   readmeContent: string | null;
   category: 'web' | 'mobile' | 'ai_ml' | 'devops' | 'tools_utilities' | null;
   difficulty: 'beginner' | 'intermediate' | 'advanced' | null;
+  heroImageUrl: string | null;
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

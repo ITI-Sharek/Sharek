@@ -149,6 +149,73 @@ export class ProjectPublicationService {
     );
   }
 
+  async uploadHeroImage(
+    actor: AuthenticatedUser,
+    projectId: string,
+    expectedRevision: number,
+    file: { buffer: Buffer; mimetype: string; size: number },
+    idempotencyKey: string,
+  ): Promise<ProjectOwnerViewDto> {
+    this.assertEligibleActor(actor);
+    this.assertIdempotencyKey(idempotencyKey);
+    const mimeType = this.validateHeroImage(file);
+    const request = {
+      projectId,
+      expectedRevision,
+      contentHash: this.hash(file.buffer.toString('base64')),
+      mimeType,
+    };
+    return this.executeIdempotent(
+      actor.id,
+      'upload_hero_image',
+      idempotencyKey,
+      request,
+      async (transaction) => {
+        const current = await this.findOwnedProject(
+          transaction,
+          actor.id,
+          projectId,
+        );
+        this.assertRevision(current, expectedRevision);
+        const project = await this.updateOwnedAtRevision(
+          transaction,
+          current,
+          {
+            hero_image_data: Uint8Array.from(file.buffer),
+            hero_image_mime_type: mimeType,
+            revision: { increment: 1 },
+          },
+        );
+        return {
+          result: this.toOwnerView(
+            project,
+            project.source_visibility !== 'private',
+          ),
+          projectId,
+        };
+      },
+    );
+  }
+
+  async getOwnerHeroImage(
+    actor: AuthenticatedUser,
+    projectId: string,
+  ): Promise<{ data: Buffer; mimeType: string; updatedAt: Date }> {
+    this.assertEligibleActor(actor);
+    const project = await this.findOwnedProject(this.database, actor.id, projectId);
+    if (!project.hero_image_data || !project.hero_image_mime_type) {
+      throw new NotFoundApplicationError(
+        'Project hero image was not found',
+        'PROJECT_HERO_IMAGE_NOT_FOUND',
+      );
+    }
+    return {
+      data: Buffer.from(project.hero_image_data),
+      mimeType: project.hero_image_mime_type,
+      updatedAt: project.updated_at,
+    };
+  }
+
   async refreshSource(
     actor: AuthenticatedUser,
     projectId: string,
@@ -655,6 +722,9 @@ export class ProjectPublicationService {
         technologies: this.stringArray(project.technologies),
         category: project.category,
         difficulty: project.difficulty,
+        heroImageUrl: project.hero_image_data
+          ? `/projects/me/${project.id}/hero-image`
+          : null,
         manualOverrides: this.stringArray(project.manual_overrides),
       },
       source: {
@@ -869,6 +939,51 @@ export class ProjectPublicationService {
         );
       }
     }
+  }
+
+  private validateHeroImage(file: {
+    buffer: Buffer;
+    mimetype: string;
+    size: number;
+  }): 'image/png' | 'image/jpeg' | 'image/webp' {
+    const detectedMimeType = this.detectHeroImageMimeType(file.buffer);
+    if (
+      !detectedMimeType ||
+      detectedMimeType !== file.mimetype ||
+      file.size !== file.buffer.length ||
+      file.size > 5_000_000
+    ) {
+      throw new ApplicationError(
+        'Hero image must be a PNG, JPEG, or WebP image no larger than 5 MB',
+        'PROJECT_HERO_IMAGE_INVALID',
+        400,
+      );
+    }
+    return detectedMimeType;
+  }
+
+  private detectHeroImageMimeType(
+    buffer: Buffer,
+  ): 'image/png' | 'image/jpeg' | 'image/webp' | null {
+    if (
+      buffer.length >= 8 &&
+      buffer
+        .subarray(0, 8)
+        .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    ) {
+      return 'image/png';
+    }
+    if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      return 'image/jpeg';
+    }
+    if (
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+    ) {
+      return 'image/webp';
+    }
+    return null;
   }
 
   private assertIdempotencyKey(key: string): void {

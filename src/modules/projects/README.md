@@ -21,6 +21,13 @@ project visibility.
   publication.
 - `GET|PATCH /projects/me/:projectId`: persisted-owner detail and editable
   presentation fields. Unknown and non-owned IDs share `PROJECT_NOT_FOUND`.
+- `PUT /projects/me/:projectId/hero-image`: owner-only multipart replacement of
+  a draft or published Project hero image. It requires `Idempotency-Key` and
+  `expectedRevision`, accepts only signature-validated PNG/JPEG/WebP files up
+  to 5 MB, and increments the Project revision.
+- `GET /projects/me/:projectId/hero-image`: owner-only delivery of the current
+  hero image. `GET /public/projects/:projectSlug/hero-image` delivers the same
+  image only when that Project is published.
 - `POST /projects/me/:projectId/source/refresh`: idempotent source refresh that
   preserves fields marked as manual overrides.
 - `POST /projects/me/:projectId/publish`: explicit `draft -> published`
@@ -97,3 +104,7 @@ partial unique published-repository guard.
 
 Migration `20260817193000_saved_projects` adds the reader-private
 `SavedProject` join table with a composite primary key and cascade cleanup.
+
+Migration `20260818110000_project_hero_images` adds nullable image bytes and a
+validated MIME type to `Project`. The bytes are never included in JSON Project
+responses; owner and public projections expose a URL only when an image exists.
