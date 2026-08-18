@@ -23,6 +23,8 @@ describe('GitHub repository, evidence, and account services', () => {
     getRepositoryContributionStats: jest.fn(),
     getRepositoryCommitActivity: jest.fn(),
     listRecentCommits: jest.fn(),
+    listRepositoryRootEntries: jest.fn(),
+    getRepositoryTree: jest.fn(),
   };
   const accountService = new GitHubAccountService(
     database as never,
@@ -52,6 +54,14 @@ describe('GitHub repository, evidence, and account services', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    gitHubApiClient.listRepositoryRootEntries.mockResolvedValue({
+      data: [],
+      unavailableReason: null,
+    });
+    gitHubApiClient.getRepositoryTree.mockResolvedValue({
+      data: { tree: [], truncated: false },
+      unavailableReason: null,
+    });
   });
 
   it('requires a connected GitHub account before listing repositories', async () => {
