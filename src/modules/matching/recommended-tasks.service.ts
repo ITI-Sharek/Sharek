@@ -154,6 +154,7 @@ function toRecommendedTask(
     justification: justificationFor(match),
     matchedSkills: match.matchedSkills,
     requiredSkillNames: match.requiredSkillNames,
+    matchedRequiredSkillNames: match.matchedRequiredSkillNames,
     matchedRequiredCount: match.matchedRequiredCount,
     requiredSkillCount: match.requiredSkillCount,
     // Every candidate is still open to Applications, so this is never null.

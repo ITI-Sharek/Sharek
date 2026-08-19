@@ -72,6 +72,8 @@ export class ContributorDashboardService {
       approvedSkills,
     });
     const onboarding = onboardingSteps.some((step) => step.status !== 'done');
+    const matchingLocked =
+      recommended.reason === 'MATCHING_REQUIRES_SUBSCRIPTION';
     const attentionItems = [
       ...changedDeliveries.map((delivery) => ({
         id: `delivery:${delivery.id}`,
@@ -100,6 +102,7 @@ export class ContributorDashboardService {
       // denominator, which made every match render as a complete one.
       requiredSkills: task.requiredSkillNames,
       matchedSkills: task.matchedSkills.map((skill) => skill.name),
+      matchedRequiredSkillNames: task.matchedRequiredSkillNames,
       matchedCount: task.matchedRequiredCount,
       requiredCount: task.requiredSkillCount,
     }));
@@ -107,7 +110,7 @@ export class ContributorDashboardService {
     return {
       state: onboarding
         ? 'onboarding'
-        : pendingApplications === 0 && attentionItems.length === 0
+        : !matchingLocked && pendingApplications === 0 && attentionItems.length === 0
           ? 'verified-empty'
           : 'active',
       greetingName: user.first_name,

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { normalizeSkillName } from '../../shared/skills/skill-name';
 import { ApplicationsService } from '../applications/applications.service';
 import { MatchingCandidateRequestDto } from '../contribution-tasks/dto/matching-candidate.dto';
 import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
@@ -37,6 +38,8 @@ export interface ShortlistedMatch {
   exceededSkills: MatchedSkillDto[];
   /** Every skill the Request requires, in the order it asks for them. */
   requiredSkillNames: string[];
+  /** Required skill names, in the Request's display form, that the contributor covers. */
+  matchedRequiredSkillNames: string[];
   /** How many of those the contributor covers, and out of how many. */
   matchedRequiredCount: number;
   requiredSkillCount: number;
@@ -190,6 +193,10 @@ export class MatchingService {
         matchedSkills: entry.fit.matchedSkills.map(toMatchedSkill),
         exceededSkills: entry.fit.exceededSkills.map(toMatchedSkill),
         requiredSkillNames: requiredSkillNamesOf(entry.candidate),
+        matchedRequiredSkillNames: matchedRequiredSkillNamesOf(
+          entry.candidate,
+          entry.fit.matchedSkills,
+        ),
         matchedRequiredCount: entry.fit.matchedRequiredCount,
         requiredSkillCount: entry.fit.requestedSkillCount,
         confidence: toConfidence(entry.fit.coverage),
@@ -228,6 +235,23 @@ function requiredSkillNamesOf(request: MatchingCandidateRequestDto): string[] {
     .filter((skill) => skill.kind === 'required')
     .map((skill) => skill.skillName);
   return required.length > 0 ? required : request.technologyTags;
+}
+
+/**
+ * Returns the Request's own display names for the required rows the contributor
+ * covers. The matcher compares normalized identities, while the UI must render
+ * the owner's spelling and use that same spelling for its checkmark.
+ */
+function matchedRequiredSkillNamesOf(
+  request: MatchingCandidateRequestDto,
+  matchedSkills: ApprovedSkill[],
+): string[] {
+  const matchedTokens = new Set(
+    matchedSkills.map((skill) => normalizeSkillName(skill.name)),
+  );
+  return requiredSkillNamesOf(request).filter((name) =>
+    matchedTokens.has(normalizeSkillName(name)),
+  );
 }
 
 function toMatchedSkill(skill: ApprovedSkill): MatchedSkillDto {

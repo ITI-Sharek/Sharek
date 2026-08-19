@@ -34,6 +34,7 @@ const FRONTEND_TASK_FIELDS = [
   'justification',
   'matchedSkills',
   'requiredSkillNames',
+  'matchedRequiredSkillNames',
   'matchedRequiredCount',
   'requiredSkillCount',
   'applicationsCloseAt',
@@ -143,6 +144,7 @@ describe('GET /contributors/me/recommended-tasks HTTP integration', () => {
           ],
           exceededSkills: [],
           requiredSkillNames: ['NestJS', 'PostgreSQL'],
+          matchedRequiredSkillNames: ['NestJS'],
           matchedRequiredCount: 1,
           requiredSkillCount: 2,
           confidence: 'HIGH',
@@ -185,6 +187,7 @@ describe('GET /contributors/me/recommended-tasks HTTP integration', () => {
         expect(task.matchedRequiredCount).toBe(1);
         expect(task.requiredSkillCount).toBe(2);
         expect(task.requiredSkillNames).toEqual(['NestJS', 'PostgreSQL']);
+        expect(task.matchedRequiredSkillNames).toEqual(['NestJS']);
         expect(task.matchedRequiredCount).toBeLessThanOrEqual(
           task.requiredSkillCount,
         );

@@ -487,6 +487,39 @@ describe('MatchingService', () => {
         // The owner's display form, not the normalized comparison key, and
         // preferred rows are not part of the bar being counted.
         requiredSkillNames: ['NestJS', 'PostgreSQL'],
+        matchedRequiredSkillNames: ['NestJS', 'PostgreSQL'],
+      });
+    });
+
+    it('returns matched required names in the Request spelling', async () => {
+      skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
+        { name: 'NodeJS', proficiencyLevel: 'advanced', evidenceSources: null },
+      ]);
+      contributionTasks.listOpenRequestsForMatching.mockResolvedValue([
+        candidate({
+          technologyTags: ['Node.js'],
+          requirementTexts: [],
+          skillRequirements: [
+            {
+              skillName: 'Node.js',
+              skillNameNormalized: 'nodejs',
+              requiredLevel: 'beginner',
+              kind: 'required',
+            },
+          ] as never,
+        }),
+      ]);
+
+      const shortlist = await service.shortlistForContributor({
+        contributorId,
+        now,
+      });
+
+      expect(shortlist.matches[0]).toMatchObject({
+        requiredSkillNames: ['Node.js'],
+        matchedRequiredSkillNames: ['Node.js'],
+        matchedRequiredCount: 1,
+        requiredSkillCount: 1,
       });
     });
 
@@ -531,6 +564,7 @@ describe('MatchingService', () => {
 
       expect(shortlist.matches[0]).toMatchObject({
         requiredSkillNames: ['NestJS', 'PostgreSQL'],
+        matchedRequiredSkillNames: ['NestJS'],
         matchedRequiredCount: 1,
         requiredSkillCount: 2,
       });
