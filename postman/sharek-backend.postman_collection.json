@@ -2666,6 +2666,95 @@
           ]
         },
         {
+          "name": "Get Hero Image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/me/{{projectId}}/hero-image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "me",
+                "{{projectId}}",
+                "hero-image"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get Hero Image. Requires an active bearer session with role: owner or contributor. Set the projectId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Hero Image",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/projects/{{projectSlug}}/hero-image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "projects",
+                "{{projectSlug}}",
+                "hero-image"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Get Hero Image. Public; no bearer token is required. Set the projectSlug route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Get My Project",
           "request": {
             "method": "GET",
@@ -2832,6 +2921,98 @@
           ]
         },
         {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "categories"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "List Categories. Requires an active bearer session with role: owner or contributor or admin. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Difficulties",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/difficulties",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "difficulties"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "List Difficulties. Requires an active bearer session with role: owner or contributor or admin. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "List My Projects",
           "request": {
             "method": "GET",
@@ -2854,6 +3035,16 @@
                 {
                   "key": "cursor",
                   "value": "{{cursor}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "",
                   "disabled": true
                 }
               ]
@@ -2912,6 +3103,16 @@
                 {
                   "key": "cursor",
                   "value": "{{cursor}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "",
                   "disabled": true
                 }
               ]
@@ -3292,6 +3493,74 @@
                   "key": "token",
                   "value": "{{ownerAccessToken}}",
                   "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload Hero Image",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{projectCommandIdempotencyKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/me/{{projectId}}/hero-image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "me",
+                "{{projectId}}",
+                "hero-image"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ownerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Upload Hero Image. Requires an active bearer session with role: owner or contributor. Set the projectId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "expectedRevision",
+                  "type": "text",
+                  "value": "1"
                 }
               ]
             }
@@ -6753,6 +7022,43 @@
             "method": "GET",
             "header": [],
             "url": {
+              "raw": "{{baseUrl}}/contributors/me/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contributors",
+                "me",
+                "dashboard"
+              ]
+            },
+            "description": "Get. Requires an active bearer session with role: contributor. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
               "raw": "{{baseUrl}}/contributors/me/eligibility-guidance/{{guidanceId}}",
               "host": [
                 "{{baseUrl}}"
@@ -6945,6 +7251,59 @@
           ]
         },
         {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/contributors/profiles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contributors",
+                "profiles"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "List Contributor Fields",
           "request": {
             "method": "GET",
@@ -6959,7 +7318,10 @@
                 "profile-fields"
               ]
             },
-            "description": "List Contributor Fields. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session."
+            "description": "List Contributor Fields. Public; no bearer token is required. No route identifier prerequisite. Expected status: 200. Important errors use the global stable application-error envelope.",
+            "auth": {
+              "type": "noauth"
+            }
           },
           "event": [
             {

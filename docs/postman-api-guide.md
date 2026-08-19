@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **176**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **183**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -107,10 +107,14 @@ Unique controller method/path pairs: **176**. WebSocket events are excluded from
 | `POST` | `/projects/me/:projectId/archive` | owner / contributor | 200 | Archive Project |
 | `POST` | `/projects` | owner / contributor | 201 | Create Project Draft |
 | `GET` | `/projects/discover` | contributor / owner / admin | 200 | Discover Published Projects |
+| `GET` | `/projects/me/:projectId/hero-image` | owner / contributor | 200 | Get Hero Image |
+| `GET` | `/public/projects/:projectSlug/hero-image` | Public | 200 | Get Hero Image |
 | `GET` | `/projects/me/:projectId` | owner / contributor | 200 | Get My Project |
 | `GET` | `/public/projects/:projectSlug` | Public | 200 | Get Public Project |
 | `GET` | `/public/projects/:projectSlug/save` | Bearer / resource-scoped | 200 | Get Saved State |
 | `GET` | `/public/projects/:projectSlug/applicants` | Public | 200 | List Applicants |
+| `GET` | `/projects/categories` | owner / contributor / admin | 200 | List Categories |
+| `GET` | `/projects/difficulties` | owner / contributor / admin | 200 | List Difficulties |
 | `GET` | `/projects/me` | owner / contributor | 200 | List My Projects |
 | `GET` | `/public/projects` | Public | 200 | List Public Projects |
 | `POST` | `/projects/github/preview` | owner / contributor | 200 | Preview GitHub Source |
@@ -120,6 +124,7 @@ Unique controller method/path pairs: **176**. WebSocket events are excluded from
 | `POST` | `/public/projects/:projectSlug/save` | Bearer / resource-scoped | 201 | Save |
 | `DELETE` | `/public/projects/:projectSlug/save` | Bearer / resource-scoped | 200 | Unsave |
 | `PATCH` | `/projects/me/:projectId` | owner / contributor | 200 | Update My Project |
+| `PUT` | `/projects/me/:projectId/hero-image` | owner / contributor | 200 | Upload Hero Image |
 
 ### Contribution Requests
 
@@ -221,12 +226,14 @@ Unique controller method/path pairs: **176**. WebSocket events are excluded from
 | --- | --- | --- | ---: | --- |
 | `POST` | `/contributors/profiles/me/ensure` | Bearer / resource-scoped | 201 | Ensure My Profile |
 | `POST` | `/contributors/me/skill-gap-guidance` | Bearer / resource-scoped | 201 | Generate |
+| `GET` | `/contributors/me/dashboard` | contributor | 200 | Get |
 | `GET` | `/contributors/me/eligibility-guidance/:guidanceId` | Bearer / resource-scoped | 200 | Get |
 | `GET` | `/contributors/profiles/:username/avatar` | Public | 200 | Get Contributor Avatar |
 | `GET` | `/contributors/profiles/:username` | Bearer / resource-scoped | 200 | Get Contributor Profile |
 | `GET` | `/contributors/me/eligibility-guidance` | Bearer / resource-scoped | 200 | List |
 | `GET` | `/contributors/me/recommended-tasks` | contributor | 200 | List |
-| `GET` | `/contributors/profile-fields` | Bearer / resource-scoped | 200 | List Contributor Fields |
+| `GET` | `/contributors/profiles` | Bearer / resource-scoped | 200 | List |
+| `GET` | `/contributors/profile-fields` | Public | 200 | List Contributor Fields |
 | `GET` | `/contributors/experience-levels` | Public | 200 | List Experience Levels |
 | `POST` | `/contributors/me/eligibility-guidance` | Bearer / resource-scoped | 201 | Request |
 | `PATCH` | `/contributors/profiles/me` | Bearer / resource-scoped | 200 | Update My Profile |
