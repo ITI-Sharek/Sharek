@@ -20,6 +20,8 @@ This folder is the operating manual for the backend repo.
 | `implementation-roadmap.md` | Practical build order mapped to the selected architecture. |
 | `database-plan.md` | PostgreSQL, pgvector, Prisma, ownership, and audit rules. |
 | `api-contracts.md` | API and FastAPI AI service contract rules. |
+| `api-route-reference.md` | Generated inventory of every HTTP route with auth, roles, and idempotency. Run `npm run docs:routes`. |
+| `diagrams/` | ERD, high-level architecture, component architecture, class diagrams, and sequence diagrams. |
 | `postman-api-guide.md` | Complete Postman request catalog and local endpoint test flow. |
 | `sprint-template.md` | Template for planning each sprint. |
 | `examples/module-skeleton.md` | Copyable sample module shape and example file names. |

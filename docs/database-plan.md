@@ -1,5 +1,11 @@
 # Database Plan
 
+The entity relationship diagrams for the schema this plan governs are in
+[`diagrams/erd.md`](./diagrams/erd.md): a context map, one ER diagram per
+bounded context, the logical references that carry no database foreign key,
+and the cross-cutting patterns (audit tables, outboxes, idempotency keys,
+frozen snapshots) that recur across it.
+
 ## Decision
 
 Use PostgreSQL with pgvector as the primary database for the MVP.
