@@ -27,6 +27,8 @@ export function toAuthUserDto(user: User): AuthUserDto {
     allowIndexing: user.allow_indexing,
     identityVerificationStatus:
       user.identity_verification_status as AuthUserDto['identityVerificationStatus'],
+    identityVerifiedAt: user.identity_verified_at,
+    identityVerificationRejectedReason: user.identity_verification_rejected_reason,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
     lastLoginAt: user.last_login_at,
