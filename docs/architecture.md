@@ -9,6 +9,11 @@ This file is the current backend implementation architecture, subordinate to
 the shared product contract in `../../docs/`. Historical rationale is preserved
 in `../../docs/archive/bmad/adr-002-standard-nestjs-module-architecture.md`.
 
+Rendered diagrams of this architecture — system context, containers, module
+landscape, per-module class diagrams, and end-to-end sequences — live in
+[`diagrams/`](./diagrams/README.md). This file states the decision; those
+diagrams show its current shape.
+
 ## Runtime Shape
 
 - NestJS owns HTTP APIs, authentication, authorization, workflows, final

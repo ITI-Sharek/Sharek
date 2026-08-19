@@ -19,27 +19,52 @@ The frontend should not call model providers or the FastAPI AI service directly.
 - Use explicit status values.
 - Return useful error codes and safe error messages.
 
+## Where To Look
+
+This file states **behaviour**: what a contract means, which states it may move
+between, and which error codes it returns. Three companion documents cover the
+other questions.
+
+| Question | Document |
+| --- | --- |
+| Which routes exist, with auth, roles, and idempotency? | [`api-route-reference.md`](./api-route-reference.md) — generated, 183 routes |
+| How do I call one against a local server? | [`postman-api-guide.md`](./postman-api-guide.md), `../postman/`, `../sharek-api.http` |
+| How does a flow run end to end? | [`diagrams/sequence-diagrams.md`](./diagrams/sequence-diagrams.md) |
+| What does the data look like? | [`diagrams/erd.md`](./diagrams/erd.md) |
+| Which class serves this route? | [`diagrams/class-diagram.md`](./diagrams/class-diagram.md) |
+
 ## Core API Areas
 
-Expected API groups:
+There is no global route prefix; every path below is served from the
+application root. Route ownership must stay aligned with module ownership — one
+capability, one owning module, one set of tables.
 
-```text
-/auth
-/users
-/github
-/projects
-/contribution-tasks
-/applications
-/contribution-proposals
-/skill-profiles
-/admin
-/deliveries
-/reputation
-/contributors/profiles
-/health
-```
+| Path group | Owning module | Covers |
+| --- | --- | --- |
+| `/auth/**`, `/users/:id/role` | `identity` | Registration, email OTP, login, social sign-in, sessions, account settings, data export |
+| `/github/**`, `/webhooks/github/app` | `github` | Legacy OAuth, GitHub App installation and linking, repository evidence, webhooks |
+| `/contributors/profiles/**`, `/contributors/profile-fields`, `/contributors/experience-levels` | `contributor-profiles` | Public and self-service contributor profiles and taxonomy |
+| `/contributors/me/dashboard` | `dashboard` | Contributor workspace read model |
+| `/projects/**`, `/public/projects/**` | `projects` | Import, drafts, publication, archive, discovery, saved projects |
+| `/projects/:projectId/contribution-requests`, `/contribution-requests/**`, `/tasks/**` | `contribution-tasks` | Request drafts, required skill levels, publication, cancellation, public browsing |
+| `/contribution-proposals/**` | `contribution-proposals` | Contributor-initiated proposals, versions, intake switch, misuse reports |
+| `/tasks/:requestId/eligibility` | `eligibility` | The deterministic pre-application gate |
+| `/tasks/:requestId/applications`, `/applications/**` | `applications` | Submission, withdrawal, owner review, advisory fit assessments, decisions |
+| `/assignment-conversations/**` | `assignment-conversations` | Per-assignment messaging |
+| `/applications/:id/deliveries`, `/deliveries/**`, `/owner/deliveries`, `/me/deliveries` | `delivery-reviews` | Submission, resubmission, review outcomes, lifecycle views |
+| `/skill-profiles/**` | `skill-profiles` | Evidence-backed skill generation and retry |
+| `/contributors/me/skill-gap-guidance`, `/contributors/me/eligibility-guidance/**` | `skill-guidance` | Block-triggered guidance |
+| `/contributors/me/recommended-tasks`, `/contribution-requests/:id/matches/generate` | `matching` | Contributor recommendations and owner-side matching |
+| `/projects/:id/materials`, `/materials/**`, `/material-analysis/**`, `/material-downloads` | `materials` | Upload, versions, grants, signed downloads, analysis runs, draft suggestions |
+| `/notifications/**`, `/me/notification-preferences` | `notifications` | Durable inbox, read state, retention and quiet hours |
+| `/subscriptions/plans`, `/me/subscription` | `subscriptions` | Plan catalogue and entitlement status |
+| `/me/subscription/checkout`, `/me/payments/:id`, `/payments/paymob/webhook` | `payments` | Checkout intentions and verified provider callbacks |
+| `/admin/**`, `/owner-decisions/:id/reports` | `admin` | Skill review queue, taxonomy administration, decision feedback reports |
+| `/health` | `health` | Liveness probe used by the container healthcheck |
 
-Exact route naming can evolve, but ownership must stay aligned with modules.
+The realtime surface is part of the same contract: namespace `/realtime`,
+WebSocket only, authenticated with the same opaque access token. See
+[`api-route-reference.md`](./api-route-reference.md#realtime-surface).
 
 ## Identity And Session Contracts
 
@@ -2062,3 +2087,29 @@ stable application error and never mutate payment or subscription state.
 - AI service output schema changes require backend and FastAPI contract tests.
 - DTO changes must be reflected in docs or generated OpenAPI.
 - Contract drift should be caught by integration or contract tests.
+
+### Regenerate the derived artifacts in the same pull request
+
+Adding, removing, or renaming a route leaves three generated files stale. Run
+both commands and commit the results with the change:
+
+```bash
+npm run docs:routes && npm run postman:generate
+```
+
+`docs:routes` rewrites `api-route-reference.md`. `postman:generate` rewrites
+`../postman/controller-route-inventory.json`,
+`../postman/sharek-backend.postman_collection.json`, and
+`postman-api-guide.md`. Neither command uploads anything.
+
+Validation commands that fail on drift:
+
+| Command | Checks |
+| --- | --- |
+| `npm run test:postman` | Every controller route has Postman coverage |
+| `npm run test:api-clients` | `sharek-api.http` and client fixtures match the route inventory |
+| `npm run test:ai-routes` | `docs/ai-service-routes.json` matches what `src/modules/ai/integrations/*.client.ts` actually calls |
+
+When a route's *behaviour* changes — new states, new error codes, a new
+failure mode — also update the relevant section of this file and the matching
+flow in [`diagrams/sequence-diagrams.md`](./diagrams/sequence-diagrams.md).

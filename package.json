@@ -23,6 +23,7 @@
     "test:postman": "node scripts/validate-postman-coverage.mjs",
     "test:ai-routes": "node scripts/validate-ai-route-contract.mjs",
     "postman:generate": "node scripts/sync-postman-artifacts.mjs",
+    "docs:routes": "node scripts/generate-api-route-reference.mjs",
     "postman:validate": "node sync_postman.js",
     "postman:upload": "node sync_postman.js --upload",
     "test:realtime:profile": "node scripts/profile-realtime.mjs",
