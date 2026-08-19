@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Put,
   Res,
   StreamableFile,
@@ -21,6 +22,7 @@ import { CurrentUser } from '../../shared/auth/current-user.decorator';
 import { AccessTokenGuard } from '../../shared/auth/guards/access-token.guard';
 import { BadRequestApplicationError } from '../../shared/errors/application.error';
 import { ContributorProfilesService } from './contributor-profiles.service';
+import { ContributorDirectoryQueryDto } from './dto/contributor-directory.dto';
 import { UpdateContributorProfileRequest } from './dto/update-contributor-profile.request';
 import { CONTRIBUTOR_USERNAME_PATTERN } from './validators/contributor-profile.validator';
 
@@ -59,6 +61,11 @@ export class ContributorProfilesController {
       );
     }
     return this.contributorProfilesService.updateAvatar(user.id, file);
+  }
+
+  @Get()
+  list(@Query() query: ContributorDirectoryQueryDto) {
+    return this.contributorProfilesService.list(query);
   }
 
   @Get(':username')

@@ -51,6 +51,7 @@ describe('contributor profile presenter', () => {
         successRate: 0,
         topVerifiedSkills: [],
       },
+      badges: [],
     });
 
     expect(output).toMatchObject({
@@ -96,6 +97,13 @@ describe('contributor profile presenter', () => {
           { name: 'NestJS', verifiedContributionCount: 2 },
         ],
       },
+      badges: [
+        {
+          id: 'badge-1',
+          badgeType: 'first_contribution',
+          awardedAt: new Date('2026-08-11T13:00:00.000Z'),
+        },
+      ],
     });
 
     expect(output.completionPrompts).toEqual([]);
@@ -117,5 +125,12 @@ describe('contributor profile presenter', () => {
         { name: 'NestJS', verifiedContributionCount: 2 },
       ],
     });
+    expect(output.badges).toEqual([
+      {
+        id: 'badge-1',
+        badgeType: 'first_contribution',
+        awardedAt: new Date('2026-08-11T13:00:00.000Z'),
+      },
+    ]);
   });
 });

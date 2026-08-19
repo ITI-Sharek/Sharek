@@ -16,6 +16,8 @@ Owns contributor profile records and assembles authenticated profile views.
 - `GET /contributors/experience-levels` (public — no access token; registration
   step 3 needs the catalog before an account/session exists)
 - `GET /contributors/profiles/:username`
+- `GET /contributors/profiles` (authenticated contributor directory; supports
+  `q`, `page`, and `limit`)
 - `GET /contributors/profiles/:username/avatar`
 
 `GET /contributors/profile-fields` returns the active field options as a flat

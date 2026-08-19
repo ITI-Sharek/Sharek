@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { BadgesModule } from '../badges/badges.module';
 import { GithubModule } from '../github/github.module';
 import { IdentityModule } from '../identity/identity.module';
 import { ReputationModule } from '../reputation/reputation.module';
@@ -13,7 +14,13 @@ import {
 import { ContributorProfilesService } from './contributor-profiles.service';
 
 @Module({
-  imports: [IdentityModule, GithubModule, SkillProfilesModule, ReputationModule],
+  imports: [
+    IdentityModule,
+    GithubModule,
+    SkillProfilesModule,
+    ReputationModule,
+    BadgesModule,
+  ],
   controllers: [
     ContributorProfilesController,
     ContributorFieldsController,

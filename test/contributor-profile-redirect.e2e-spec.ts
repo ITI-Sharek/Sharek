@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { User } from '@prisma/client';
 import * as request from 'supertest';
 
+import { BadgesService } from '../src/modules/badges/badges.service';
 import { ContributorProfilesController } from '../src/modules/contributor-profiles/contributor-profiles.controller';
 import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
 import { GitHubAccountService } from '../src/modules/github/services/github-account.service';
@@ -174,6 +175,10 @@ describe('Contributor profile redirect HTTP flow', () => {
               topVerifiedSkills: [],
             }),
           },
+        },
+        {
+          provide: BadgesService,
+          useValue: { listForUser: jest.fn().mockResolvedValue([]) },
         },
       ],
     }).compile();

@@ -9,18 +9,24 @@ import {
   ForbiddenApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
+import { BadgesService } from '../badges/badges.service';
 import { GitHubAccountService } from '../github/services/github-account.service';
 import { GitHubAppService } from '../github/services/github-app.service';
 import { IdentityUsernameService } from '../identity/services/identity-username.service';
 import { ReputationService } from '../reputation/reputation.service';
 import { SkillProfileSummaryService } from '../skill-profiles/services/skill-profile-summary.service';
 import {
+  ContributorDirectoryPageDto,
   ContributorProfileDto,
   ContributorApplicationProfileContextDto,
   ContributorProfileWithUser,
 } from './dto/contributor-profile.dto';
+import { ContributorDirectoryQueryDto } from './dto/contributor-directory.dto';
 import { UpdateContributorProfileRequest } from './dto/update-contributor-profile.request';
-import { presentContributorProfile } from './utils/contributor-profile.presenter';
+import {
+  presentContributorDirectoryEntry,
+  presentContributorProfile,
+} from './utils/contributor-profile.presenter';
 import {
   assertCanEnsureContributorProfile,
   getViewerRelationship,
@@ -37,6 +43,7 @@ export class ContributorProfilesService {
     private readonly githubAccountService: GitHubAccountService,
     private readonly skillProfileSummaryService: SkillProfileSummaryService,
     private readonly reputationService: ReputationService,
+    private readonly badgesService: BadgesService,
     @Optional() private readonly githubAppService?: GitHubAppService,
   ) {}
 
@@ -102,6 +109,61 @@ export class ContributorProfilesService {
       profile,
       getViewerRelationship(viewerUserId, profile.user_id),
     );
+  }
+
+  async list(
+    query: ContributorDirectoryQueryDto = {},
+  ): Promise<ContributorDirectoryPageDto> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 24;
+    const search = query.q?.trim() || null;
+    const where: Prisma.ContributorProfileWhereInput = {
+      user: {
+        role: UserRole.contributor,
+        status: { in: [UserStatus.active, UserStatus.pending] },
+        username: { not: null },
+      },
+      ...(search
+        ? {
+            OR: [
+              { bio: { contains: search, mode: 'insensitive' } },
+              { user: { username: { contains: search, mode: 'insensitive' } } },
+              { user: { first_name: { contains: search, mode: 'insensitive' } } },
+              { user: { last_name: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, profiles] = await Promise.all([
+      this.database.contributorProfile.count({ where }),
+      this.database.contributorProfile.findMany({
+        where,
+        include: {
+          user: true,
+          experience_level: true,
+          fields: { include: { field: { include: { category: true } } } },
+        },
+        orderBy: [
+          { user: { first_name: 'asc' } },
+          { user: { last_name: 'asc' } },
+          { id: 'asc' },
+        ],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      contributors: profiles.map(presentContributorDirectoryEntry),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      },
+      appliedFilters: { search },
+    };
   }
 
   async update(
@@ -555,7 +617,7 @@ export class ContributorProfilesService {
     profile: ContributorProfileWithUser,
     viewerRelationship: 'owner' | 'authenticated-viewer',
   ): Promise<ContributorProfileDto> {
-    const [githubStatus, skills, reputationSummary, githubInstallations] =
+    const [githubStatus, skills, reputationSummary, githubInstallations, badges] =
       await Promise.all([
         this.githubAccountService.getStatusForUser(profile.user_id),
         this.skillProfileSummaryService.listSkillsForProfile(profile.user_id, {
@@ -563,6 +625,7 @@ export class ContributorProfilesService {
         }),
         this.reputationService.getSummaryForUser(profile.user_id),
         this.listGitHubInstallationsSafely(profile.user_id, viewerRelationship),
+        this.badgesService.listForUser(profile.user_id),
       ]);
 
     return presentContributorProfile({
@@ -572,6 +635,11 @@ export class ContributorProfilesService {
       skills,
       reputationSummary,
       githubInstallations,
+      badges: badges.map((badge) => ({
+        id: badge.id,
+        badgeType: badge.badgeType,
+        awardedAt: badge.awardedAt,
+      })),
     });
   }
 
