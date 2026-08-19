@@ -35,6 +35,8 @@ export interface RecommendedTaskDto {
    * partial fit. These are server-authored counts of the *required* bar.
    */
   requiredSkillNames: string[];
+  /** Required skill names, in the Request's display form, that were matched. */
+  matchedRequiredSkillNames: string[];
   matchedRequiredCount: number;
   requiredSkillCount: number;
   applicationsCloseAt: string;

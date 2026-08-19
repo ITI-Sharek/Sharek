@@ -1657,6 +1657,10 @@ projects are a contributor benefit.
       "matchedSkills": [
         { "name": "NestJS", "proficiency": "advanced", "evidenceIds": ["github:sharek/api"] }
       ],
+      "requiredSkillNames": ["NestJS", "PostgreSQL"],
+      "matchedRequiredSkillNames": ["NestJS"],
+      "matchedRequiredCount": 1,
+      "requiredSkillCount": 2,
       "applicationsCloseAt": "2026-09-01T00:00:00.000Z",
       "targetCompletionDate": null,
       "difficulty": "intermediate",
