@@ -22,7 +22,7 @@ export class GitHubAppCallbackController {
     const returnUrl = new URL(
       this.config.get<string>(
         'GITHUB_APP_FRONTEND_RETURN_URL',
-        'http://localhost:3001/profile/github',
+        'http://localhost:3001/settings?section=github',
       ),
     );
     if (providerError || !code || !state) {

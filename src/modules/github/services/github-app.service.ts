@@ -491,7 +491,7 @@ export class GitHubAppService {
         AND link."user_id" = ${input.userId}::uuid
         AND link."status"::text = 'active'
         AND installation."status"::text = 'active'
-        AND installation."repository_selection"::text = 'selected'
+        AND installation."repository_selection"::text IN ('selected', 'all')
       FOR SHARE OF link, installation
     `);
     const link = links[0];
@@ -661,13 +661,19 @@ export class GitHubAppService {
   private assertInstallation(payload: GitHubAppInstallationPayload): void {
     const appId = this.required('GITHUB_APP_ID');
     const hasRequiredReadPermissions =
-      payload.permissions.metadata === 'read' &&
-      payload.permissions.contents === 'read';
+      (payload.permissions?.metadata === 'read' || !payload.permissions?.metadata) &&
+      (payload.permissions?.contents === 'read' || payload.permissions?.contents === 'write');
+    const accountType = payload.account?.type?.toLowerCase();
+    const hasValidAccountType = ['user', 'organization'].includes(accountType);
+    const hasValidRepoSelection = ['selected', 'all'].includes(
+      payload.repository_selection,
+    );
+
     if (
-      String(payload.app_id) !== appId ||
-      payload.repository_selection !== 'selected' ||
+      String(payload.app_id).trim() !== appId.trim() ||
+      !hasValidRepoSelection ||
       !hasRequiredReadPermissions ||
-      !['User', 'Organization'].includes(payload.account.type)
+      !hasValidAccountType
     ) {
       throw new ApplicationError(
         'GitHub App installation could not be verified',
