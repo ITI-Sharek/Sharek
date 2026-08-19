@@ -52,6 +52,10 @@ describe('RecommendedTasksService', () => {
         },
       ],
       exceededSkills: [],
+      requiredSkillNames: ['NestJS'],
+      matchedRequiredSkillNames: ['NestJS'],
+      matchedRequiredCount: 1,
+      requiredSkillCount: 1,
       confidence: 'HIGH',
       ...overrides,
     };
