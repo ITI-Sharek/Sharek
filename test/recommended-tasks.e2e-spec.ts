@@ -33,6 +33,9 @@ const FRONTEND_TASK_FIELDS = [
   'confidence',
   'justification',
   'matchedSkills',
+  'requiredSkillNames',
+  'matchedRequiredCount',
+  'requiredSkillCount',
   'applicationsCloseAt',
   'targetCompletionDate',
   'difficulty',
@@ -139,6 +142,9 @@ describe('GET /contributors/me/recommended-tasks HTTP integration', () => {
             },
           ],
           exceededSkills: [],
+          requiredSkillNames: ['NestJS', 'PostgreSQL'],
+          matchedRequiredCount: 1,
+          requiredSkillCount: 2,
           confidence: 'HIGH',
         },
       ],
@@ -164,6 +170,24 @@ describe('GET /contributors/me/recommended-tasks HTTP integration', () => {
           }
           expect(['HIGH', 'MEDIUM', 'LOW']).toContain(recommendation.confidence);
         }
+      });
+  });
+
+  it('carries the fit gauge as two counts of the required bar', async () => {
+    await request(app.getHttpServer())
+      .get('/contributors/me/recommended-tasks')
+      .expect(200)
+      .expect((response) => {
+        const [task] = response.body.recommendations;
+        // The numerator is the required bar, not the matched-skill list. The
+        // dashboard gauge divides these two, and feeding it the same number
+        // twice drew every match as a complete one.
+        expect(task.matchedRequiredCount).toBe(1);
+        expect(task.requiredSkillCount).toBe(2);
+        expect(task.requiredSkillNames).toEqual(['NestJS', 'PostgreSQL']);
+        expect(task.matchedRequiredCount).toBeLessThanOrEqual(
+          task.requiredSkillCount,
+        );
       });
   });
 

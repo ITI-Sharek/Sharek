@@ -35,6 +35,11 @@ export interface ShortlistedMatch {
   matchedSkills: MatchedSkillDto[];
   /** Approved skills the contributor brings beyond what this Request asks for. */
   exceededSkills: MatchedSkillDto[];
+  /** Every skill the Request requires, in the order it asks for them. */
+  requiredSkillNames: string[];
+  /** How many of those the contributor covers, and out of how many. */
+  matchedRequiredCount: number;
+  requiredSkillCount: number;
   /**
    * Coverage bucket, categorical by DEC-010. The underlying ratio is used for
    * ordering but never leaves this module as a number.
@@ -184,6 +189,9 @@ export class MatchingService {
         rank: index + 1,
         matchedSkills: entry.fit.matchedSkills.map(toMatchedSkill),
         exceededSkills: entry.fit.exceededSkills.map(toMatchedSkill),
+        requiredSkillNames: requiredSkillNamesOf(entry.candidate),
+        matchedRequiredCount: entry.fit.matchedRequiredCount,
+        requiredSkillCount: entry.fit.requestedSkillCount,
         confidence: toConfidence(entry.fit.coverage),
       })),
       reason: null,
@@ -205,6 +213,21 @@ export class MatchingService {
       evidenceIds: toEvidenceIds(skill.evidenceSources),
     }));
   }
+}
+
+/**
+ * What the Request declares it requires, in its own words.
+ *
+ * The display form, not the normalized token: the normalized form is a
+ * comparison key and rendering it would show a contributor `nodejs` where the
+ * owner wrote `Node.js`. A legacy Request with no frozen bar falls back to its
+ * technology tags, which is what its coverage was computed against.
+ */
+function requiredSkillNamesOf(request: MatchingCandidateRequestDto): string[] {
+  const required = request.skillRequirements
+    .filter((skill) => skill.kind === 'required')
+    .map((skill) => skill.skillName);
+  return required.length > 0 ? required : request.technologyTags;
 }
 
 function toMatchedSkill(skill: ApprovedSkill): MatchedSkillDto {

@@ -36,6 +36,9 @@ describe('AiMatchRanker', () => {
         { name: 'NestJS', proficiency: 'advanced', evidenceIds: ['e1'] },
       ],
       exceededSkills: [],
+      requiredSkillNames: ['NestJS'],
+      matchedRequiredCount: 1,
+      requiredSkillCount: 1,
       confidence: 'HIGH',
     };
   }
