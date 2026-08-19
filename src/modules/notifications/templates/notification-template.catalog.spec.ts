@@ -35,12 +35,13 @@ describe('Notification template catalog', () => {
       senderName: 'Contributor Name',
       messagePreview: 'Hello owner',
       messageCount: 1,
+      badgeType: 'first_contribution',
     };
 
     expect(definitions.map((definition) => definition.key)).toEqual(
       NOTIFICATION_TEMPLATE_KEYS,
     );
-    expect(definitions).toHaveLength(23);
+    expect(definitions).toHaveLength(24);
 
     for (const definition of definitions) {
       expect(definition.version).toBe(1);

@@ -376,6 +376,7 @@ enum NotificationType {
   conversation_activity
   assignment_call
   system
+  achievement
 }
 
 enum NotificationPriority {
@@ -484,35 +485,38 @@ enum AssignmentConversationStatus {
 }
 
 model User {
-  id                 String       @id @default(uuid()) @db.Uuid
-  email              String       @unique @db.VarChar(255)
-  username           String?      @unique @db.VarChar(30)
-  password_hash      String?      @db.VarChar(255)
-  first_name         String       @db.VarChar(100)
-  last_name          String       @db.VarChar(100)
-  avatar_url         String?      @db.VarChar(500)
-  role               UserRole
-  status             UserStatus   @default(pending)
-  preferred_language LanguageCode @default(en)
-  phone_number       String?      @db.VarChar(30)
-  phone_verified_at  DateTime?
-  country            String?      @db.VarChar(100)
-  region             String?      @db.VarChar(100)
-  city               String?      @db.VarChar(100)
-  gender             String?      @db.VarChar(20)
-  date_of_birth      DateTime?    @db.Date
-  profile_visibility String       @default("public") @db.VarChar(20)
-  show_email         Boolean      @default(false)
-  show_phone         Boolean      @default(false)
-  show_activity      Boolean      @default(true)
-  allow_indexing     Boolean      @default(true)
-  identity_verification_status String @default("unverified") @db.VarChar(20)
-  identity_document_data          Bytes?
-  identity_document_mime_type     String? @db.VarChar(100)
-  identity_document_updated_at    DateTime?
-  created_at         DateTime     @default(now())
-  updated_at         DateTime     @default(now()) @updatedAt
-  last_login_at      DateTime?
+  id                           String       @id @default(uuid()) @db.Uuid
+  email                        String       @unique @db.VarChar(255)
+  username                     String?      @unique @db.VarChar(30)
+  password_hash                String?      @db.VarChar(255)
+  first_name                   String       @db.VarChar(100)
+  last_name                    String       @db.VarChar(100)
+  avatar_url                   String?      @db.VarChar(500)
+  role                         UserRole
+  status                       UserStatus   @default(pending)
+  preferred_language           LanguageCode @default(en)
+  phone_number                 String?      @db.VarChar(30)
+  phone_verified_at            DateTime?
+  country                      String?      @db.VarChar(100)
+  region                       String?      @db.VarChar(100)
+  city                         String?      @db.VarChar(100)
+  gender                       String?      @db.VarChar(20)
+  date_of_birth                DateTime?    @db.Date
+  profile_visibility           String       @default("public") @db.VarChar(20)
+  show_email                   Boolean      @default(false)
+  show_phone                   Boolean      @default(false)
+  show_activity                Boolean      @default(true)
+  allow_indexing               Boolean      @default(true)
+  identity_verification_status          String       @default("unverified") @db.VarChar(20)
+  identity_document_data                Bytes?
+  identity_document_mime_type           String?      @db.VarChar(100)
+  identity_document_updated_at          DateTime?
+  identity_verified_at                  DateTime?
+  identity_verification_rejected_reason String?      @db.VarChar(500)
+  identity_verified_by                  String?      @db.Uuid
+  created_at                   DateTime     @default(now())
+  updated_at                   DateTime     @default(now()) @updatedAt
+  last_login_at                DateTime?
 
   subscriptions                     Subscription[]
   paymentAttempts                   PaymentAttempt[]
@@ -525,6 +529,7 @@ model User {
   notificationPreference            NotificationPreference?
   deliveryReviews                   DeliveryReview[]                   @relation("DeliveryReviewReviewer")
   deliveryApprovedEvents            DeliveryApprovedEvent[]            @relation("DeliveryApprovedEventContributor")
+  userBadges                        UserBadge[]
   deliverySubmissions               DeliverySubmission[]               @relation("DeliverySubmissionContributor")
   disputesFiled                     Dispute[]                          @relation("UserDisputesFiled")
   disputesResolved                  Dispute[]                          @relation("UserDisputesResolved")
@@ -926,43 +931,43 @@ model ProjectStateTransition {
 }
 
 model ContributionRequest {
-  id                        String                         @id @default(uuid()) @db.Uuid
-  project_id                String                         @db.Uuid
-  owner_id                  String                         @db.Uuid
-  title                     String                         @db.VarChar(255)
+  id                        String                                  @id @default(uuid()) @db.Uuid
+  project_id                String                                  @db.Uuid
+  owner_id                  String                                  @db.Uuid
+  title                     String                                  @db.VarChar(255)
   description               String
-  technology_tags           Json                           @default("[]")
+  technology_tags           Json                                    @default("[]")
   difficulty                ContributionRequestDifficulty?
   applications_close_at     DateTime?
-  target_completion_date    DateTime?                      @db.Date
-  reward                    Decimal?                       @db.Decimal(10, 2)
-  reward_currency           String?                        @db.VarChar(3)
-  status                    ContributionRequestStatus      @default(draft)
-  max_applicants            Int                            @default(1)
-  origin_proposal_id        String?                        @unique @db.Uuid
-  attributed_contributor_id String?                        @db.Uuid
+  target_completion_date    DateTime?                               @db.Date
+  reward                    Decimal?                                @db.Decimal(10, 2)
+  reward_currency           String?                                 @db.VarChar(3)
+  status                    ContributionRequestStatus               @default(draft)
+  max_applicants            Int                                     @default(1)
+  origin_proposal_id        String?                                 @unique @db.Uuid
+  attributed_contributor_id String?                                 @db.Uuid
   published_at              DateTime?
   skill_inference_status    ContributionRequestSkillInferenceStatus @default(not_started)
   skill_inference_ran_at    DateTime?
-  created_at                DateTime                       @default(now())
-  updated_at                DateTime                       @default(now()) @updatedAt
+  created_at                DateTime                                @default(now())
+  updated_at                DateTime                                @default(now()) @updatedAt
 
-  project               Project                          @relation(fields: [project_id], references: [id])
-  owner                 User                             @relation("ContributionRequestOwner", fields: [owner_id], references: [id])
-  originProposal        ContributionProposal?            @relation("ProposalOriginatedRequest", fields: [origin_proposal_id], references: [id], onDelete: SetNull)
-  attributedContributor User?                            @relation("ContributionRequestAttributedContributor", fields: [attributed_contributor_id], references: [id], onDelete: SetNull)
-  requirements          ContributionRequestRequirement[]
-  skillRequirements     ContributionRequestSkillRequirement[]
+  project                Project                               @relation(fields: [project_id], references: [id])
+  owner                  User                                  @relation("ContributionRequestOwner", fields: [owner_id], references: [id])
+  originProposal         ContributionProposal?                 @relation("ProposalOriginatedRequest", fields: [origin_proposal_id], references: [id], onDelete: SetNull)
+  attributedContributor  User?                                 @relation("ContributionRequestAttributedContributor", fields: [attributed_contributor_id], references: [id], onDelete: SetNull)
+  requirements           ContributionRequestRequirement[]
+  skillRequirements      ContributionRequestSkillRequirement[]
   eligibilityEvaluations EligibilityEvaluation[]
-  auditEvents           ContributionRequestAudit[]
-  applications          Application[]
-  aiMatchResults        AiMatchResult[]
-  skillGapGuidances     SkillGapGuidance[]
-  deliveries            Delivery[]
-  ownerDecisions        OwnerDecision[]
-  assignments           Assignment[]
-  assessmentRequests    AssessmentRequest[]
-  materials             Material[]                       @relation("ContributionRequestMaterials")
+  auditEvents            ContributionRequestAudit[]
+  applications           Application[]
+  aiMatchResults         AiMatchResult[]
+  skillGapGuidances      SkillGapGuidance[]
+  deliveries             Delivery[]
+  ownerDecisions         OwnerDecision[]
+  assignments            Assignment[]
+  assessmentRequests     AssessmentRequest[]
+  materials              Material[]                            @relation("ContributionRequestMaterials")
 
   @@index([project_id, status])
   @@index([owner_id, created_at])
@@ -1033,27 +1038,27 @@ model ContributionRequestSkillRequirement {
 /// list of accusations with no denominator, and "was this person evaluated at
 /// all?" unanswerable.
 model EligibilityEvaluation {
-  id                       String             @id @default(uuid()) @db.Uuid
-  contributor_id           String             @db.Uuid
+  id                           String             @id @default(uuid()) @db.Uuid
+  contributor_id               String             @db.Uuid
   /// Exactly one of these is set, enforced by a CHECK constraint in the raw
   /// migration: an evaluation belongs to one contribution path.
-  contribution_request_id  String?            @db.Uuid
-  contribution_proposal_id String?            @db.Uuid
-  outcome                  EligibilityOutcome
+  contribution_request_id      String?            @db.Uuid
+  contribution_proposal_id     String?            @db.Uuid
+  outcome                      EligibilityOutcome
   /// `[{ skillName, requiredLevel, contributorLevel }]`. Empty for `eligible`.
   /// `contributorLevel` is null when the contributor holds no approved evidence
   /// for that skill at all — a distinction the UI has to render differently.
-  blocking_skills          Json               @default("[]")
+  blocking_skills              Json               @default("[]")
   /// The version of the comparison contract that produced this row, not a
   /// version of the Request. The bar itself is frozen at publication, so the
   /// Request identifies it; this column exists so that a later change to the
   /// comparison rules is visible in an append-only log rather than making old
   /// rows silently unreproducible.
-  requirement_snapshot_version Int            @default(1)
-  evaluated_at             DateTime           @default(now())
+  requirement_snapshot_version Int                @default(1)
+  evaluated_at                 DateTime           @default(now())
 
-  contributor         User                  @relation("EligibilityEvaluationContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
-  contributionRequest ContributionRequest?  @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
+  contributor          User                  @relation("EligibilityEvaluationContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
+  contributionRequest  ContributionRequest?  @relation(fields: [contribution_request_id], references: [id], onDelete: Cascade)
   contributionProposal ContributionProposal? @relation(fields: [contribution_proposal_id], references: [id], onDelete: Cascade)
 
   guidance EligibilityGuidance[]
@@ -1074,21 +1079,21 @@ model EligibilityEvaluation {
 /// `blocking_skills` never change. Only the narrative fields move, once, from
 /// pending to ready or failed.
 model EligibilityGuidance {
-  id                       String                    @id @default(uuid()) @db.Uuid
-  eligibility_evaluation_id String                   @db.Uuid
+  id                        String                    @id @default(uuid()) @db.Uuid
+  eligibility_evaluation_id String                    @db.Uuid
   /// Denormalized from the evaluation so the authorization check needs one row,
   /// not a join. Guidance is readable only by its own contributor.
-  contributor_id           String                    @db.Uuid
-  status                   EligibilityGuidanceStatus @default(pending)
+  contributor_id            String                    @db.Uuid
+  status                    EligibilityGuidanceStatus @default(pending)
   /// Copied from the evaluation at request time. The whole point is that this
   /// survives a provider failure: a contributor is never told only "you are
   /// blocked" with no explanation.
-  blocking_skills          Json                      @default("[]")
-  narrative                String?
-  recommendations          Json?
-  model_used               String?                   @db.VarChar(50)
-  created_at               DateTime                  @default(now())
-  updated_at               DateTime                  @default(now()) @updatedAt
+  blocking_skills           Json                      @default("[]")
+  narrative                 String?
+  recommendations           Json?
+  model_used                String?                   @db.VarChar(50)
+  created_at                DateTime                  @default(now())
+  updated_at                DateTime                  @default(now()) @updatedAt
 
   eligibilityEvaluation EligibilityEvaluation @relation(fields: [eligibility_evaluation_id], references: [id], onDelete: Cascade)
   contributor           User                  @relation("EligibilityGuidanceContributor", fields: [contributor_id], references: [id], onDelete: Restrict)
@@ -1450,13 +1455,13 @@ model ContributionProposal {
   created_at                 DateTime                   @default(now())
   updated_at                 DateTime                   @default(now()) @updatedAt
 
-  project           Project                            @relation("ProjectContributionProposals", fields: [project_id], references: [id], onDelete: Restrict)
-  proposer          User                               @relation("ContributionProposalProposer", fields: [proposer_id], references: [id], onDelete: Restrict)
-  versions          ContributionProposalVersion[]
-  auditEvents       ContributionProposalAudit[]
+  project                Project                            @relation("ProjectContributionProposals", fields: [project_id], references: [id], onDelete: Restrict)
+  proposer               User                               @relation("ContributionProposalProposer", fields: [proposer_id], references: [id], onDelete: Restrict)
+  versions               ContributionProposalVersion[]
+  auditEvents            ContributionProposalAudit[]
   eligibilityEvaluations EligibilityEvaluation[]
-  misuseReports     ContributionProposalMisuseReport[]
-  originatedRequest ContributionRequest?               @relation("ProposalOriginatedRequest")
+  misuseReports          ContributionProposalMisuseReport[]
+  originatedRequest      ContributionRequest?               @relation("ProposalOriginatedRequest")
 
   @@index([project_id, status])
   @@index([proposer_id, created_at])
@@ -1595,6 +1600,7 @@ model Delivery {
   deliverySubmissions DeliverySubmission[]
   deliveryReviews     DeliveryReview[]
   approvedEvents      DeliveryApprovedEvent[]
+  awardedBadges       UserBadge[]
 }
 
 model DeliverySubmission {
@@ -1933,6 +1939,23 @@ model ReputationRecord {
   created_at               DateTime @default(now())
 
   user User @relation(fields: [user_id], references: [id])
+}
+
+enum BadgeType {
+  first_contribution
+}
+
+model UserBadge {
+  id                 String    @id @default(uuid()) @db.Uuid
+  user_id            String    @db.Uuid
+  badge_type         BadgeType
+  source_delivery_id String?   @db.Uuid
+  awarded_at         DateTime  @default(now())
+
+  user     User      @relation(fields: [user_id], references: [id])
+  delivery Delivery? @relation(fields: [source_delivery_id], references: [id], onDelete: SetNull)
+
+  @@unique([user_id, badge_type])
 }
 
 model SkillGapGuidance {
