@@ -55,7 +55,7 @@ describe('GitHub App installation HTTP contract', () => {
         {
           provide: ConfigService,
           useValue: new ConfigService({
-            GITHUB_APP_FRONTEND_RETURN_URL: 'http://localhost:3001/profile/github',
+            GITHUB_APP_FRONTEND_RETURN_URL: 'http://localhost:3001/settings?section=github',
           }),
         },
       ],

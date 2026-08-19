@@ -88,7 +88,7 @@ GITHUB_APP_WEBHOOK_PROXY_URL=
 GITHUB_APP_SLUG=
 GITHUB_APP_INSTALLATION_URL=https://github.com/apps/your-app-slug/installations/new
 GITHUB_APP_CALLBACK_URL=http://localhost:4000/auth/github/app/callback
-GITHUB_APP_FRONTEND_RETURN_URL=http://localhost:3001/profile/github
+GITHUB_APP_FRONTEND_RETURN_URL=http://localhost:3001/settings?section=github
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_OAUTH_CALLBACK_URL=http://localhost:4000/auth/google/callback

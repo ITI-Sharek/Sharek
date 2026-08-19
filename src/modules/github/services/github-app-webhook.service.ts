@@ -200,11 +200,18 @@ export class GitHubAppWebhookService {
     repository_selection: string;
     permissions: Record<string, string>;
   }): void {
+    const appId = this.config.get<string>('GITHUB_APP_ID')?.trim();
+    const hasRequiredReadPermissions =
+      (installation.permissions?.metadata === 'read' || !installation.permissions?.metadata) &&
+      (installation.permissions?.contents === 'read' || installation.permissions?.contents === 'write');
+    const hasValidRepoSelection = ['selected', 'all'].includes(
+      installation.repository_selection,
+    );
+
     if (
-      String(installation.app_id) !== this.config.get<string>('GITHUB_APP_ID') ||
-      installation.repository_selection !== 'selected' ||
-      installation.permissions.metadata !== 'read' ||
-      installation.permissions.contents !== 'read'
+      String(installation.app_id).trim() !== appId ||
+      !hasValidRepoSelection ||
+      !hasRequiredReadPermissions
     ) {
       throw new ApplicationError(
         'GitHub App installation could not be verified',
