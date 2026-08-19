@@ -1,4 +1,6 @@
 import {
+  ContributorDirectoryEntryDto,
+  ContributorProfileBadgeDto,
   ContributorProfileDto,
   ContributorProfileGitHubStatusDto,
   ContributorProfileReputationSummaryDto,
@@ -15,6 +17,7 @@ export function presentContributorProfile(input: {
   githubInstallations?: ContributorProfileDto['githubInstallations'];
   skills: ContributorProfileSkillDto[];
   reputationSummary: ContributorProfileReputationSummaryDto;
+  badges: ContributorProfileBadgeDto[];
 }): ContributorProfileDto {
   const { profile, viewerRelationship, githubStatus, skills } = input;
   const displayName = `${profile.user.first_name} ${profile.user.last_name}`.trim();
@@ -58,6 +61,7 @@ export function presentContributorProfile(input: {
     githubStatus,
     githubInstallations: isOwner ? (input.githubInstallations ?? []) : [],
     reputationSummary: input.reputationSummary,
+    badges: input.badges,
     contributionHistory: [],
     completionPrompts: isOwner
       ? buildCompletionPrompts({
@@ -69,5 +73,48 @@ export function presentContributorProfile(input: {
         })
       : [],
     viewerRelationship,
+    identityVerified: profile.user.identity_verification_status === 'verified',
+  };
+}
+
+export function presentContributorDirectoryEntry(
+  profile: ContributorProfileWithUser,
+): ContributorDirectoryEntryDto {
+  const activeFields = profile.fields.filter(
+    ({ field }) => field.active && field.category.active,
+  );
+
+  return {
+    username: profile.user.username ?? '',
+    displayName: `${profile.user.first_name} ${profile.user.last_name}`.trim(),
+    avatarUrl: profile.avatar_data
+      ? `/contributors/profiles/${encodeURIComponent(profile.user.username ?? '')}/avatar?v=${profile.updated_at.getTime()}`
+      : profile.user.avatar_url,
+    roleLabel: 'Contributor',
+    bio: profile.bio,
+    availability: profile.availability,
+    experienceLevel: profile.experience_level
+      ? {
+          id: profile.experience_level.id,
+          key: profile.experience_level.key,
+          labelEn: profile.experience_level.label_en,
+          labelAr: profile.experience_level.label_ar,
+        }
+      : null,
+    fields: activeFields.map(({ field }) => ({
+      id: field.id,
+      categoryId: field.category_id,
+      key: field.key,
+      labelEn: field.label_en,
+      labelAr: field.label_ar,
+      category: {
+        id: field.category.id,
+        key: field.category.key,
+        labelEn: field.category.label_en,
+        labelAr: field.category.label_ar,
+      },
+    })),
+    declaredSkills: profile.declared_skills,
+    identityVerified: profile.user.identity_verification_status === 'verified',
   };
 }

@@ -78,6 +78,12 @@ export interface ContributorProfileReputationSummaryDto {
   }>;
 }
 
+export interface ContributorProfileBadgeDto {
+  id: string;
+  badgeType: string;
+  awardedAt: Date;
+}
+
 export interface ContributorProfileDto {
   username: string;
   displayName: string;
@@ -92,9 +98,38 @@ export interface ContributorProfileDto {
   githubStatus: ContributorProfileGitHubStatusDto;
   githubInstallations: ContributorProfileGitHubInstallationDto[];
   reputationSummary: ContributorProfileReputationSummaryDto;
+  badges: ContributorProfileBadgeDto[];
   contributionHistory: unknown[];
   completionPrompts: string[];
   viewerRelationship: 'owner' | 'authenticated-viewer';
+  identityVerified: boolean;
+}
+
+/** Safe summary projection used by the authenticated contributor directory. */
+export interface ContributorDirectoryEntryDto {
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  roleLabel: string;
+  bio: string | null;
+  availability: string | null;
+  experienceLevel: ContributorExperienceLevelDto | null;
+  fields: ContributorFieldDto[];
+  declaredSkills: string[];
+  identityVerified: boolean;
+}
+
+export interface ContributorDirectoryPageDto {
+  contributors: ContributorDirectoryEntryDto[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  appliedFilters: {
+    search: string | null;
+  };
 }
 
 export interface ContributorApplicationProfileContextDto {

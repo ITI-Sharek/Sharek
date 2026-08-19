@@ -1,6 +1,73 @@
 import { ContributorProfilesService } from './contributor-profiles.service';
 
 describe('ContributorProfilesService', () => {
+  it('lists visible contributor summaries for the authenticated directory', async () => {
+    const user = {
+      id: 'directory-user-1',
+      username: 'directory-user',
+      first_name: 'Directory',
+      last_name: 'User',
+      avatar_url: 'https://cdn.example/avatar.png',
+      role: 'contributor',
+      status: 'active',
+    };
+    const profile = {
+      id: 'directory-profile-1',
+      user_id: user.id,
+      bio: 'Builds useful tools.',
+      availability: 'available',
+      experience_level_id: null,
+      experience_level: null,
+      declared_skills: ['TypeScript'],
+      avatar_data: null,
+      avatar_mime_type: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+      user,
+      fields: [],
+    };
+    const database = {
+      contributorProfile: {
+        count: jest.fn().mockResolvedValue(1),
+        findMany: jest.fn().mockResolvedValue([profile]),
+      },
+    };
+    const service = new ContributorProfilesService(
+      database as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.list({ q: 'directory', page: 2, limit: 10 }),
+    ).resolves.toMatchObject({
+      contributors: [
+        {
+          username: 'directory-user',
+          displayName: 'Directory User',
+          bio: 'Builds useful tools.',
+          declaredSkills: ['TypeScript'],
+        },
+      ],
+      pagination: { page: 2, limit: 10, total: 1, totalPages: 1 },
+      appliedFilters: { search: 'directory' },
+    });
+    expect(database.contributorProfile.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        user: expect.objectContaining({
+          role: 'contributor',
+          status: { in: ['active', 'pending'] },
+        }),
+      }),
+    });
+    expect(database.contributorProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 10, take: 10 }),
+    );
+  });
+
   it('idempotently ensures an owner view through exported summary services', async () => {
     const user = {
       id: 'user-1',
@@ -56,12 +123,14 @@ describe('ContributorProfilesService', () => {
         reviewsCount: 0,
       }),
     };
+    const badgesService = { listForUser: jest.fn().mockResolvedValue([]) };
     const service = new ContributorProfilesService(
       database as never,
       identityUsernameService as never,
       githubProfileService as never,
       skillProfileSummaryService as never,
       reputationService as never,
+      badgesService as never,
     );
 
     await expect(service.ensure(user.id)).resolves.toMatchObject({
@@ -140,6 +209,7 @@ describe('ContributorProfilesService', () => {
           .fn()
           .mockResolvedValue(emptyReputationSummary()),
       } as never,
+      { listForUser: jest.fn().mockResolvedValue([]) } as never,
     );
 
     await expect(
@@ -212,6 +282,7 @@ describe('ContributorProfilesService', () => {
           .fn()
           .mockResolvedValue(emptyReputationSummary()),
       } as never,
+      { listForUser: jest.fn().mockResolvedValue([]) } as never,
       { listInstallationLinks } as never,
     );
 
@@ -260,6 +331,7 @@ describe('ContributorProfilesService', () => {
     };
     const service = new ContributorProfilesService(
       database as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
