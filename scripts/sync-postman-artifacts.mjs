@@ -489,6 +489,16 @@ function applyBodyCorrections(route, request) {
     };
     return;
   }
+  if (key === 'PUT /projects/me/:parameter/hero-image') {
+    request.body = {
+      mode: 'formdata',
+      formdata: [
+        { key: 'file', type: 'file', src: [] },
+        { key: 'expectedRevision', type: 'text', value: '1' },
+      ],
+    };
+    return;
+  }
   if (bodies.has(key)) request.body = jsonBody(bodies.get(key));
   if (
     key === 'POST /projects/import/github' ||

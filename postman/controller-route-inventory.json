@@ -1,6 +1,6 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 176,
+  "routeCount": 183,
   "routes": [
     {
       "method": "GET",
@@ -2792,6 +2792,33 @@
     },
     {
       "method": "GET",
+      "path": "/contributors/me/dashboard",
+      "normalizedPath": "/contributors/me/dashboard",
+      "key": "GET /contributors/me/dashboard",
+      "controller": "ContributorDashboardController",
+      "handler": "get",
+      "source": "src/modules/dashboard/contributor-dashboard.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
       "path": "/contributors/me/eligibility-guidance",
       "normalizedPath": "/contributors/me/eligibility-guidance",
       "key": "GET /contributors/me/eligibility-guidance",
@@ -2948,6 +2975,44 @@
       "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
       "pathParameters": [],
       "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/contributors/profiles",
+      "normalizedPath": "/contributors/profiles",
+      "key": "GET /contributors/profiles",
+      "controller": "ContributorProfilesController",
+      "handler": "list",
+      "source": "src/modules/contributor-profiles/contributor-profiles.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "q",
+          "optional": true,
+          "type": "string"
+        },
+        {
+          "name": "page",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        }
+      ],
       "headers": [],
       "bodyDto": null,
       "bodyFields": [],
@@ -5053,6 +5118,64 @@
     },
     {
       "method": "GET",
+      "path": "/projects/categories",
+      "normalizedPath": "/projects/categories",
+      "key": "GET /projects/categories",
+      "controller": "ProjectsController",
+      "handler": "listCategories",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor",
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/projects/difficulties",
+      "normalizedPath": "/projects/difficulties",
+      "key": "GET /projects/difficulties",
+      "controller": "ProjectsController",
+      "handler": "listDifficulties",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor",
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
       "path": "/projects/discover",
       "normalizedPath": "/projects/discover",
       "key": "GET /projects/discover",
@@ -5192,6 +5315,16 @@
           "name": "limit",
           "optional": true,
           "type": "number"
+        },
+        {
+          "name": "status",
+          "optional": true,
+          "type": "ProjectStatus"
+        },
+        {
+          "name": "q",
+          "optional": true,
+          "type": "string"
         }
       ],
       "headers": [],
@@ -5365,6 +5498,79 @@
       "successStatus": 200
     },
     {
+      "method": "GET",
+      "path": "/projects/me/:projectId/hero-image",
+      "normalizedPath": "/projects/me/:parameter/hero-image",
+      "key": "GET /projects/me/:parameter/hero-image",
+      "controller": "ProjectsController",
+      "handler": "getHeroImage",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/projects/me/:projectId/hero-image",
+      "normalizedPath": "/projects/me/:parameter/hero-image",
+      "key": "PUT /projects/me/:parameter/hero-image",
+      "controller": "ProjectsController",
+      "handler": "uploadHeroImage",
+      "source": "src/modules/projects/projects.controller.ts",
+      "pathParameters": [
+        "projectId"
+      ],
+      "queryParameters": [],
+      "headers": [
+        {
+          "name": "idempotency-key",
+          "optional": false
+        }
+      ],
+      "bodyDto": "UpdateProjectHeroImageDto",
+      "bodyFields": [
+        {
+          "name": "expectedRevision",
+          "optional": false,
+          "type": "number"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "multipart/form-data",
+      "multipartFields": [
+        "file"
+      ],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "owner",
+        "contributor"
+      ],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 200
+    },
+    {
       "method": "POST",
       "path": "/projects/me/:projectId/publish",
       "normalizedPath": "/projects/me/:parameter/publish",
@@ -5470,6 +5676,16 @@
           "name": "limit",
           "optional": true,
           "type": "number"
+        },
+        {
+          "name": "status",
+          "optional": true,
+          "type": "ProjectStatus"
+        },
+        {
+          "name": "q",
+          "optional": true,
+          "type": "string"
         }
       ],
       "headers": [],
@@ -5515,6 +5731,30 @@
       "key": "GET /public/projects/:parameter/applicants",
       "controller": "PublicProjectsController",
       "handler": "listApplicants",
+      "source": "src/modules/projects/public-projects.controller.ts",
+      "pathParameters": [
+        "projectSlug"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [],
+      "roles": [],
+      "authentication": "public",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/public/projects/:projectSlug/hero-image",
+      "normalizedPath": "/public/projects/:parameter/hero-image",
+      "key": "GET /public/projects/:parameter/hero-image",
+      "controller": "PublicProjectsController",
+      "handler": "getHeroImage",
       "source": "src/modules/projects/public-projects.controller.ts",
       "pathParameters": [
         "projectSlug"
