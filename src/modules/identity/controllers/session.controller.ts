@@ -7,7 +7,6 @@ import { RefreshSessionRequest } from '../dto/refresh-session.request';
 import { AssignRoleRequest } from '../dto/assign-role.request';
 import { UpdateUserPreferencesRequest } from '../dto/update-user-preferences.request';
 import { ChangePasswordRequest } from '../dto/change-password.request';
-import { UpdateEmailRequest } from '../dto/update-email.request';
 import { UpdateUsernameRequest } from '../dto/update-username.request';
 import { UpdatePersonalDetailsRequest } from '../dto/update-personal-details.request';
 import { UpdatePhoneRequest } from '../dto/update-phone.request';
@@ -70,11 +69,6 @@ export class SessionController {
     return this.accountSettingsService.changePassword(user.id, request.authSessionId, body);
   }
 
-  @UseGuards(AccessTokenGuard)
-  @Patch('me/email')
-  updateMyEmail(@CurrentUser() user: AuthenticatedUser, @Body() body: UpdateEmailRequest) {
-    return this.accountSettingsService.updateEmail(user.id, body);
-  }
 
   @UseGuards(AccessTokenGuard)
   @Patch('me/username')

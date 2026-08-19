@@ -5,7 +5,6 @@ import { DatabaseService } from '../../../shared/database/database.service';
 import { ApplicationError, BadRequestApplicationError } from '../../../shared/errors/application.error';
 import { AuthUserDto } from '../dto/auth-session.dto';
 import { ChangePasswordRequest } from '../dto/change-password.request';
-import { UpdateEmailRequest } from '../dto/update-email.request';
 import { UpdatePersonalDetailsRequest } from '../dto/update-personal-details.request';
 import { UpdatePhoneRequest } from '../dto/update-phone.request';
 import { UpdatePrivacyRequest } from '../dto/update-privacy.request';
@@ -41,27 +40,6 @@ export class AccountSettingsService {
       }),
     ]);
     return { message: 'Password has been changed successfully' };
-  }
-
-  async updateEmail(userId: string, input: UpdateEmailRequest): Promise<AuthUserDto> {
-    const user = await this.requireUser(userId);
-    if (!user.password_hash || !(await this.passwordHasher.verify(input.password, user.password_hash))) {
-      throw new ApplicationError('Current password is incorrect', 'CURRENT_PASSWORD_INVALID', 400);
-    }
-    const email = input.email.trim().toLowerCase();
-    if (email === user.email) return toAuthUserDto(user);
-    try {
-      const updated = await this.database.user.update({
-        where: { id: userId },
-        data: { email },
-      });
-      return toAuthUserDto(updated);
-    } catch (error) {
-      if (this.isUniqueConstraintError(error)) {
-        throw new ApplicationError('Email is already registered', 'EMAIL_TAKEN', 409);
-      }
-      throw error;
-    }
   }
 
   async updateUsername(userId: string, input: UpdateUsernameRequest): Promise<AuthUserDto> {
@@ -122,8 +100,13 @@ export class AccountSettingsService {
     const updated = await this.database.user.update({
       where: { id: userId },
       data: {
-        identity_document_data: Uint8Array.from(file.buffer), identity_document_mime_type: file.mimetype,
-        identity_document_updated_at: new Date(), identity_verification_status: 'pending',
+        identity_document_data: Uint8Array.from(file.buffer),
+        identity_document_mime_type: file.mimetype,
+        identity_document_updated_at: new Date(),
+        identity_verification_status: 'pending',
+        identity_verification_rejected_reason: null,
+        identity_verified_at: null,
+        identity_verified_by: null,
       },
     });
     return toAuthUserDto(updated);
