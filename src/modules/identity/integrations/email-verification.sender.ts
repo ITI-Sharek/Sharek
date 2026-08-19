@@ -96,6 +96,91 @@ export class EmailVerificationSender {
     }
   }
 
+  async sendIdentityVerificationApproved(message: {
+    to: string;
+    firstName: string;
+    language?: 'en' | 'ar';
+  }): Promise<void> {
+    if (!this.isConfigured()) {
+      if (this.config.get<string>('NODE_ENV') === 'production') {
+        throw new ApplicationError(
+          'Email delivery is not configured',
+          'EMAIL_DELIVERY_NOT_CONFIGURED',
+          500,
+        );
+      }
+
+      this.logger.warn(
+        `Identity verification approved notification for ${message.to}`,
+      );
+      return;
+    }
+
+    try {
+      const isAr = message.language === 'ar';
+      await this.getTransporter().sendMail({
+        from: this.getFromAddress(),
+        to: message.to,
+        subject: isAr ? 'تم توثيق هويتك بنجاح في Share-k' : 'Your Share-k identity verification has been approved',
+        text: this.getIdentityApprovedTextBody(message),
+        html: this.getIdentityApprovedHtmlBody(message),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send identity approval email to ${message.to}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ApplicationError(
+        'Identity approval email could not be sent',
+        'IDENTITY_APPROVAL_EMAIL_SEND_FAILED',
+        502,
+      );
+    }
+  }
+
+  async sendIdentityVerificationRejected(message: {
+    to: string;
+    firstName: string;
+    reason?: string;
+    language?: 'en' | 'ar';
+  }): Promise<void> {
+    if (!this.isConfigured()) {
+      if (this.config.get<string>('NODE_ENV') === 'production') {
+        throw new ApplicationError(
+          'Email delivery is not configured',
+          'EMAIL_DELIVERY_NOT_CONFIGURED',
+          500,
+        );
+      }
+
+      this.logger.warn(
+        `Identity verification rejected notification for ${message.to}: ${message.reason ?? 'No reason provided'}`,
+      );
+      return;
+    }
+
+    try {
+      const isAr = message.language === 'ar';
+      await this.getTransporter().sendMail({
+        from: this.getFromAddress(),
+        to: message.to,
+        subject: isAr ? 'تحديث بشأن طلب توثيق الهوية في Share-k' : 'Update on your Share-k identity verification',
+        text: this.getIdentityRejectedTextBody(message),
+        html: this.getIdentityRejectedHtmlBody(message),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send identity rejection email to ${message.to}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new ApplicationError(
+        'Identity rejection email could not be sent',
+        'IDENTITY_REJECTION_EMAIL_SEND_FAILED',
+        502,
+      );
+    }
+  }
+
   private getTransporter(): Transporter {
     if (this.transporter) {
       return this.transporter;
@@ -228,6 +313,112 @@ export class EmailVerificationSender {
       <p style="margin-top: 30px; font-size: 14px;">If you did not request a password reset, you can safely ignore this email.</p>
     `;
     return this.getBaseTemplate(isAr ? 'إعادة تعيين كلمة المرور' : 'Reset your password', content, isAr);
+  }
+
+  private getIdentityApprovedTextBody(message: { firstName: string; language?: 'en' | 'ar' }): string {
+    const isAr = message.language === 'ar';
+    return isAr
+      ? [
+          `مرحباً ${message.firstName}،`,
+          '',
+          'تهانينا! تمت مراجعة مستند الهوية الخاص بك وتوثيقه بنجاح.',
+          'تظهر الآن شارة التوثيق (Verified) على ملفك الشخصي العام في Share-k.',
+          '',
+          'شكراً لمساهمتك معنا في مجتمع Share-k!',
+        ].join('\n')
+      : [
+          `Hi ${message.firstName},`,
+          '',
+          'Congratulations! Your identity document has been verified successfully.',
+          'Your public profile on Share-k now proudly displays the Verified Identity badge.',
+          '',
+          'Thank you for being part of the Share-k community!',
+        ].join('\n');
+  }
+
+  private getIdentityApprovedHtmlBody(message: { firstName: string; language?: 'en' | 'ar' }): string {
+    const isAr = message.language === 'ar';
+    const content = isAr
+      ? `
+      <div class="greeting">مرحباً ${this.escapeHtml(message.firstName)}،</div>
+      <p style="font-size: 16px; color: #059669; font-weight: 600;">تهانينا! تم توثيق هويتك بنجاح.</p>
+      <p>تمت مراجعة مستند الهوية الوطنية الخاص بك والموافقة عليه من قبل فريق Share-k. أصبح ملفك الشخصي الآن يحمل شارة التوثيق المعتمدة.</p>
+      <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0; font-size: 16px; font-weight: bold; color: #065f46;">✓ تم تفعيل شارة الهوية الموثقة</p>
+      </div>
+      <p style="margin-top: 20px; font-size: 14px;">شكراً لثقتكم ومساهمتكم في مجتمع Share-k.</p>
+    `
+      : `
+      <div class="greeting">Hi ${this.escapeHtml(message.firstName)},</div>
+      <p style="font-size: 16px; color: #059669; font-weight: 600;">Congratulations! Your identity has been verified.</p>
+      <p>Your national identity document has been reviewed and approved by the Share-k team. Your profile now features the official Verified Identity badge.</p>
+      <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+        <p style="margin: 0; font-size: 16px; font-weight: bold; color: #065f46;">✓ Verified Identity Badge Active</p>
+      </div>
+      <p style="margin-top: 20px; font-size: 14px;">Thank you for building trust in the Share-k community.</p>
+    `;
+    return this.getBaseTemplate(isAr ? 'تم توثيق هويتك بنجاح' : 'Identity Verification Approved', content, isAr);
+  }
+
+  private getIdentityRejectedTextBody(message: { firstName: string; reason?: string; language?: 'en' | 'ar' }): string {
+    const isAr = message.language === 'ar';
+    const reasonText = message.reason?.trim()
+      ? message.reason
+      : isAr
+        ? 'المستند المرفوع غير واضح أو لا يطابق معايير التوثيق.'
+        : 'The uploaded document was unclear or did not meet our verification criteria.';
+
+    return isAr
+      ? [
+          `مرحباً ${message.firstName}،`,
+          '',
+          'نود إعلامك بأنه بعد مراجعة مستند الهوية المرفوع، لم نتمكن من إتمام التوثيق في الوقت الحالي.',
+          '',
+          `سبب الرفض: ${reasonText}`,
+          '',
+          'يمكنك إعادة رفع مستند جديد أو صورة أوضح في أي وقت من خلال إعدادات الحساب -> توثيق الهوية.',
+        ].join('\n')
+      : [
+          `Hi ${message.firstName},`,
+          '',
+          'We reviewed your identity document submission, but unfortunately we could not approve it at this time.',
+          '',
+          `Reason: ${reasonText}`,
+          '',
+          'You can submit a new, clearer photo or document anytime from your Account Settings -> Identity Verification.',
+        ].join('\n');
+  }
+
+  private getIdentityRejectedHtmlBody(message: { firstName: string; reason?: string; language?: 'en' | 'ar' }): string {
+    const isAr = message.language === 'ar';
+    const reasonText = message.reason?.trim()
+      ? message.reason
+      : isAr
+        ? 'المستند المرفوع غير واضح أو لا يطابق معايير التوثيق.'
+        : 'The uploaded document was unclear or did not meet our verification criteria.';
+
+    const content = isAr
+      ? `
+      <div class="greeting">مرحباً ${this.escapeHtml(message.firstName)}،</div>
+      <p>نود إعلامك بأنه بعد مراجعة مستند الهوية المرفوع، لم نتمكن من توثيق حسابك في الوقت الحالي.</p>
+      <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0; font-size: 14px; font-weight: bold; color: #991b1b;">سبب الرفض:</p>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #7f1d1d;">${this.escapeHtml(reasonText)}</p>
+      </div>
+      <p>يمكنك التقاط صورة أوضح أو رفع مستند آخر عبر الانتقال إلى <strong>إعدادات الحساب &gt; توثيق الهوية</strong>.</p>
+      <p style="margin-top: 20px; font-size: 14px; color: #64748b;">إذا كانت لديك أي استفسارات، يمكنك التواصل مع فريق الدعم.</p>
+    `
+      : `
+      <div class="greeting">Hi ${this.escapeHtml(message.firstName)},</div>
+      <p>After reviewing your submitted identity document, we were unable to complete verification at this time.</p>
+      <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0; font-size: 14px; font-weight: bold; color: #991b1b;">Rejection reason:</p>
+        <p style="margin: 6px 0 0; font-size: 14px; color: #7f1d1d;">${this.escapeHtml(reasonText)}</p>
+      </div>
+      <p>You can re-upload a clear copy by visiting <strong>Account Settings &gt; Identity Verification</strong>.</p>
+      <p style="margin-top: 20px; font-size: 14px; color: #64748b;">If you have any questions, feel free to reach out to our support team.</p>
+    `;
+    return this.getBaseTemplate(isAr ? 'تحديث بشأن طلب توثيق الهوية' : 'Identity Verification Update', content, isAr);
   }
 
   private getBaseTemplate(title: string, content: string, isAr: boolean): string {

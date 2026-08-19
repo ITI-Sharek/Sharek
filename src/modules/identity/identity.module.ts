@@ -46,6 +46,7 @@ import { GoogleAuthController } from './controllers/google-auth.controller';
     IdentityAccountStatusService,
     IdentityUsernameService,
     PaymentCustomerProfileService,
+    EmailVerificationSender,
   ],
 })
 export class IdentityModule {}

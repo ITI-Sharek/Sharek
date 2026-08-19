@@ -21,6 +21,8 @@ export interface AuthUserDto {
   showActivity: boolean;
   allowIndexing: boolean;
   identityVerificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
+  identityVerifiedAt?: Date | null;
+  identityVerificationRejectedReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt: Date | null;
