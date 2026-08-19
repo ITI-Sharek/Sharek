@@ -17,8 +17,12 @@ import {
 } from '../../shared/errors/application.error';
 import { ApplicationsService } from '../applications/applications.service';
 import { DeliveryLifecycleApplicationContextDto } from '../applications/dto/delivery-lifecycle-context.dto';
+import { BadgesService } from '../badges/badges.service';
 import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import {
+  NotificationCreateResultDto,
+  NotificationsService,
+} from '../notifications/notifications.service';
 import { DeliveryApprovedEventsService } from './delivery-approved-events.service';
 import { DeliveryReviewOutcomeInput } from './dto/delivery-input.dto';
 import {
@@ -84,6 +88,7 @@ export class DeliveryReviewsService {
     private readonly contributionTasks: ContributionTasksService,
     private readonly notifications: NotificationsService,
     private readonly approvedEvents: DeliveryApprovedEventsService,
+    private readonly badges: BadgesService,
   ) {}
 
   async submit(input: SubmitDeliveryInput): Promise<DeliveryDto> {
@@ -505,7 +510,7 @@ export class DeliveryReviewsService {
         });
         if (replay) {
           this.assertReviewReplay(replay, input.deliveryId, fingerprint);
-          return { delivery: current, notification: null };
+          return { delivery: current, notification: null, badgeNotification: null };
         }
         if (
           current.status !== DeliveryStatus.submitted &&
@@ -577,7 +582,21 @@ export class DeliveryReviewsService {
             },
             { transaction, emitRealtime: false },
           );
-        return { delivery: updated, notification };
+        let badgeNotification: NotificationCreateResultDto | null = null;
+        if (contract.outcome === DeliveryReviewOutcome.approved) {
+          const awardedBadge = await this.badges.awardFirstContributionIfEligible(
+            current.contributor_id,
+            current.id,
+            transaction,
+          );
+          if (awardedBadge) {
+            badgeNotification = await this.notifications.createBadgeNotification(
+              { userId: current.contributor_id, badgeType: awardedBadge.badgeType },
+              { transaction, emitRealtime: false },
+            );
+          }
+        }
+        return { delivery: updated, notification, badgeNotification };
       });
     } catch (error) {
       if (!this.isUniqueConstraint(error)) throw error;
@@ -589,6 +608,7 @@ export class DeliveryReviewsService {
     }
 
     this.emitCreatedNotification(result.notification);
+    this.emitCreatedNotification(result.badgeNotification);
     return this.toDeliveryDto(result.delivery);
   }
 

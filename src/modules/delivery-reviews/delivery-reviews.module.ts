@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ApplicationsModule } from '../applications/applications.module';
+import { BadgesModule } from '../badges/badges.module';
 import { ContributionTasksModule } from '../contribution-tasks/contribution-tasks.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { DeliveryReviewsController } from './delivery-reviews.controller';
@@ -15,6 +16,7 @@ import { DeliveryReputationWorker } from './jobs/delivery-reputation.worker';
 @Module({
   imports: [
     ApplicationsModule,
+    BadgesModule,
     ContributionTasksModule,
     NotificationsModule,
     ReputationModule,

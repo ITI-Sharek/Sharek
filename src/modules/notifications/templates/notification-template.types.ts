@@ -55,6 +55,12 @@ export interface LegacyNotificationParameters {
   legacyBody: string;
 }
 
+export type BadgeNotificationBadgeType = 'first_contribution';
+
+export interface BadgeNotificationParameters {
+  badgeType: BadgeNotificationBadgeType;
+}
+
 export interface NotificationTemplateParameterMap {
   'delivery.submitted': DeliveryNotificationParameters;
   'delivery.resubmitted': DeliveryNotificationParameters;
@@ -79,6 +85,7 @@ export interface NotificationTemplateParameterMap {
   'skill_profile_generation.failed': SkillProfileGenerationNotificationParameters;
   'conversation.activity': ConversationActivityNotificationParameters;
   'system.legacy': LegacyNotificationParameters;
+  'achievement.first_contribution': BadgeNotificationParameters;
 }
 
 export type NotificationTemplateKey = keyof NotificationTemplateParameterMap;

@@ -96,6 +96,11 @@ export interface ProposalNotificationInput {
   resultingContributionRequestId?: string;
 }
 
+export interface BadgeNotificationInput {
+  userId: string;
+  badgeType: 'first_contribution';
+}
+
 export interface ConversationActivityNotificationInput {
   userId: string;
   conversationId: string;
@@ -601,6 +606,59 @@ export class NotificationsService {
             template_version: 1,
             parameters,
             deep_link: buildDeliveryNotificationDeepLink(parameters),
+            priority: policy.priority,
+            deduplication_key: deduplicationKey,
+          },
+        });
+        created = true;
+        await this.notificationEvents.appendCreated(transaction, notification);
+      }
+      return {
+        notificationId: notification.id,
+        created,
+        deliveredRealtime: false,
+        notification: this.presentRealtimeNotification(notification),
+      };
+    };
+
+    if (options?.transaction) {
+      return persist(options.transaction);
+    }
+    const persisted = await this.database.$transaction(persist);
+    const deliveredRealtime =
+      persisted.created && options?.emitRealtime !== false
+        ? await this.publishCreated(persisted.notificationId)
+        : false;
+    return { ...persisted, deliveredRealtime };
+  }
+
+  async createBadgeNotification(
+    input: BadgeNotificationInput,
+    options?: {
+      transaction?: Prisma.TransactionClient;
+      emitRealtime?: boolean;
+    },
+  ): Promise<NotificationCreateResultDto> {
+    const templateKey: NotificationTemplateKey = 'achievement.first_contribution';
+    const parameters = { badgeType: input.badgeType };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
+    const deduplicationKey = `badge:${input.userId}:${input.badgeType}`;
+    const persist = async (transaction: Prisma.TransactionClient) => {
+      const existing = await transaction.notification.findUnique({
+        where: { deduplication_key: deduplicationKey },
+      });
+      let notification = existing;
+      let created = false;
+      if (!notification) {
+        notification = await transaction.notification.create({
+          data: {
+            user_id: input.userId,
+            type: policy.category,
+            template_key: templateKey,
+            template_version: 1,
+            parameters,
+            deep_link: null,
             priority: policy.priority,
             deduplication_key: deduplicationKey,
           },

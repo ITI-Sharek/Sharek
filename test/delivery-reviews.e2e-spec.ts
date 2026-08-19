@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import * as request from 'supertest';
 
 import { ApplicationsService } from '../src/modules/applications/applications.service';
+import { BadgesService } from '../src/modules/badges/badges.service';
 import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
 import { DeliveryReviewsController } from '../src/modules/delivery-reviews/delivery-reviews.controller';
 import { DeliveryReviewsService } from '../src/modules/delivery-reviews/delivery-reviews.service';
@@ -330,7 +331,15 @@ describe('Delivery submission workflow through HTTP', () => {
       created: true,
       deliveredRealtime: false,
     }),
+    createBadgeNotification: jest.fn().mockResolvedValue({
+      notificationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      created: true,
+      deliveredRealtime: false,
+    }),
     emitNotificationCreated: jest.fn().mockResolvedValue(true),
+  };
+  const badges = {
+    awardFirstContributionIfEligible: jest.fn().mockResolvedValue(null),
   };
 
   beforeAll(async () => {
@@ -343,6 +352,7 @@ describe('Delivery submission workflow through HTTP', () => {
         { provide: ContributionTasksService, useValue: contributionTasks },
         { provide: NotificationsService, useValue: notifications },
         { provide: DeliveryApprovedEventsService, useValue: approvedEvents },
+        { provide: BadgesService, useValue: badges },
       ],
     })
       .overrideGuard(AccessTokenGuard)
@@ -402,8 +412,14 @@ describe('Delivery submission workflow through HTTP', () => {
       created: true,
       deliveredRealtime: false,
     });
+    notifications.createBadgeNotification.mockResolvedValue({
+      notificationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      created: true,
+      deliveredRealtime: false,
+    });
     notifications.emitNotificationCreated.mockResolvedValue(true);
     approvedEvents.append.mockResolvedValue(undefined);
+    badges.awardFirstContributionIfEligible.mockResolvedValue(null);
   });
 
   afterAll(async () => app.close());
@@ -712,6 +728,69 @@ describe('Delivery submission workflow through HTTP', () => {
         feedback: 'Clean, complete implementation.',
       },
       { transaction, emitRealtime: false },
+    );
+    expect(badges.awardFirstContributionIfEligible).toHaveBeenCalledWith(
+      contributor.id,
+      deliveryId,
+      transaction,
+    );
+    expect(notifications.createBadgeNotification).not.toHaveBeenCalled();
+  });
+
+  it('awards the first-contribution badge and notifies the contributor on eligible approval', async () => {
+    workflowActor = owner;
+    badges.awardFirstContributionIfEligible.mockResolvedValue({
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      badgeType: 'first_contribution',
+      awardedAt: new Date('2026-08-18T13:00:00.000Z'),
+      sourceDeliveryId: deliveryId,
+    });
+    transaction.delivery.findUnique.mockResolvedValue({
+      id: deliveryId,
+      application_id: applicationId,
+      contribution_request_id: '22222222-2222-4222-8222-222222222222',
+      contributor_id: contributor.id,
+      pr_url: 'https://github.com/ITI-Sharek/Sharek/pull/102',
+      contributor_notes: 'Corrected pull request.',
+      status: 'resubmitted',
+      submission_number: 2,
+      submitted_at: new Date('2026-08-11T12:10:00.000Z'),
+      reviewed_at: null,
+    });
+    transaction.delivery.update.mockResolvedValue({
+      id: deliveryId,
+      application_id: applicationId,
+      contribution_request_id: '22222222-2222-4222-8222-222222222222',
+      contributor_id: contributor.id,
+      pr_url: 'https://github.com/ITI-Sharek/Sharek/pull/102',
+      contributor_notes: 'Corrected pull request.',
+      status: 'approved',
+      submission_number: 2,
+      submitted_at: new Date('2026-08-11T12:10:00.000Z'),
+      reviewed_at: new Date('2026-08-11T13:00:00.000Z'),
+    });
+
+    await request(app.getHttpServer())
+      .post(`/deliveries/${deliveryId}/reviews`)
+      .set('Idempotency-Key', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd')
+      .send({
+        outcome: 'APPROVED',
+        rating: 5,
+        feedback: 'Great first Delivery.',
+      })
+      .expect(201);
+
+    expect(badges.awardFirstContributionIfEligible).toHaveBeenCalledWith(
+      contributor.id,
+      deliveryId,
+      transaction,
+    );
+    expect(notifications.createBadgeNotification).toHaveBeenCalledWith(
+      { userId: contributor.id, badgeType: 'first_contribution' },
+      { transaction, emitRealtime: false },
+    );
+    expect(notifications.emitNotificationCreated).toHaveBeenCalledWith(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     );
   });
 

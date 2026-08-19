@@ -17,6 +17,7 @@ import {
   SkillReviewNotificationParameters,
   ConversationActivityNotificationParameters,
   DeliveryNotificationParameters,
+  BadgeNotificationParameters,
 } from './notification-template.types';
 
 export const NOTIFICATION_TEMPLATE_KEYS = [
@@ -43,6 +44,7 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'skill_profile_generation.failed',
   'conversation.activity',
   'system.legacy',
+  'achievement.first_contribution',
 ] as const satisfies readonly NotificationTemplateKey[];
 
 const APPLICATION_ACTIONS = [
@@ -151,6 +153,10 @@ const POLICY: Readonly<Record<NotificationTemplateKey, NotificationTemplatePolic
   },
   'system.legacy': {
     category: NotificationType.system,
+    priority: 'ambient',
+  },
+  'achievement.first_contribution': {
+    category: NotificationType.achievement,
     priority: 'ambient',
   },
 };
@@ -287,6 +293,22 @@ const DELIVERY_COPY: Record<
   },
 };
 
+const BADGE_COPY: Record<
+  'first_contribution',
+  Record<NotificationLanguage, { title: string; body: string }>
+> = {
+  first_contribution: {
+    en: {
+      title: 'Badge earned: First Contribution',
+      body: 'Your first Delivery was approved. Keep contributing to earn more badges.',
+    },
+    ar: {
+      title: 'وسام جديد: أول مساهمة',
+      body: 'تم اعتماد أول تسليم لك. واصل المساهمة لكسب المزيد من الأوسمة.',
+    },
+  },
+};
+
 const APPLICATION_PARAMETER_CONTRACT: NotificationParameterContract = {
   required: ['applicationId', 'contributionRequestId'],
   validate: (parameters) =>
@@ -335,6 +357,12 @@ const LEGACY_PARAMETER_CONTRACT: NotificationParameterContract = {
   required: ['legacyTitle', 'legacyBody'],
   validate: (parameters) =>
     validateLegacyParameters(parameters) as NotificationTemplateParameters,
+};
+
+const BADGE_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['badgeType'],
+  validate: (parameters) =>
+    validateBadgeParameters(parameters) as NotificationTemplateParameters,
 };
 
 function validateApplicationParameters(
@@ -466,6 +494,14 @@ function validateLegacyParameters(
     legacyTitle: requiredString(record, 'legacyTitle'),
     legacyBody: requiredString(record, 'legacyBody'),
   };
+}
+
+function validateBadgeParameters(
+  parameters: unknown,
+): BadgeNotificationParameters {
+  const record = requireRecord(parameters);
+  if (record.badgeType !== 'first_contribution') throw invalidParameters();
+  return { badgeType: record.badgeType };
 }
 
 function requireRecord(parameters: unknown): Record<string, unknown> {
@@ -623,6 +659,27 @@ export function buildDeliveryNotificationDeepLink(
   parameters: DeliveryNotificationParameters,
 ): string {
   return `/deliveries/${safeIdentifier(validateDeliveryParameters(parameters).deliveryId)}`;
+}
+
+function badgeTemplate(): NotificationTemplateDefinition {
+  const key: NotificationTemplateKey = 'achievement.first_contribution';
+  return {
+    key,
+    version: 1,
+    ...POLICY[key],
+    parameterContract: BADGE_PARAMETER_CONTRACT,
+    render: {
+      en: (parameters) => {
+        const validated = validateBadgeParameters(parameters);
+        return BADGE_COPY[validated.badgeType].en;
+      },
+      ar: (parameters) => {
+        const validated = validateBadgeParameters(parameters);
+        return BADGE_COPY[validated.badgeType].ar;
+      },
+    },
+    buildDeepLink: () => null,
+  };
 }
 
 function proposalTemplate(
@@ -876,6 +933,7 @@ const definitions: NotificationTemplateDefinition[] = [
   skillGenerationTemplate('failed'),
   CONVERSATION_TEMPLATE,
   LEGACY_TEMPLATE,
+  badgeTemplate(),
 ];
 
 const templates = new Map<string, NotificationTemplateDefinition>(
@@ -920,6 +978,8 @@ export function validateNotificationTemplateParameters<
       return validateSkillGenerationParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'conversation.activity':
       return validateConversationParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'achievement.first_contribution':
+      return validateBadgeParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'proposal.revision_requested':
     case 'proposal.accepted':
     case 'proposal.declined':
