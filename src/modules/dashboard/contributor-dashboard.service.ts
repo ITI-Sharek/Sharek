@@ -72,6 +72,8 @@ export class ContributorDashboardService {
       approvedSkills,
     });
     const onboarding = onboardingSteps.some((step) => step.status !== 'done');
+    const matchingLocked =
+      recommended.reason === 'MATCHING_REQUIRES_SUBSCRIPTION';
     const attentionItems = [
       ...changedDeliveries.map((delivery) => ({
         id: `delivery:${delivery.id}`,
@@ -88,19 +90,27 @@ export class ContributorDashboardService {
         actionLabel: 'View assignment',
       })),
     ];
-    const matchedTasks = recommended.recommendations.slice(0, 3).map((task) => ({
+    // Not sliced. A Gold contributor's plan allowance *is* the cap — the
+    // matching module already applied `matchedProjectLimit`, so trimming again
+    // here would sell ten matched projects and deliver three.
+    const matchedTasks = recommended.recommendations.map((task) => ({
       id: task.requestId,
       title: task.title,
       projectName: task.projectName,
-      requiredSkills: task.matchedSkills.map((skill) => skill.name),
-      matchedCount: task.matchedSkills.length,
-      requiredCount: task.matchedSkills.length,
+      // What the Request asks for, not what the contributor happens to have.
+      // These two were the same list until the fit gauge below needed a real
+      // denominator, which made every match render as a complete one.
+      requiredSkills: task.requiredSkillNames,
+      matchedSkills: task.matchedSkills.map((skill) => skill.name),
+      matchedRequiredSkillNames: task.matchedRequiredSkillNames,
+      matchedCount: task.matchedRequiredCount,
+      requiredCount: task.requiredSkillCount,
     }));
 
     return {
       state: onboarding
         ? 'onboarding'
-        : pendingApplications === 0 && attentionItems.length === 0
+        : !matchingLocked && pendingApplications === 0 && attentionItems.length === 0
           ? 'verified-empty'
           : 'active',
       greetingName: user.first_name,
@@ -113,6 +123,14 @@ export class ContributorDashboardService {
       attentionItems,
       matchReason: recommended.recommendations[0]?.justification ?? '',
       matchedTasks,
+      // The plan and the reason travel with the list so the UI can tell a free
+      // contributor (upgrade prompt) from a Gold one with nothing matched today
+      // (a different, non-commercial sentence). Without these an empty list is
+      // unexplainable and renders as a bare heading over nothing.
+      matching: {
+        planType: recommended.planType,
+        reason: recommended.reason,
+      },
       growth: {
         ratingPrevious: null,
         ratingCurrent: reputation.rating,

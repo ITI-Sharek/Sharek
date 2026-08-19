@@ -27,6 +27,18 @@ export interface RecommendedTaskDto {
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   justification: string;
   matchedSkills: RecommendedMatchedSkillDto[];
+  /**
+   * The fit gauge's two numbers, and the skills they count.
+   *
+   * `matchedSkills.length` is not the numerator: it includes preferred skills
+   * the Request did not require, so a gauge drawn from it reads full on a
+   * partial fit. These are server-authored counts of the *required* bar.
+   */
+  requiredSkillNames: string[];
+  /** Required skill names, in the Request's display form, that were matched. */
+  matchedRequiredSkillNames: string[];
+  matchedRequiredCount: number;
+  requiredSkillCount: number;
   applicationsCloseAt: string;
   targetCompletionDate: string | null;
   difficulty: 'beginner' | 'intermediate' | 'advanced' | null;

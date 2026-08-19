@@ -213,19 +213,25 @@ docker compose exec api npx prisma db seed
 docker compose exec api npm run prisma:studio
 ```
 
-The seed enables the frontend's development-only quick sign-in buttons. All
-five accounts use `Admin@1234`:
+The seed enables the frontend's development-only quick sign-in buttons. The
+following contributor fixtures are also available for dashboard and matching
+verification:
 
 | Button | Account | Plan |
 |---|---|---|
 | Contributor | `contributor@sharek.local` | Free contributor |
 | Gold contributor | `gold-contributor@sharek.local` | Gold contributor |
+| Gold no matches | `gold-no-matches@sharek.local` | Gold contributor with approved Elixir only |
+| Gold no skills | `gold-no-skills@sharek.local` | Gold contributor awaiting skill approval |
 | Project owner | `owner@sharek.local` | Free owner |
 | Gold owner | `gold-owner@sharek.local` | Gold owner |
 | Admin | `admin@sharek.local` | No member subscription |
 
-Re-running the seed is safe and repairs the two demo Gold subscriptions without
-creating duplicate accounts or Subscription rows.
+The local development password is defined by `DEV_PASSWORD` in
+`prisma/seed.ts`. Re-running the seed is safe and repairs the demo Gold
+subscriptions without creating duplicate accounts or Subscription rows. The
+`gold-matching-skill-normalization` project adds a request requiring `Node.js`
+while the Gold contributor fixture holds the approved skill as `NodeJS`.
 
 Docker Compose uses `tsconfig.docker.json` and keeps the API container's watch
 output under `.docker-build/dist` in the `api_build` volume. This prevents the
