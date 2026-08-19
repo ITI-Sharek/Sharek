@@ -60,6 +60,13 @@ export interface SkillFit {
   coverage: number;
   /** What the Request asks for, after normalization. Empty means it named nothing. */
   requestedSkillCount: number;
+  /**
+   * How many of those the contributor covers. The numerator to
+   * `requestedSkillCount`'s denominator, and the only honest way to render a
+   * fit gauge: `matchedSkills.length` counts preferred matches too, so it can
+   * exceed what the Request required and reads as a full bar on a partial fit.
+   */
+  matchedRequiredCount: number;
   /** A Phase 0 Request is recommended only when every required level is met. */
   eligible: boolean;
 }
@@ -163,6 +170,7 @@ function assessLevelFit(
     exceededSkills,
     coverage: matchedRequiredCount / requiredSkills.length,
     requestedSkillCount: requiredSkills.length,
+    matchedRequiredCount,
     eligible,
   };
 }
@@ -204,6 +212,10 @@ function assessLegacyNameFit(
         ? 0
         : matchedTokens.size / requestedTokens.size,
     requestedSkillCount: requestedTokens.size,
+    // Tag matches only. A skill found in requirement prose is a real match but
+    // was never part of the declared set, so counting it here would produce a
+    // gauge reading above its own denominator.
+    matchedRequiredCount: matchedTokens.size,
     eligible: true,
   };
 }

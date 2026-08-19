@@ -455,6 +455,87 @@ describe('MatchingService', () => {
       });
     });
 
+    it('counts the required bar, not the skills the contributor happens to bring', async () => {
+      // Two required, one preferred. The contributor covers both required rows
+      // and the preferred one, so `matchedSkills` holds three entries while the
+      // gauge must still read 2 of 2 -- a numerator taken from `matchedSkills`
+      // would render 3/2.
+      skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
+        { name: 'NestJS', proficiencyLevel: 'advanced', evidenceSources: null },
+        { name: 'PostgreSQL', proficiencyLevel: 'advanced', evidenceSources: null },
+        { name: 'Redis', proficiencyLevel: 'advanced', evidenceSources: null },
+      ]);
+      contributionTasks.listOpenRequestsForMatching.mockResolvedValue([
+        candidate({
+          skillRequirements: [
+            { skillName: 'NestJS', skillNameNormalized: 'nestjs', requiredLevel: 'intermediate', kind: 'required' },
+            { skillName: 'PostgreSQL', skillNameNormalized: 'postgresql', requiredLevel: 'beginner', kind: 'required' },
+            { skillName: 'Redis', skillNameNormalized: 'redis', requiredLevel: 'beginner', kind: 'preferred' },
+          ] as never,
+        }),
+      ]);
+
+      const shortlist = await service.shortlistForContributor({
+        contributorId,
+        now,
+      });
+
+      expect(shortlist.matches[0].matchedSkills).toHaveLength(3);
+      expect(shortlist.matches[0]).toMatchObject({
+        matchedRequiredCount: 2,
+        requiredSkillCount: 2,
+        // The owner's display form, not the normalized comparison key, and
+        // preferred rows are not part of the bar being counted.
+        requiredSkillNames: ['NestJS', 'PostgreSQL'],
+      });
+    });
+
+    it('reports an incomplete bar as incomplete rather than as a full one', async () => {
+      // A preferred skill met, a required one missed. The match is ineligible
+      // under the Phase 0 bar, which is itself the assertion: a partial fit is
+      // never shown as a match at all, so the gauge can never be asked to draw
+      // one it would round up to full.
+      skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
+        { name: 'Redis', proficiencyLevel: 'advanced', evidenceSources: null },
+      ]);
+      contributionTasks.listOpenRequestsForMatching.mockResolvedValue([
+        candidate({
+          skillRequirements: [
+            { skillName: 'NestJS', skillNameNormalized: 'nestjs', requiredLevel: 'advanced', kind: 'required' },
+            { skillName: 'Redis', skillNameNormalized: 'redis', requiredLevel: 'beginner', kind: 'preferred' },
+          ] as never,
+        }),
+      ]);
+
+      const shortlist = await service.shortlistForContributor({
+        contributorId,
+        now,
+      });
+
+      expect(shortlist.matches).toHaveLength(0);
+      expect(shortlist.reason).toBe('NO_MATCHING_REQUESTS');
+    });
+
+    it('falls back to technology tags for a legacy Request with no frozen bar', async () => {
+      skillProfiles.listApprovedSkillsForEligibility.mockResolvedValue([
+        { name: 'NestJS', proficiencyLevel: 'advanced', evidenceSources: null },
+      ]);
+      contributionTasks.listOpenRequestsForMatching.mockResolvedValue([
+        candidate({ skillRequirements: [], technologyTags: ['NestJS', 'PostgreSQL'] }),
+      ]);
+
+      const shortlist = await service.shortlistForContributor({
+        contributorId,
+        now,
+      });
+
+      expect(shortlist.matches[0]).toMatchObject({
+        requiredSkillNames: ['NestJS', 'PostgreSQL'],
+        matchedRequiredCount: 1,
+        requiredSkillCount: 2,
+      });
+    });
+
     it('carries no score and no percentage, only an ordinal and a band', async () => {
       const shortlist = await service.shortlistForContributor({
         contributorId,

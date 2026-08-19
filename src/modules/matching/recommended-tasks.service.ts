@@ -153,6 +153,9 @@ function toRecommendedTask(
     confidence: match.confidence,
     justification: justificationFor(match),
     matchedSkills: match.matchedSkills,
+    requiredSkillNames: match.requiredSkillNames,
+    matchedRequiredCount: match.matchedRequiredCount,
+    requiredSkillCount: match.requiredSkillCount,
     // Every candidate is still open to Applications, so this is never null.
     applicationsCloseAt: (
       match.request.applicationsCloseAt ?? new Date(0)
