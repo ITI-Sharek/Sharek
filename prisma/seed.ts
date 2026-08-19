@@ -4,11 +4,13 @@ import {
   ContributionRequestSkillInferenceStatus,
   ContributionRequestSkillRequirementSource,
   ContributionRequestStatus,
+  GitHubAccountIngestionStatus,
   PrismaClient,
   ProjectCategory,
   ProjectDifficulty,
   ProjectStatus,
   SkillProfileProficiencyLevel,
+  SkillProfileGenerationStatus,
   SkillProfileStatus,
   SubscriptionPlanType,
   SubscriptionSource,
@@ -82,6 +84,22 @@ const DEV_USERS: Array<{
     role: 'contributor',
     firstName: 'Gold',
     lastName: 'Contributor',
+    gold: true,
+  },
+  {
+    email: 'gold-no-matches@sharek.local',
+    username: 'gold_no_matches',
+    role: 'contributor',
+    firstName: 'Gold',
+    lastName: 'No Matches',
+    gold: true,
+  },
+  {
+    email: 'gold-no-skills@sharek.local',
+    username: 'gold_no_skills',
+    role: 'contributor',
+    firstName: 'Gold',
+    lastName: 'No Skills',
     gold: true,
   },
   {
@@ -328,6 +346,22 @@ async function ensureGoldSubscription(
   });
 }
 
+async function ensureContributorProfileField(
+  profileId: string,
+  fieldId: string,
+): Promise<void> {
+  await prisma.contributorProfileField.upsert({
+    where: {
+      profile_id_field_id: {
+        profile_id: profileId,
+        field_id: fieldId,
+      },
+    },
+    update: {},
+    create: { profile_id: profileId, field_id: fieldId },
+  });
+}
+
 async function ensureContributorProfiles(
   usersByEmail: Map<string, { id: string; email: string; role: UserRole }>,
 ) {
@@ -462,6 +496,178 @@ async function ensureContributorProfiles(
       });
     }
   }
+
+  const goldNoMatches = usersByEmail.get('gold-no-matches@sharek.local');
+  if (goldNoMatches) {
+    const profile = await prisma.contributorProfile.upsert({
+      where: { user_id: goldNoMatches.id },
+      update: {},
+      create: {
+        user_id: goldNoMatches.id,
+        bio: 'Gold fixture with an approved specialty that is intentionally absent from the seeded requests.',
+        availability: '5-10 hrs/week',
+        experience_level_id: expTwoToFour?.id ?? null,
+        declared_skills: ['Elixir'],
+      },
+    });
+    if (fieldWeb) {
+      await ensureContributorProfileField(profile.id, fieldWeb.id);
+    }
+
+    const existingRep = await prisma.reputationRecord.findUnique({
+      where: { user_id: goldNoMatches.id },
+    });
+    if (!existingRep) {
+      await prisma.reputationRecord.create({
+        data: {
+          user_id: goldNoMatches.id,
+          overall_rating: 4.7,
+          total_contributions: 4,
+          successful_contributions: 4,
+          success_rate: 100.0,
+          total_ratings_received: 4,
+        },
+      });
+    }
+  }
+
+  const goldNoSkills = usersByEmail.get('gold-no-skills@sharek.local');
+  if (goldNoSkills) {
+    const profile = await prisma.contributorProfile.upsert({
+      where: { user_id: goldNoSkills.id },
+      update: {},
+      create: {
+        user_id: goldNoSkills.id,
+        bio: 'Gold fixture with a completed profile but no approved skills yet.',
+        availability: '5-10 hrs/week',
+        experience_level_id: expTwoToFour?.id ?? null,
+        declared_skills: [],
+      },
+    });
+    if (fieldWeb) {
+      await ensureContributorProfileField(profile.id, fieldWeb.id);
+    }
+
+    const existingRep = await prisma.reputationRecord.findUnique({
+      where: { user_id: goldNoSkills.id },
+    });
+    if (!existingRep) {
+      await prisma.reputationRecord.create({
+        data: {
+          user_id: goldNoSkills.id,
+          overall_rating: null,
+          total_contributions: 0,
+          successful_contributions: 0,
+          success_rate: 0,
+          total_ratings_received: 0,
+        },
+      });
+    }
+  }
+}
+
+async function ensureDemoGitHubAccounts(
+  usersByEmail: Map<string, { id: string; email: string; role: UserRole }>,
+) {
+  const fixtures = [
+    {
+      email: 'contributor@sharek.local',
+      githubId: 'sharek-demo-free-contributor',
+      username: 'sharek-free-contributor',
+    },
+    {
+      email: 'gold-contributor@sharek.local',
+      githubId: 'sharek-demo-gold-contributor',
+      username: 'sharek-gold-contributor',
+    },
+    {
+      email: 'gold-no-matches@sharek.local',
+      githubId: 'sharek-demo-gold-no-matches',
+      username: 'sharek-gold-no-matches',
+    },
+    {
+      email: 'gold-no-skills@sharek.local',
+      githubId: 'sharek-demo-gold-no-skills',
+      username: 'sharek-gold-no-skills',
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    const user = usersByEmail.get(fixture.email);
+    if (!user) continue;
+
+    const existing = await prisma.gitHubAccount.findUnique({
+      where: { user_id: user.id },
+    });
+    if (existing) continue;
+
+    const githubIdInUse = await prisma.gitHubAccount.findUnique({
+      where: { github_id: fixture.githubId },
+    });
+    if (githubIdInUse) {
+      console.warn(
+        `Skipping demo GitHub account for ${fixture.email}: github_id already exists`,
+      );
+      continue;
+    }
+
+    const connectedAt = new Date('2026-01-01T00:00:00.000Z');
+    await prisma.gitHubAccount.create({
+      data: {
+        user_id: user.id,
+        github_id: fixture.githubId,
+        username: fixture.username,
+        avatar_url: `https://github.com/${fixture.username}.png`,
+        profile_url: `https://github.com/${fixture.username}`,
+        raw_profile_data: {
+          login: fixture.username,
+          type: 'User',
+          source: 'sharek-seed-fixture',
+        },
+        ingestion_status: GitHubAccountIngestionStatus.completed,
+        connected_at: connectedAt,
+        last_synced_at: connectedAt,
+      },
+    });
+    console.log(`✅ Demo GitHub account ready: ${fixture.email}`);
+  }
+}
+
+async function ensureNoSkillsReviewFixture(
+  usersByEmail: Map<string, { id: string; email: string; role: UserRole }>,
+) {
+  const user = usersByEmail.get('gold-no-skills@sharek.local');
+  if (!user) return;
+
+  const existing = await prisma.skillProfileGeneration.findFirst({
+    where: { user_id: user.id },
+    orderBy: { created_at: 'desc' },
+  });
+  if (existing) return;
+
+  const seededAt = new Date('2026-01-01T00:00:00.000Z');
+  await prisma.skillProfileGeneration.create({
+    data: {
+      user_id: user.id,
+      status: SkillProfileGenerationStatus.pending_review,
+      selected_repositories: [],
+      evidence_snapshot: {
+        source: 'sharek-seed-fixture',
+        note: 'Pending-review fixture with no approved skills.',
+      },
+      provider: 'seed-fixture',
+      model: 'seed-fixture',
+      prompt_version: 'seed-fixture-v1',
+      schema_version: 'seed-fixture-v1',
+      service_version: 'seed-fixture-v1',
+      selected_repository_count: 0,
+      snapshotted_repository_count: 0,
+      consent_version: 'seed-fixture-v1',
+      consented_at: seededAt,
+      authorization_verified_at: seededAt,
+    },
+  });
+  console.log(`✅ Pending-review no-skills fixture ready: ${user.email}`);
 }
 
 async function ensureSkillProfiles(
@@ -578,6 +784,17 @@ async function ensureSkillProfiles(
         status: SkillProfileStatus.approved,
         summary: 'Deep learning model fine-tuning and inference pipelines.',
       },
+      {
+        // Deliberately differs from the request's "Node.js" spelling. The
+        // matching fixture verifies that normalized skill identity survives
+        // all the way to the contributor dashboard.
+        name: 'NodeJS',
+        key: 'nodejs',
+        proficiency: SkillProfileProficiencyLevel.intermediate,
+        confidence: 0.9,
+        status: SkillProfileStatus.approved,
+        summary: 'Built backend services and APIs with NodeJS.',
+      },
     ];
 
     for (const skill of skillsToSeed) {
@@ -600,6 +817,34 @@ async function ensureSkillProfiles(
           },
         });
       }
+    }
+  }
+
+  const goldNoMatches = usersByEmail.get('gold-no-matches@sharek.local');
+  if (goldNoMatches) {
+    const skill = {
+      name: 'Elixir',
+      key: 'elixir',
+      proficiency: SkillProfileProficiencyLevel.intermediate,
+      confidence: 0.88,
+      status: SkillProfileStatus.approved,
+      summary: 'Approved Elixir experience for the no-match dashboard fixture.',
+    };
+    const existing = await prisma.skillProfile.findFirst({
+      where: { user_id: goldNoMatches.id, skill_name: skill.name },
+    });
+    if (!existing) {
+      await prisma.skillProfile.create({
+        data: {
+          user_id: goldNoMatches.id,
+          skill_name: skill.name,
+          skill_key: skill.key,
+          proficiency_level: skill.proficiency,
+          confidence_score: skill.confidence,
+          status: skill.status,
+          evidence_summary: skill.summary,
+        },
+      });
     }
   }
 }
@@ -995,6 +1240,47 @@ const SEED_PROJECTS: ProjectSeedData[] = [
       },
     ],
   },
+  {
+    ownerEmail: 'gold-owner@sharek.local',
+    title: 'Gold Matching Skill Normalization Fixture',
+    slug: 'gold-matching-skill-normalization',
+    description:
+      'A deterministic development fixture proving that equivalent skill spellings match correctly in the Gold contributor dashboard.',
+    github_repo_url: 'https://github.com/ITI-Sharek/gold-matching-fixture',
+    category: ProjectCategory.web,
+    difficulty: ProjectDifficulty.intermediate,
+    languages: ['JavaScript', 'TypeScript'],
+    tags: ['matching', 'normalization', 'development-fixture'],
+    technologies: ['Node.js', 'TypeScript'],
+    readme:
+      '# Gold Matching Skill Normalization Fixture\n\nThis project exists only to exercise the NodeJS versus Node.js matching case locally.',
+    requests: [
+      {
+        title: 'Node.js Skill Normalization Check',
+        description:
+          'Implement a small Node.js service and verify that the contribution request can be matched to an approved NodeJS skill.',
+        technology_tags: ['Node.js', 'TypeScript'],
+        difficulty: ContributionRequestDifficulty.intermediate,
+        reward: 80.0,
+        reward_currency: 'USD',
+        requirements: [
+          {
+            kind: ContributionRequestRequirementKind.required,
+            position: 1,
+            text: 'Implement the Node.js service and add focused tests',
+          },
+        ],
+        skillRequirements: [
+          {
+            skill_name: 'Node.js',
+            required_level: SkillProfileProficiencyLevel.intermediate,
+            kind: ContributionRequestRequirementKind.required,
+            position: 1,
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 async function ensureProjectsAndContributionRequests(
@@ -1106,7 +1392,9 @@ async function main() {
   await ensureCatalogLookups();
   const usersByEmail = await ensureUsers();
   await ensureContributorProfiles(usersByEmail);
+  await ensureDemoGitHubAccounts(usersByEmail);
   await ensureSkillProfiles(usersByEmail);
+  await ensureNoSkillsReviewFixture(usersByEmail);
   await ensureProjectsAndContributionRequests(usersByEmail);
 
   console.log('✅ Seed completed successfully!');
