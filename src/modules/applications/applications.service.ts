@@ -26,10 +26,6 @@ import { BlockingSkillDto } from '../eligibility/dto/eligibility.dto';
 import { EligibilityService } from '../eligibility/services/eligibility.service';
 import {
   ApplicationDto,
-  ApplicationEvidenceSummaryDto,
-  ApplicationProfileContextDto,
-  ApplicationRequirementSnapshotDto,
-  ApplicationStatusDto,
   OwnerApplicationsDto,
   OwnerDecisionReportContextDto,
   OwnerDecisionResultDto,
@@ -42,31 +38,21 @@ import {
 import { DeliveryLifecycleApplicationContextDto } from './dto/delivery-lifecycle-context.dto';
 import {
   APPLICATION_REVIEW_EXPIRY_DAYS,
-  APPLICATION_REVIEW_OVERDUE_DAYS,
   APPLICATION_REVIEW_REMINDER_DAYS,
 } from './application-review-window.policy';
+import {
+  addDays,
+  APPLICATION_INCLUDE,
+  ApplicationWithSnapshots,
+  OWNER_DECISION_INCLUDE,
+  OwnerDecisionWithResult,
+  toApplicationDto,
+  toApplicationStatusDto,
+  toEmptyOwnerWorkspaceSummaryDto,
+  toJsonObject,
+  toOwnerDecisionResultDto,
+} from './mappers/application.mapper';
 import { ApplicationDailyQuotaService } from './services/application-daily-quota.service';
-
-const APPLICATION_INCLUDE = {
-  requirementSnapshot: true,
-  evidenceSnapshot: true,
-  contributionRequest: { select: { owner_id: true } },
-  ownerDecision: true,
-  assignment: true,
-} satisfies Prisma.ApplicationInclude;
-
-type ApplicationWithSnapshots = Prisma.ApplicationGetPayload<{
-  include: typeof APPLICATION_INCLUDE;
-}>;
-
-const OWNER_DECISION_INCLUDE = {
-  application: { include: APPLICATION_INCLUDE },
-  assignment: true,
-} satisfies Prisma.OwnerDecisionInclude;
-
-type OwnerDecisionWithResult = Prisma.OwnerDecisionGetPayload<{
-  include: typeof OWNER_DECISION_INCLUDE;
-}>;
 
 const IDEMPOTENCY_KEY_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -111,7 +97,7 @@ export class ApplicationsService {
     });
     if (replay) {
       await this.notify(replay, 'submitted');
-      return this.present(replay);
+      return toApplicationDto(replay);
     }
 
     const context =
@@ -250,7 +236,7 @@ export class ApplicationsService {
               contributorContext as unknown as Prisma.InputJsonValue,
             evidence: approvedSkills.map((skill) => ({
               ...skill,
-              evidenceSources: this.jsonObject(skill.evidenceSources),
+              evidenceSources: toJsonObject(skill.evidenceSources),
             })) as unknown as Prisma.InputJsonValue,
           },
         });
@@ -265,8 +251,8 @@ export class ApplicationsService {
             evidence_snapshot_id: evidenceSnapshotId,
             status: ApplicationStatus.pending_owner_review,
             submitted_at: now,
-            review_due_at: this.addDays(now, APPLICATION_REVIEW_REMINDER_DAYS),
-            expires_at: this.addDays(now, APPLICATION_REVIEW_EXPIRY_DAYS),
+            review_due_at: addDays(now, APPLICATION_REVIEW_REMINDER_DAYS),
+            expires_at: addDays(now, APPLICATION_REVIEW_EXPIRY_DAYS),
           },
           include: APPLICATION_INCLUDE,
         });
@@ -322,7 +308,7 @@ export class ApplicationsService {
       }
     }
     await this.notify(application, 'submitted');
-    return this.present(application);
+    return toApplicationDto(application);
   }
 
   /**
@@ -366,7 +352,7 @@ export class ApplicationsService {
     });
     return {
       applications: applications.map((application) =>
-        this.present(application),
+        toApplicationDto(application),
       ),
     };
   }
@@ -388,7 +374,7 @@ export class ApplicationsService {
         ownerId: actor.id,
       });
     }
-    return this.present(application);
+    return toApplicationDto(application);
   }
 
   async withdraw(input: {
@@ -412,7 +398,7 @@ export class ApplicationsService {
     });
     if (replay) {
       await this.notify(replay, 'withdrawn');
-      return this.present(replay);
+      return toApplicationDto(replay);
     }
 
     let application: ApplicationWithSnapshots;
@@ -482,7 +468,7 @@ export class ApplicationsService {
       }
     }
     await this.notify(application, 'withdrawn');
-    return this.present(application);
+    return toApplicationDto(application);
   }
 
   async accept(_input: {
@@ -600,7 +586,7 @@ export class ApplicationsService {
             contributor_id: current.contributor_id,
             agreed_delivery_duration_days:
               current.proposed_delivery_duration_days,
-            agreed_delivery_due_at: this.addDays(
+            agreed_delivery_due_at: addDays(
               now,
               current.proposed_delivery_duration_days,
             ),
@@ -706,7 +692,7 @@ export class ApplicationsService {
     }
 
     this.notifications.emitApplicationNotifications(notificationsToEmit);
-    return this.presentOwnerDecisionResult(decision);
+    return toOwnerDecisionResultDto(decision);
   }
 
   async decline(_input: {
@@ -825,7 +811,7 @@ export class ApplicationsService {
     }
 
     this.notifications.emitApplicationNotifications(notificationsToEmit);
-    return this.presentOwnerDecisionResult(decision);
+    return toOwnerDecisionResultDto(decision);
   }
 
   async getOwnerDecisionReportContext(
@@ -873,7 +859,7 @@ export class ApplicationsService {
       ),
     ];
     if (contributionRequestIds.length === 0)
-      return this.emptySummary(input.requestScopes);
+      return toEmptyOwnerWorkspaceSummaryDto(input.requestScopes);
     const counts = await this.database.application.groupBy({
       by: ['contribution_request_id'],
       where: {
@@ -1116,172 +1102,6 @@ export class ApplicationsService {
     return audit.application;
   }
 
-  private present(application: ApplicationWithSnapshots): ApplicationDto {
-    const context = this.jsonObject(
-      application.evidenceSnapshot?.contributor_context,
-    );
-    const requirements = this.jsonArray(
-      application.requirementSnapshot?.requirements,
-    );
-    const evidence = this.jsonArray(application.evidenceSnapshot?.evidence);
-    return {
-      id: application.id,
-      contributionRequestId: application.contribution_request_id,
-      contributor: {
-        id: application.contributor_id,
-        username:
-          typeof context.username === 'string' ? context.username : null,
-        displayName:
-          typeof context.displayName === 'string'
-            ? context.displayName
-            : 'Contributor',
-      },
-      profileContext: this.presentProfileContext(context.profile),
-      contributionApproach:
-        application.contribution_approach ?? application.cover_message,
-      proposedDeliveryDurationDays: application.proposed_delivery_duration_days,
-      status: this.presentStatus(application.status),
-      requirementSnapshot: this.presentRequirements(requirements),
-      evidenceSummary: evidence.map((item) => this.presentEvidence(item)),
-      submittedAt: application.submitted_at,
-      reviewDueAt: application.review_due_at,
-      expiresAt: application.expires_at,
-      expiredAt: application.expired_at,
-      overdue:
-        application.status === ApplicationStatus.pending_owner_review &&
-        Date.now() >=
-          this.addDays(
-            application.submitted_at,
-            APPLICATION_REVIEW_OVERDUE_DAYS,
-          ).getTime(),
-      ownerDecision: application.ownerDecision
-        ? this.presentOwnerDecision(application.ownerDecision)
-        : null,
-      assignment: application.assignment
-        ? this.presentAssignment(application.assignment)
-        : null,
-    };
-  }
-
-  private presentOwnerDecisionResult(
-    decision: OwnerDecisionWithResult,
-  ): OwnerDecisionResultDto {
-    return {
-      application: this.present(decision.application),
-      ownerDecision: this.presentOwnerDecision(decision),
-      assignment: decision.assignment
-        ? this.presentAssignment(decision.assignment)
-        : null,
-    };
-  }
-
-  private presentOwnerDecision(
-    decision: Prisma.OwnerDecisionGetPayload<Record<string, never>>,
-  ) {
-    return {
-      id: decision.id,
-      applicationId: decision.application_id,
-      contributionRequestId: decision.contribution_request_id,
-      decisionType:
-        decision.decision_type === OwnerDecisionType.accepted
-          ? ('ACCEPTED' as const)
-          : ('DECLINED' as const),
-      feedback: decision.feedback,
-      decidedAt: decision.decided_at,
-    };
-  }
-
-  private presentAssignment(
-    assignment: Prisma.AssignmentGetPayload<Record<string, never>>,
-  ) {
-    return {
-      id: assignment.id,
-      contributionRequestId: assignment.contribution_request_id,
-      applicationId: assignment.application_id,
-      ownerDecisionId: assignment.owner_decision_id,
-      contributorId: assignment.contributor_id,
-      agreedDeliveryDurationDays:
-        assignment.agreed_delivery_duration_days,
-      agreedDeliveryDueDate: assignment.agreed_delivery_due_at,
-      assignedAt: assignment.assigned_at,
-    };
-  }
-
-  private presentRequirements(
-    items: unknown[],
-  ): ApplicationRequirementSnapshotDto {
-    const mapped = items.map((item) => this.jsonObject(item));
-    const project = (kind: string) =>
-      mapped
-        .filter((item) => item.kind === kind)
-        .map((item) => ({
-          id: typeof item.id === 'string' ? item.id : '',
-          position: typeof item.position === 'number' ? item.position : 0,
-          text: typeof item.text === 'string' ? item.text : '',
-        }));
-    return { required: project('required'), preferred: project('preferred') };
-  }
-
-  private presentEvidence(item: unknown): ApplicationEvidenceSummaryDto {
-    const value = this.jsonObject(item);
-    const sources = this.jsonObject(value.evidenceSources);
-    return {
-      skillProfileId:
-        typeof value.skillProfileId === 'string' ? value.skillProfileId : '',
-      name: typeof value.name === 'string' ? value.name : '',
-      proficiencyLevel:
-        typeof value.proficiencyLevel === 'string'
-          ? value.proficiencyLevel
-          : 'beginner',
-      evidenceSummary:
-        typeof value.evidenceSummary === 'string'
-          ? value.evidenceSummary
-          : null,
-      limitations: Array.isArray(sources.limitations)
-        ? sources.limitations.filter(
-            (item): item is string => typeof item === 'string',
-          )
-        : [],
-    };
-  }
-
-  private presentProfileContext(value: unknown): ApplicationProfileContextDto {
-    const profile = this.jsonObject(value);
-    const experience = this.jsonObject(profile.experienceLevel);
-    const fields = this.jsonArray(profile.fields).map((field) =>
-      this.jsonObject(field),
-    );
-    return {
-      bio: typeof profile.bio === 'string' ? profile.bio : null,
-      availability:
-        typeof profile.availability === 'string' ? profile.availability : null,
-      experienceLevel:
-        typeof experience.key === 'string'
-          ? {
-              key: experience.key,
-              labelEn:
-                typeof experience.labelEn === 'string'
-                  ? experience.labelEn
-                  : '',
-              labelAr:
-                typeof experience.labelAr === 'string'
-                  ? experience.labelAr
-                  : '',
-            }
-          : null,
-      fields: fields
-        .filter((field) => typeof field.key === 'string')
-        .map((field) => ({
-          key: field.key as string,
-          labelEn: typeof field.labelEn === 'string' ? field.labelEn : '',
-          labelAr: typeof field.labelAr === 'string' ? field.labelAr : '',
-        })),
-      declaredSkills: this.jsonArray(profile.declaredSkills).filter(
-        (skill): skill is string => typeof skill === 'string',
-      ),
-    };
-  }
-
   private async notify(
     application: ApplicationWithSnapshots,
     action: 'submitted' | 'withdrawn',
@@ -1438,26 +1258,8 @@ export class ApplicationsService {
     );
   }
 
-  private presentStatus(status: ApplicationStatus): ApplicationStatusDto {
-    return status.toUpperCase() as ApplicationStatusDto;
-  }
-
-  private addDays(value: Date, days: number): Date {
-    return new Date(value.getTime() + days * 24 * 60 * 60 * 1000);
-  }
-
   private fingerprint(value: unknown): string {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  }
-
-  private jsonObject(value: unknown): Record<string, unknown> {
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
-  }
-
-  private jsonArray(value: unknown): unknown[] {
-    return Array.isArray(value) ? value : [];
   }
 
   async lockDeliverySubmissionContext(input: {
@@ -1561,21 +1363,10 @@ export class ApplicationsService {
           `${application.contributor.first_name} ${application.contributor.last_name}`.trim(),
         avatarUrl: application.contributor.avatar_url,
       },
-      applicationStatus: this.presentStatus(application.status),
+      applicationStatus: toApplicationStatusDto(application.status),
       deliveryDueAt: application.assignment?.agreed_delivery_due_at ?? null,
       assignedAt: application.assignment?.assigned_at ?? null,
     }));
-  }
-
-  private emptySummary(
-    requestScopes: ApplicationRequestScopeDto[],
-  ): PendingApplicationsOwnerWorkspaceSummaryDto {
-    return {
-      projects: requestScopes.map((scope) => ({
-        projectId: scope.projectId,
-        pendingApplicationCount: 0,
-      })),
-    };
   }
 }
 
