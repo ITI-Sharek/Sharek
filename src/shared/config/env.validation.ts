@@ -211,7 +211,7 @@ export const envValidationSchema = Joi.object({
     .default(75_000),
   AI_SKILL_GAP_GUIDANCE_PATH: Joi.string()
     .pattern(/^\/[a-zA-Z0-9/_-]+$/)
-    .default('/skill-gap-guidance/generate'),
+    .default('/gap-guidance/generate'),
   AI_SKILL_GAP_GUIDANCE_TIMEOUT_MS: Joi.number()
     .integer()
     .min(100)

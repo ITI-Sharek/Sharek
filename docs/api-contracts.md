@@ -1583,7 +1583,7 @@ The backend calls five FastAPI routes, one client each under
 | `/advisory-fit/assess` | `advisory-fit.client.ts` | Advisory Fit Assessment |
 | `/requirements/infer` | `requirement-inference.client.ts` | Required skill levels (P0) |
 | `/material-analysis/analyze` | `material-analysis.client.ts` | Material Draft Suggestions |
-| `/skill-gap-guidance/generate` | `skill-gap-guidance.client.ts` | Skill Gap Guidance |
+| `/gap-guidance/generate` | `skill-gap-guidance.client.ts` | Skill Gap Guidance |
 | `/skill-profiles/generate` | `fastapi-skill-profile.client.ts` | Skill profile generation |
 
 Four of the five read their path from an `AI_*_PATH` setting; the default is

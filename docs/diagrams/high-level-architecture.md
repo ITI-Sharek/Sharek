@@ -265,7 +265,7 @@ flowchart LR
     A1["/skill-profiles/generate"]
     A2["/advisory-fit/assess"]
     A3["/material-analysis/analyze"]
-    A4["/skill-gap-guidance/generate"]
+    A4["/gap-guidance/generate"]
     A5["/requirements/infer"]
     A6["/matching/rank"]
     A7["/contributor-matching/generate"]
