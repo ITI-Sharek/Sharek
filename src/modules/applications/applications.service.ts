@@ -3,7 +3,6 @@ import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import {
   ApplicationAuditAction,
   ApplicationStatus,
-  ContributionRequestStatus,
   OwnerDecisionType,
   Prisma,
 } from '@prisma/client';
@@ -12,7 +11,6 @@ import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
 import { DatabaseService } from '../../shared/database/database.service';
 import { AssignmentConversationsService } from '../assignment-conversations/assignment-conversations.service';
 import {
-  BadRequestApplicationError,
   ConflictApplicationError,
   ForbiddenApplicationError,
   NotFoundApplicationError,
@@ -30,7 +28,6 @@ import {
   OwnerDecisionReportContextDto,
   OwnerDecisionResultDto,
 } from './dto/application-response.dto';
-import { ApplicationRequestContextDto } from '../contribution-tasks/dto/application-request-context.dto';
 import {
   ApplicationRequestScopeDto,
   PendingApplicationsOwnerWorkspaceSummaryDto,
@@ -53,9 +50,24 @@ import {
   toOwnerDecisionResultDto,
 } from './mappers/application.mapper';
 import { ApplicationDailyQuotaService } from './services/application-daily-quota.service';
-
-const IDEMPOTENCY_KEY_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import {
+  alreadyApplied,
+  applicationNotFound,
+  concurrentDecision,
+  normalizeDeclineFeedback,
+  normalizeIdempotencyKey,
+  normalizeRequiredIdempotencyKey,
+} from './policies/application-command.policy';
+import {
+  assertActiveApplicationActor,
+  assertActiveContributor,
+  assertActiveOwner,
+} from './policies/application-actor.policy';
+import {
+  assertOwnerDecisionWindowOpen,
+  assertPendingOwnerDecision,
+  assertRequestAcceptsApplications,
+} from './policies/application-window.policy';
 
 @Injectable()
 export class ApplicationsService {
@@ -81,8 +93,8 @@ export class ApplicationsService {
     proposedDeliveryDurationDays: number;
     idempotencyKey: string;
   }): Promise<ApplicationDto> {
-    this.assertActiveContributor(input.actor);
-    const idempotencyKey = this.normalizeIdempotencyKey(input.idempotencyKey);
+    assertActiveContributor(input.actor);
+    const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
     const fingerprint = this.fingerprint({
       action: ApplicationAuditAction.submitted,
       contributionRequestId: input.contributionRequestId,
@@ -104,7 +116,7 @@ export class ApplicationsService {
       await this.contributionTasks.getApplicationSubmissionContext(
         input.contributionRequestId,
       );
-    this.assertRequestAcceptsApplications(context, new Date());
+    assertRequestAcceptsApplications(context, new Date());
     const [user, profileContext] = await Promise.all([
       this.identity.getUserById(input.actor.id),
       this.contributorProfiles.getApplicationProfileContext(input.actor.id),
@@ -129,7 +141,7 @@ export class ApplicationsService {
             transaction,
           );
         const now = new Date();
-        this.assertRequestAcceptsApplications(locked, now);
+        assertRequestAcceptsApplications(locked, now);
         const transactionReplay = await this.readReplayFromTransaction({
           transaction,
           actorId: input.actor.id,
@@ -154,7 +166,7 @@ export class ApplicationsService {
           },
           include: APPLICATION_INCLUDE,
         });
-        if (existing) throw this.alreadyApplied();
+        if (existing) throw alreadyApplied();
 
         // THE GATE (DEC-078, ADR 0015).
         //
@@ -302,7 +314,7 @@ export class ApplicationsService {
           fingerprint,
         });
         if (lostRace) application = lostRace;
-        else throw this.alreadyApplied();
+        else throw alreadyApplied();
       } else {
         throw error;
       }
@@ -337,7 +349,7 @@ export class ApplicationsService {
     actor: AuthenticatedUser,
     contributionRequestId: string,
   ): Promise<OwnerApplicationsDto> {
-    this.assertActiveOwner(actor);
+    assertActiveOwner(actor);
     await this.confirmOwnerDecisionActor({
       requestId: contributionRequestId,
       ownerId: actor.id,
@@ -361,14 +373,14 @@ export class ApplicationsService {
     actor: AuthenticatedUser,
     applicationId: string,
   ): Promise<ApplicationDto> {
-    this.assertActiveApplicationActor(actor);
+    assertActiveApplicationActor(actor);
     const application = await this.database.application.findUnique({
       where: { id: applicationId },
       include: APPLICATION_INCLUDE,
     });
-    if (!application) throw this.applicationNotFound();
+    if (!application) throw applicationNotFound();
     if (application.contributor_id !== actor.id) {
-      if (actor.role !== 'owner') throw this.applicationNotFound();
+      if (actor.role !== 'owner') throw applicationNotFound();
       await this.confirmOwnerDecisionActor({
         requestId: application.contribution_request_id,
         ownerId: actor.id,
@@ -382,9 +394,9 @@ export class ApplicationsService {
     applicationId: string;
     idempotencyKey?: string;
   }): Promise<ApplicationDto> {
-    this.assertActiveContributor(input.actor);
+    assertActiveContributor(input.actor);
     const idempotencyKey = input.idempotencyKey
-      ? this.normalizeIdempotencyKey(input.idempotencyKey)
+      ? normalizeIdempotencyKey(input.idempotencyKey)
       : null;
     const fingerprint = this.fingerprint({
       action: ApplicationAuditAction.withdrawn,
@@ -408,7 +420,7 @@ export class ApplicationsService {
           where: { id: input.applicationId, contributor_id: input.actor.id },
           include: APPLICATION_INCLUDE,
         });
-        if (!current) throw this.applicationNotFound();
+        if (!current) throw applicationNotFound();
         if (current.status === ApplicationStatus.withdrawn) return current;
         if (current.status !== ApplicationStatus.pending_owner_review) {
           throw new ConflictApplicationError(
@@ -476,8 +488,8 @@ export class ApplicationsService {
     applicationId: string;
     idempotencyKey?: string;
   }): Promise<OwnerDecisionResultDto> {
-    this.assertActiveOwner(_input.actor);
-    const idempotencyKey = this.normalizeRequiredIdempotencyKey(
+    assertActiveOwner(_input.actor);
+    const idempotencyKey = normalizeRequiredIdempotencyKey(
       _input.idempotencyKey,
     );
     const fingerprint = this.fingerprint({
@@ -494,7 +506,7 @@ export class ApplicationsService {
           where: { id: _input.applicationId },
           include: APPLICATION_INCLUDE,
         });
-        if (!current) throw this.applicationNotFound();
+        if (!current) throw applicationNotFound();
         await this.reconfirmOwnerDecisionActor({
           requestId: current.contribution_request_id,
           ownerId: _input.actor.id,
@@ -510,9 +522,9 @@ export class ApplicationsService {
         if (transactionReplay) {
           return { decision: transactionReplay, notifications: [] };
         }
-        this.assertPendingOwnerDecision(current.status);
+        assertPendingOwnerDecision(current.status);
         const now = new Date();
-        this.assertOwnerDecisionWindowOpen(current.expires_at, now);
+        assertOwnerDecisionWindowOpen(current.expires_at, now);
         if (!current.proposed_delivery_duration_days) {
           throw new ConflictApplicationError(
             'The Application has no Proposed Delivery Duration',
@@ -546,7 +558,7 @@ export class ApplicationsService {
             (application) => application.id === current.id,
           )
         ) {
-          throw this.concurrentDecision();
+          throw concurrentDecision();
         }
         const siblings = lockedPendingApplications.filter(
           (application) => application.id !== current.id,
@@ -575,7 +587,7 @@ export class ApplicationsService {
             owner_reviewed_at: now,
           },
         });
-        if (accepted.count !== 1) throw this.concurrentDecision();
+        if (accepted.count !== 1) throw concurrentDecision();
 
         await transaction.assignment.create({
           data: {
@@ -624,7 +636,7 @@ export class ApplicationsService {
             data: { status: ApplicationStatus.not_selected },
           });
           if (closed.count !== siblings.length) {
-            throw this.concurrentDecision();
+            throw concurrentDecision();
           }
           await transaction.applicationAudit.createMany({
             data: siblings.map((sibling) => ({
@@ -701,9 +713,9 @@ export class ApplicationsService {
     feedback: string;
     idempotencyKey?: string;
   }): Promise<OwnerDecisionResultDto> {
-    this.assertActiveOwner(_input.actor);
-    const feedback = this.normalizeDeclineFeedback(_input.feedback);
-    const idempotencyKey = this.normalizeRequiredIdempotencyKey(
+    assertActiveOwner(_input.actor);
+    const feedback = normalizeDeclineFeedback(_input.feedback);
+    const idempotencyKey = normalizeRequiredIdempotencyKey(
       _input.idempotencyKey,
     );
     const fingerprint = this.fingerprint({
@@ -721,7 +733,7 @@ export class ApplicationsService {
           where: { id: _input.applicationId },
           include: APPLICATION_INCLUDE,
         });
-        if (!current) throw this.applicationNotFound();
+        if (!current) throw applicationNotFound();
         await this.reconfirmOwnerDecisionActor({
           requestId: current.contribution_request_id,
           ownerId: _input.actor.id,
@@ -737,10 +749,10 @@ export class ApplicationsService {
         if (transactionReplay) {
           return { decision: transactionReplay, notifications: [] };
         }
-        this.assertPendingOwnerDecision(current.status);
+        assertPendingOwnerDecision(current.status);
 
         const now = new Date();
-        this.assertOwnerDecisionWindowOpen(current.expires_at, now);
+        assertOwnerDecisionWindowOpen(current.expires_at, now);
         const decisionId = randomUUID();
         await transaction.ownerDecision.create({
           data: {
@@ -765,7 +777,7 @@ export class ApplicationsService {
             owner_reviewed_at: now,
           },
         });
-        if (updated.count !== 1) throw this.concurrentDecision();
+        if (updated.count !== 1) throw concurrentDecision();
         await transaction.applicationAudit.create({
           data: {
             application_id: current.id,
@@ -818,7 +830,7 @@ export class ApplicationsService {
     actor: AuthenticatedUser,
     ownerDecisionId: string,
   ): Promise<OwnerDecisionReportContextDto> {
-    this.assertActiveContributor(actor);
+    assertActiveContributor(actor);
     const decision = await this.database.ownerDecision.findFirst({
       where: {
         id: ownerDecisionId,
@@ -942,37 +954,6 @@ export class ApplicationsService {
     return { cancelledApplicationIds };
   }
 
-  private assertRequestAcceptsApplications(
-    context: ApplicationRequestContextDto | null,
-    now: Date,
-  ): asserts context is ApplicationRequestContextDto {
-    if (!context || context.status === ContributionRequestStatus.draft) {
-      throw new ForbiddenApplicationError(
-        'This Contribution Request is not available for Applications',
-        'APPLICATION_NOT_AUTHORIZED',
-      );
-    }
-    if (context.status === ContributionRequestStatus.cancelled) {
-      throw new ConflictApplicationError(
-        'The Contribution Request was cancelled',
-        'REQUEST_CANCELLED',
-      );
-    }
-    if (context.status !== ContributionRequestStatus.published) {
-      throw new ConflictApplicationError(
-        'The Contribution Request no longer accepts Applications',
-        'REQUEST_TERMINAL',
-        { status: context.status },
-      );
-    }
-    if (!context.applicationsCloseAt || context.applicationsCloseAt <= now) {
-      throw new ConflictApplicationError(
-        'Applications Close Time has passed',
-        'APPLICATIONS_CLOSED',
-      );
-    }
-  }
-
   private async readReplay(input: {
     actorId: string;
     action: ApplicationAuditAction;
@@ -1062,7 +1043,7 @@ export class ApplicationsService {
         input.error instanceof Prisma.PrismaClientKnownRequestError &&
         input.error.code === 'P2002'
       ) {
-        throw this.concurrentDecision();
+        throw concurrentDecision();
       }
     }
     throw input.error;
@@ -1114,74 +1095,6 @@ export class ApplicationsService {
     });
   }
 
-  private assertActiveContributor(actor: AuthenticatedUser): void {
-    if (actor.status !== 'active' || actor.role !== 'contributor') {
-      throw new ForbiddenApplicationError(
-        'An active contributor account is required',
-        'APPLICATION_NOT_AUTHORIZED',
-      );
-    }
-  }
-
-  private assertActiveOwner(actor: AuthenticatedUser): void {
-    if (actor.status !== 'active' || actor.role !== 'owner') {
-      throw new ForbiddenApplicationError(
-        'An active Project owner account is required',
-        'APPLICATION_NOT_AUTHORIZED',
-      );
-    }
-  }
-
-  private assertActiveApplicationActor(actor: AuthenticatedUser): void {
-    if (
-      actor.status !== 'active' ||
-      (actor.role !== 'owner' && actor.role !== 'contributor')
-    ) {
-      throw new ForbiddenApplicationError(
-        'Application access is not authorized',
-        'APPLICATION_NOT_AUTHORIZED',
-      );
-    }
-  }
-
-  private normalizeIdempotencyKey(value: string): string {
-    const normalized = value.trim();
-    if (!IDEMPOTENCY_KEY_PATTERN.test(normalized)) {
-      throw new BadRequestApplicationError(
-        'Application idempotency key must be a UUID',
-        'APPLICATION_IDEMPOTENCY_KEY_INVALID',
-      );
-    }
-    return normalized;
-  }
-
-  private normalizeRequiredIdempotencyKey(value?: string): string {
-    if (!value) {
-      throw new BadRequestApplicationError(
-        'Idempotency-Key is required for an Owner Decision',
-        'APPLICATION_IDEMPOTENCY_KEY_REQUIRED',
-      );
-    }
-    return this.normalizeIdempotencyKey(value);
-  }
-
-  private normalizeDeclineFeedback(value: string): string {
-    if (typeof value !== 'string') {
-      throw new BadRequestApplicationError(
-        'Owner decision feedback is required when declining an Application',
-        'APPLICATION_DECISION_FEEDBACK_REQUIRED',
-      );
-    }
-    const normalized = value.trim();
-    if (normalized.length === 0) {
-      throw new BadRequestApplicationError(
-        'Owner decision feedback is required when declining an Application',
-        'APPLICATION_DECISION_FEEDBACK_REQUIRED',
-      );
-    }
-    return normalized;
-  }
-
   private async reconfirmOwnerDecisionActor(input: {
     requestId: string;
     ownerId: string;
@@ -1194,7 +1107,7 @@ export class ApplicationsService {
         error instanceof NotFoundApplicationError &&
         error.code !== 'APPLICATION_NOT_FOUND'
       ) {
-        throw this.applicationNotFound();
+        throw applicationNotFound();
       }
       throw error;
     }
@@ -1208,54 +1121,10 @@ export class ApplicationsService {
       await this.contributionTasks.confirmOwnerDecisionActor(input);
     } catch (error) {
       if (error instanceof NotFoundApplicationError) {
-        throw this.applicationNotFound();
+        throw applicationNotFound();
       }
       throw error;
     }
-  }
-
-  private alreadyApplied(): ConflictApplicationError {
-    return new ConflictApplicationError(
-      'An Application already exists for this Contribution Request',
-      'ALREADY_APPLIED',
-    );
-  }
-
-  private applicationNotFound(): NotFoundApplicationError {
-    return new NotFoundApplicationError(
-      'Application was not found',
-      'APPLICATION_NOT_FOUND',
-    );
-  }
-
-  private assertPendingOwnerDecision(status: ApplicationStatus): void {
-    if (status !== ApplicationStatus.pending_owner_review) {
-      throw new ConflictApplicationError(
-        'Only a pending Application can receive an Owner Decision',
-        'APPLICATION_TERMINAL',
-        { status },
-      );
-    }
-  }
-
-  private assertOwnerDecisionWindowOpen(
-    expiresAt: Date | null,
-    now: Date,
-  ): void {
-    if (expiresAt !== null && expiresAt <= now) {
-      throw new ConflictApplicationError(
-        'Only a pending Application can receive an Owner Decision',
-        'APPLICATION_TERMINAL',
-        { status: ApplicationStatus.expired },
-      );
-    }
-  }
-
-  private concurrentDecision(): ConflictApplicationError {
-    return new ConflictApplicationError(
-      'Application changed during the Owner Decision',
-      'APPLICATION_CONCURRENT_MODIFICATION',
-    );
   }
 
   private fingerprint(value: unknown): string {
