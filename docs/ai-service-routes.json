@@ -14,7 +14,7 @@
     "/matching/rank",
     "/material-analysis/analyze",
     "/requirements/infer",
-    "/skill-gap-guidance/generate",
+    "/gap-guidance/generate",
     "/skill-profiles/generate"
   ],
   "routes": [
@@ -24,7 +24,7 @@
     "/matching/rank",
     "/material-analysis/analyze",
     "/requirements/infer",
-    "/skill-gap-guidance/generate",
+    "/gap-guidance/generate",
     "/skill-gap-guidance/stream",
     "/skill-profiles/generate",
     "/skill-profiles/{username}"

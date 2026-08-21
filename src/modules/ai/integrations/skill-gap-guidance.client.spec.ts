@@ -45,7 +45,7 @@ describe('SkillGapGuidanceClient', () => {
   const config = {
     get: jest.fn((key: string, fallback: unknown) => {
       if (key === 'AI_SERVICE_URL') return 'http://ai-service';
-      if (key === 'AI_SKILL_GAP_GUIDANCE_PATH') return '/skill-gap-guidance/generate';
+      if (key === 'AI_SKILL_GAP_GUIDANCE_PATH') return '/gap-guidance/generate';
       if (key === 'AI_SKILL_GAP_GUIDANCE_TIMEOUT_MS') return 1000;
       if (key === 'AI_SERVICE_AUTH_TOKEN') return 'internal-test-token';
       return fallback;
@@ -104,7 +104,7 @@ describe('SkillGapGuidanceClient', () => {
       expect(result.missingSkills[0].skillName).toBe('Apache Airflow');
     }
     const [url, options] = jest.mocked(global.fetch).mock.calls[0];
-    expect(url).toBe('http://ai-service/skill-gap-guidance/generate');
+    expect(url).toBe('http://ai-service/gap-guidance/generate');
     expect(options?.headers).toMatchObject({
       authorization: 'Bearer internal-test-token',
     });

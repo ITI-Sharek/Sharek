@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { ApplicationError } from '../../../shared/errors/application.error';
+
 import {
   SkillGapGuidanceImprovementStep,
   SkillGapGuidanceInput,
@@ -15,7 +16,7 @@ import {
 
 @Injectable()
 export class SkillGapGuidanceClient {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) { }
 
   async generate(input: SkillGapGuidanceInput): Promise<SkillGapGuidanceResult> {
     const baseUrl = this.config.get<string>(
@@ -24,7 +25,7 @@ export class SkillGapGuidanceClient {
     );
     const path = this.config.get<string>(
       'AI_SKILL_GAP_GUIDANCE_PATH',
-      '/skill-gap-guidance/generate',
+      '/gap-guidance/generate',
     );
     const timeoutMs = this.config.get<number>(
       'AI_SKILL_GAP_GUIDANCE_TIMEOUT_MS',
