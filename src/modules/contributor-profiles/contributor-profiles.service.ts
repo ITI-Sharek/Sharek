@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma, UserRole, UserStatus } from '@prisma/client';
 
 import { AuthenticatedUser } from '../../shared/auth/authenticated-request';
+import { sniffImageMimeType } from '../../shared/content/file-signature';
 import { DatabaseService } from '../../shared/database/database.service';
 import {
   BadRequestApplicationError,
@@ -276,7 +277,7 @@ export class ContributorProfilesService {
     const profile =
       (await this.findByUserId(userWithUsername.id)) ??
       (await this.createForUser(userWithUsername.id));
-    const mimeType = this.detectAvatarMimeType(file.buffer);
+    const mimeType = sniffImageMimeType(file.buffer);
 
     if (!mimeType || mimeType !== file.mimetype || file.size > 2_000_000) {
       throw new BadRequestApplicationError(
@@ -766,32 +767,6 @@ export class ContributorProfilesService {
     return normalized;
   }
 
-  private detectAvatarMimeType(buffer: Buffer): string | null {
-    if (
-      buffer.length >= 8 &&
-      buffer
-        .subarray(0, 8)
-        .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-    ) {
-      return 'image/png';
-    }
-    if (
-      buffer.length >= 3 &&
-      buffer[0] === 0xff &&
-      buffer[1] === 0xd8 &&
-      buffer[2] === 0xff
-    ) {
-      return 'image/jpeg';
-    }
-    if (
-      buffer.length >= 12 &&
-      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
-      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
-    ) {
-      return 'image/webp';
-    }
-    return null;
-  }
 
   private assertActiveAdmin(admin: AuthenticatedUser): void {
     if (admin.role !== 'admin' || admin.status !== 'active') {
