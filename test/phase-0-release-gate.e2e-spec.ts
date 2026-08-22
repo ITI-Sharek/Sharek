@@ -4,6 +4,7 @@ import { ContributionRequestStatus, SkillProfileProficiencyLevel } from '@prisma
 
 import { ApplicationsService } from '../src/modules/applications/applications.service';
 import { ApplicationDailyQuotaService } from '../src/modules/applications/services/application-daily-quota.service';
+import { ApplicationReplayService } from '../src/modules/applications/services/application-replay.service';
 import { EligibilityService } from '../src/modules/eligibility/services/eligibility.service';
 import { EligibilityGuidanceService } from '../src/modules/skill-guidance/services/eligibility-guidance.service';
 import { EligibilityGuidanceProcessorService } from '../src/modules/skill-guidance/services/eligibility-guidance-processor.service';
@@ -98,6 +99,7 @@ describe('Phase 0 release gate', () => {
       new EntitlementsService(database as never),
       database as never,
     ),
+    new ApplicationReplayService(database as never),
   );
 
   /** The Request's frozen bar: one required skill at `advanced`. */

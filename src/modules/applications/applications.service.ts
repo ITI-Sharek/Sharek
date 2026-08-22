@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import {
   ApplicationAuditAction,
@@ -12,7 +12,6 @@ import { DatabaseService } from '../../shared/database/database.service';
 import { AssignmentConversationsService } from '../assignment-conversations/assignment-conversations.service';
 import {
   ConflictApplicationError,
-  ForbiddenApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
 import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
@@ -32,24 +31,25 @@ import {
   ApplicationRequestScopeDto,
   PendingApplicationsOwnerWorkspaceSummaryDto,
 } from './dto/owner-workspace-summary.dto';
-import { DeliveryLifecycleApplicationContextDto } from './dto/delivery-lifecycle-context.dto';
 import {
   APPLICATION_REVIEW_EXPIRY_DAYS,
   APPLICATION_REVIEW_REMINDER_DAYS,
 } from './application-review-window.policy';
 import {
   addDays,
-  APPLICATION_INCLUDE,
   ApplicationWithSnapshots,
-  OWNER_DECISION_INCLUDE,
   OwnerDecisionWithResult,
   toApplicationDto,
-  toApplicationStatusDto,
   toEmptyOwnerWorkspaceSummaryDto,
   toJsonObject,
   toOwnerDecisionResultDto,
 } from './mappers/application.mapper';
+import { ApplicationRepository } from './repositories/application.repository';
 import { ApplicationDailyQuotaService } from './services/application-daily-quota.service';
+import {
+  ApplicationReplayService,
+  applicationCommandFingerprint,
+} from './services/application-replay.service';
 import {
   alreadyApplied,
   applicationNotFound,
@@ -71,6 +71,8 @@ import {
 
 @Injectable()
 export class ApplicationsService {
+  private readonly applications: ApplicationRepository;
+
   constructor(
     private readonly database: DatabaseService,
     @Inject(forwardRef(() => ContributionTasksService))
@@ -82,9 +84,12 @@ export class ApplicationsService {
     private readonly notifications: NotificationsService,
     private readonly contributorProfiles: ContributorProfilesService,
     private readonly dailyQuota: ApplicationDailyQuotaService,
+    private readonly replay: ApplicationReplayService,
     @Optional()
     private readonly assignmentConversations?: AssignmentConversationsService,
-  ) {}
+  ) {
+    this.applications = new ApplicationRepository(database);
+  }
 
   async submit(input: {
     actor: AuthenticatedUser;
@@ -95,13 +100,13 @@ export class ApplicationsService {
   }): Promise<ApplicationDto> {
     assertActiveContributor(input.actor);
     const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
-    const fingerprint = this.fingerprint({
+    const fingerprint = applicationCommandFingerprint({
       action: ApplicationAuditAction.submitted,
       contributionRequestId: input.contributionRequestId,
       contributionApproach: input.contributionApproach,
       proposedDeliveryDurationDays: input.proposedDeliveryDurationDays,
     });
-    const replay = await this.readReplay({
+    const replay = await this.replay.readReplay({
       actorId: input.actor.id,
       action: ApplicationAuditAction.submitted,
       idempotencyKey,
@@ -130,7 +135,7 @@ export class ApplicationsService {
 
     let application: ApplicationWithSnapshots;
     try {
-      application = await this.database.$transaction(async (transaction) => {
+      application = await this.applications.inTransaction(async (transaction) => {
         // Taken before any other lock so one contributor's concurrent
         // submissions serialize here rather than racing each other's quota
         // reads further down.
@@ -142,7 +147,7 @@ export class ApplicationsService {
           );
         const now = new Date();
         assertRequestAcceptsApplications(locked, now);
-        const transactionReplay = await this.readReplayFromTransaction({
+        const transactionReplay = await this.replay.readReplayFromTransaction({
           transaction,
           actorId: input.actor.id,
           action: ApplicationAuditAction.submitted,
@@ -157,15 +162,13 @@ export class ApplicationsService {
             transaction,
           );
 
-        const existing = await transaction.application.findUnique({
-          where: {
-            contribution_request_id_contributor_id: {
-              contribution_request_id: input.contributionRequestId,
-              contributor_id: input.actor.id,
-            },
+        const existing = await this.applications.findDuplicateForContributor(
+          {
+            contributionRequestId: input.contributionRequestId,
+            contributorId: input.actor.id,
           },
-          include: APPLICATION_INCLUDE,
-        });
+          transaction,
+        );
         if (existing) throw alreadyApplied();
 
         // THE GATE (DEC-078, ADR 0015).
@@ -211,11 +214,11 @@ export class ApplicationsService {
         const applicationId = randomUUID();
         const requirementSnapshotId = randomUUID();
         const evidenceSnapshotId = randomUUID();
-        await transaction.applicationRequirementSnapshot.create({
-          data: {
-            id: requirementSnapshotId,
-            contribution_request_id: input.contributionRequestId,
-            source_request_updated_at: locked!.updatedAt,
+        await this.applications.createRequirementSnapshot(
+          {
+            requirementSnapshotId,
+            contributionRequestId: input.contributionRequestId,
+            sourceRequestUpdatedAt: locked!.updatedAt,
             requirements: locked!.requirements.map((requirement) => ({
               id: requirement.id,
               kind: requirement.kind,
@@ -230,7 +233,7 @@ export class ApplicationsService {
             // `preferred` rows are recorded — the snapshot is the historical
             // record of what was asked, and it is the evaluation that ignores
             // `preferred`.
-            skill_requirements: locked!.skillRequirements.map((skill) => ({
+            skillRequirements: locked!.skillRequirements.map((skill) => ({
               id: skill.id,
               skillName: skill.skillName,
               skillNameNormalized: skill.skillNameNormalized,
@@ -239,46 +242,45 @@ export class ApplicationsService {
               position: skill.position,
             })) as unknown as Prisma.InputJsonValue,
           },
-        });
-        await transaction.applicationEvidenceSnapshot.create({
-          data: {
-            id: evidenceSnapshotId,
-            contributor_id: input.actor.id,
-            contributor_context:
+          transaction,
+        );
+        await this.applications.createEvidenceSnapshot(
+          {
+            evidenceSnapshotId,
+            contributorId: input.actor.id,
+            contributorContext:
               contributorContext as unknown as Prisma.InputJsonValue,
             evidence: approvedSkills.map((skill) => ({
               ...skill,
               evidenceSources: toJsonObject(skill.evidenceSources),
             })) as unknown as Prisma.InputJsonValue,
           },
-        });
-        const created = await transaction.application.create({
-          data: {
-            id: applicationId,
-            contribution_request_id: input.contributionRequestId,
-            contributor_id: input.actor.id,
-            contribution_approach: input.contributionApproach,
-            proposed_delivery_duration_days: input.proposedDeliveryDurationDays,
-            requirement_snapshot_id: requirementSnapshotId,
-            evidence_snapshot_id: evidenceSnapshotId,
-            status: ApplicationStatus.pending_owner_review,
-            submitted_at: now,
-            review_due_at: addDays(now, APPLICATION_REVIEW_REMINDER_DAYS),
-            expires_at: addDays(now, APPLICATION_REVIEW_EXPIRY_DAYS),
+          transaction,
+        );
+        const created = await this.applications.createSubmittedApplication(
+          {
+            applicationId,
+            contributionRequestId: input.contributionRequestId,
+            contributorId: input.actor.id,
+            contributionApproach: input.contributionApproach,
+            proposedDeliveryDurationDays: input.proposedDeliveryDurationDays,
+            requirementSnapshotId,
+            evidenceSnapshotId,
+            submittedAt: now,
+            reviewDueAt: addDays(now, APPLICATION_REVIEW_REMINDER_DAYS),
+            expiresAt: addDays(now, APPLICATION_REVIEW_EXPIRY_DAYS),
           },
-          include: APPLICATION_INCLUDE,
-        });
-        await transaction.applicationAudit.create({
-          data: {
-            application_id: created.id,
-            actor_id: input.actor.id,
-            action: ApplicationAuditAction.submitted,
-            to_status: ApplicationStatus.pending_owner_review,
-            idempotency_key: idempotencyKey,
-            command_fingerprint: fingerprint,
-            metadata: { payloadVersion: 1 },
+          transaction,
+        );
+        await this.applications.createSubmittedAudit(
+          {
+            applicationId: created.id,
+            actorId: input.actor.id,
+            idempotencyKey,
+            commandFingerprint: fingerprint,
           },
-        });
+          transaction,
+        );
         return created;
       });
     } catch (error) {
@@ -307,7 +309,7 @@ export class ApplicationsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const lostRace = await this.readReplay({
+        const lostRace = await this.replay.readReplay({
           actorId: input.actor.id,
           action: ApplicationAuditAction.submitted,
           idempotencyKey,
@@ -336,13 +338,7 @@ export class ApplicationsService {
   async listAppliedContributionRequestIds(
     contributorId: string,
   ): Promise<string[]> {
-    const applications = await this.database.application.findMany({
-      where: { contributor_id: contributorId },
-      select: { contribution_request_id: true },
-    });
-    return applications.map(
-      (application) => application.contribution_request_id,
-    );
+    return this.applications.findAppliedContributionRequestIds(contributorId);
   }
 
   async listForOwner(
@@ -354,14 +350,9 @@ export class ApplicationsService {
       requestId: contributionRequestId,
       ownerId: actor.id,
     });
-    const applications = await this.database.application.findMany({
-      where: {
-        contribution_request_id: contributionRequestId,
-        status: ApplicationStatus.pending_owner_review,
-      },
-      orderBy: [{ submitted_at: 'asc' }, { id: 'asc' }],
-      include: APPLICATION_INCLUDE,
-    });
+    const applications = await this.applications.findPendingForRequest(
+      contributionRequestId,
+    );
     return {
       applications: applications.map((application) =>
         toApplicationDto(application),
@@ -374,10 +365,7 @@ export class ApplicationsService {
     applicationId: string,
   ): Promise<ApplicationDto> {
     assertActiveApplicationActor(actor);
-    const application = await this.database.application.findUnique({
-      where: { id: applicationId },
-      include: APPLICATION_INCLUDE,
-    });
+    const application = await this.applications.findById(applicationId);
     if (!application) throw applicationNotFound();
     if (application.contributor_id !== actor.id) {
       if (actor.role !== 'owner') throw applicationNotFound();
@@ -398,11 +386,11 @@ export class ApplicationsService {
     const idempotencyKey = input.idempotencyKey
       ? normalizeIdempotencyKey(input.idempotencyKey)
       : null;
-    const fingerprint = this.fingerprint({
+    const fingerprint = applicationCommandFingerprint({
       action: ApplicationAuditAction.withdrawn,
       applicationId: input.applicationId,
     });
-    const replay = await this.readReplay({
+    const replay = await this.replay.readReplay({
       actorId: input.actor.id,
       action: ApplicationAuditAction.withdrawn,
       idempotencyKey,
@@ -415,11 +403,11 @@ export class ApplicationsService {
 
     let application: ApplicationWithSnapshots;
     try {
-      application = await this.database.$transaction(async (transaction) => {
-        const current = await transaction.application.findFirst({
-          where: { id: input.applicationId, contributor_id: input.actor.id },
-          include: APPLICATION_INCLUDE,
-        });
+      application = await this.applications.inTransaction(async (transaction) => {
+        const current = await this.applications.findOwnedApplication(
+          { applicationId: input.applicationId, contributorId: input.actor.id },
+          transaction,
+        );
         if (!current) throw applicationNotFound();
         if (current.status === ApplicationStatus.withdrawn) return current;
         if (current.status !== ApplicationStatus.pending_owner_review) {
@@ -429,36 +417,29 @@ export class ApplicationsService {
             { status: current.status },
           );
         }
-        const updated = await transaction.application.updateMany({
-          where: {
-            id: input.applicationId,
-            contributor_id: input.actor.id,
-            status: ApplicationStatus.pending_owner_review,
-          },
-          data: { status: ApplicationStatus.withdrawn },
-        });
+        const updated = await this.applications.markWithdrawn(
+          { applicationId: input.applicationId, contributorId: input.actor.id },
+          transaction,
+        );
         if (updated.count !== 1) {
           throw new ConflictApplicationError(
             'Application changed during withdrawal',
             'APPLICATION_CONCURRENT_MODIFICATION',
           );
         }
-        await transaction.applicationAudit.create({
-          data: {
-            application_id: input.applicationId,
-            actor_id: input.actor.id,
-            action: ApplicationAuditAction.withdrawn,
-            from_status: ApplicationStatus.pending_owner_review,
-            to_status: ApplicationStatus.withdrawn,
-            idempotency_key: idempotencyKey,
-            command_fingerprint: fingerprint,
-            metadata: { payloadVersion: 1 },
+        await this.applications.createWithdrawnAudit(
+          {
+            applicationId: input.applicationId,
+            actorId: input.actor.id,
+            idempotencyKey,
+            commandFingerprint: fingerprint,
           },
-        });
-        return transaction.application.findUniqueOrThrow({
-          where: { id: input.applicationId },
-          include: APPLICATION_INCLUDE,
-        });
+          transaction,
+        );
+        return this.applications.findByIdOrThrow(
+          input.applicationId,
+          transaction,
+        );
       });
     } catch (error) {
       const mayHaveLostRetryRace =
@@ -467,7 +448,7 @@ export class ApplicationsService {
           : error instanceof ConflictApplicationError &&
             error.code === 'APPLICATION_CONCURRENT_MODIFICATION';
       if (idempotencyKey && mayHaveLostRetryRace) {
-        const lostRace = await this.readReplay({
+        const lostRace = await this.replay.readReplay({
           actorId: input.actor.id,
           action: ApplicationAuditAction.withdrawn,
           idempotencyKey,
@@ -492,7 +473,7 @@ export class ApplicationsService {
     const idempotencyKey = normalizeRequiredIdempotencyKey(
       _input.idempotencyKey,
     );
-    const fingerprint = this.fingerprint({
+    const fingerprint = applicationCommandFingerprint({
       action: OwnerDecisionType.accepted,
       applicationId: _input.applicationId,
     });
@@ -501,11 +482,11 @@ export class ApplicationsService {
       NotificationsService['emitApplicationNotifications']
     >[0] = [];
     try {
-      const result = await this.database.$transaction(async (transaction) => {
-        const current = await transaction.application.findFirst({
-          where: { id: _input.applicationId },
-          include: APPLICATION_INCLUDE,
-        });
+      const result = await this.applications.inTransaction(async (transaction) => {
+        const current = await this.applications.findFirstById(
+          _input.applicationId,
+          transaction,
+        );
         if (!current) throw applicationNotFound();
         await this.reconfirmOwnerDecisionActor({
           requestId: current.contribution_request_id,
@@ -513,7 +494,7 @@ export class ApplicationsService {
           transaction,
         });
         const transactionReplay =
-          await this.readOwnerDecisionReplayFromTransaction({
+          await this.replay.readOwnerDecisionReplayFromTransaction({
             transaction,
             ownerId: _input.actor.id,
             idempotencyKey,
@@ -543,16 +524,11 @@ export class ApplicationsService {
           transaction,
         });
 
-        const lockedPendingApplications = await transaction.$queryRaw<
-          Array<{ id: string; contributor_id: string }>
-        >(Prisma.sql`
-          SELECT "id", "contributor_id"
-          FROM "Application"
-          WHERE "contribution_request_id" = ${current.contribution_request_id}::uuid
-            AND "status" = 'pending_owner_review'
-          ORDER BY "id"
-          FOR UPDATE
-        `);
+        const lockedPendingApplications =
+          await this.applications.lockPendingApplicationsForUpdate(
+            current.contribution_request_id,
+            transaction,
+          );
         if (
           !lockedPendingApplications.some(
             (application) => application.id === current.id,
@@ -564,96 +540,80 @@ export class ApplicationsService {
           (application) => application.id !== current.id,
         );
 
-        await transaction.ownerDecision.create({
-          data: {
-            id: decisionId,
-            application_id: current.id,
-            contribution_request_id: current.contribution_request_id,
-            owner_id: _input.actor.id,
-            decision_type: OwnerDecisionType.accepted,
+        await this.applications.createOwnerDecision(
+          {
+            decisionId,
+            applicationId: current.id,
+            contributionRequestId: current.contribution_request_id,
+            ownerId: _input.actor.id,
+            decisionType: OwnerDecisionType.accepted,
             feedback: null,
-            idempotency_key: idempotencyKey,
-            command_fingerprint: fingerprint,
-            decided_at: now,
+            idempotencyKey,
+            commandFingerprint: fingerprint,
+            decidedAt: now,
           },
-        });
-        const accepted = await transaction.application.updateMany({
-          where: {
-            id: current.id,
-            status: ApplicationStatus.pending_owner_review,
-          },
-          data: {
-            status: ApplicationStatus.accepted,
-            owner_reviewed_at: now,
-          },
-        });
+          transaction,
+        );
+        const accepted = await this.applications.markAccepted(
+          { applicationId: current.id, reviewedAt: now },
+          transaction,
+        );
         if (accepted.count !== 1) throw concurrentDecision();
 
-        await transaction.assignment.create({
-          data: {
-            id: assignmentId,
-            contribution_request_id: current.contribution_request_id,
-            application_id: current.id,
-            owner_decision_id: decisionId,
-            contributor_id: current.contributor_id,
-            agreed_delivery_duration_days:
-              current.proposed_delivery_duration_days,
-            agreed_delivery_due_at: addDays(
+        await this.applications.createAssignment(
+          {
+            assignmentId,
+            contributionRequestId: current.contribution_request_id,
+            applicationId: current.id,
+            ownerDecisionId: decisionId,
+            contributorId: current.contributor_id,
+            agreedDeliveryDurationDays: current.proposed_delivery_duration_days,
+            agreedDeliveryDueAt: addDays(
               now,
               current.proposed_delivery_duration_days,
             ),
-            assigned_at: now,
+            assignedAt: now,
           },
-        });
+          transaction,
+        );
         await this.assignmentConversations?.ensureForAssignment({
           assignmentId,
           transaction,
         });
-        await transaction.applicationAudit.create({
-          data: {
-            application_id: current.id,
-            actor_id: _input.actor.id,
-            action: ApplicationAuditAction.accepted,
-            from_status: ApplicationStatus.pending_owner_review,
-            to_status: ApplicationStatus.accepted,
-            idempotency_key: idempotencyKey,
-            command_fingerprint: fingerprint,
-            metadata: {
-              payloadVersion: 1,
-              ownerDecisionId: decisionId,
-              assignmentId,
-            },
+        await this.applications.createAcceptedAudit(
+          {
+            applicationId: current.id,
+            actorId: _input.actor.id,
+            idempotencyKey,
+            commandFingerprint: fingerprint,
+            ownerDecisionId: decisionId,
+            assignmentId,
           },
-        });
+          transaction,
+        );
 
         if (siblings.length > 0) {
-          const closed = await transaction.application.updateMany({
-            where: {
-              contribution_request_id: current.contribution_request_id,
-              id: { not: current.id },
-              status: ApplicationStatus.pending_owner_review,
+          const closed = await this.applications.closeSiblingsForDecision(
+            {
+              contributionRequestId: current.contribution_request_id,
+              exceptApplicationId: current.id,
             },
-            data: { status: ApplicationStatus.not_selected },
-          });
+            transaction,
+          );
           if (closed.count !== siblings.length) {
             throw concurrentDecision();
           }
-          await transaction.applicationAudit.createMany({
-            data: siblings.map((sibling) => ({
-              application_id: sibling.id,
-              actor_id: _input.actor.id,
-              action: ApplicationAuditAction.not_selected,
-              from_status: ApplicationStatus.pending_owner_review,
-              to_status: ApplicationStatus.not_selected,
-              idempotency_key: `${idempotencyKey}:${sibling.id}`,
-              command_fingerprint: fingerprint,
-              metadata: {
-                payloadVersion: 1,
-                selectedApplicationId: current.id,
-                ownerDecisionId: decisionId,
-              },
-            })),
-          });
+          await this.applications.createNotSelectedAudits(
+            {
+              siblings,
+              actorId: _input.actor.id,
+              idempotencyKey,
+              commandFingerprint: fingerprint,
+              selectedApplicationId: current.id,
+              ownerDecisionId: decisionId,
+            },
+            transaction,
+          );
         }
 
         const notificationResults = [];
@@ -681,10 +641,10 @@ export class ApplicationsService {
             ),
           );
         }
-        const savedDecision = await transaction.ownerDecision.findUniqueOrThrow({
-          where: { id: decisionId },
-          include: OWNER_DECISION_INCLUDE,
-        });
+        const savedDecision = await this.applications.findDecisionByIdOrThrow(
+          decisionId,
+          transaction,
+        );
         return {
           decision: savedDecision,
           notifications: notificationResults
@@ -695,7 +655,7 @@ export class ApplicationsService {
       decision = result.decision;
       notificationsToEmit = result.notifications;
     } catch (error) {
-      decision = await this.resolveOwnerDecisionRaceOrThrow({
+      decision = await this.replay.resolveOwnerDecisionRaceOrThrow({
         error,
         ownerId: _input.actor.id,
         idempotencyKey,
@@ -718,7 +678,7 @@ export class ApplicationsService {
     const idempotencyKey = normalizeRequiredIdempotencyKey(
       _input.idempotencyKey,
     );
-    const fingerprint = this.fingerprint({
+    const fingerprint = applicationCommandFingerprint({
       action: OwnerDecisionType.declined,
       applicationId: _input.applicationId,
       feedback,
@@ -728,11 +688,11 @@ export class ApplicationsService {
       NotificationsService['emitApplicationNotifications']
     >[0] = [];
     try {
-      const result = await this.database.$transaction(async (transaction) => {
-        const current = await transaction.application.findFirst({
-          where: { id: _input.applicationId },
-          include: APPLICATION_INCLUDE,
-        });
+      const result = await this.applications.inTransaction(async (transaction) => {
+        const current = await this.applications.findFirstById(
+          _input.applicationId,
+          transaction,
+        );
         if (!current) throw applicationNotFound();
         await this.reconfirmOwnerDecisionActor({
           requestId: current.contribution_request_id,
@@ -740,7 +700,7 @@ export class ApplicationsService {
           transaction,
         });
         const transactionReplay =
-          await this.readOwnerDecisionReplayFromTransaction({
+          await this.replay.readOwnerDecisionReplayFromTransaction({
             transaction,
             ownerId: _input.actor.id,
             idempotencyKey,
@@ -754,42 +714,35 @@ export class ApplicationsService {
         const now = new Date();
         assertOwnerDecisionWindowOpen(current.expires_at, now);
         const decisionId = randomUUID();
-        await transaction.ownerDecision.create({
-          data: {
-            id: decisionId,
-            application_id: current.id,
-            contribution_request_id: current.contribution_request_id,
-            owner_id: _input.actor.id,
-            decision_type: OwnerDecisionType.declined,
+        await this.applications.createOwnerDecision(
+          {
+            decisionId,
+            applicationId: current.id,
+            contributionRequestId: current.contribution_request_id,
+            ownerId: _input.actor.id,
+            decisionType: OwnerDecisionType.declined,
             feedback,
-            idempotency_key: idempotencyKey,
-            command_fingerprint: fingerprint,
-            decided_at: now,
+            idempotencyKey,
+            commandFingerprint: fingerprint,
+            decidedAt: now,
           },
-        });
-        const updated = await transaction.application.updateMany({
-          where: {
-            id: current.id,
-            status: ApplicationStatus.pending_owner_review,
-          },
-          data: {
-            status: ApplicationStatus.declined_by_owner,
-            owner_reviewed_at: now,
-          },
-        });
+          transaction,
+        );
+        const updated = await this.applications.markDeclined(
+          { applicationId: current.id, reviewedAt: now },
+          transaction,
+        );
         if (updated.count !== 1) throw concurrentDecision();
-        await transaction.applicationAudit.create({
-          data: {
-            application_id: current.id,
-            actor_id: _input.actor.id,
-            action: ApplicationAuditAction.declined_by_owner,
-            from_status: ApplicationStatus.pending_owner_review,
-            to_status: ApplicationStatus.declined_by_owner,
-            idempotency_key: idempotencyKey,
-            command_fingerprint: fingerprint,
-            metadata: { payloadVersion: 1, ownerDecisionId: decisionId },
+        await this.applications.createDeclinedAudit(
+          {
+            applicationId: current.id,
+            actorId: _input.actor.id,
+            idempotencyKey,
+            commandFingerprint: fingerprint,
+            ownerDecisionId: decisionId,
           },
-        });
+          transaction,
+        );
         const notification =
           await this.notifications.createApplicationNotification(
             {
@@ -800,10 +753,10 @@ export class ApplicationsService {
             },
             { transaction, emitRealtime: false },
           );
-        const savedDecision = await transaction.ownerDecision.findUniqueOrThrow({
-          where: { id: decisionId },
-          include: OWNER_DECISION_INCLUDE,
-        });
+        const savedDecision = await this.applications.findDecisionByIdOrThrow(
+          decisionId,
+          transaction,
+        );
         return {
           decision: savedDecision,
           notifications: notification.created
@@ -814,7 +767,7 @@ export class ApplicationsService {
       decision = result.decision;
       notificationsToEmit = result.notifications;
     } catch (error) {
-      decision = await this.resolveOwnerDecisionRaceOrThrow({
+      decision = await this.replay.resolveOwnerDecisionRaceOrThrow({
         error,
         ownerId: _input.actor.id,
         idempotencyKey,
@@ -831,21 +784,10 @@ export class ApplicationsService {
     ownerDecisionId: string,
   ): Promise<OwnerDecisionReportContextDto> {
     assertActiveContributor(actor);
-    const decision = await this.database.ownerDecision.findFirst({
-      where: {
-        id: ownerDecisionId,
-        decision_type: OwnerDecisionType.declined,
-        application: { contributor_id: actor.id },
-      },
-      select: {
-        id: true,
-        application_id: true,
-        contribution_request_id: true,
-        owner_id: true,
-        feedback: true,
-        application: { select: { contributor_id: true } },
-      },
-    });
+    const decision = await this.applications.findDeclinedDecisionForContributor(
+      ownerDecisionId,
+      actor.id,
+    );
     if (!decision?.feedback) {
       throw new NotFoundApplicationError(
         'Owner Decision was not found',
@@ -872,17 +814,10 @@ export class ApplicationsService {
     ];
     if (contributionRequestIds.length === 0)
       return toEmptyOwnerWorkspaceSummaryDto(input.requestScopes);
-    const counts = await this.database.application.groupBy({
-      by: ['contribution_request_id'],
-      where: {
-        contribution_request_id: { in: contributionRequestIds },
-        status: ApplicationStatus.pending_owner_review,
-      },
-      _count: { _all: true },
-    });
-    const countsByRequestId = new Map(
-      counts.map((count) => [count.contribution_request_id, count._count._all]),
-    );
+    const countsByRequestId =
+      await this.applications.countPendingByContributionRequestIds(
+        contributionRequestIds,
+      );
     return {
       projects: input.requestScopes.map((scope) => ({
         projectId: scope.projectId,
@@ -902,15 +837,9 @@ export class ApplicationsService {
     causationAuditId: string;
     transaction: Prisma.TransactionClient;
   }): Promise<{ cancelledApplicationIds: string[] }> {
-    const pending = await input.transaction.$queryRaw<Array<{ id: string }>>(
-      Prisma.sql`
-        SELECT "id"
-        FROM "Application"
-        WHERE "contribution_request_id" = ${input.contributionRequestId}::uuid
-          AND "status" = ${ApplicationStatus.pending_owner_review}::"ApplicationStatus"
-        ORDER BY "id"
-        FOR UPDATE
-      `,
+    const pending = await this.applications.lockPendingApplicationIdsForUpdate(
+      input.contributionRequestId,
+      input.transaction,
     );
     const cancelledApplicationIds = pending.map(
       (application) => application.id,
@@ -919,168 +848,28 @@ export class ApplicationsService {
       return { cancelledApplicationIds };
     }
 
-    const updated = await input.transaction.application.updateMany({
-      where: {
-        id: { in: cancelledApplicationIds },
-        status: ApplicationStatus.pending_owner_review,
-      },
-      data: { status: ApplicationStatus.request_cancelled },
-    });
+    const updated = await this.applications.markCancelledForRequest(
+      { applicationIds: cancelledApplicationIds },
+      input.transaction,
+    );
     if (updated.count !== cancelledApplicationIds.length) {
       throw new ConflictApplicationError(
         'An Application changed during Contribution Request cancellation',
         'APPLICATION_CONCURRENT_MODIFICATION',
       );
     }
-    await input.transaction.applicationAudit.createMany({
-      data: cancelledApplicationIds.map((applicationId) => ({
-        application_id: applicationId,
-        actor_id: input.actorId,
-        action: ApplicationAuditAction.request_cancelled,
-        from_status: ApplicationStatus.pending_owner_review,
-        to_status: ApplicationStatus.request_cancelled,
-        metadata: {
-          payloadVersion: 1,
-          contributionRequestId: input.contributionRequestId,
-          reason: input.reason,
-          correlationId: input.correlationId,
-          causation: {
-            type: 'contribution_request_audit',
-            id: input.causationAuditId,
-          },
-        },
-      })),
-    });
+    await this.applications.createCancelledAudits(
+      {
+        applicationIds: cancelledApplicationIds,
+        actorId: input.actorId,
+        contributionRequestId: input.contributionRequestId,
+        reason: input.reason,
+        correlationId: input.correlationId,
+        causationAuditId: input.causationAuditId,
+      },
+      input.transaction,
+    );
     return { cancelledApplicationIds };
-  }
-
-  private async readReplay(input: {
-    actorId: string;
-    action: ApplicationAuditAction;
-    idempotencyKey: string | null;
-    fingerprint: string;
-  }): Promise<ApplicationWithSnapshots | null> {
-    if (!input.idempotencyKey) return null;
-    const audit = await this.database.applicationAudit.findFirst({
-      where: {
-        actor_id: input.actorId,
-        action: input.action,
-        idempotency_key: input.idempotencyKey,
-      },
-      include: { application: { include: APPLICATION_INCLUDE } },
-    });
-    return this.presentReplay(audit, input.fingerprint);
-  }
-
-  private async readOwnerDecisionReplay(input: {
-    ownerId: string;
-    idempotencyKey: string;
-    fingerprint: string;
-  }): Promise<OwnerDecisionWithResult | null> {
-    const decision = await this.database.ownerDecision.findUnique({
-      where: {
-        owner_id_idempotency_key: {
-          owner_id: input.ownerId,
-          idempotency_key: input.idempotencyKey,
-        },
-      },
-      include: OWNER_DECISION_INCLUDE,
-    });
-    return this.presentOwnerDecisionReplay(decision, input.fingerprint);
-  }
-
-  private async readOwnerDecisionReplayFromTransaction(input: {
-    transaction: Prisma.TransactionClient;
-    ownerId: string;
-    idempotencyKey: string;
-    fingerprint: string;
-  }): Promise<OwnerDecisionWithResult | null> {
-    const decision = await input.transaction.ownerDecision.findUnique({
-      where: {
-        owner_id_idempotency_key: {
-          owner_id: input.ownerId,
-          idempotency_key: input.idempotencyKey,
-        },
-      },
-      include: OWNER_DECISION_INCLUDE,
-    });
-    return this.presentOwnerDecisionReplay(decision, input.fingerprint);
-  }
-
-  private presentOwnerDecisionReplay(
-    decision: OwnerDecisionWithResult | null,
-    fingerprint: string,
-  ): OwnerDecisionWithResult | null {
-    if (!decision) return null;
-    if (decision.command_fingerprint !== fingerprint) {
-      throw new ConflictApplicationError(
-        'Idempotency key was already used for another Owner Decision',
-        'APPLICATION_IDEMPOTENCY_CONFLICT',
-      );
-    }
-    return decision;
-  }
-
-  private async resolveOwnerDecisionRaceOrThrow(input: {
-    error: unknown;
-    ownerId: string;
-    idempotencyKey: string;
-    fingerprint: string;
-  }): Promise<OwnerDecisionWithResult> {
-    const mayHaveLostRace =
-      (input.error instanceof Prisma.PrismaClientKnownRequestError &&
-        input.error.code === 'P2002') ||
-      (input.error instanceof ConflictApplicationError &&
-        [
-          'APPLICATION_CONCURRENT_MODIFICATION',
-          'APPLICATION_TERMINAL',
-          'REQUEST_TERMINAL',
-        ].includes(input.error.code));
-    if (mayHaveLostRace) {
-      const replay = await this.readOwnerDecisionReplay(input);
-      if (replay) return replay;
-      if (
-        input.error instanceof Prisma.PrismaClientKnownRequestError &&
-        input.error.code === 'P2002'
-      ) {
-        throw concurrentDecision();
-      }
-    }
-    throw input.error;
-  }
-
-  private async readReplayFromTransaction(input: {
-    transaction: Prisma.TransactionClient;
-    actorId: string;
-    action: ApplicationAuditAction;
-    idempotencyKey: string;
-    fingerprint: string;
-  }): Promise<ApplicationWithSnapshots | null> {
-    const audit = await input.transaction.applicationAudit.findFirst({
-      where: {
-        actor_id: input.actorId,
-        action: input.action,
-        idempotency_key: input.idempotencyKey,
-      },
-      include: { application: { include: APPLICATION_INCLUDE } },
-    });
-    return this.presentReplay(audit, input.fingerprint);
-  }
-
-  private presentReplay(
-    audit: Prisma.ApplicationAuditGetPayload<{
-      include: { application: { include: typeof APPLICATION_INCLUDE } };
-    }> | null,
-    fingerprint: string,
-  ): ApplicationWithSnapshots | null {
-    if (!audit) return null;
-    if (audit.command_fingerprint !== fingerprint) {
-      throw new ConflictApplicationError(
-        'Idempotency key was already used for another Application command',
-        'APPLICATION_IDEMPOTENCY_CONFLICT',
-      );
-    }
-    return audit.application;
   }
 
   private async notify(
@@ -1125,117 +914,6 @@ export class ApplicationsService {
       }
       throw error;
     }
-  }
-
-  private fingerprint(value: unknown): string {
-    return createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  }
-
-  async lockDeliverySubmissionContext(input: {
-    applicationId: string;
-    contributorId: string;
-    transaction: Prisma.TransactionClient;
-  }): Promise<{
-    applicationId: string;
-    contributionRequestId: string;
-    contributorId: string;
-    status: ApplicationStatus;
-  }> {
-    const applications = await input.transaction.$queryRaw<
-      Array<{
-        id: string;
-        contribution_request_id: string;
-        contributor_id: string;
-        status: ApplicationStatus;
-      }>
-    >(Prisma.sql`
-      SELECT "id", "contribution_request_id", "contributor_id", "status"
-      FROM "Application"
-      WHERE "id" = ${input.applicationId}::uuid
-      FOR UPDATE
-    `);
-    const application = applications[0];
-    if (!application || application.contributor_id !== input.contributorId) {
-      throw new ForbiddenApplicationError(
-        'The Application is not available for Delivery submission',
-        'DELIVERY_NOT_AUTHORIZED',
-      );
-    }
-    if (application.status !== ApplicationStatus.accepted) {
-      throw new ConflictApplicationError(
-        'Only an accepted Application can submit a Delivery',
-        'APPLICATION_NOT_ACCEPTED',
-        { status: application.status },
-      );
-    }
-    return {
-      applicationId: application.id,
-      contributionRequestId: application.contribution_request_id,
-      contributorId: application.contributor_id,
-      status: application.status,
-    };
-  }
-
-  async listDeliveryLifecycleContextsForContributor(
-    contributorId: string,
-  ): Promise<DeliveryLifecycleApplicationContextDto[]> {
-    return this.listDeliveryLifecycleContexts({ contributor_id: contributorId });
-  }
-
-  async listDeliveryLifecycleContextsForOwner(
-    contributionRequestIds: string[],
-  ): Promise<DeliveryLifecycleApplicationContextDto[]> {
-    if (contributionRequestIds.length === 0) return [];
-    return this.listDeliveryLifecycleContexts({
-      contribution_request_id: { in: contributionRequestIds },
-    });
-  }
-
-  private async listDeliveryLifecycleContexts(
-    where: Prisma.ApplicationWhereInput,
-  ): Promise<DeliveryLifecycleApplicationContextDto[]> {
-    const applications = await this.database.application.findMany({
-      where,
-      select: {
-        id: true,
-        contribution_request_id: true,
-        contributor_id: true,
-        status: true,
-        contributionRequest: { select: { title: true } },
-        contributor: {
-          select: {
-            id: true,
-            username: true,
-            first_name: true,
-            last_name: true,
-            avatar_url: true,
-          },
-        },
-        assignment: {
-          select: {
-            agreed_delivery_due_at: true,
-            assigned_at: true,
-          },
-        },
-      },
-      orderBy: [{ submitted_at: 'desc' }, { id: 'desc' }],
-    });
-    return applications.map((application) => ({
-      applicationId: application.id,
-      contributionRequestId: application.contribution_request_id,
-      contributionRequestTitle: application.contributionRequest.title,
-      contributorId: application.contributor_id,
-      contributor: {
-        id: application.contributor.id,
-        username: application.contributor.username,
-        displayName:
-          `${application.contributor.first_name} ${application.contributor.last_name}`.trim(),
-        avatarUrl: application.contributor.avatar_url,
-      },
-      applicationStatus: toApplicationStatusDto(application.status),
-      deliveryDueAt: application.assignment?.agreed_delivery_due_at ?? null,
-      assignedAt: application.assignment?.assigned_at ?? null,
-    }));
   }
 }
 

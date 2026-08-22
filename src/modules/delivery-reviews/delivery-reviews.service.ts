@@ -15,7 +15,7 @@ import {
   ForbiddenApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
-import { ApplicationsService } from '../applications/applications.service';
+import { ApplicationDeliveryContextService } from '../applications/services/application-delivery-context.service';
 import { DeliveryLifecycleApplicationContextDto } from '../applications/dto/delivery-lifecycle-context.dto';
 import { BadgesService } from '../badges/badges.service';
 import { ContributionTasksService } from '../contribution-tasks/services/contribution-tasks.service';
@@ -84,7 +84,7 @@ export interface ReviewDeliveryInput {
 export class DeliveryReviewsService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly applications: ApplicationsService,
+    private readonly applicationDeliveryContext: ApplicationDeliveryContextService,
     private readonly contributionTasks: ContributionTasksService,
     private readonly notifications: NotificationsService,
     private readonly approvedEvents: DeliveryApprovedEventsService,
@@ -106,7 +106,7 @@ export class DeliveryReviewsService {
     try {
       result = await this.database.$transaction(async (transaction) => {
         const application =
-          await this.applications.lockDeliverySubmissionContext({
+          await this.applicationDeliveryContext.lockDeliverySubmissionContext({
             applicationId: input.applicationId,
             contributorId: input.actor.id,
             transaction,
@@ -280,7 +280,7 @@ export class DeliveryReviewsService {
   ): Promise<DeliveryLifecycleDto> {
     this.assertActiveContributor(actor);
     const contexts =
-      await this.applications.listDeliveryLifecycleContextsForContributor(
+      await this.applicationDeliveryContext.listDeliveryLifecycleContextsForContributor(
         actor.id,
       );
     return this.composeLifecycle(contexts);
@@ -293,7 +293,7 @@ export class DeliveryReviewsService {
     const scopes =
       await this.contributionTasks.listDeliveryLifecycleScopesForOwner(actor.id);
     const contexts =
-      await this.applications.listDeliveryLifecycleContextsForOwner(
+      await this.applicationDeliveryContext.listDeliveryLifecycleContextsForOwner(
         scopes.map((scope) => scope.contributionRequestId),
       );
     return this.composeLifecycle(contexts);
@@ -394,7 +394,7 @@ export class DeliveryReviewsService {
           return { delivery: current, notification: null };
         }
 
-        await this.applications.lockDeliverySubmissionContext({
+        await this.applicationDeliveryContext.lockDeliverySubmissionContext({
           applicationId: current.application_id,
           contributorId: input.actor.id,
           transaction,

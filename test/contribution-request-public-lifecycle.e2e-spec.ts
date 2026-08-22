@@ -14,6 +14,7 @@ import { ContributionTasksService } from '../src/modules/contribution-tasks/serv
 import { PublicContributionRequestsService } from '../src/modules/contribution-tasks/services/public-contribution-requests.service';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
 import { ApplicationDailyQuotaService } from '../src/modules/applications/services/application-daily-quota.service';
+import { ApplicationReplayService } from '../src/modules/applications/services/application-replay.service';
 import { EntitlementsService } from '../src/modules/subscriptions/entitlements.service';
 import { ApplicationsController } from '../src/modules/applications/applications.controller';
 import { AdvisoryFitAssessmentService } from '../src/modules/applications/services/advisory-fit-assessment.service';
@@ -52,6 +53,7 @@ describe('Contribution Request public lifecycle HTTP integration', () => {
         { provide: DatabaseService, useValue: database },
         EntitlementsService,
         ApplicationDailyQuotaService,
+        ApplicationReplayService,
         { provide: ProjectsService, useValue: projectsService },
       ],
     }).compile();
@@ -294,6 +296,7 @@ describe('Contribution Request owner publication HTTP integration', () => {
         { provide: DatabaseService, useValue: database },
         EntitlementsService,
         ApplicationDailyQuotaService,
+        ApplicationReplayService,
         { provide: ProjectsService, useValue: projectsService },
         { provide: SkillProfileSummaryService, useValue: {} },
         { provide: IdentityUsernameService, useValue: {} },
