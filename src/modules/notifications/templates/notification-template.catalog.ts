@@ -18,6 +18,8 @@ import {
   ConversationActivityNotificationParameters,
   DeliveryNotificationParameters,
   BadgeNotificationParameters,
+  ChatAttachmentBlockedNotificationParameters,
+  AssignmentCallMissedNotificationParameters,
 } from './notification-template.types';
 
 export const NOTIFICATION_TEMPLATE_KEYS = [
@@ -43,6 +45,8 @@ export const NOTIFICATION_TEMPLATE_KEYS = [
   'skill_profile_generation.needs_more_evidence',
   'skill_profile_generation.failed',
   'conversation.activity',
+  'chat_attachment.blocked',
+  'assignment_call.missed',
   'system.legacy',
   'achievement.first_contribution',
 ] as const satisfies readonly NotificationTemplateKey[];
@@ -150,6 +154,14 @@ const POLICY: Readonly<Record<NotificationTemplateKey, NotificationTemplatePolic
   'conversation.activity': {
     category: NotificationType.conversation_activity,
     priority: 'attention',
+  },
+  'chat_attachment.blocked': {
+    category: NotificationType.moderation,
+    priority: 'attention',
+  },
+  'assignment_call.missed': {
+    category: NotificationType.assignment_call,
+    priority: 'urgent',
   },
   'system.legacy': {
     category: NotificationType.system,
@@ -353,6 +365,22 @@ const CONVERSATION_PARAMETER_CONTRACT: NotificationParameterContract = {
     validateConversationParameters(parameters) as NotificationTemplateParameters,
 };
 
+const CHAT_ATTACHMENT_BLOCKED_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['conversationId', 'filename'],
+  validate: (parameters) =>
+    validateChatAttachmentBlockedParameters(
+      parameters,
+    ) as NotificationTemplateParameters,
+};
+
+const ASSIGNMENT_CALL_MISSED_PARAMETER_CONTRACT: NotificationParameterContract = {
+  required: ['conversationId', 'callId', 'callerName'],
+  validate: (parameters) =>
+    validateAssignmentCallMissedParameters(
+      parameters,
+    ) as NotificationTemplateParameters,
+};
+
 const LEGACY_PARAMETER_CONTRACT: NotificationParameterContract = {
   required: ['legacyTitle', 'legacyBody'],
   validate: (parameters) =>
@@ -486,6 +514,27 @@ function validateConversationParameters(
   };
 }
 
+function validateChatAttachmentBlockedParameters(
+  parameters: unknown,
+): ChatAttachmentBlockedNotificationParameters {
+  const record = requireRecord(parameters);
+  return {
+    conversationId: requiredString(record, 'conversationId'),
+    filename: requiredString(record, 'filename'),
+  };
+}
+
+function validateAssignmentCallMissedParameters(
+  parameters: unknown,
+): AssignmentCallMissedNotificationParameters {
+  const record = requireRecord(parameters);
+  return {
+    conversationId: requiredString(record, 'conversationId'),
+    callId: requiredString(record, 'callId'),
+    callerName: requiredString(record, 'callerName'),
+  };
+}
+
 function validateLegacyParameters(
   parameters: unknown,
 ): LegacyNotificationParameters {
@@ -581,6 +630,20 @@ export function buildConversationActivityNotificationDeepLink(
   parameters: ConversationActivityNotificationParameters,
 ): string {
   const validated = validateConversationParameters(parameters);
+  return `/messages?conversation=${safeIdentifier(validated.conversationId)}`;
+}
+
+export function buildChatAttachmentBlockedNotificationDeepLink(
+  parameters: ChatAttachmentBlockedNotificationParameters,
+): string {
+  const validated = validateChatAttachmentBlockedParameters(parameters);
+  return `/messages?conversation=${safeIdentifier(validated.conversationId)}`;
+}
+
+export function buildAssignmentCallMissedNotificationDeepLink(
+  parameters: AssignmentCallMissedNotificationParameters,
+): string {
+  const validated = validateAssignmentCallMissedParameters(parameters);
   return `/messages?conversation=${safeIdentifier(validated.conversationId)}`;
 }
 
@@ -807,6 +870,60 @@ function renderSkillGeneration(
       };
 }
 
+const CHAT_ATTACHMENT_BLOCKED_TEMPLATE: NotificationTemplateDefinition = {
+  key: 'chat_attachment.blocked',
+  version: 1,
+  ...POLICY['chat_attachment.blocked'],
+  parameterContract: CHAT_ATTACHMENT_BLOCKED_PARAMETER_CONTRACT,
+  render: {
+    en: (parameters) => {
+      const validated = validateChatAttachmentBlockedParameters(parameters);
+      return {
+        title: 'Attachment blocked',
+        body: `Your attachment "${validated.filename}" was blocked because it failed a security scan.`,
+      };
+    },
+    ar: (parameters) => {
+      const validated = validateChatAttachmentBlockedParameters(parameters);
+      return {
+        title: 'تم حظر المرفق',
+        body: `تم حظر مرفقك "${validated.filename}" لأنه لم يجتز فحص الأمان.`,
+      };
+    },
+  },
+  buildDeepLink: (parameters) =>
+    buildChatAttachmentBlockedNotificationDeepLink(
+      validateChatAttachmentBlockedParameters(parameters),
+    ),
+};
+
+const ASSIGNMENT_CALL_MISSED_TEMPLATE: NotificationTemplateDefinition = {
+  key: 'assignment_call.missed',
+  version: 1,
+  ...POLICY['assignment_call.missed'],
+  parameterContract: ASSIGNMENT_CALL_MISSED_PARAMETER_CONTRACT,
+  render: {
+    en: (parameters) => {
+      const validated = validateAssignmentCallMissedParameters(parameters);
+      return {
+        title: 'Missed call',
+        body: `You missed a call from ${validated.callerName}.`,
+      };
+    },
+    ar: (parameters) => {
+      const validated = validateAssignmentCallMissedParameters(parameters);
+      return {
+        title: 'مكالمة فائتة',
+        body: `فاتتك مكالمة من ${validated.callerName}.`,
+      };
+    },
+  },
+  buildDeepLink: (parameters) =>
+    buildAssignmentCallMissedNotificationDeepLink(
+      validateAssignmentCallMissedParameters(parameters),
+    ),
+};
+
 const LEGACY_TEMPLATE: NotificationTemplateDefinition = {
   key: 'system.legacy',
   version: 1,
@@ -932,6 +1049,8 @@ const definitions: NotificationTemplateDefinition[] = [
   skillGenerationTemplate('needs_more_evidence'),
   skillGenerationTemplate('failed'),
   CONVERSATION_TEMPLATE,
+  CHAT_ATTACHMENT_BLOCKED_TEMPLATE,
+  ASSIGNMENT_CALL_MISSED_TEMPLATE,
   LEGACY_TEMPLATE,
   badgeTemplate(),
 ];
@@ -978,6 +1097,14 @@ export function validateNotificationTemplateParameters<
       return validateSkillGenerationParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'conversation.activity':
       return validateConversationParameters(parameters) as NotificationTemplateParameterMap[K];
+    case 'chat_attachment.blocked':
+      return validateChatAttachmentBlockedParameters(
+        parameters,
+      ) as NotificationTemplateParameterMap[K];
+    case 'assignment_call.missed':
+      return validateAssignmentCallMissedParameters(
+        parameters,
+      ) as NotificationTemplateParameterMap[K];
     case 'achievement.first_contribution':
       return validateBadgeParameters(parameters) as NotificationTemplateParameterMap[K];
     case 'proposal.revision_requested':

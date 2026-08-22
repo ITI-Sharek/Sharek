@@ -35,7 +35,7 @@ export const envValidationSchema = Joi.object({
   REALTIME_NOTIFICATIONS_ENABLED: Joi.boolean()
     .truthy('true')
     .falsy('false')
-    .default(false),
+    .default(true),
   NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED: Joi.boolean()
     .truthy('true')
     .falsy('false')
@@ -155,6 +155,152 @@ export const envValidationSchema = Joi.object({
     .min(30)
     .max(3_600)
     .default(300),
+  // S3 chat attachments (Slice 3). Deliberately a separate blast radius from
+  // Materials: `S3ObjectStorage` is bound only in `ChatAttachmentsModule`.
+  CHAT_ATTACHMENTS_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
+  CHAT_ATTACHMENT_MAX_BYTES: Joi.number()
+    .integer()
+    .min(1_024)
+    .max(104_857_600)
+    .default(26_214_400),
+  CHAT_ATTACHMENT_MAX_PER_MESSAGE: Joi.number().integer().min(1).max(20).default(5),
+  CHAT_ATTACHMENT_ALLOWED_MIME_TYPES: Joi.string().default(
+    'image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ),
+  CHAT_ATTACHMENT_UPLOAD_INTENT_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(60)
+    .max(86_400)
+    .default(1_800),
+  CHAT_ATTACHMENT_UPLOADS_PER_MINUTE: Joi.number()
+    .integer()
+    .min(1)
+    .max(1_000)
+    .default(20),
+  CHAT_ATTACHMENT_SCAN_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  CHAT_ATTACHMENT_SCAN_REAP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .max(86_400_000)
+    .default(60_000),
+  CHAT_ATTACHMENT_SCAN_STALE_AFTER_MS: Joi.number()
+    .integer()
+    .min(60_000)
+    .max(86_400_000)
+    .default(600_000),
+  CHAT_ATTACHMENT_SCAN_MAX_ATTEMPTS: Joi.number().integer().min(1).max(10).default(3),
+  CHAT_ATTACHMENT_SCANNER_STUB_MODE: Joi.string()
+    .valid('content', 'clean', 'infected', 'error')
+    .default('content'),
+  CHAT_ATTACHMENT_EVENT_MAX_PUBLISH_ATTEMPTS: Joi.number()
+    .integer()
+    .min(1)
+    .max(10)
+    .default(5),
+  CHAT_ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(10)
+    .max(600)
+    .default(60),
+  CHAT_ATTACHMENT_RETENTION_MONTHS: Joi.number().integer().min(1).max(120).default(12),
+  CHAT_ATTACHMENT_RETENTION_WARNING_DAYS: Joi.number()
+    .integer()
+    .min(1)
+    .max(365)
+    .default(30),
+  S3_REGION: Joi.string().default('us-east-1'),
+  S3_CHAT_ATTACHMENTS_BUCKET: Joi.string().trim().allow('').default(''),
+  S3_CHAT_ATTACHMENTS_KEY_PREFIX: Joi.string().default('chat-attachments/'),
+  // MinIO for local dev; empty means real AWS, resolved from region alone.
+  S3_ENDPOINT: Joi.string().trim().allow('').default(''),
+  // Browser-facing endpoint used only when signing direct download URLs. It
+  // may differ from S3_ENDPOINT when the API runs inside Docker.
+  S3_PUBLIC_ENDPOINT: Joi.string().trim().allow('').default(''),
+  S3_FORCE_PATH_STYLE: Joi.boolean().truthy('true').falsy('false').default(false),
+  // Empty in production is CORRECT: the SDK default provider chain
+  // (env -> SSO -> IMDS/IRSA) applies instead of a static secret.
+  S3_ACCESS_KEY_ID: Joi.string().trim().allow('').default(''),
+  S3_SECRET_ACCESS_KEY: Joi.string().trim().allow('').default(''),
+  // MinIO without a configured KMS rejects even the AWS-compatible AES256
+  // request header. An explicit empty value disables the client-side header
+  // for local S3-compatible storage; absent values still default to AES256.
+  S3_SERVER_SIDE_ENCRYPTION: Joi.string()
+    .trim()
+    .valid('AES256', 'aws:kms')
+    .allow('')
+    .default('AES256'),
+  S3_KMS_KEY_ID: Joi.string().trim().allow('').default(''),
+  S3_REQUEST_TIMEOUT_MS: Joi.number().integer().min(100).max(60_000).default(15_000),
+  // P2P WebRTC Assignment Calls (Slice 4, ADR 0016).
+  ASSIGNMENT_CALLS_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(false),
+  ASSIGNMENT_CALL_RING_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(5_000)
+    .max(120_000)
+    .default(30_000),
+  ASSIGNMENT_CALL_RECONNECT_GRACE_MS: Joi.number()
+    .integer()
+    .min(5_000)
+    .max(120_000)
+    .default(30_000),
+  ASSIGNMENT_CALL_MAX_DURATION_MS: Joi.number()
+    .integer()
+    .min(60_000)
+    .max(14_400_000)
+    .default(3_600_000),
+  // Comma-separated offsets, in ms from `answered_at`, at which a transient
+  // warning fires. Validated as a list rather than two named fields so the
+  // count can change without a schema edit.
+  ASSIGNMENT_CALL_WARNING_MS: Joi.string().default('3000000,3480000'),
+  ASSIGNMENT_CALL_QUEUE_ENABLED: Joi.boolean()
+    .truthy('true')
+    .falsy('false')
+    .default(true),
+  ASSIGNMENT_CALL_SWEEP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(10_000)
+    .max(86_400_000)
+    .default(60_000),
+  ASSIGNMENT_CALL_EVENT_MAX_PUBLISH_ATTEMPTS: Joi.number()
+    .integer()
+    .min(1)
+    .max(10)
+    .default(5),
+  ASSIGNMENT_CALL_SIGNAL_MAX_SDP_BYTES: Joi.number()
+    .integer()
+    .min(1_024)
+    .max(1_048_576)
+    .default(65_536),
+  ASSIGNMENT_CALL_SIGNALS_PER_10S: Joi.number()
+    .integer()
+    .min(1)
+    .max(1_000)
+    .default(60),
+  // coturn's REST/`use-auth-secret` scheme (RFC 7635) signs ephemeral TURN
+  // credentials with this; it never reaches the browser. Required only when
+  // calling is enabled, mirroring the Paymob conditional-requirement pattern.
+  TURN_STATIC_AUTH_SECRET: Joi.string().min(32).allow('').default(''),
+  TURN_REALM: Joi.string().default('sharek.local'),
+  TURN_URLS: Joi.string().default(
+    'turn:coturn:3478?transport=udp,turn:coturn:3478?transport=tcp',
+  ),
+  TURN_CREDENTIAL_TTL_SECONDS: Joi.number().integer().min(60).max(3_600).default(300),
+  TURN_MONTHLY_BUDGET_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .default(53_687_091_200),
+  STUN_URLS: Joi.string().default(
+    'stun:stun.l.google.com:19302,stun:stun.cloudflare.com:3478',
+  ),
   CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://localhost:3001'),
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
   JWT_ACCESS_SECRET: Joi.string().min(16).required(),
@@ -346,6 +492,20 @@ export const envValidationSchema = Joi.object({
           'PAYMOB_INTEGRATION_IDS must be a non-empty comma-separated list of positive safe integers when Paymob is enabled',
       });
     }
+  }
+
+  if (value.CHAT_ATTACHMENTS_ENABLED && !value.S3_CHAT_ATTACHMENTS_BUCKET) {
+    return helpers.error('any.invalid', {
+      message:
+        'S3_CHAT_ATTACHMENTS_BUCKET is required when CHAT_ATTACHMENTS_ENABLED is true',
+    });
+  }
+
+  if (value.ASSIGNMENT_CALLS_ENABLED && value.TURN_STATIC_AUTH_SECRET.length < 32) {
+    return helpers.error('any.invalid', {
+      message:
+        'TURN_STATIC_AUTH_SECRET (min 32 chars) is required when ASSIGNMENT_CALLS_ENABLED is true',
+    });
   }
 
   if (

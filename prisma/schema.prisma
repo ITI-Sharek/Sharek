@@ -484,29 +484,64 @@ enum AssignmentConversationStatus {
   read_only
 }
 
+enum ChatAttachmentScanStatus {
+  quarantined
+  scanning
+  ready
+  rejected
+}
+
+enum ChatAttachmentEventType {
+  scan_state_changed
+}
+
+/// Matches the realtime contract's Assignment Call outcomes exactly.
+enum AssignmentCallOutcome {
+  ringing
+  answered
+  missed
+  declined
+  failed_busy
+  failed_provider
+  ended
+}
+
+enum AssignmentCallParticipantRole {
+  caller
+  callee
+}
+
+enum AssignmentCallEventType {
+  ringing
+  answered
+  declined
+  ended
+  availability_changed
+}
+
 model User {
-  id                           String       @id @default(uuid()) @db.Uuid
-  email                        String       @unique @db.VarChar(255)
-  username                     String?      @unique @db.VarChar(30)
-  password_hash                String?      @db.VarChar(255)
-  first_name                   String       @db.VarChar(100)
-  last_name                    String       @db.VarChar(100)
-  avatar_url                   String?      @db.VarChar(500)
-  role                         UserRole
-  status                       UserStatus   @default(pending)
-  preferred_language           LanguageCode @default(en)
-  phone_number                 String?      @db.VarChar(30)
-  phone_verified_at            DateTime?
-  country                      String?      @db.VarChar(100)
-  region                       String?      @db.VarChar(100)
-  city                         String?      @db.VarChar(100)
-  gender                       String?      @db.VarChar(20)
-  date_of_birth                DateTime?    @db.Date
-  profile_visibility           String       @default("public") @db.VarChar(20)
-  show_email                   Boolean      @default(false)
-  show_phone                   Boolean      @default(false)
-  show_activity                Boolean      @default(true)
-  allow_indexing               Boolean      @default(true)
+  id                                    String       @id @default(uuid()) @db.Uuid
+  email                                 String       @unique @db.VarChar(255)
+  username                              String?      @unique @db.VarChar(30)
+  password_hash                         String?      @db.VarChar(255)
+  first_name                            String       @db.VarChar(100)
+  last_name                             String       @db.VarChar(100)
+  avatar_url                            String?      @db.VarChar(500)
+  role                                  UserRole
+  status                                UserStatus   @default(pending)
+  preferred_language                    LanguageCode @default(en)
+  phone_number                          String?      @db.VarChar(30)
+  phone_verified_at                     DateTime?
+  country                               String?      @db.VarChar(100)
+  region                                String?      @db.VarChar(100)
+  city                                  String?      @db.VarChar(100)
+  gender                                String?      @db.VarChar(20)
+  date_of_birth                         DateTime?    @db.Date
+  profile_visibility                    String       @default("public") @db.VarChar(20)
+  show_email                            Boolean      @default(false)
+  show_phone                            Boolean      @default(false)
+  show_activity                         Boolean      @default(true)
+  allow_indexing                        Boolean      @default(true)
   identity_verification_status          String       @default("unverified") @db.VarChar(20)
   identity_document_data                Bytes?
   identity_document_mime_type           String?      @db.VarChar(100)
@@ -514,9 +549,9 @@ model User {
   identity_verified_at                  DateTime?
   identity_verification_rejected_reason String?      @db.VarChar(500)
   identity_verified_by                  String?      @db.Uuid
-  created_at                   DateTime     @default(now())
-  updated_at                   DateTime     @default(now()) @updatedAt
-  last_login_at                DateTime?
+  created_at                            DateTime     @default(now())
+  updated_at                            DateTime     @default(now()) @updatedAt
+  last_login_at                         DateTime?
 
   subscriptions                     Subscription[]
   paymentAttempts                   PaymentAttempt[]
@@ -563,6 +598,11 @@ model User {
   ownerDecisions                    OwnerDecision[]                    @relation("OwnerDecisionOwner")
   assignments                       Assignment[]                       @relation("AssignmentContributor")
   conversationMessages              Message[]                          @relation("MessageSender")
+  chatAttachmentUploads             ChatAttachment[]                   @relation("ChatAttachmentUploader")
+  assignmentCallsAsCaller           AssignmentCall[]                   @relation("AssignmentCallCaller")
+  assignmentCallsAsCallee           AssignmentCall[]                   @relation("AssignmentCallCallee")
+  assignmentCallsEnded              AssignmentCall[]                   @relation("AssignmentCallEndedBy")
+  assignmentCallParticipations      AssignmentCallParticipation[]      @relation("AssignmentCallParticipationUser")
   contributionProposals             ContributionProposal[]             @relation("ContributionProposalProposer")
   contributionProposalVersions      ContributionProposalVersion[]      @relation("ContributionProposalVersionAuthor")
   contributionProposalAudits        ContributionProposalAudit[]        @relation("ContributionProposalAuditActor")
@@ -1377,12 +1417,18 @@ model AssignmentConversation {
   assignment_id     String                       @unique @db.Uuid
   status            AssignmentConversationStatus @default(active)
   aggregate_version Int                          @default(1)
+  /// Anchors the 12-month retention clock (COMMUNICATION.md). Distinct from
+  /// `updated_at`, which `sendMessage` moves on every message and so cannot
+  /// mark when the conversation actually became read-only.
+  read_only_at      DateTime?
   created_at        DateTime                     @default(now())
   updated_at        DateTime                     @default(now()) @updatedAt
 
-  assignment Assignment     @relation(fields: [assignment_id], references: [id], onDelete: Restrict)
-  messages   Message[]
-  events     MessageEvent[]
+  assignment  Assignment       @relation(fields: [assignment_id], references: [id], onDelete: Restrict)
+  messages    Message[]
+  events      MessageEvent[]
+  attachments ChatAttachment[]
+  calls       AssignmentCall[]
 
   @@index([status, updated_at])
 }
@@ -1404,10 +1450,170 @@ model Message {
   replyTo      Message?               @relation("MessageReply", fields: [reply_to_message_id], references: [id], onDelete: SetNull)
   replies      Message[]              @relation("MessageReply")
   events       MessageEvent[]
+  attachments  ChatAttachment[]
 
   @@unique([conversation_id, sequence])
   @@unique([conversation_id, sender_id, idempotency_key])
   @@index([conversation_id, sequence, id])
+}
+
+/// Upload intents are a state on this model, not a separate one: the bytes are
+/// already in S3 and the scan already running at intent time, so a second
+/// model would only force copying storage_key/content_hash/scan_status at bind
+/// time. `message_id` stays null until `sendMessage` claims the row.
+model ChatAttachment {
+  id                String                   @id @default(uuid()) @db.Uuid
+  conversation_id   String                   @db.Uuid
+  uploaded_by       String                   @db.Uuid
+  message_id        String?                  @db.Uuid
+  storage_key       String                   @db.VarChar(512)
+  content_hash      String                   @db.Char(64)
+  byte_size         Int
+  /// Sniffed, never the declared value.
+  mime_type         String                   @db.VarChar(150)
+  original_filename String                   @db.VarChar(255)
+  caption           String?                  @db.VarChar(500)
+  scan_status       ChatAttachmentScanStatus @default(quarantined)
+  scan_error_code   String?                  @db.VarChar(100)
+  scan_attempts     Int                      @default(0)
+  scanned_at        DateTime?
+  /// Per-attachment monotonic event counter. The client's cache-patch guard
+  /// compares an incoming event's aggregateVersion against this, never against
+  /// a conversation-level sequence.
+  event_version     Int                      @default(0)
+  expires_at        DateTime
+  bound_at          DateTime?
+  purged_at         DateTime?
+  idempotency_key   String                   @db.VarChar(128)
+  created_at        DateTime                 @default(now())
+  updated_at        DateTime                 @default(now()) @updatedAt
+
+  conversation AssignmentConversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  message      Message?               @relation(fields: [message_id], references: [id], onDelete: Restrict)
+  uploader     User                   @relation("ChatAttachmentUploader", fields: [uploaded_by], references: [id], onDelete: Restrict)
+  events       ChatAttachmentEvent[]
+
+  @@unique([conversation_id, uploaded_by, idempotency_key])
+  @@index([message_id, created_at])
+  @@index([scan_status, updated_at])
+  @@index([message_id, expires_at, purged_at])
+  @@index([conversation_id, purged_at])
+}
+
+/// Outbox, mirrors MessageEvent. `conversation_id` is denormalized from the
+/// attachment on purpose, matching MessageEvent's own duplication of
+/// conversation_id alongside message_id.
+model ChatAttachmentEvent {
+  id                      String                   @id @default(uuid()) @db.Uuid
+  attachment_id           String                   @db.Uuid
+  conversation_id         String                   @db.Uuid
+  event_type              ChatAttachmentEventType
+  scan_status             ChatAttachmentScanStatus
+  aggregate_version       Int
+  occurred_at             DateTime                 @default(now())
+  published_at            DateTime?
+  publish_attempts        Int                      @default(0)
+  last_publish_error_code String?                  @db.VarChar(100)
+
+  attachment ChatAttachment @relation(fields: [attachment_id], references: [id], onDelete: Cascade)
+
+  @@unique([attachment_id, aggregate_version])
+  @@index([published_at, occurred_at])
+}
+
+/// One-to-one P2P WebRTC call scoped to an Assignment Conversation (ADR 0016).
+/// `idempotency_key` is scoped to the caller and covers only the `start`
+/// command -- `AssignmentCallEvent`'s own unique constraint covers every
+/// later command (answer/decline/end/reconnect), because those already have
+/// a `call_id` to key against and `start` does not yet.
+model AssignmentCall {
+  id                String                @id @default(uuid()) @db.Uuid
+  conversation_id   String                @db.Uuid
+  caller_id         String                @db.Uuid
+  callee_id         String                @db.Uuid
+  outcome           AssignmentCallOutcome @default(ringing)
+  started_at        DateTime              @default(now())
+  answered_at       DateTime?
+  ended_at          DateTime?
+  duration_seconds  Int?
+  ended_by          String?               @db.Uuid
+  end_reason        String?               @db.VarChar(100)
+  idempotency_key   String                @db.VarChar(128)
+  aggregate_version Int                   @default(1)
+  created_at        DateTime              @default(now())
+  updated_at        DateTime              @default(now()) @updatedAt
+
+  conversation   AssignmentConversation        @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  caller         User                          @relation("AssignmentCallCaller", fields: [caller_id], references: [id], onDelete: Restrict)
+  callee         User                          @relation("AssignmentCallCallee", fields: [callee_id], references: [id], onDelete: Restrict)
+  endedByUser    User?                         @relation("AssignmentCallEndedBy", fields: [ended_by], references: [id], onDelete: Restrict)
+  participations AssignmentCallParticipation[]
+  events         AssignmentCallEvent[]
+
+  @@unique([caller_id, idempotency_key])
+  @@index([conversation_id, started_at])
+  @@index([outcome, started_at])
+}
+
+/// One row per call participant. The platform-wide "only one active call"
+/// invariant (COMMUNICATION.md rule 8) is enforced by a raw partial unique
+/// index added in this model's migration -- Prisma cannot express a `WHERE`
+/// clause on an index, so it is not declared here; see
+/// `assignment_call_participation_one_active_per_user` in the migration SQL.
+model AssignmentCallParticipation {
+  id              String                        @id @default(uuid()) @db.Uuid
+  call_id         String                        @db.Uuid
+  user_id         String                        @db.Uuid
+  role            AssignmentCallParticipantRole
+  active          Boolean                       @default(true)
+  joined_at       DateTime?
+  left_at         DateTime?
+  disconnected_at DateTime?
+  created_at      DateTime                      @default(now())
+  updated_at      DateTime                      @default(now()) @updatedAt
+
+  call AssignmentCall @relation(fields: [call_id], references: [id], onDelete: Restrict)
+  user User           @relation("AssignmentCallParticipationUser", fields: [user_id], references: [id], onDelete: Restrict)
+
+  @@unique([call_id, user_id])
+  @@index([user_id, active])
+}
+
+/// Outbox, mirrors MessageEvent/ChatAttachmentEvent. `command_idempotency_key`
+/// is null for system-triggered transitions (ring timeout, max-duration cap,
+/// reconnect-grace expiry) -- Postgres treats multiple NULLs in a unique
+/// index as distinct, so only client-command-driven events get exactly-once
+/// replay protection, which is the only case that needs it.
+model AssignmentCallEvent {
+  id                      String                  @id @default(uuid()) @db.Uuid
+  call_id                 String                  @db.Uuid
+  event_type              AssignmentCallEventType
+  aggregate_version       Int
+  command_idempotency_key String?                 @db.VarChar(128)
+  occurred_at             DateTime                @default(now())
+  published_at            DateTime?
+  publish_attempts        Int                     @default(0)
+  last_publish_error_code String?                 @db.VarChar(100)
+
+  call AssignmentCall @relation(fields: [call_id], references: [id], onDelete: Cascade)
+
+  // The default `{model}_{fields}_key` convention name for this constraint is
+  // 66 characters, past Postgres's 63-character identifier limit, so it needs
+  // an explicit short name rather than a silently truncated one.
+  @@unique([call_id, event_type, command_idempotency_key], map: "assignment_call_event_idempotency_key")
+  @@index([published_at, occurred_at])
+}
+
+/// Daily-polled TURN relay bandwidth usage snapshot backing
+/// `GET /admin/communication-capacity` and the 80%/100% budget gates.
+model CommunicationCapacityUsage {
+  id                String   @id @default(uuid()) @db.Uuid
+  measured_at       DateTime @default(now())
+  turn_bytes_used   BigInt
+  turn_bytes_budget BigInt
+  created_at        DateTime @default(now())
+
+  @@index([measured_at])
 }
 
 model MessageEvent {

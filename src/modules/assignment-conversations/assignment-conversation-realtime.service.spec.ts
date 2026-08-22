@@ -26,6 +26,7 @@ describe('AssignmentConversationRealtimeService', () => {
       created_at: occurredAt,
       edited_at: null,
       retracted_at: null,
+      attachments: [],
     },
     conversation: {
       assignment: {

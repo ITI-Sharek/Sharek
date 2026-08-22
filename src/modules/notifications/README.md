@@ -39,7 +39,8 @@ metadata remain private.
   `REALTIME_UNAUTHORIZED`
 
 `REALTIME_NOTIFICATIONS_ENABLED` controls the shared transport and defaults to
-`false` for safe rollout. When enabled, bootstrap attempts Redis
+`true` now that the client cutover is complete. Set it to `false` for an
+intentional HTTP-only rollout. When enabled, bootstrap attempts Redis
 publisher/subscriber fan-out; a Redis outage leaves HTTP and local Socket.IO
 delivery available while durable Notification rows/events remain authoritative.
 The legacy `/notifications` namespace has been retired after the client cutover;

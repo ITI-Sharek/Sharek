@@ -1,10 +1,13 @@
+import { Optional } from '@nestjs/common';
 import {
   OnGatewayConnection,
+  OnGatewayDisconnect,
   OnGatewayInit,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuthSession, User } from '@prisma/client';
 import { Server, Socket } from 'socket.io';
 
@@ -12,13 +15,18 @@ import { AuthenticatedUser } from '../auth/authenticated-request';
 import { hashToken } from '../auth/token-hash';
 import { DatabaseService } from '../database/database.service';
 import {
+  REALTIME_SOCKET_DISCONNECTED_EVENT,
+  RealtimeSocketDisconnectedEvent,
+} from '../events/realtime-socket-disconnected.event';
+import {
   isRealtimeNotificationsEnabled,
+  parseRealtimeCorsOrigins,
   REALTIME_NAMESPACE,
   realtimeUserRoom,
 } from './realtime.config';
 import { RealtimeBroadcastServer, RealtimePublisherService } from './realtime-publisher.service';
 
-type AuthenticatedRealtimeSocket = Socket & {
+export type AuthenticatedRealtimeSocket = Socket & {
   data: Socket['data'] & {
     user?: AuthenticatedUser;
     authSessionId?: string;
@@ -27,24 +35,19 @@ type AuthenticatedRealtimeSocket = Socket & {
 
 type SessionWithUser = AuthSession & { user: User };
 
-function parseCorsOrigins(value: string): string[] {
-  return value
-    .split(',')
-    .map((origin) => origin.trim().replace(/^['"]|['"]$/g, ''))
-    .filter(Boolean);
-}
-
 @WebSocketGateway({
   namespace: REALTIME_NAMESPACE,
   transports: ['websocket'],
   cors: {
-    origin: parseCorsOrigins(
+    origin: parseRealtimeCorsOrigins(
       process.env.CORS_ORIGINS ?? 'http://localhost:3000,http://localhost:3001',
     ),
     credentials: true,
   },
 })
-export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
+export class RealtimeGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   @WebSocketServer()
   private server?: Server;
 
@@ -52,6 +55,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
     private readonly database: DatabaseService,
     private readonly config: ConfigService,
     private readonly publisher: RealtimePublisherService,
+    @Optional() private readonly events?: EventEmitter2,
   ) {}
 
   afterInit(server: Server): void {
@@ -85,6 +89,24 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
     };
     client.data.authSessionId = session.id;
     await client.join(realtimeUserRoom(session.user.id));
+  }
+
+  /**
+   * Transport-level only: this gateway does not know or care why a socket
+   * disconnected, and it does not decide what happens next. It reports the
+   * fact once, to whichever internal listener (currently `assignment-calls`,
+   * arming its reconnect-grace timer) cares -- keeping this module
+   * transport-only per its own stated scope.
+   */
+  handleDisconnect(client: AuthenticatedRealtimeSocket): void {
+    const userId = client.data.user?.id;
+    if (!userId) return;
+
+    const payload: RealtimeSocketDisconnectedEvent = {
+      userId,
+      socketId: client.id,
+    };
+    this.events?.emit(REALTIME_SOCKET_DISCONNECTED_EVENT, payload);
   }
 
   private async findUsableSession(

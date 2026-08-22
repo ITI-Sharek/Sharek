@@ -64,6 +64,7 @@ export class AssignmentConversationsController {
       body: body.body,
       idempotencyKey: body.idempotencyKey,
       replyToMessageId: body.replyToMessageId,
+      attachmentUploadIds: body.attachmentUploadIds,
     });
   }
 }

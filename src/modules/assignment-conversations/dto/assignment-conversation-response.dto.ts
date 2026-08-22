@@ -1,5 +1,7 @@
 import { AssignmentConversationStatus } from '@prisma/client';
 
+import { ChatAttachmentSummaryDto } from '../../chat-attachments/dto/chat-attachment-response.dto';
+
 export interface AssignmentConversationResponseDto {
   conversationId: string;
   assignmentId: string;
@@ -23,6 +25,7 @@ export interface MessageResponseDto {
   createdAt: Date;
   editedAt: Date | null;
   retractedAt: Date | null;
+  attachments: ChatAttachmentSummaryDto[];
 }
 
 export interface AssignmentConversationListResponseDto {

@@ -246,4 +246,49 @@ describe('RealtimeGateway', () => {
     });
     expect(database.authSession.findFirst).not.toHaveBeenCalled();
   });
+
+  describe('handleDisconnect', () => {
+    function createGatewayWithEvents() {
+      const events = { emit: jest.fn() };
+      const database = { authSession: { findFirst: jest.fn() } };
+      const config = new ConfigService({ REALTIME_NOTIFICATIONS_ENABLED: true });
+      const gateway = new RealtimeGateway(
+        database as never,
+        config,
+        new RealtimePublisherService(config),
+        events as never,
+      );
+      return { gateway, events };
+    }
+
+    it('emits the internal disconnected event for an authenticated socket', () => {
+      const { gateway, events } = createGatewayWithEvents();
+      const client = createSocket({});
+      client.data.user = { id: user.id } as never;
+
+      gateway.handleDisconnect(client);
+
+      expect(events.emit).toHaveBeenCalledWith('realtime.socket.disconnected', {
+        userId: user.id,
+        socketId: client.id,
+      });
+    });
+
+    it('emits nothing for a socket that never authenticated', () => {
+      const { gateway, events } = createGatewayWithEvents();
+      const client = createSocket({});
+
+      gateway.handleDisconnect(client);
+
+      expect(events.emit).not.toHaveBeenCalled();
+    });
+
+    it('does not throw when no event emitter was wired', () => {
+      const { gateway } = createGateway();
+      const client = createSocket({});
+      client.data.user = { id: user.id } as never;
+
+      expect(() => gateway.handleDisconnect(client)).not.toThrow();
+    });
+  });
 });

@@ -36,12 +36,15 @@ describe('Notification template catalog', () => {
       messagePreview: 'Hello owner',
       messageCount: 1,
       badgeType: 'first_contribution',
+      filename: 'brief.pdf',
+      callId: 'call-1',
+      callerName: 'Caller Name',
     };
 
     expect(definitions.map((definition) => definition.key)).toEqual(
       NOTIFICATION_TEMPLATE_KEYS,
     );
-    expect(definitions).toHaveLength(24);
+    expect(definitions).toHaveLength(26);
 
     for (const definition of definitions) {
       expect(definition.version).toBe(1);

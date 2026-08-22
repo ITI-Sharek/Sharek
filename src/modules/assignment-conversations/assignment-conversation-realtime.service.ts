@@ -4,6 +4,7 @@ import { MessageEventType } from '@prisma/client';
 import { DatabaseService } from '../../shared/database/database.service';
 import { createRealtimeEventEnvelope } from '../../shared/realtime/realtime-event-envelope';
 import { RealtimePublisherService } from '../../shared/realtime/realtime-publisher.service';
+import { toAttachmentSummaryDto } from '../chat-attachments/chat-attachment-presentation';
 
 @Injectable()
 export class AssignmentConversationRealtimeService {
@@ -21,6 +22,20 @@ export class AssignmentConversationRealtimeService {
         message: {
           include: {
             sender: { select: { first_name: true, last_name: true } },
+            attachments: {
+              where: { purged_at: null },
+              orderBy: { created_at: 'asc' },
+              select: {
+                id: true,
+                original_filename: true,
+                byte_size: true,
+                mime_type: true,
+                caption: true,
+                scan_status: true,
+                scan_error_code: true,
+                event_version: true,
+              },
+            },
           },
         },
         conversation: {
@@ -56,6 +71,7 @@ export class AssignmentConversationRealtimeService {
           createdAt: message.created_at,
           editedAt: message.edited_at,
           retractedAt: message.retracted_at,
+          attachments: message.attachments.map(toAttachmentSummaryDto),
         },
       },
     });

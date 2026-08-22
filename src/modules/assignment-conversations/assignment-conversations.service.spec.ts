@@ -38,7 +38,7 @@ describe('AssignmentConversationsService', () => {
         upsert: jest.fn().mockResolvedValue(conversation),
       },
     };
-    const service = new AssignmentConversationsService({} as never);
+    const service = new AssignmentConversationsService({} as never, {} as never);
 
     await expect(
       service.ensureForAssignment({
@@ -78,7 +78,10 @@ describe('AssignmentConversationsService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
     };
-    const service = new AssignmentConversationsService(database as never);
+    const service = new AssignmentConversationsService(
+      database as never,
+      {} as never,
+    );
 
     await expect(service.getForActor(OWNER_ID, CONVERSATION_ID)).resolves.toMatchObject({
       conversationId: CONVERSATION_ID,
@@ -122,11 +125,15 @@ describe('AssignmentConversationsService', () => {
             edited_at: null,
             retracted_at: null,
             sender: { first_name: 'Con', last_name: 'Tribu' },
+            attachments: [],
           },
         ]),
       },
     };
-    const service = new AssignmentConversationsService(database as never);
+    const service = new AssignmentConversationsService(
+      database as never,
+      {} as never,
+    );
 
     await expect(service.getForActor(OWNER_ID, CONVERSATION_ID)).resolves.toMatchObject({
       ownerName: 'Own Er',
@@ -157,6 +164,7 @@ describe('AssignmentConversationsService', () => {
             edited_at: null,
             retracted_at: null,
             sender: { id: CONTRIBUTOR_ID, first_name: 'Con', last_name: 'Tribu' },
+            attachments: [],
           },
           {
             id: '77777777-7777-4777-8777-777777777777',
@@ -169,11 +177,15 @@ describe('AssignmentConversationsService', () => {
             edited_at: null,
             retracted_at: null,
             sender: { id: OWNER_ID, first_name: 'Own', last_name: 'Er' },
+            attachments: [],
           },
         ]),
       },
     };
-    const service = new AssignmentConversationsService(database as never);
+    const service = new AssignmentConversationsService(
+      database as never,
+      {} as never,
+    );
 
     await expect(
       service.listMessages(CONTRIBUTOR_ID, CONVERSATION_ID, { limit: 1 }),
@@ -193,7 +205,10 @@ describe('AssignmentConversationsService', () => {
       },
       message: { findMany: jest.fn(), create: jest.fn() },
     };
-    const service = new AssignmentConversationsService(database as never);
+    const service = new AssignmentConversationsService(
+      database as never,
+      {} as never,
+    );
 
     await expect(
       service.sendMessage({
@@ -226,6 +241,7 @@ describe('AssignmentConversationsService', () => {
       edited_at: null,
       retracted_at: null,
       sender: { id: CONTRIBUTOR_ID, first_name: 'Con', last_name: 'Tribu' },
+      attachments: [],
     };
     const transaction = {
       assignmentConversation: {
@@ -243,7 +259,10 @@ describe('AssignmentConversationsService', () => {
         callback(transaction),
       ),
     };
-    const service = new AssignmentConversationsService(database as never);
+    const service = new AssignmentConversationsService(
+      database as never,
+      {} as never,
+    );
 
     await expect(
       service.sendMessage({
@@ -268,6 +287,7 @@ describe('AssignmentConversationsService', () => {
       created_at: new Date('2026-08-09T12:03:00.000Z'),
       edited_at: null,
       retracted_at: null,
+      attachments: [],
     };
     const transaction = {
       assignmentConversation: {
@@ -298,6 +318,7 @@ describe('AssignmentConversationsService', () => {
     };
     const service = new AssignmentConversationsService(
       database as never,
+      {} as never,
       realtime as never,
     );
 
@@ -334,6 +355,7 @@ describe('AssignmentConversationsService', () => {
       created_at: new Date('2026-08-09T12:03:00.000Z'),
       edited_at: null,
       retracted_at: null,
+      attachments: [],
     };
     const transaction = {
       assignmentConversation: {
@@ -372,6 +394,7 @@ describe('AssignmentConversationsService', () => {
     };
     const service = new AssignmentConversationsService(
       database as never,
+      {} as never,
       realtime as never,
       notifications as never,
     );
@@ -394,5 +417,408 @@ describe('AssignmentConversationsService', () => {
     expect(notifications.emitNotificationCreated).toHaveBeenCalledWith(
       'notification-1',
     );
+  });
+
+  function attachmentSummaryRow(id: string, overrides: Record<string, unknown> = {}) {
+    return {
+      id,
+      original_filename: 'brief.pdf',
+      byte_size: 1024,
+      mime_type: 'application/pdf',
+      caption: null,
+      scan_status: 'ready',
+      scan_error_code: null,
+      event_version: 0,
+      ...overrides,
+    };
+  }
+
+  it('persists attachment-only messages with an empty body', async () => {
+    const attachmentId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const createdMessage = {
+      id: MESSAGE_ID,
+      conversation_id: CONVERSATION_ID,
+      sequence: 1,
+      sender_id: CONTRIBUTOR_ID,
+      body: '',
+      reply_to_message_id: null,
+      created_at: new Date('2026-08-09T12:03:00.000Z'),
+      edited_at: null,
+      retracted_at: null,
+      attachments: [],
+    };
+    const boundMessage = {
+      ...createdMessage,
+      attachments: [attachmentSummaryRow(attachmentId)],
+    };
+    const transaction = {
+      assignmentConversation: {
+        findFirst: jest.fn().mockResolvedValue(conversationRecord()),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      message: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(createdMessage),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(boundMessage),
+      },
+      messageEvent: {
+        create: jest.fn().mockResolvedValue({ id: MESSAGE_EVENT_ID }),
+      },
+    };
+    const database = {
+      ...transaction,
+      $transaction: jest.fn(async (callback: (value: unknown) => unknown) =>
+        callback(transaction),
+      ),
+    };
+    const config = { get: jest.fn((key: string, fallback: unknown) => fallback) };
+    const chatAttachments = {
+      bindToMessage: jest.fn().mockResolvedValue({ boundCount: 1 }),
+    };
+    const notifications = {
+      createConversationActivityNotification: jest.fn().mockResolvedValue({
+        created: true,
+        notificationId: 'notification-attachment-only-1',
+      }),
+      emitNotificationCreated: jest.fn().mockResolvedValue(true),
+    };
+    const service = new AssignmentConversationsService(
+      database as never,
+      config as never,
+      undefined,
+      notifications as never,
+      chatAttachments as never,
+    );
+
+    const result = await service.sendMessage({
+      actor: contributor,
+      conversationId: CONVERSATION_ID,
+      body: '',
+      idempotencyKey: 'message-attachment-only-1',
+      attachmentUploadIds: [attachmentId],
+    });
+
+    expect(transaction.message.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ body: '' }),
+      }),
+    );
+    expect(notifications.createConversationActivityNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ messagePreview: 'Attachment' }),
+      expect.anything(),
+    );
+    expect(result.attachments).toEqual([
+      expect.objectContaining({ attachmentId }),
+    ]);
+  });
+
+  it('binds attachments inside the same transaction as message creation, before it commits', async () => {
+    let committed = false;
+    const attachmentIds = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'];
+    const createdMessage = {
+      id: MESSAGE_ID,
+      conversation_id: CONVERSATION_ID,
+      sequence: 1,
+      sender_id: CONTRIBUTOR_ID,
+      body: 'See attached',
+      reply_to_message_id: null,
+      created_at: new Date('2026-08-09T12:03:00.000Z'),
+      edited_at: null,
+      retracted_at: null,
+      // Empty at create time -- nothing points at this message yet.
+      attachments: [],
+    };
+    const boundMessage = {
+      ...createdMessage,
+      attachments: attachmentIds.map((id) => attachmentSummaryRow(id)),
+    };
+    const callOrder: string[] = [];
+    const transaction = {
+      assignmentConversation: {
+        findFirst: jest.fn().mockResolvedValue(conversationRecord()),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      message: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(createdMessage),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(boundMessage),
+      },
+      messageEvent: {
+        create: jest.fn().mockImplementation(() => {
+          callOrder.push('messageEvent.create');
+          return Promise.resolve({ id: MESSAGE_EVENT_ID });
+        }),
+      },
+    };
+    const database = {
+      ...transaction,
+      $transaction: jest.fn(async (callback: (value: unknown) => unknown) => {
+        const result = await callback(transaction);
+        committed = true;
+        return result;
+      }),
+    };
+    const chatAttachments = {
+      bindToMessage: jest.fn().mockImplementation(async (input: { transaction: unknown }) => {
+        // Reuses this file's existing transaction-mocking pattern: the bind
+        // must run against the caller's own transaction, and must not have
+        // committed yet -- otherwise a bind failure could not roll the
+        // Message creation back with it.
+        expect(input.transaction).toBe(transaction);
+        expect(committed).toBe(false);
+        callOrder.push('bindToMessage');
+        return { boundCount: attachmentIds.length };
+      }),
+    };
+    const config = { get: jest.fn((key: string, fallback: unknown) => fallback) };
+    const service = new AssignmentConversationsService(
+      database as never,
+      config as never,
+      undefined,
+      undefined,
+      chatAttachments as never,
+    );
+
+    const result = await service.sendMessage({
+      actor: contributor,
+      conversationId: CONVERSATION_ID,
+      body: 'See attached',
+      idempotencyKey: 'message-attach-bind-1',
+      attachmentUploadIds: attachmentIds,
+    });
+
+    expect(chatAttachments.bindToMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: CONVERSATION_ID,
+        actorId: CONTRIBUTOR_ID,
+        attachmentIds,
+        messageId: MESSAGE_ID,
+      }),
+    );
+    // The bind claims before the outbox event is written, matching the
+    // production ordering.
+    expect(callOrder).toEqual(['bindToMessage', 'messageEvent.create']);
+    // Reflects the bound rows fetched after binding, not the empty array
+    // `message.create` returned before anything pointed at it.
+    expect(result.attachments).toHaveLength(2);
+    expect(result.attachments.map((attachment) => attachment.attachmentId)).toEqual(
+      attachmentIds,
+    );
+  });
+
+  it('re-fetches the Message after binding, so the response reflects the bound rows rather than the empty array from create', async () => {
+    const attachmentIds = ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'];
+    const createdMessage = {
+      id: MESSAGE_ID,
+      conversation_id: CONVERSATION_ID,
+      sequence: 1,
+      sender_id: CONTRIBUTOR_ID,
+      body: 'See attached',
+      reply_to_message_id: null,
+      created_at: new Date('2026-08-09T12:03:00.000Z'),
+      edited_at: null,
+      retracted_at: null,
+      attachments: [],
+    };
+    const boundMessage = {
+      ...createdMessage,
+      attachments: [attachmentSummaryRow(attachmentIds[0], { caption: 'For your review' })],
+    };
+    const transaction = {
+      assignmentConversation: {
+        findFirst: jest.fn().mockResolvedValue(conversationRecord()),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      message: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(createdMessage),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(boundMessage),
+      },
+      messageEvent: { create: jest.fn().mockResolvedValue({ id: MESSAGE_EVENT_ID }) },
+    };
+    const database = {
+      ...transaction,
+      $transaction: jest.fn(async (callback: (value: unknown) => unknown) => callback(transaction)),
+    };
+    const chatAttachments = {
+      bindToMessage: jest.fn().mockResolvedValue({ boundCount: attachmentIds.length }),
+    };
+    const config = { get: jest.fn((key: string, fallback: unknown) => fallback) };
+    const service = new AssignmentConversationsService(
+      database as never,
+      config as never,
+      undefined,
+      undefined,
+      chatAttachments as never,
+    );
+
+    const result = await service.sendMessage({
+      actor: contributor,
+      conversationId: CONVERSATION_ID,
+      body: 'See attached',
+      idempotencyKey: 'message-attach-refetch-1',
+      attachmentUploadIds: attachmentIds,
+    });
+
+    expect(transaction.message.findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: MESSAGE_ID } }),
+    );
+    expect(result.attachments).toEqual([
+      expect.objectContaining({ attachmentId: attachmentIds[0], caption: 'For your review' }),
+    ]);
+  });
+
+  it('rejects more attachments than the configured per-message maximum, before starting a transaction', async () => {
+    const config = {
+      get: jest.fn((key: string, fallback: unknown) =>
+        key === 'CHAT_ATTACHMENT_MAX_PER_MESSAGE' ? 5 : fallback,
+      ),
+    };
+    const database = { $transaction: jest.fn() };
+    const service = new AssignmentConversationsService(
+      database as never,
+      config as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.sendMessage({
+        actor: contributor,
+        conversationId: CONVERSATION_ID,
+        body: 'See attached',
+        idempotencyKey: 'message-attach-limit-1',
+        attachmentUploadIds: ['1', '2', '3', '4', '5', '6'],
+      }),
+    ).rejects.toMatchObject({ code: 'CHAT_ATTACHMENT_LIMIT_EXCEEDED' });
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate attachment upload ids in the same message', async () => {
+    const database = { $transaction: jest.fn() };
+    const service = new AssignmentConversationsService(
+      database as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.sendMessage({
+        actor: contributor,
+        conversationId: CONVERSATION_ID,
+        body: 'See attached',
+        idempotencyKey: 'message-attach-dup-1',
+        attachmentUploadIds: ['dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'],
+      }),
+    ).rejects.toMatchObject({ code: 'CHAT_ATTACHMENT_DUPLICATE_UPLOAD_ID' });
+    expect(database.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('reports a foreign, already-bound, or expired attachment id identically as not-found, never confirming which', async () => {
+    const attachmentIds = ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff'];
+    const createdMessage = {
+      id: MESSAGE_ID,
+      conversation_id: CONVERSATION_ID,
+      sequence: 1,
+      sender_id: CONTRIBUTOR_ID,
+      body: 'See attached',
+      reply_to_message_id: null,
+      created_at: new Date('2026-08-09T12:03:00.000Z'),
+      edited_at: null,
+      retracted_at: null,
+      attachments: [],
+    };
+    const transaction = {
+      assignmentConversation: {
+        findFirst: jest.fn().mockResolvedValue(conversationRecord()),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      message: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(createdMessage),
+        findUniqueOrThrow: jest.fn(),
+      },
+      messageEvent: { create: jest.fn() },
+    };
+    const database = {
+      ...transaction,
+      $transaction: jest.fn(async (callback: (value: unknown) => unknown) => callback(transaction)),
+    };
+    // Only one of the two ids actually claimed -- indistinguishable, from the
+    // caller's point of view, from a foreign id, another conversation's id,
+    // an already-bound id, or an expired one.
+    const chatAttachments = { bindToMessage: jest.fn().mockResolvedValue({ boundCount: 1 }) };
+    const config = { get: jest.fn((key: string, fallback: unknown) => fallback) };
+    const service = new AssignmentConversationsService(
+      database as never,
+      config as never,
+      undefined,
+      undefined,
+      chatAttachments as never,
+    );
+
+    await expect(
+      service.sendMessage({
+        actor: contributor,
+        conversationId: CONVERSATION_ID,
+        body: 'See attached',
+        idempotencyKey: 'message-attach-missing-1',
+        attachmentUploadIds: attachmentIds,
+      }),
+    ).rejects.toMatchObject({ code: 'CHAT_ATTACHMENT_UPLOAD_NOT_FOUND', statusCode: 404 });
+    expect(transaction.message.findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(transaction.messageEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an idempotency replay whose bound attachment set does not match, even with an identical body', async () => {
+    const existingMessage = {
+      id: MESSAGE_ID,
+      conversation_id: CONVERSATION_ID,
+      sequence: 1,
+      sender_id: CONTRIBUTOR_ID,
+      body: 'See attached',
+      reply_to_message_id: null,
+      created_at: new Date('2026-08-09T12:03:00.000Z'),
+      edited_at: null,
+      retracted_at: null,
+      attachments: [attachmentSummaryRow('11111111-2222-4333-8444-555555555555')],
+    };
+    const transaction = {
+      assignmentConversation: {
+        findFirst: jest.fn().mockResolvedValue(conversationRecord()),
+        update: jest.fn(),
+      },
+      message: {
+        findUnique: jest.fn().mockResolvedValue(existingMessage),
+        create: jest.fn(),
+      },
+    };
+    const database = {
+      ...transaction,
+      $transaction: jest.fn(async (callback: (value: unknown) => unknown) => callback(transaction)),
+    };
+    const config = { get: jest.fn((key: string, fallback: unknown) => fallback) };
+    const service = new AssignmentConversationsService(
+      database as never,
+      config as never,
+      undefined,
+      undefined,
+      undefined,
+    );
+
+    await expect(
+      service.sendMessage({
+        actor: contributor,
+        conversationId: CONVERSATION_ID,
+        body: 'See attached',
+        idempotencyKey: 'message-attach-replay-1',
+        // Different from the bound set on the existing message.
+        attachmentUploadIds: ['66666666-7777-4888-8999-aaaaaaaaaaaa'],
+      }),
+    ).rejects.toMatchObject({ code: 'MESSAGE_IDEMPOTENCY_CONFLICT' });
+    expect(transaction.message.create).not.toHaveBeenCalled();
   });
 });
