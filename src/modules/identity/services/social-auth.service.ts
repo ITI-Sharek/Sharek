@@ -24,7 +24,7 @@ import {
   SocialAuthRole,
   SocialAuthStartDto,
 } from '../dto/social-auth.dto';
-import { toAuthUserDto } from '../mappers/auth-user.mapper';
+import { toAuthUserDto } from '../auth-user.mapper';
 import { IdentityUsernameService } from './identity-username.service';
 import { SessionService } from './session.service';
 

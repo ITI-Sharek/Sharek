@@ -1,6 +1,6 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 
-import { IdentityModule } from '../identity/identity.module';
+import { GitHubIdentityModule } from '../github-identity/github-identity.module';
 
 import { GitHubOAuthService } from './services/github-oauth.service';
 import { GitHubAccountService } from './services/github-account.service';
@@ -21,7 +21,7 @@ import { GitHubEvidenceCutoverService } from './services/github-evidence-cutover
 import { GitHubLegacyCleanupService } from './services/github-legacy-cleanup.service';
 
 @Module({
-  imports: [forwardRef(() => IdentityModule)],
+  imports: [GitHubIdentityModule],
   controllers: [
     GitHubOAuthController,
     GitHubOAuthBrowserCallbackController,

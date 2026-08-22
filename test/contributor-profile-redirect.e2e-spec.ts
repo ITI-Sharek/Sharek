@@ -9,7 +9,7 @@ import { ContributorProfilesController } from '../src/modules/contributor-profil
 import { ContributorProfilesService } from '../src/modules/contributor-profiles/contributor-profiles.service';
 import { GitHubAccountService } from '../src/modules/github/services/github-account.service';
 import { ManualAuthController } from '../src/modules/identity/controllers/manual-auth.controller';
-import { EmailVerificationSender } from '../src/modules/identity/integrations/email-verification.sender';
+import { EmailVerificationSender } from '../src/modules/identity/services/email-verification-sender.service';
 import { PasswordHasher } from '../src/modules/identity/security/password-hasher.service';
 import { SessionTokenService } from '../src/modules/identity/security/session-token.service';
 import { AuthService } from '../src/modules/identity/services/auth.service';

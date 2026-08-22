@@ -1,5 +1,6 @@
 import { UserRole, UserStatus } from '@prisma/client';
 
+import { GitHubIdentityLookupService } from '../../github-identity/github-identity-lookup.service';
 import { IdentityAccountStatusService } from './identity-account-status.service';
 
 function createService(overrides?: {
@@ -18,9 +19,15 @@ function createService(overrides?: {
       findUnique: overrides?.findGitHubIdentity ?? jest.fn(),
     },
   };
+  const gitHubIdentityLookup = new GitHubIdentityLookupService(
+    database as never,
+  );
 
   return {
-    service: new IdentityAccountStatusService(database as never),
+    service: new IdentityAccountStatusService(
+      database as never,
+      gitHubIdentityLookup,
+    ),
     database,
   };
 }
