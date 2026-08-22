@@ -21,7 +21,7 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "const uuidVariables = ['applicationIdempotencyKey', 'assessmentIdempotencyKey', 'acceptIdempotencyKey', 'declineIdempotencyKey', 'withdrawalIdempotencyKey', 'createRequestIdempotencyKey', 'updateRequestIdempotencyKey', 'discardRequestIdempotencyKey', 'publishRequestIdempotencyKey', 'cancelRequestIdempotencyKey', 'projectCommandIdempotencyKey', 'proposalSubmissionIdempotencyKey', 'proposalRevisionIdempotencyKey', 'proposalVersionIdempotencyKey', 'proposalWithdrawalIdempotencyKey', 'proposalAcceptIdempotencyKey', 'proposalDeclineIdempotencyKey', 'proposalMisuseIdempotencyKey', 'materialIdempotencyKey', 'materialAnalysisIdempotencyKey', 'messageIdempotencyKey', 'deliverySubmissionIdempotencyKey', 'deliveryUpdateIdempotencyKey', 'deliveryReviewIdempotencyKey'];",
+          "const uuidVariables = ['applicationIdempotencyKey', 'assessmentIdempotencyKey', 'acceptIdempotencyKey', 'declineIdempotencyKey', 'withdrawalIdempotencyKey', 'createRequestIdempotencyKey', 'updateRequestIdempotencyKey', 'discardRequestIdempotencyKey', 'publishRequestIdempotencyKey', 'cancelRequestIdempotencyKey', 'projectCommandIdempotencyKey', 'proposalSubmissionIdempotencyKey', 'proposalRevisionIdempotencyKey', 'proposalVersionIdempotencyKey', 'proposalWithdrawalIdempotencyKey', 'proposalAcceptIdempotencyKey', 'proposalDeclineIdempotencyKey', 'proposalMisuseIdempotencyKey', 'materialIdempotencyKey', 'materialAnalysisIdempotencyKey', 'messageIdempotencyKey', 'deliverySubmissionIdempotencyKey', 'deliveryUpdateIdempotencyKey', 'deliveryReviewIdempotencyKey', 'assignmentCallStartIdempotencyKey', 'assignmentCallAnswerIdempotencyKey', 'assignmentCallDeclineIdempotencyKey', 'assignmentCallEndIdempotencyKey', 'assignmentCallReconnectIdempotencyKey'];",
           "uuidVariables.forEach(function (name) {",
           "  if (!pm.environment.get(name)) pm.environment.set(name, pm.variables.replaceIn('{{$guid}}'));",
           "});",
@@ -762,57 +762,6 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"firstName\": \"Sharek\",\n  \"lastName\": \"Owner\",\n  \"country\": \"Egypt\",\n  \"region\": \"Cairo\",\n  \"city\": \"Cairo\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Response is JSON', function () {",
-                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Update My Email",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/me/email",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "me",
-                "email"
-              ]
-            },
-            "description": "Update My Email. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -7783,6 +7732,102 @@
       "description": "Assignment participant conversation history and durable Message commands.",
       "item": [
         {
+          "name": "Create Download Url",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assignment-conversations/{{conversationId}}/attachments/{{attachmentId}}/download-url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assignment-conversations",
+                "{{conversationId}}",
+                "attachments",
+                "{{attachmentId}}",
+                "download-url"
+              ]
+            },
+            "description": "Create Download Url. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the conversationId route ID and the attachmentId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Upload",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assignment-conversations/{{conversationId}}/attachment-uploads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assignment-conversations",
+                "{{conversationId}}",
+                "attachment-uploads"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "idempotencyKey",
+                  "value": "{{chatAttachmentIdempotencyKey}}",
+                  "type": "text"
+                },
+                {
+                  "key": "caption",
+                  "value": "",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "Create Upload. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the conversationId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Get Assignment Conversation",
           "request": {
             "method": "GET",
@@ -7798,6 +7843,41 @@
               ]
             },
             "description": "Get Assignment Conversation. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the conversationId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Upload Constraints",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/chat-attachment-upload-constraints",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat-attachment-upload-constraints"
+              ]
+            },
+            "description": "Get Upload Constraints. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session."
           },
           "event": [
             {
@@ -7954,6 +8034,307 @@
               ]
             },
             "description": "Send Assignment Message. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the conversationId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/assignment-conversations/{{conversationId}}/calls",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assignment-conversations",
+                "{{conversationId}}",
+                "calls"
+              ]
+            },
+            "description": "Start. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the conversationId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{assignmentCallStartIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.call && body.call.callId) pm.environment.set('callId', body.call.callId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Assignment Calls",
+      "item": [
+        {
+          "name": "Answer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/assignment-calls/{{callId}}/answer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assignment-calls",
+                "{{callId}}",
+                "answer"
+              ]
+            },
+            "description": "Answer. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the callId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{assignmentCallAnswerIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Decline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/assignment-calls/{{callId}}/decline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assignment-calls",
+                "{{callId}}",
+                "decline"
+              ]
+            },
+            "description": "Decline. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the callId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{assignmentCallDeclineIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "End",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/assignment-calls/{{callId}}/end",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assignment-calls",
+                "{{callId}}",
+                "end"
+              ]
+            },
+            "description": "End. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the callId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{assignmentCallEndIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Join Credentials",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assignment-calls/{{callId}}/join-credentials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assignment-calls",
+                "{{callId}}",
+                "join-credentials"
+              ]
+            },
+            "description": "Get Join Credentials. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the callId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reconnect",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/assignment-calls/{{callId}}/reconnect",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assignment-calls",
+                "{{callId}}",
+                "reconnect"
+              ]
+            },
+            "description": "Reconnect. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. Set the callId route ID to an existing authorized resource. Expected status: 201. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; owning-service authorization/not-found application errors.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{assignmentCallReconnectIdempotencyKey}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "event": [
             {
@@ -8894,6 +9275,90 @@
           ]
         },
         {
+          "name": "Get Communication Capacity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/communication-capacity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "communication-capacity"
+              ]
+            },
+            "description": "Get Communication Capacity. Requires an active bearer session and any resource ownership/participant checks enforced by the owning service. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Document",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/identity-verifications/{{userId}}/document",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "identity-verifications",
+                "{{userId}}",
+                "document"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get Document. Requires an active bearer session with role: admin. Set the userId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "List",
           "request": {
             "method": "GET",
@@ -8919,6 +9384,69 @@
               ]
             },
             "description": "List. Requires an active bearer session with role: admin. No route identifier prerequisite. Expected status: 200. Important errors: 401 for an invalid or expired session; 403 for an unauthorized role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/identity-verifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "identity-verifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "List. Requires an active bearer session with role: admin. No route identifier prerequisite. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
           },
           "event": [
             {
@@ -9176,6 +9704,67 @@
                 }
               ]
             }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body === null || typeof body === 'object').to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Review",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"verified\",\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/identity-verifications/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "identity-verifications",
+                "{{userId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Review. Requires an active bearer session with role: admin. Set the userId route ID to an existing authorized resource. Expected status: 200. Important errors: 400 for invalid validated input; 401 for an invalid or expired session; 403 for an unauthorized role."
           },
           "event": [
             {

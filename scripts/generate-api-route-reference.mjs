@@ -10,6 +10,7 @@ const MODULE_TITLES = {
   admin: 'Admin',
   applications: 'Applications, Assessments & Owner Decisions',
   'assignment-conversations': 'Assignment Conversations',
+  'chat-attachments': 'Chat Attachments',
   'contribution-proposals': 'Contribution Proposals',
   'contribution-tasks': 'Contribution Requests',
   'contributor-profiles': 'Contributor Profiles',

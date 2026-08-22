@@ -7,6 +7,7 @@ business decisions, and its database writes.
 | --- | --- | --- |
 | `identity` | implemented | users, auth, sessions, roles, social identity |
 | `github` | implemented | GitHub OAuth, account connection, repository evidence |
+| `github-identity` | implemented | leaf read model for the GitHub identity linked to a user (breaks the identity/github cycle) |
 | `projects` | implemented | project import and project-owned state |
 | `contributor-profiles` | implemented | contributor profile creation and views |
 | `skill-profiles` | implemented | asynchronous skill generation and candidate state |
