@@ -8,7 +8,7 @@ import { Test } from '@nestjs/testing';
 import { Prisma } from '@prisma/client';
 import * as request from 'supertest';
 
-import { ApplicationsService } from '../src/modules/applications/applications.service';
+import { ApplicationDeliveryContextService } from '../src/modules/applications/services/application-delivery-context.service';
 import { BadgesService } from '../src/modules/badges/badges.service';
 import { ContributionTasksService } from '../src/modules/contribution-tasks/services/contribution-tasks.service';
 import { DeliveryReviewsController } from '../src/modules/delivery-reviews/delivery-reviews.controller';
@@ -348,7 +348,7 @@ describe('Delivery submission workflow through HTTP', () => {
       providers: [
         DeliveryReviewsService,
         { provide: DatabaseService, useValue: database },
-        { provide: ApplicationsService, useValue: applications },
+        { provide: ApplicationDeliveryContextService, useValue: applications },
         { provide: ContributionTasksService, useValue: contributionTasks },
         { provide: NotificationsService, useValue: notifications },
         { provide: DeliveryApprovedEventsService, useValue: approvedEvents },

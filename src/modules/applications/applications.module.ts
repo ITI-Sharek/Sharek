@@ -21,6 +21,8 @@ import { ApplicationReviewWindowService } from './services/application-review-wi
 import { AdvisoryFitAssessmentService } from './services/advisory-fit-assessment.service';
 import { ApplicationReputationFactsService } from './services/application-reputation-facts.service';
 import { ApplicationDailyQuotaService } from './services/application-daily-quota.service';
+import { ApplicationDeliveryContextService } from './services/application-delivery-context.service';
+import { ApplicationReplayService } from './services/application-replay.service';
 
 @Module({
   imports: [
@@ -47,11 +49,14 @@ import { ApplicationDailyQuotaService } from './services/application-daily-quota
     ApplicationReviewWindowWorker,
     ApplicationReputationFactsService,
     ApplicationDailyQuotaService,
+    ApplicationDeliveryContextService,
+    ApplicationReplayService,
   ],
   exports: [
     ApplicationsService,
     ApplicationReputationFactsService,
     ApplicationDailyQuotaService,
+    ApplicationDeliveryContextService,
   ],
 })
 export class ApplicationsModule {}
