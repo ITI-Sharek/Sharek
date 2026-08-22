@@ -11,11 +11,14 @@ Choose the module that owns the final business state:
 | --- | --- |
 | `identity` | users, roles, credentials, sessions, OAuth identity |
 | `github` | GitHub OAuth, account access, repository listing, and normalized evidence |
+| `github-identity` | leaf read model for the GitHub identity linked to a user; keeps `identity` and `github` acyclic |
 | `projects` | project drafts, publication state, owner project data |
 | `contributor-profiles` | contributor profile records and profile assembly |
 | `skill-profiles` | skill generations, candidates, approval state, evidence snapshots |
 | `notifications` | in-app notification records and notification write workflows |
 | `assignment-conversations` | private Assignment conversations and durable Message history |
+| `chat-attachments` | S3-backed chat attachment upload intents, malware-scan lifecycle, and bound-attachment presentation |
+| `assignment-calls` | P2P WebRTC Assignment Calls: lifecycle commands, signaling gateway, TURN credentials, server-authoritative timers |
 | `contribution-tasks` | project task definitions, requirements, and required skill levels |
 | `applications` | contributor Applications and owner-review lifecycle |
 | `eligibility` | the submission gate: may this contributor apply, and why not |
@@ -23,12 +26,14 @@ Choose the module that owns the final business state:
 | `materials` | versioned Project and Request documents, visibility classes, private storage |
 | `delivery-reviews` | delivery submissions, owner review, feedback, ratings |
 | `reputation` | reputation summaries and history |
+| `badges` | badge awarding and the `UserBadge` achievement record |
 | `subscriptions` | plan entitlements, limits, and the Subscription table |
 | `matching` | deterministic contributor-to-Request shortlist, owning no tables |
 | `admin` | moderation, reports, disputes, admin queues |
 | `ai` | NestJS AI facade and FastAPI client contracts |
 | `skill-guidance` | explicit contributor guidance workflow and source-scoped recommendations |
 | `payments` | disabled-by-default Paymob provider, payment attempts, idempotent checkout/status APIs, and provider callback facts; no Subscription writes before PAY-04 |
+| `dashboard` | read-only contributor dashboard aggregation for the authenticated contributor |
 | `health` | operational health endpoint |
 
 The owner performs its own writes. Other modules request behavior through an

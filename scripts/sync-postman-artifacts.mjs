@@ -65,6 +65,7 @@ const orderedFolderNames = [
   'Contributor Profiles',
   'Skill Profiles',
   'Assignment Conversations',
+  'Assignment Calls',
   'Notifications',
   'Payments',
   'Subscriptions',
@@ -84,7 +85,7 @@ const collection = {
   auth: bearerAuth('accessToken'),
   event: [
     scriptEvent('prerequest', [
-      "const uuidVariables = ['applicationIdempotencyKey', 'assessmentIdempotencyKey', 'acceptIdempotencyKey', 'declineIdempotencyKey', 'withdrawalIdempotencyKey', 'createRequestIdempotencyKey', 'updateRequestIdempotencyKey', 'discardRequestIdempotencyKey', 'publishRequestIdempotencyKey', 'cancelRequestIdempotencyKey', 'projectCommandIdempotencyKey', 'proposalSubmissionIdempotencyKey', 'proposalRevisionIdempotencyKey', 'proposalVersionIdempotencyKey', 'proposalWithdrawalIdempotencyKey', 'proposalAcceptIdempotencyKey', 'proposalDeclineIdempotencyKey', 'proposalMisuseIdempotencyKey', 'materialIdempotencyKey', 'materialAnalysisIdempotencyKey', 'messageIdempotencyKey', 'deliverySubmissionIdempotencyKey', 'deliveryUpdateIdempotencyKey', 'deliveryReviewIdempotencyKey'];",
+      "const uuidVariables = ['applicationIdempotencyKey', 'assessmentIdempotencyKey', 'acceptIdempotencyKey', 'declineIdempotencyKey', 'withdrawalIdempotencyKey', 'createRequestIdempotencyKey', 'updateRequestIdempotencyKey', 'discardRequestIdempotencyKey', 'publishRequestIdempotencyKey', 'cancelRequestIdempotencyKey', 'projectCommandIdempotencyKey', 'proposalSubmissionIdempotencyKey', 'proposalRevisionIdempotencyKey', 'proposalVersionIdempotencyKey', 'proposalWithdrawalIdempotencyKey', 'proposalAcceptIdempotencyKey', 'proposalDeclineIdempotencyKey', 'proposalMisuseIdempotencyKey', 'materialIdempotencyKey', 'materialAnalysisIdempotencyKey', 'messageIdempotencyKey', 'deliverySubmissionIdempotencyKey', 'deliveryUpdateIdempotencyKey', 'deliveryReviewIdempotencyKey', 'assignmentCallStartIdempotencyKey', 'assignmentCallAnswerIdempotencyKey', 'assignmentCallDeclineIdempotencyKey', 'assignmentCallEndIdempotencyKey', 'assignmentCallReconnectIdempotencyKey'];",
       'uuidVariables.forEach(function (name) {',
       "  if (!pm.environment.get(name)) pm.environment.set(name, pm.variables.replaceIn('{{$guid}}'));",
       '});',
@@ -376,6 +377,21 @@ function applyBodyCorrections(route, request) {
       idempotencyKey: '{{messageIdempotencyKey}}',
       body: 'Hello from the Assignment conversation.',
     }],
+    ['POST /assignment-conversations/:parameter/calls', {
+      idempotencyKey: '{{assignmentCallStartIdempotencyKey}}',
+    }],
+    ['POST /assignment-calls/:parameter/answer', {
+      idempotencyKey: '{{assignmentCallAnswerIdempotencyKey}}',
+    }],
+    ['POST /assignment-calls/:parameter/decline', {
+      idempotencyKey: '{{assignmentCallDeclineIdempotencyKey}}',
+    }],
+    ['POST /assignment-calls/:parameter/end', {
+      idempotencyKey: '{{assignmentCallEndIdempotencyKey}}',
+    }],
+    ['POST /assignment-calls/:parameter/reconnect', {
+      idempotencyKey: '{{assignmentCallReconnectIdempotencyKey}}',
+    }],
     ['POST /applications/:parameter/deliveries', {
       pullRequestUrl: 'https://github.com/octocat/Hello-World/pull/1',
       contributorNotes: 'Ready for owner review.',
@@ -570,6 +586,8 @@ function folderFor(route) {
   if (routePath.startsWith('/contributors')) return 'Contributor Profiles';
   if (routePath.startsWith('/skill-profiles')) return 'Skill Profiles';
   if (routePath.startsWith('/assignment-conversations')) return 'Assignment Conversations';
+  if (routePath.startsWith('/chat-attachment-')) return 'Assignment Conversations';
+  if (routePath.startsWith('/assignment-calls')) return 'Assignment Calls';
   if (routePath.startsWith('/notifications') || routePath.startsWith('/me/notification')) return 'Notifications';
   if (routePath.startsWith('/payments/paymob/')) return 'Payments';
   if (
@@ -743,6 +761,14 @@ function captureScript(route) {
     lines.push(
       'if (pm.response.code === 200) {',
       "  pm.environment.set('ownerDecisionId', pm.response.json().ownerDecision.id);",
+      '}',
+    );
+  }
+  if (route.key === 'POST /assignment-conversations/:parameter/calls') {
+    lines.push(
+      `if (pm.response.code === ${route.successStatus}) {`,
+      '  const body = pm.response.json();',
+      "  if (body.call && body.call.callId) pm.environment.set('callId', body.call.callId);",
       '}',
     );
   }

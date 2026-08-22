@@ -24,7 +24,7 @@ The gate discovers every file under `src` containing `@Controller`, compares nor
 
 ## Complete HTTP endpoint catalog
 
-Unique controller method/path pairs: **183**. WebSocket events are excluded from this HTTP count.
+Unique controller method/path pairs: **195**. WebSocket events are excluded from this HTTP count.
 
 ### Health
 
@@ -50,7 +50,6 @@ Unique controller method/path pairs: **183**. WebSocket events are excluded from
 | `POST` | `/auth/reset-password` | Public | 201 | Reset Password |
 | `PATCH` | `/auth/me/preferences` | Bearer / resource-scoped | 200 | Update Current User Language |
 | `PATCH` | `/auth/me/details` | Bearer / resource-scoped | 200 | Update My Details |
-| `PATCH` | `/auth/me/email` | Bearer / resource-scoped | 200 | Update My Email |
 | `PATCH` | `/auth/me/phone` | Bearer / resource-scoped | 200 | Update My Phone |
 | `PATCH` | `/auth/me/privacy` | Bearer / resource-scoped | 200 | Update My Privacy |
 | `PATCH` | `/auth/me/username` | Bearer / resource-scoped | 200 | Update My Username |
@@ -252,10 +251,24 @@ Unique controller method/path pairs: **183**. WebSocket events are excluded from
 
 | Method | Path | Auth | Success | Purpose |
 | --- | --- | --- | ---: | --- |
+| `POST` | `/assignment-conversations/:conversationId/attachments/:attachmentId/download-url` | Bearer / resource-scoped | 201 | Create Download Url |
+| `POST` | `/assignment-conversations/:conversationId/attachment-uploads` | Bearer / resource-scoped | 201 | Create Upload |
 | `GET` | `/assignment-conversations/:conversationId` | Bearer / resource-scoped | 200 | Get Assignment Conversation |
+| `GET` | `/chat-attachment-upload-constraints` | Bearer / resource-scoped | 200 | Get Upload Constraints |
 | `GET` | `/assignment-conversations` | Bearer / resource-scoped | 200 | List Assignment Conversations |
 | `GET` | `/assignment-conversations/:conversationId/messages` | Bearer / resource-scoped | 200 | List Assignment Messages |
 | `POST` | `/assignment-conversations/:conversationId/messages` | Bearer / resource-scoped | 201 | Send Assignment Message |
+| `POST` | `/assignment-conversations/:conversationId/calls` | Bearer / resource-scoped | 201 | Start |
+
+### Assignment Calls
+
+| Method | Path | Auth | Success | Purpose |
+| --- | --- | --- | ---: | --- |
+| `POST` | `/assignment-calls/:callId/answer` | Bearer / resource-scoped | 201 | Answer |
+| `POST` | `/assignment-calls/:callId/decline` | Bearer / resource-scoped | 201 | Decline |
+| `POST` | `/assignment-calls/:callId/end` | Bearer / resource-scoped | 201 | End |
+| `GET` | `/assignment-calls/:callId/join-credentials` | Bearer / resource-scoped | 200 | Get Join Credentials |
+| `POST` | `/assignment-calls/:callId/reconnect` | Bearer / resource-scoped | 201 | Reconnect |
 
 ### Notifications
 
@@ -294,12 +307,16 @@ Unique controller method/path pairs: **183**. WebSocket events are excluded from
 | `POST` | `/admin/contributor-field-categories` | admin | 201 | Create |
 | `POST` | `/admin/contributor-fields` | admin | 201 | Create Contributor Field |
 | `POST` | `/admin/experience-levels` | admin | 201 | Create Experience Level |
+| `GET` | `/admin/communication-capacity` | Bearer / resource-scoped | 200 | Get Communication Capacity |
+| `GET` | `/admin/identity-verifications/:userId/document` | admin | 200 | Get Document |
 | `GET` | `/admin/contributor-field-categories` | admin | 200 | List |
+| `GET` | `/admin/identity-verifications` | admin | 200 | List |
 | `GET` | `/admin/contributor-fields` | admin | 200 | List Contributor Fields |
 | `GET` | `/admin/experience-levels` | admin | 200 | List Experience Levels |
 | `GET` | `/admin/skill-reviews/pending` | admin | 200 | List Pending Skill Reviews |
 | `GET` | `/admin/published-project-owners` | admin | 200 | List Published Project Owners |
 | `POST` | `/admin/skill-reviews/:skillProfileId/reject` | admin | 200 | Reject Skill |
+| `PATCH` | `/admin/identity-verifications/:userId` | admin | 200 | Review |
 | `PATCH` | `/admin/contributor-field-categories/:categoryId` | admin | 200 | Update |
 | `PATCH` | `/admin/contributor-fields/:fieldId` | admin | 200 | Update Contributor Field |
 | `PATCH` | `/admin/experience-levels/:levelId` | admin | 200 | Update Experience Level |

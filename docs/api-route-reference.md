@@ -2,7 +2,7 @@
 
 <!-- GENERATED FILE. Run `npm run docs:routes` to regenerate. Do not edit by hand. -->
 
-Every HTTP route the NestJS backend serves: **183 routes** across **20 modules**, extracted from the `@Controller` classes in `src/`.
+Every HTTP route the NestJS backend serves: **195 routes** across **22 modules**, extracted from the `@Controller` classes in `src/`.
 
 There is no global route prefix. Paths are served from the application root (`PORT`, default `4000`).
 
@@ -15,9 +15,11 @@ For behaviour, error codes, and payload rules see [`api-contracts.md`](./api-con
 
 ## Contents
 
-- [Admin](#admin) — 15 routes
+- [Admin](#admin) — 18 routes
 - [Applications, Assessments & Owner Decisions](#applications-assessments--owner-decisions) — 9 routes
 - [Assignment Conversations](#assignment-conversations) — 4 routes
+- [assignment-calls](#assignment-calls) — 7 routes
+- [Chat Attachments](#chat-attachments) — 3 routes
 - [Contribution Proposals](#contribution-proposals) — 12 routes
 - [Contribution Requests](#contribution-requests) — 11 routes
 - [Contributor Dashboard](#contributor-dashboard) — 1 route
@@ -26,7 +28,7 @@ For behaviour, error codes, and payload rules see [`api-contracts.md`](./api-con
 - [Eligibility Gate](#eligibility-gate) — 1 route
 - [GitHub Connection](#github-connection) — 20 routes
 - [Health](#health) — 1 route
-- [Identity, Auth & Session](#identity-auth--session) — 28 routes
+- [Identity, Auth & Session](#identity-auth--session) — 27 routes
 - [Matching & Recommendations](#matching--recommendations) — 2 routes
 - [Materials & Material Analysis](#materials--material-analysis) — 22 routes
 - [Notifications](#notifications) — 8 routes
@@ -51,6 +53,9 @@ Module: `src/modules/admin/`
 | `GET` | `/admin/experience-levels` | bearer · admin | 200 | `AdminExperienceLevelsController.list` | — |
 | `POST` | `/admin/experience-levels` | bearer · admin | 201 | `AdminExperienceLevelsController.create` | — |
 | `PATCH` | `/admin/experience-levels/:levelId` | bearer · admin | 200 | `AdminExperienceLevelsController.update` | — |
+| `GET` | `/admin/identity-verifications` | bearer · admin | 200 | `AdminIdentityVerificationController.list` | query: page, limit, status |
+| `PATCH` | `/admin/identity-verifications/:userId` | bearer · admin | 200 | `AdminIdentityVerificationController.review` | — |
+| `GET` | `/admin/identity-verifications/:userId/document` | bearer · admin | 200 | `AdminIdentityVerificationController.getDocument` | — |
 | `GET` | `/admin/published-project-owners` | bearer · admin | 200 | `AdminPublishedProjectOwnersController.list` | — |
 | `POST` | `/admin/skill-reviews/:skillProfileId/approve` | bearer · admin | 200 | `AdminSkillReviewsController.approve` | — |
 | `PATCH` | `/admin/skill-reviews/:skillProfileId/proficiency` | bearer · admin | 200 | `AdminSkillReviewsController.adjustProficiency` | — |
@@ -84,6 +89,30 @@ Module: `src/modules/assignment-conversations/`
 | `GET` | `/assignment-conversations/:conversationId` | bearer | 200 | `AssignmentConversationsController.get` | — |
 | `GET` | `/assignment-conversations/:conversationId/messages` | bearer | 200 | `AssignmentConversationsController.listMessages` | query: cursor, limit, query |
 | `POST` | `/assignment-conversations/:conversationId/messages` | bearer | 201 | `AssignmentConversationsController.sendMessage` | idempotency key |
+
+## assignment-calls
+
+Module: `src/modules/assignment-calls/`
+
+| Method | Path | Auth | Status | Handler | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/admin/communication-capacity` | bearer | 200 | `AssignmentCallsController.getCommunicationCapacity` | — |
+| `POST` | `/assignment-calls/:callId/answer` | bearer | 201 | `AssignmentCallsController.answer` | idempotency key |
+| `POST` | `/assignment-calls/:callId/decline` | bearer | 201 | `AssignmentCallsController.decline` | idempotency key |
+| `POST` | `/assignment-calls/:callId/end` | bearer | 201 | `AssignmentCallsController.end` | idempotency key |
+| `GET` | `/assignment-calls/:callId/join-credentials` | bearer | 200 | `AssignmentCallsController.getJoinCredentials` | — |
+| `POST` | `/assignment-calls/:callId/reconnect` | bearer | 201 | `AssignmentCallsController.reconnect` | idempotency key |
+| `POST` | `/assignment-conversations/:conversationId/calls` | bearer | 201 | `AssignmentCallsController.start` | idempotency key |
+
+## Chat Attachments
+
+Module: `src/modules/chat-attachments/`
+
+| Method | Path | Auth | Status | Handler | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `POST` | `/assignment-conversations/:conversationId/attachment-uploads` | bearer | 201 | `ChatAttachmentsController.createUpload` | idempotency key · multipart |
+| `POST` | `/assignment-conversations/:conversationId/attachments/:attachmentId/download-url` | bearer | 201 | `ChatAttachmentsController.createDownloadUrl` | — |
+| `GET` | `/chat-attachment-upload-constraints` | bearer | 200 | `ChatAttachmentsController.getUploadConstraints` | — |
 
 ## Contribution Proposals
 
@@ -221,7 +250,6 @@ Module: `src/modules/identity/`
 | `POST` | `/auth/logout` | bearer | 201 | `SessionController.logout` | — |
 | `GET` | `/auth/me` | bearer | 200 | `SessionController.me` | — |
 | `PATCH` | `/auth/me/details` | bearer | 200 | `SessionController.updateMyDetails` | — |
-| `PATCH` | `/auth/me/email` | bearer | 200 | `SessionController.updateMyEmail` | — |
 | `GET` | `/auth/me/export` | bearer | 200 | `SessionController.exportMyAccountData` | — |
 | `PUT` | `/auth/me/identity-document` | bearer | 200 | `SessionController.uploadIdentityDocument` | multipart |
 | `PATCH` | `/auth/me/password` | bearer | 200 | `SessionController.changeMyPassword` | — |

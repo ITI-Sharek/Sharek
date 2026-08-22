@@ -203,12 +203,33 @@ function checkDocumentation(modules) {
   }
 }
 
+// Ratchet: 23 is the count measured after the identity/github cycle was
+// resolved by extracting the github-identity leaf read model. It may
+// only ever decrease — resolve a cycle instead of adding another forwardRef.
+const FORWARD_REF_BUDGET = 23;
+
+function checkForwardRefBudget() {
+  let count = 0;
+  for (const filePath of walk(modulesDir).filter((file) =>
+    file.endsWith('.ts'),
+  )) {
+    const matches = readText(filePath).match(/forwardRef\(/g);
+    if (matches) count += matches.length;
+  }
+  if (count > FORWARD_REF_BUDGET) {
+    fail(
+      `forwardRef usage ${count} exceeds budget ${FORWARD_REF_BUDGET}; break the circular dependency instead of adding forwardRef.`,
+    );
+  }
+}
+
 const modules = moduleNames();
 checkRequiredFiles(modules);
 checkStandardModuleShape();
 checkControllersStayThin();
 checkCrossModuleImports();
 checkDocumentation(modules);
+checkForwardRefBudget();
 
 if (errors.length > 0) {
   console.error('Architecture check failed:');

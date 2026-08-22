@@ -1,7 +1,31 @@
 {
   "generatedFrom": "src/**/*.ts files containing @Controller",
-  "routeCount": 183,
+  "routeCount": 195,
   "routes": [
+    {
+      "method": "GET",
+      "path": "/admin/communication-capacity",
+      "normalizedPath": "/admin/communication-capacity",
+      "key": "GET /admin/communication-capacity",
+      "controller": "AssignmentCallsController",
+      "handler": "getCommunicationCapacity",
+      "source": "src/modules/assignment-calls/assignment-calls.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
     {
       "method": "GET",
       "path": "/admin/contributor-field-categories",
@@ -375,6 +399,118 @@
       ],
       "acceptsRawBody": false,
       "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/identity-verifications",
+      "normalizedPath": "/admin/identity-verifications",
+      "key": "GET /admin/identity-verifications",
+      "controller": "AdminIdentityVerificationController",
+      "handler": "list",
+      "source": "src/modules/admin/controllers/admin-identity-verification.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [
+        {
+          "name": "page",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "limit",
+          "optional": true,
+          "type": "number"
+        },
+        {
+          "name": "status",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/identity-verifications/:userId",
+      "normalizedPath": "/admin/identity-verifications/:parameter",
+      "key": "PATCH /admin/identity-verifications/:parameter",
+      "controller": "AdminIdentityVerificationController",
+      "handler": "review",
+      "source": "src/modules/admin/controllers/admin-identity-verification.controller.ts",
+      "pathParameters": [
+        "userId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "ReviewIdentityVerificationRequest",
+      "bodyFields": [
+        {
+          "name": "decision",
+          "optional": false,
+          "type": "'verified' | 'rejected'"
+        },
+        {
+          "name": "reason",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard",
+        "RolesGuard"
+      ],
+      "roles": [
+        "admin"
+      ],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/identity-verifications/:userId/document",
+      "normalizedPath": "/admin/identity-verifications/:parameter/document",
+      "key": "GET /admin/identity-verifications/:parameter/document",
+      "controller": "AdminIdentityVerificationController",
+      "handler": "getDocument",
+      "source": "src/modules/admin/controllers/admin-identity-verification.controller.ts",
+      "pathParameters": [
+        "userId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
       "multipartFields": [],
       "guards": [
         "AccessTokenGuard",
@@ -819,6 +955,160 @@
       "successStatus": 200
     },
     {
+      "method": "POST",
+      "path": "/assignment-calls/:callId/answer",
+      "normalizedPath": "/assignment-calls/:parameter/answer",
+      "key": "POST /assignment-calls/:parameter/answer",
+      "controller": "AssignmentCallsController",
+      "handler": "answer",
+      "source": "src/modules/assignment-calls/assignment-calls.controller.ts",
+      "pathParameters": [
+        "callId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AssignmentCallCommandDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/assignment-calls/:callId/decline",
+      "normalizedPath": "/assignment-calls/:parameter/decline",
+      "key": "POST /assignment-calls/:parameter/decline",
+      "controller": "AssignmentCallsController",
+      "handler": "decline",
+      "source": "src/modules/assignment-calls/assignment-calls.controller.ts",
+      "pathParameters": [
+        "callId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AssignmentCallCommandDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/assignment-calls/:callId/end",
+      "normalizedPath": "/assignment-calls/:parameter/end",
+      "key": "POST /assignment-calls/:parameter/end",
+      "controller": "AssignmentCallsController",
+      "handler": "end",
+      "source": "src/modules/assignment-calls/assignment-calls.controller.ts",
+      "pathParameters": [
+        "callId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AssignmentCallCommandDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/assignment-calls/:callId/join-credentials",
+      "normalizedPath": "/assignment-calls/:parameter/join-credentials",
+      "key": "GET /assignment-calls/:parameter/join-credentials",
+      "controller": "AssignmentCallsController",
+      "handler": "getJoinCredentials",
+      "source": "src/modules/assignment-calls/assignment-calls.controller.ts",
+      "pathParameters": [
+        "callId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/assignment-calls/:callId/reconnect",
+      "normalizedPath": "/assignment-calls/:parameter/reconnect",
+      "key": "POST /assignment-calls/:parameter/reconnect",
+      "controller": "AssignmentCallsController",
+      "handler": "reconnect",
+      "source": "src/modules/assignment-calls/assignment-calls.controller.ts",
+      "pathParameters": [
+        "callId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AssignmentCallCommandDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
       "method": "GET",
       "path": "/assignment-conversations",
       "normalizedPath": "/assignment-conversations",
@@ -878,6 +1168,104 @@
       "authentication": "bearer",
       "idempotency": false,
       "successStatus": 200
+    },
+    {
+      "method": "POST",
+      "path": "/assignment-conversations/:conversationId/attachment-uploads",
+      "normalizedPath": "/assignment-conversations/:parameter/attachment-uploads",
+      "key": "POST /assignment-conversations/:parameter/attachment-uploads",
+      "controller": "ChatAttachmentsController",
+      "handler": "createUpload",
+      "source": "src/modules/chat-attachments/chat-attachments.controller.ts",
+      "pathParameters": [
+        "conversationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "CreateAttachmentUploadDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        },
+        {
+          "name": "caption",
+          "optional": true,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "multipart/form-data",
+      "multipartFields": [
+        "file"
+      ],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/assignment-conversations/:conversationId/attachments/:attachmentId/download-url",
+      "normalizedPath": "/assignment-conversations/:parameter/attachments/:parameter/download-url",
+      "key": "POST /assignment-conversations/:parameter/attachments/:parameter/download-url",
+      "controller": "ChatAttachmentsController",
+      "handler": "createDownloadUrl",
+      "source": "src/modules/chat-attachments/chat-attachments.controller.ts",
+      "pathParameters": [
+        "conversationId",
+        "attachmentId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 201
+    },
+    {
+      "method": "POST",
+      "path": "/assignment-conversations/:conversationId/calls",
+      "normalizedPath": "/assignment-conversations/:parameter/calls",
+      "key": "POST /assignment-conversations/:parameter/calls",
+      "controller": "AssignmentCallsController",
+      "handler": "start",
+      "source": "src/modules/assignment-calls/assignment-calls.controller.ts",
+      "pathParameters": [
+        "conversationId"
+      ],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": "AssignmentCallCommandDto",
+      "bodyFields": [
+        {
+          "name": "idempotencyKey",
+          "optional": false,
+          "type": "string"
+        }
+      ],
+      "acceptsRawBody": false,
+      "contentType": "application/json",
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": true,
+      "successStatus": 201
     },
     {
       "method": "GET",
@@ -950,6 +1338,11 @@
           "name": "replyToMessageId",
           "optional": true,
           "type": "string"
+        },
+        {
+          "name": "attachmentUploadIds",
+          "optional": true,
+          "type": "string[]"
         }
       ],
       "acceptsRawBody": false,
@@ -1449,41 +1842,6 @@
       "successStatus": 200
     },
     {
-      "method": "PATCH",
-      "path": "/auth/me/email",
-      "normalizedPath": "/auth/me/email",
-      "key": "PATCH /auth/me/email",
-      "controller": "SessionController",
-      "handler": "updateMyEmail",
-      "source": "src/modules/identity/controllers/session.controller.ts",
-      "pathParameters": [],
-      "queryParameters": [],
-      "headers": [],
-      "bodyDto": "UpdateEmailRequest",
-      "bodyFields": [
-        {
-          "name": "email",
-          "optional": false,
-          "type": "string"
-        },
-        {
-          "name": "password",
-          "optional": false,
-          "type": "string"
-        }
-      ],
-      "acceptsRawBody": false,
-      "contentType": "application/json",
-      "multipartFields": [],
-      "guards": [
-        "AccessTokenGuard"
-      ],
-      "roles": [],
-      "authentication": "bearer",
-      "idempotency": false,
-      "successStatus": 200
-    },
-    {
       "method": "GET",
       "path": "/auth/me/export",
       "normalizedPath": "/auth/me/export",
@@ -1955,6 +2313,30 @@
       "authentication": "public",
       "idempotency": false,
       "successStatus": 201
+    },
+    {
+      "method": "GET",
+      "path": "/chat-attachment-upload-constraints",
+      "normalizedPath": "/chat-attachment-upload-constraints",
+      "key": "GET /chat-attachment-upload-constraints",
+      "controller": "ChatAttachmentsController",
+      "handler": "getUploadConstraints",
+      "source": "src/modules/chat-attachments/chat-attachments.controller.ts",
+      "pathParameters": [],
+      "queryParameters": [],
+      "headers": [],
+      "bodyDto": null,
+      "bodyFields": [],
+      "acceptsRawBody": false,
+      "contentType": null,
+      "multipartFields": [],
+      "guards": [
+        "AccessTokenGuard"
+      ],
+      "roles": [],
+      "authentication": "bearer",
+      "idempotency": false,
+      "successStatus": 200
     },
     {
       "method": "POST",

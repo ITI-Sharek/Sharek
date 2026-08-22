@@ -59,8 +59,10 @@ Ask which module owns the final state:
 - in-app notifications -> `notifications`
 - delivery review and ratings -> `delivery-reviews`
 - reputation score and history -> `reputation`
+- reputation badges -> `badges`
 - admin queues and moderation workflow -> `admin`
 - FastAPI AI contracts and adapters -> `ai`
+- contributor dashboard aggregation -> `dashboard`
 - health checks -> `health`
 
 If two modules are involved, the module that owns the final database state owns
@@ -3497,6 +3499,68 @@ This keeps the system strong without making it heavy:
   TypeScript check passed; focused backend public-project service test and
   backend type check with incremental output disabled passed.
 
+### 2026-08-21 - Chat attachments: S3 upload, scan, and binding foundation (Sprint 9, Slice 3)
+
+- Modules: new `chat-attachments`; `assignment-conversations` (binding,
+  `getParticipation`); `notifications` (new `chat_attachment.blocked`
+  template); shared `shared/storage`, `shared/content`, `shared/scanning` (new).
+- Requirement IDs: Sprint 9 Slice 3 (chat attachments), COMMUNICATION.md
+  §Attachment scan, §Retention.
+- Summary: owner and contributor can attach up to 5 files to an Assignment
+  Conversation message, stored in a private S3 bucket, validated by magic
+  bytes, and malware-scanned before anyone can download them. Upload is an
+  intent on `ChatAttachment` -- scanning starts at intent time, not at
+  `sendMessage`, so the durable-command path never touches the scan queue.
+  `sendMessage` binds previously-uploaded, unexpired, unbound intents to the
+  new Message with one conditional `updateMany` inside its existing
+  optimistic-concurrency retry loop; an unresolvable id is a non-leaking
+  `CHAT_ATTACHMENT_UPLOAD_NOT_FOUND`. Message reads (`listMessages`,
+  `sendMessage`, and the `conversation.message.created` realtime payload) all
+  embed bound, unpurged attachments through the same `MESSAGE_SELECT`.
+  Download is a mint-on-demand 60s presigned GET behind a POST that
+  re-authorizes live participation and scan state.
+- New shared seams: `ObjectStorage` (a narrow S3 port, deliberately distinct
+  from `MaterialStorage` -- Materials keeps local disk); `shared/content/file-signature.ts`
+  (a `Map<mime, matcher>` content-signature registry with reject-on-unknown,
+  replacing a chained-ternary check in `materials/utils/material-content.ts`
+  that silently fell through to a text check for any allowed mime type
+  without a case); `shared/scanning/malware-scanner.ts` (the `MalwareScanner`
+  port promoted out of `materials/`, generalized to a `subject` discriminated
+  union so both Materials and chat attachments share one scanner contract and
+  one stub, independently configurable via a DI token).
+- Database changes: migration `20260821090000_chat_attachments` adds
+  `ChatAttachment` (upload intent and bound attachment in one row --
+  `message_id` is null until bound), `ChatAttachmentEvent` (outbox, mirrors
+  `MessageEvent`), and `AssignmentConversation.read_only_at` (the future
+  12-month-retention anchor; not yet written anywhere, so that sweep is dead
+  code on arrival by design -- see the module README).
+- Scan lifecycle: `quarantined -> scanning -> ready | rejected`, matching
+  `MaterialScanProcessorService`'s conditional-claim structure. One
+  divergence: no audit table, so the terminal claim is a single raw
+  `UPDATE ... RETURNING` that only writes the outbox event (and only bumps
+  `event_version`) when `message_id IS NOT NULL` at the exact instant the
+  transition commits -- a read taken even microseconds off that instant could
+  race a concurrent bind and silently drop the event.
+- Authorization/security review: presigned download URLs are minted only
+  after live participation, `scan_status = ready`, and active-account
+  re-checks; forced `Content-Disposition` with a UTF-8-encoded filename and a
+  `Content-Type` from the sniffed (never declared) mime, so the bucket origin
+  can never be made to serve a payload as `text/html`; inline preview is
+  `image/*` only. `S3ObjectStorage` never includes the bucket name in a
+  thrown error, only in its own log line. `ChatAttachmentsModule` and
+  `AssignmentConversationsModule` import each other via `forwardRef`, mirroring
+  the existing `@Optional()` realtime/notifications pattern so the module
+  graph still boots with `CHAT_ATTACHMENTS_ENABLED=false`.
+- Verification: Prisma schema/migration validated against a full replay of
+  every prior migration plus a `prisma migrate diff` confirming zero drift;
+  Prisma client generation; backend type check with incremental output
+  disabled; targeted Jest across `shared/content`, `shared/scanning`,
+  `assignment-conversations`, `notifications`, and the regression suites for
+  `materials` and `contributor-profiles` (unedited behaviour, 169/169
+  passing); `check:architecture`. Client integration, the full `chat-attachments`
+  service/queue/worker spec suite, and the documented error-code contract
+  amendment are tracked as the remaining work for this slice.
+
 ### 2026-08-18 - Project hero-image upload in the creation wizard
 
 - Modules: `projects`; frontend project-import and public-project hero views.
@@ -3515,3 +3579,145 @@ This keeps the system strong without making it heavy:
 - Verification: Prisma validation/generation, focused backend project service
   tests, targeted lint, backend type check with incremental output disabled,
   frontend type check, targeted frontend lint, and focused frontend tests pass.
+
+### 2026-08-22 - Assignment Calls: P2P WebRTC lifecycle, signaling, TURN, timers (Sprint 9, Slice 4)
+
+- Modules: new `assignment-calls`; `notifications` (new `assignment_call.missed`
+  template); `shared/realtime` (`OnGatewayDisconnect` on `RealtimeGateway`,
+  `publishTransientToUser`, shared CORS parsing); `shared/events` (new --
+  `EventEmitterModule.forRoot()`, the first use of `@nestjs/event-emitter` in
+  this repo). Docs-first per this slice's own gate: ADR 0009 superseded by new
+  ADR 0016 (native P2P WebRTC replacing LiveKit); ADR 0011 updated in place
+  (DTLS-SRTP satisfies the original E2EE commitment, more strongly, with less
+  machinery); COMMUNICATION.md (call provider boundary reframed around a TURN
+  bandwidth budget instead of a LiveKit participant-minute cap; realtime
+  boundary item 3 -- the single most load-bearing edit -- now permits call
+  media signaling as a transient socket family); `realtime-communication-contract.md`
+  (join-credentials restated as ICE servers/TURN creds, `assignment_call.signal`
+  added, the LiveKit webhook route dropped); `sprint-9` product boundary and
+  acceptance criteria.
+- Summary: either Assignment participant can start a one-to-one audio/video/
+  screen-share call while the conversation is writable. NestJS is authoritative
+  for authorization, lifecycle, and history exactly as it was under LiveKit;
+  the two browsers negotiate a direct `RTCPeerConnection` with mandatory
+  DTLS-SRTP, falling back to a TURN relay only when a direct path is
+  unreachable. `start`/`answer`/`decline`/`end`/`reconnect` are ordinary
+  idempotent HTTP commands (Postgres commit, then `/realtime` publish); only
+  SDP offer/answer and ICE candidates travel as socket commands, re-authorized
+  on every single delivery rather than trusted from the socket handshake.
+- Database changes: migration `20260822090000_assignment_calls` adds
+  `AssignmentCall`, `AssignmentCallParticipation`, `AssignmentCallEvent`
+  (outbox, `command_idempotency_key` nullable so system-triggered transitions
+  carry no replay key), and `CommunicationCapacityUsage`; plus a raw partial
+  unique index (`assignment_call_participation_one_active_per_user`, `WHERE
+  "active"`) enforcing one active call per user platform-wide -- Prisma cannot
+  express a filtered index, so a simultaneous second `start` surfaces as
+  Postgres `P2002`, mapped to `ASSIGNMENT_CALL_PARTICIPANT_BUSY`. A second
+  compound-unique constraint needed an explicit `map` name (the default
+  `{model}_{fields}_key` convention exceeded Postgres's 63-character
+  identifier limit and would otherwise have been silently truncated).
+- Signaling: the first `@SubscribeMessage` handlers in this repo.
+  `assignment-call-signaling.gateway.ts` shares `RealtimeGateway`'s `/realtime`
+  namespace and deliberately does not implement `OnGatewayConnection` --
+  Nest invokes `handleConnection` on every gateway bound to a namespace that
+  implements it, and `RealtimeGateway.handleConnection` is the only place that
+  authenticates a socket. Relay uses the existing `user:<id>` room, not a new
+  per-call room; a random per-tab `callSessionId`, echoed on every signal and
+  never persisted, is what stops a multi-tab callee from having every tab
+  answer the same offer.
+- Timers: BullMQ delayed jobs (`delay` + stable `jobId`, cancelled with
+  `queue.remove`) for the first time in this repo -- every existing queue uses
+  `repeat`. Ring timeout (30s, armed at `start`), reconnect grace (30s, armed
+  on an observed authenticated-socket disconnect while a call is `answered`),
+  and duration warnings/cap (armed at `answer`, not `start`) are all
+  server-authoritative; the client only mirrors them for UI.
+- TURN: `assignment-call-ice.service.ts` mints coturn REST-style (RFC 7635)
+  ephemeral credentials, HMAC-SHA1 as coturn's scheme mandates (never SHA-256).
+  `TURN_MONTHLY_BUDGET_BYTES` is a budget measured after the fact from a daily
+  usage poll, not a synchronous cap checked at call start -- unlike a LiveKit
+  participant-minute, whether a call will relay at all is unknown until ICE
+  negotiation happens. No production TURN provider credentials exist yet, so
+  the daily poll job records zero usage; the seam (job, storage, admin read)
+  is real, only the provider HTTP call is a documented stand-in.
+- Authorization/security review: every call-media signal re-validates shape/size
+  (SDP capped at 64KB, ICE candidate at 1KB) before any database work, live
+  call state (memoized ~3s per call, since ICE candidates arrive in bursts),
+  fresh suspension status (not the socket's connect-time snapshot), an
+  offer/answer state gate (`offer` caller-only, `answer` callee-only and only
+  after `answered_at` is set), and a per-socket-per-call rate limit;
+  `fromUserId` is always stamped from the authenticated socket, never from the
+  payload. `TURN_STATIC_AUTH_SECRET` never reaches the browser.
+  `GET /admin/communication-capacity` requires an active admin actor.
+- Verification: Prisma schema/migration validated against a full replay of
+  every prior migration (chat_attachments included) plus a `prisma migrate diff`
+  confirming zero drift; Prisma client generation; backend type check with
+  incremental output disabled; targeted lint across the new module and every
+  touched shared file, clean. The day-1 gateway-coexistence proof, the full
+  `assignment-calls` service/authorization/timers/gateway spec suite, the real-Postgres
+  concurrency script for the partial unique index, env/docker (`coturn`)
+  wiring, and client integration are tracked as the remaining work for this
+  slice.
+
+**Update, same day** -- the day-1 gateway-coexistence proof
+(`realtime.gateway-coexistence.integration.spec.ts`, a real `@nestjs/testing`
+HTTP+WebSocket app plus a real `socket.io-client`, not a mock) and the full
+server test suite landed, including a real-Postgres run of
+`scripts/test-assignment-call-concurrency.ts`. That run caught a genuine bug
+the mocked unit tests could not have: `AssignmentCallsService.mapStartError`
+matched `String(error.meta?.target).includes('assignment_call_participation_one_active_per_user')`,
+but Prisma 6.19.3 against real Postgres 18.6 always reports `meta.target` as
+the plain column-name array (`['user_id']`) for this raw, migration-only
+partial index -- never the constraint name -- so a real simultaneous `start`
+against an already-busy user would have thrown the raw
+`PrismaClientKnownRequestError` uncaught instead of the intended 409
+`ASSIGNMENT_CALL_PARTICIPANT_BUSY`. The partial unique index itself (the
+durable invariant) was always sound; only the friendly-error-code mapping on
+top of it was broken. Fixed to match the field array precisely
+(`fields.length === 1 && fields[0] === 'user_id'`, distinguishing it from the
+two-field `[call_id, user_id]` constraint that also touches `user_id`), and
+re-verified against the same real Postgres run: `10 simultaneous starts
+targeting an already-busy user` now correctly maps to `ASSIGNMENT_CALL_PARTICIPANT_BUSY`.
+Two smaller findings from the same review, also fixed: `AssignmentCallAuthorizationService`'s
+per-socket rate limiter only recorded a timestamp on the success path, so
+the "past 3x the ceiling, disconnect" escalation could never actually
+trigger through real repeated calls (only through directly seeding the
+internal counter, which is what the original test did) -- now every attempt
+counts, verified with a genuine 181-call end-to-end test in place of the
+seeded one. `AssignmentCallsService`'s unused `NotificationsService`
+injection (missed-call notifications actually live in
+`AssignmentCallTimersService`) and `AssignmentCallAuthorizationService`'s
+dead `!sender.active` check (the query it reads from already filters
+`active: true`, so a present entry is active by construction) were removed.
+Full regression after all fixes: 1646/1649 passing, zero new failures,
+`check:architecture` clean (same pre-existing unrelated gaps).
+
+### 2026-08-22 - Synchronize npm lockfile for Assignment Calls dependency
+
+- Modules: `shared/events`, `assignment-calls`, and package metadata.
+- Requirement IDs: Sprint 9 Slice 4 / Assignment Calls.
+- Summary: aligned `package-lock.json` with the declared
+  `@nestjs/event-emitter@3.1.0` dependency and its
+  `eventemitter2@6.4.9` transitive dependency, resolving the Docker
+  `npm ci` EUSAGE failure. No runtime, API, or database behavior changed.
+- Verification: `npm ci --no-audit`, `npm run lint`,
+  `npx tsc --noEmit --incremental false`, focused realtime/Assignment Calls
+  tests (145/145), full Jest (1646/1649; 3 skipped), and `git diff --check`
+  passed.
+
+### 2026-08-22 - Resolve the identity/github forwardRef cycle via a leaf read model
+
+- Modules: new `github-identity`, plus `identity`, `github`, and the
+  architecture-check ratchet.
+- Requirement IDs: architecture hygiene / forwardRef budget.
+- Summary: `GitHubAppService` (github) only consumed the stateless read
+  `IdentityAccountStatusService.getGitHubIdentityForUser`, while
+  `SocialAuthService` (identity) drives the full `GitHubOAuthService`
+  workflow, forcing both modules to `forwardRef` each other. The read moved
+  to a new leaf module `github-identity` (`GitHubIdentityLookupService`);
+  `IdentityAccountStatusService` now delegates to it, `GithubModule` imports
+  only the leaf, and `IdentityModule` imports `GithubModule` one-way. No
+  route, DTO, event payload, or error changed; the forwardRef budget ratchet
+  dropped from 26 to 23.
+- Verification: new `github.module.spec.ts` / `identity.module.spec.ts`
+  compile each module with only non-cyclic deps; focused suites
+  (26/26), `npx tsc --noEmit`, and `npm run check:architecture` pass.
