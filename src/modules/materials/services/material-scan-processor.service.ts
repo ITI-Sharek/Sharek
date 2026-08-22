@@ -107,8 +107,7 @@ export class MaterialScanProcessorService {
     let verdict: MalwareScanVerdict;
     try {
       verdict = await this.scanner.scan({
-        materialId,
-        version,
+        subject: { kind: 'material', id: materialId, version },
         content: await this.readContent(row.storage_key),
         mimeType: row.mime_type,
         contentHash: row.content_hash,
