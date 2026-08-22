@@ -106,7 +106,7 @@ describe('GitHubAppService', () => {
       encrypt: jest.fn((value: string) => `encrypted:${value}`),
       decrypt: jest.fn(() => 'plain-user-token'),
     };
-    const identityAccountStatus = {
+    const gitHubIdentityLookup = {
       getGitHubIdentityForUser: jest.fn().mockImplementation((userId: string) =>
         Promise.resolve({
           providerAccountId: userId === 'user-1' ? '42' : '43',
@@ -125,13 +125,13 @@ describe('GitHubAppService', () => {
         }),
         apiClient as never,
         tokenEncryption as never,
-        identityAccountStatus as never,
+        gitHubIdentityLookup as never,
       ),
       database,
       transaction,
       apiClient,
       tokenEncryption,
-      identityAccountStatus,
+      gitHubIdentityLookup,
       repository,
     };
   }
@@ -177,8 +177,8 @@ describe('GitHubAppService', () => {
   });
 
   it('requires a linked GitHub sign-in identity before starting repository authorization', async () => {
-    const { service, database, identityAccountStatus } = createService();
-    identityAccountStatus.getGitHubIdentityForUser.mockResolvedValue(null);
+    const { service, database, gitHubIdentityLookup } = createService();
+    gitHubIdentityLookup.getGitHubIdentityForUser.mockResolvedValue(null);
 
     await expect(service.startConnection('user-1')).rejects.toMatchObject({
       code: 'GITHUB_APP_IDENTITY_REQUIRED',
@@ -255,7 +255,7 @@ describe('GitHubAppService', () => {
   });
 
   it('rejects repository authorization from a different GitHub account', async () => {
-    const { service, database, apiClient, identityAccountStatus } = createService();
+    const { service, database, apiClient, gitHubIdentityLookup } = createService();
     database.gitHubAppLinkState.findUnique.mockResolvedValue({
       id: 'attempt-1',
       user_id: 'user-1',
@@ -281,7 +281,7 @@ describe('GitHubAppService', () => {
       code: 'GITHUB_APP_ACCOUNT_MISMATCH',
       statusCode: 409,
     });
-    expect(identityAccountStatus.getGitHubIdentityForUser).toHaveBeenCalledWith(
+    expect(gitHubIdentityLookup.getGitHubIdentityForUser).toHaveBeenCalledWith(
       'user-1',
     );
     expect(apiClient.listUserInstallations).not.toHaveBeenCalled();
@@ -341,7 +341,7 @@ describe('GitHubAppService', () => {
   });
 
   it('rejects completion when the linked sign-in identity changed after callback', async () => {
-    const { service, database, apiClient, identityAccountStatus } = createService();
+    const { service, database, apiClient, gitHubIdentityLookup } = createService();
     database.gitHubAppLinkState.findFirst.mockResolvedValue({
       id: 'attempt-1',
       user_id: 'user-1',
@@ -355,7 +355,7 @@ describe('GitHubAppService', () => {
         },
       ],
     });
-    identityAccountStatus.getGitHubIdentityForUser.mockResolvedValue({
+    gitHubIdentityLookup.getGitHubIdentityForUser.mockResolvedValue({
       providerAccountId: '99',
       username: 'changed-account',
     });
@@ -616,9 +616,9 @@ describe('GitHubAppService', () => {
   });
 
   it('rejects repository reads when an existing link belongs to a different GitHub identity', async () => {
-    const { service, database, apiClient, identityAccountStatus } = createService();
+    const { service, database, apiClient, gitHubIdentityLookup } = createService();
     database.gitHubAppInstallationLink.findFirst.mockResolvedValue(activeLink());
-    identityAccountStatus.getGitHubIdentityForUser.mockResolvedValue({
+    gitHubIdentityLookup.getGitHubIdentityForUser.mockResolvedValue({
       providerAccountId: '99',
       username: 'changed-account',
     });

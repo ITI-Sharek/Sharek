@@ -9,7 +9,7 @@ import { UpdatePersonalDetailsRequest } from '../dto/update-personal-details.req
 import { UpdatePhoneRequest } from '../dto/update-phone.request';
 import { UpdatePrivacyRequest } from '../dto/update-privacy.request';
 import { UpdateUsernameRequest } from '../dto/update-username.request';
-import { toAuthUserDto } from '../mappers/auth-user.mapper';
+import { toAuthUserDto } from '../auth-user.mapper';
 import { PasswordHasher } from '../security/password-hasher.service';
 import { IdentityUsernameService } from './identity-username.service';
 

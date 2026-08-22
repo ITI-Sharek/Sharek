@@ -4,7 +4,7 @@ import { randomInt } from 'crypto';
 
 import { AuthSessionDto, AuthUserDto } from '../dto/auth-session.dto';
 import { EmailVerificationRequiredDto } from '../dto/email-verification.dto';
-import { toAuthUserDto } from '../mappers/auth-user.mapper';
+import { toAuthUserDto } from '../auth-user.mapper';
 import { RegisterRequest } from '../dto/register.request';
 import { LoginRequest } from '../dto/login.request';
 import { ResendEmailVerificationRequest } from '../dto/resend-email-verification.request';
@@ -12,7 +12,7 @@ import { VerifyEmailRequest } from '../dto/verify-email.request';
 import { hashToken } from '../../../shared/auth/token-hash';
 import { DatabaseService } from '../../../shared/database/database.service';
 import { ApplicationError } from '../../../shared/errors/application.error';
-import { EmailVerificationSender } from '../integrations/email-verification.sender';
+import { EmailVerificationSender } from './email-verification-sender.service';
 import { PasswordHasher } from '../security/password-hasher.service';
 import { IdentityUsernameService } from './identity-username.service';
 import { SessionService } from './session.service';

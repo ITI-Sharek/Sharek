@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { AuthProvider, UserRole, UserStatus } from '@prisma/client';
+import { UserRole, UserStatus } from '@prisma/client';
 
 import { DatabaseService } from '../../../shared/database/database.service';
 import {
   ConflictApplicationError,
   NotFoundApplicationError,
 } from '../../../shared/errors/application.error';
+import {
+  GitHubIdentity,
+  GitHubIdentityLookupService,
+} from '../../github-identity/github-identity-lookup.service';
 
 export interface ContributorActivationResultDto {
   userId: string;
@@ -15,30 +19,15 @@ export interface ContributorActivationResultDto {
 
 @Injectable()
 export class IdentityAccountStatusService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly gitHubIdentityLookup: GitHubIdentityLookupService,
+  ) {}
 
   async getGitHubIdentityForUser(
     userId: string,
-  ): Promise<{ providerAccountId: string; username: string | null } | null> {
-    const account = await this.database.authProviderAccount.findUnique({
-      where: {
-        provider_user_id: {
-          provider: AuthProvider.github,
-          user_id: userId,
-        },
-      },
-      select: {
-        provider_account_id: true,
-        username: true,
-      },
-    });
-
-    return account
-      ? {
-          providerAccountId: account.provider_account_id,
-          username: account.username,
-        }
-      : null;
+  ): Promise<GitHubIdentity | null> {
+    return this.gitHubIdentityLookup.getGitHubIdentityForUser(userId);
   }
 
   async activateContributorAfterSkillApproval(

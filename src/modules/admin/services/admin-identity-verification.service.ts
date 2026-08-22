@@ -8,8 +8,8 @@ import {
   ForbiddenApplicationError,
   NotFoundApplicationError,
 } from '../../../shared/errors/application.error';
-import { EmailVerificationSender } from '../../identity/integrations/email-verification.sender';
-import { toAuthUserDto } from '../../identity/mappers/auth-user.mapper';
+import { EmailVerificationSender } from '../../identity/services/email-verification-sender.service';
+import { toAuthUserDto } from '../../identity/auth-user.mapper';
 import {
   AdminIdentityVerificationItemDto,
   AdminIdentityVerificationPageDto,

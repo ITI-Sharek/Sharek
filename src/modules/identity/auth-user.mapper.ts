@@ -1,6 +1,6 @@
 import { User } from '@prisma/client';
 
-import { AuthUserDto } from '../dto/auth-session.dto';
+import { AuthUserDto } from './dto/auth-session.dto';
 
 export function toAuthUserDto(user: User): AuthUserDto {
   return {

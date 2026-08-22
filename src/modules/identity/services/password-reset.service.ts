@@ -6,7 +6,7 @@ import { DatabaseService } from '../../../shared/database/database.service';
 import { ApplicationError } from '../../../shared/errors/application.error';
 import { ForgotPasswordRequest } from '../dto/forgot-password.request';
 import { ResetPasswordRequest } from '../dto/reset-password.request';
-import { EmailVerificationSender } from '../integrations/email-verification.sender';
+import { EmailVerificationSender } from './email-verification-sender.service';
 import { PasswordHasher } from '../security/password-hasher.service';
 
 const PASSWORD_RESET_OTP_TTL_MS = 10 * 60 * 1000;

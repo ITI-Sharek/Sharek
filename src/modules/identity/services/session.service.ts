@@ -5,7 +5,7 @@ import { DatabaseService } from '../../../shared/database/database.service';
 import { ApplicationError } from '../../../shared/errors/application.error';
 import { AuthTokensDto, AuthUserDto } from '../dto/auth-session.dto';
 import { UpdateUserPreferencesRequest } from '../dto/update-user-preferences.request';
-import { toAuthUserDto } from '../mappers/auth-user.mapper';
+import { toAuthUserDto } from '../auth-user.mapper';
 import { SessionTokenService } from '../security/session-token.service';
 import { IdentityUsernameService } from './identity-username.service';
 

@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   GitHubAppAccountType,
@@ -13,7 +13,7 @@ import { createHash, randomBytes } from 'crypto';
 
 import { DatabaseService } from '../../../shared/database/database.service';
 import { ApplicationError } from '../../../shared/errors/application.error';
-import { IdentityAccountStatusService } from '../../identity/services/identity-account-status.service';
+import { GitHubIdentityLookupService } from '../../github-identity/github-identity-lookup.service';
 import {
   GitHubAppConnectionStartDto,
   GitHubAppConnectionAttemptDto,
@@ -45,8 +45,7 @@ export class GitHubAppService {
     private readonly config: ConfigService,
     private readonly apiClient: GitHubAppApiClient,
     private readonly tokenEncryption: GitHubTokenEncryptionService,
-    @Inject(forwardRef(() => IdentityAccountStatusService))
-    private readonly identityAccountStatus: IdentityAccountStatusService,
+    private readonly gitHubIdentityLookup: GitHubIdentityLookupService,
   ) {}
 
   async startConnection(
@@ -688,7 +687,7 @@ export class GitHubAppService {
     authorizedGitHubUserId?: string,
   ): Promise<{ providerAccountId: string; username: string | null }> {
     const identity =
-      await this.identityAccountStatus.getGitHubIdentityForUser(userId);
+      await this.gitHubIdentityLookup.getGitHubIdentityForUser(userId);
     if (!identity) {
       throw new ApplicationError(
         'Connect the GitHub account used to sign in before linking repositories',
