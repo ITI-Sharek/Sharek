@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   AssignmentConversationStatus,
   Prisma,
@@ -12,6 +13,8 @@ import {
   ConflictApplicationError,
   NotFoundApplicationError,
 } from '../../shared/errors/application.error';
+import { toAttachmentSummaryDto } from '../chat-attachments/chat-attachment-presentation';
+import { ChatAttachmentBindingService } from '../chat-attachments/services/chat-attachment-binding.service';
 import {
   decodeConversationCursor,
   decodeConversationListCursor,
@@ -33,6 +36,19 @@ import { NotificationsService } from '../notifications/notifications.service';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_MESSAGE_LENGTH = 4000;
+const DEFAULT_MAX_ATTACHMENTS_PER_MESSAGE = 5;
+const ATTACHMENT_ONLY_MESSAGE_PREVIEW = 'Attachment';
+
+const MESSAGE_ATTACHMENT_SELECT = {
+  id: true,
+  original_filename: true,
+  byte_size: true,
+  mime_type: true,
+  caption: true,
+  scan_status: true,
+  scan_error_code: true,
+  event_version: true,
+} satisfies Prisma.ChatAttachmentSelect;
 
 const CONVERSATION_AUTHORIZATION_SELECT = {
   id: true,
@@ -66,6 +82,13 @@ const MESSAGE_SELECT = {
   edited_at: true,
   retracted_at: true,
   sender: { select: { first_name: true, last_name: true } },
+  // Purged attachments are excluded: their bytes are gone, so nothing about
+  // them belongs on a message a client might still render.
+  attachments: {
+    where: { purged_at: null },
+    orderBy: { created_at: 'asc' },
+    select: MESSAGE_ATTACHMENT_SELECT,
+  },
 } satisfies Prisma.MessageSelect;
 
 type AuthorizedConversation = Prisma.AssignmentConversationGetPayload<{
@@ -78,11 +101,51 @@ type MessageRecord = Prisma.MessageGetPayload<{ select: typeof MESSAGE_SELECT }>
 export class AssignmentConversationsService {
   constructor(
     private readonly database: DatabaseService,
+    private readonly config: ConfigService,
     @Optional()
     private readonly realtime?: AssignmentConversationRealtimeService,
     @Optional()
     private readonly notifications?: NotificationsService,
+    @Optional()
+    private readonly chatAttachments?: ChatAttachmentBindingService,
   ) {}
+
+  /**
+   * Thin public wrapper over the private authorization lookup, for the
+   * `chat-attachments` module's `getParticipation()` boundary call. Preserves
+   * `findAuthorizedConversation`'s non-leaking `ASSIGNMENT_CONVERSATION_NOT_FOUND`
+   * behaviour -- a caller who is not a participant learns nothing about
+   * whether the conversation exists.
+   */
+  async getParticipation(
+    actorId: string,
+    conversationId: string,
+  ): Promise<{
+    conversationId: string;
+    assignmentId: string;
+    status: AssignmentConversationStatus;
+    ownerId: string;
+    contributorId: string;
+    peerId: string;
+    aggregateVersion: number;
+  }> {
+    const conversation = await this.findAuthorizedConversation(
+      this.database,
+      actorId,
+      conversationId,
+    );
+    const ownerId = conversation.assignment.contributionRequest.owner_id;
+    const contributorId = conversation.assignment.contributor_id;
+    return {
+      conversationId: conversation.id,
+      assignmentId: conversation.assignment_id,
+      status: conversation.status,
+      ownerId,
+      contributorId,
+      peerId: actorId === ownerId ? contributorId : ownerId,
+      aggregateVersion: conversation.aggregate_version,
+    };
+  }
 
   async ensureForAssignment(input: {
     assignmentId: string;
@@ -196,18 +259,20 @@ export class AssignmentConversationsService {
     body: string;
     idempotencyKey: string;
     replyToMessageId?: string;
+    attachmentUploadIds?: string[];
   }): Promise<MessageResponseDto> {
     const body = input.body.trim();
-    if (!body) {
-      throw new BadRequestApplicationError(
-        'Message body is required',
-        'MESSAGE_BODY_REQUIRED',
-      );
-    }
     if ([...body].length > MAX_MESSAGE_LENGTH) {
       throw new BadRequestApplicationError(
         'Message body is too long',
         'MESSAGE_TOO_LONG',
+      );
+    }
+    const attachmentIds = this.normalizeAttachmentIds(input.attachmentUploadIds);
+    if (!body && attachmentIds.length === 0) {
+      throw new BadRequestApplicationError(
+        'Message body is required',
+        'MESSAGE_BODY_REQUIRED',
       );
     }
 
@@ -237,9 +302,15 @@ export class AssignmentConversationsService {
             select: MESSAGE_SELECT,
           });
           if (existing) {
-            if (existing.body !== body) {
+            const existingAttachmentIds = new Set(
+              existing.attachments.map((attachment) => attachment.id),
+            );
+            const sameAttachmentSet =
+              existingAttachmentIds.size === attachmentIds.length &&
+              attachmentIds.every((id) => existingAttachmentIds.has(id));
+            if (existing.body !== body || !sameAttachmentSet) {
               throw new ConflictApplicationError(
-                'Message idempotency key was already used with another body',
+                'Message idempotency key was already used with a different body or attachment set',
                 'MESSAGE_IDEMPOTENCY_CONFLICT',
               );
             }
@@ -256,7 +327,7 @@ export class AssignmentConversationsService {
           });
           if (updated.count !== 1) throw new ConcurrentMessageMutation();
 
-          const message = await transaction.message.create({
+          let message = await transaction.message.create({
             data: {
               id: randomUUID(),
               conversation_id: input.conversationId,
@@ -268,6 +339,35 @@ export class AssignmentConversationsService {
             },
             select: MESSAGE_SELECT,
           });
+
+          if (attachmentIds.length > 0) {
+            const bound = this.chatAttachments
+              ? await this.chatAttachments.bindToMessage({
+                  transaction,
+                  conversationId: input.conversationId,
+                  actorId: input.actor.id,
+                  attachmentIds,
+                  messageId: message.id,
+                  now: new Date(),
+                })
+              : { boundCount: 0 };
+            if (bound.boundCount !== attachmentIds.length) {
+              // Non-leaking: a foreign, already-bound, or expired attachment
+              // id reads the same as one that never existed.
+              throw new NotFoundApplicationError(
+                'Attachment upload was not found',
+                'CHAT_ATTACHMENT_UPLOAD_NOT_FOUND',
+              );
+            }
+            // Re-read: `message` above was selected at create time, before
+            // any attachment pointed at it, so its `attachments` came back
+            // empty regardless of what was just bound.
+            message = await transaction.message.findUniqueOrThrow({
+              where: { id: message.id },
+              select: MESSAGE_SELECT,
+            });
+          }
+
           const event = await transaction.messageEvent.create({
             data: {
               message_id: message.id,
@@ -294,7 +394,11 @@ export class AssignmentConversationsService {
                   conversationId: message.conversation_id,
                   messageId: message.id,
                   senderName,
-                  messagePreview: body.slice(0, 240),
+                  // Attachment-only Messages have no text to preview. Keep
+                  // the notification contract non-empty without leaking a
+                  // filename or other attachment metadata.
+                  messagePreview:
+                    body.slice(0, 240) || ATTACHMENT_ONLY_MESSAGE_PREVIEW,
                 },
                 { transaction, emitRealtime: false },
               )
@@ -399,7 +503,40 @@ export class AssignmentConversationsService {
       createdAt: message.created_at,
       editedAt: message.edited_at,
       retractedAt: message.retracted_at,
+      attachments: message.attachments.map(toAttachmentSummaryDto),
     };
+  }
+
+  /**
+   * Dedupe is a correctness requirement, not a convenience: the binding
+   * claim's `bound.count !== attachmentIds.length` check would misfire
+   * against a list containing the same id twice, since a duplicate id can
+   * only ever bind once. A client sending duplicates is a client bug, so it
+   * is rejected rather than silently repaired.
+   */
+  private normalizeAttachmentIds(ids: string[] | undefined): string[] {
+    const list = ids ?? [];
+    if (list.length === 0) return [];
+
+    const unique = new Set(list);
+    if (unique.size !== list.length) {
+      throw new BadRequestApplicationError(
+        'A message cannot attach the same upload twice',
+        'CHAT_ATTACHMENT_DUPLICATE_UPLOAD_ID',
+      );
+    }
+
+    const maxPerMessage = this.config.get<number>(
+      'CHAT_ATTACHMENT_MAX_PER_MESSAGE',
+      DEFAULT_MAX_ATTACHMENTS_PER_MESSAGE,
+    );
+    if (list.length > maxPerMessage) {
+      throw new BadRequestApplicationError(
+        `A message may carry at most ${maxPerMessage} attachments`,
+        'CHAT_ATTACHMENT_LIMIT_EXCEEDED',
+      );
+    }
+    return list;
   }
 
   private displayName(

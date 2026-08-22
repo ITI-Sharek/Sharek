@@ -25,7 +25,7 @@ describe('environment validation', () => {
 
     expect(result.error).toBeUndefined();
     expect(result.value).toMatchObject({
-      REALTIME_NOTIFICATIONS_ENABLED: false,
+      REALTIME_NOTIFICATIONS_ENABLED: true,
       PAYMENTS_PAYMOB_ENABLED: false,
       PAYMOB_API_BASE_URL: 'https://accept.paymob.com',
       PAYMOB_INTENTION_PATH: '/v1/intention/',
@@ -298,6 +298,39 @@ describe('environment validation', () => {
         PAYMOB_REDIRECTION_URL: 'http://localhost:3001/payments/result',
       }).error,
     ).toBeDefined();
+  });
+
+  it('requires a TURN auth secret when assignment calls are enabled', () => {
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        ASSIGNMENT_CALLS_ENABLED: true,
+        TURN_STATIC_AUTH_SECRET: '',
+      }).error,
+    ).toBeDefined();
+
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        ASSIGNMENT_CALLS_ENABLED: true,
+        TURN_STATIC_AUTH_SECRET: 'a'.repeat(32),
+      }).error,
+    ).toBeUndefined();
+  });
+
+  it('allows client-side S3 encryption to be disabled for local S3-compatible storage', () => {
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        S3_SERVER_SIDE_ENCRYPTION: '',
+      }).error,
+    ).toBeUndefined();
+    expect(
+      envValidationSchema.validate({
+        ...validEnvironment,
+        S3_SERVER_SIDE_ENCRYPTION: 'AES256',
+      }).error,
+    ).toBeUndefined();
   });
 
   it('rejects an unbounded Paymob request timeout', () => {

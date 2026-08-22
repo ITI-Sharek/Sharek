@@ -14,7 +14,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
       DATABASE_URL: ${DATABASE_URL:-postgresql://sharek:sharek@postgres:5432/sharek?schema=public}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      REALTIME_NOTIFICATIONS_ENABLED: ${REALTIME_NOTIFICATIONS_ENABLED:-false}
+      REALTIME_NOTIFICATIONS_ENABLED: ${REALTIME_NOTIFICATIONS_ENABLED:-true}
       NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED: ${NOTIFICATION_EVENT_RECOVERY_QUEUE_ENABLED:-true}
       NOTIFICATION_EVENT_RECOVERY_INTERVAL_MS: ${NOTIFICATION_EVENT_RECOVERY_INTERVAL_MS:-60000}
       NOTIFICATION_EVENT_RECOVERY_BATCH_SIZE: ${NOTIFICATION_EVENT_RECOVERY_BATCH_SIZE:-100}
@@ -44,6 +44,50 @@ services:
       MATERIAL_ANALYSIS_QUEUE_ENABLED: ${MATERIAL_ANALYSIS_QUEUE_ENABLED:-true}
       MATERIAL_ANALYSIS_REAP_INTERVAL_MS: ${MATERIAL_ANALYSIS_REAP_INTERVAL_MS:-60000}
       MATERIAL_ANALYSIS_STALE_AFTER_MS: ${MATERIAL_ANALYSIS_STALE_AFTER_MS:-600000}
+      CHAT_ATTACHMENTS_ENABLED: ${CHAT_ATTACHMENTS_ENABLED:-false}
+      CHAT_ATTACHMENT_MAX_BYTES: ${CHAT_ATTACHMENT_MAX_BYTES:-26214400}
+      CHAT_ATTACHMENT_MAX_PER_MESSAGE: ${CHAT_ATTACHMENT_MAX_PER_MESSAGE:-5}
+      CHAT_ATTACHMENT_ALLOWED_MIME_TYPES: ${CHAT_ATTACHMENT_ALLOWED_MIME_TYPES:-image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
+      CHAT_ATTACHMENT_UPLOAD_INTENT_TTL_SECONDS: ${CHAT_ATTACHMENT_UPLOAD_INTENT_TTL_SECONDS:-1800}
+      CHAT_ATTACHMENT_UPLOADS_PER_MINUTE: ${CHAT_ATTACHMENT_UPLOADS_PER_MINUTE:-20}
+      CHAT_ATTACHMENT_SCAN_QUEUE_ENABLED: ${CHAT_ATTACHMENT_SCAN_QUEUE_ENABLED:-true}
+      CHAT_ATTACHMENT_SCAN_REAP_INTERVAL_MS: ${CHAT_ATTACHMENT_SCAN_REAP_INTERVAL_MS:-60000}
+      CHAT_ATTACHMENT_SCAN_STALE_AFTER_MS: ${CHAT_ATTACHMENT_SCAN_STALE_AFTER_MS:-600000}
+      CHAT_ATTACHMENT_SCAN_MAX_ATTEMPTS: ${CHAT_ATTACHMENT_SCAN_MAX_ATTEMPTS:-3}
+      CHAT_ATTACHMENT_SCANNER_STUB_MODE: ${CHAT_ATTACHMENT_SCANNER_STUB_MODE:-content}
+      CHAT_ATTACHMENT_EVENT_MAX_PUBLISH_ATTEMPTS: ${CHAT_ATTACHMENT_EVENT_MAX_PUBLISH_ATTEMPTS:-5}
+      CHAT_ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS: ${CHAT_ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS:-60}
+      CHAT_ATTACHMENT_RETENTION_MONTHS: ${CHAT_ATTACHMENT_RETENTION_MONTHS:-12}
+      CHAT_ATTACHMENT_RETENTION_WARNING_DAYS: ${CHAT_ATTACHMENT_RETENTION_WARNING_DAYS:-30}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_CHAT_ATTACHMENTS_BUCKET: ${S3_CHAT_ATTACHMENTS_BUCKET:-sharek-chat-attachments}
+      S3_CHAT_ATTACHMENTS_KEY_PREFIX: ${S3_CHAT_ATTACHMENTS_KEY_PREFIX:-chat-attachments/}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-sharek-minio}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-sharek-minio-secret}
+      # Preserve an explicit empty value for local MinIO, which has no KMS by
+      # default. If unset, production-compatible AES256 remains the default.
+      S3_SERVER_SIDE_ENCRYPTION: ${S3_SERVER_SIDE_ENCRYPTION-AES256}
+      S3_KMS_KEY_ID: ${S3_KMS_KEY_ID:-}
+      S3_REQUEST_TIMEOUT_MS: ${S3_REQUEST_TIMEOUT_MS:-15000}
+      ASSIGNMENT_CALLS_ENABLED: ${ASSIGNMENT_CALLS_ENABLED:-false}
+      ASSIGNMENT_CALL_RING_TIMEOUT_MS: ${ASSIGNMENT_CALL_RING_TIMEOUT_MS:-30000}
+      ASSIGNMENT_CALL_RECONNECT_GRACE_MS: ${ASSIGNMENT_CALL_RECONNECT_GRACE_MS:-30000}
+      ASSIGNMENT_CALL_MAX_DURATION_MS: ${ASSIGNMENT_CALL_MAX_DURATION_MS:-3600000}
+      ASSIGNMENT_CALL_WARNING_MS: ${ASSIGNMENT_CALL_WARNING_MS:-3000000,3480000}
+      ASSIGNMENT_CALL_QUEUE_ENABLED: ${ASSIGNMENT_CALL_QUEUE_ENABLED:-true}
+      ASSIGNMENT_CALL_SWEEP_INTERVAL_MS: ${ASSIGNMENT_CALL_SWEEP_INTERVAL_MS:-60000}
+      ASSIGNMENT_CALL_EVENT_MAX_PUBLISH_ATTEMPTS: ${ASSIGNMENT_CALL_EVENT_MAX_PUBLISH_ATTEMPTS:-5}
+      ASSIGNMENT_CALL_SIGNAL_MAX_SDP_BYTES: ${ASSIGNMENT_CALL_SIGNAL_MAX_SDP_BYTES:-65536}
+      ASSIGNMENT_CALL_SIGNALS_PER_10S: ${ASSIGNMENT_CALL_SIGNALS_PER_10S:-60}
+      TURN_STATIC_AUTH_SECRET: ${TURN_STATIC_AUTH_SECRET:-sharek-turn-dev-secret-please-change}
+      TURN_REALM: ${TURN_REALM:-sharek.local}
+      TURN_URLS: ${TURN_URLS:-turn:coturn:3478?transport=udp,turn:coturn:3478?transport=tcp}
+      TURN_CREDENTIAL_TTL_SECONDS: ${TURN_CREDENTIAL_TTL_SECONDS:-300}
+      TURN_MONTHLY_BUDGET_BYTES: ${TURN_MONTHLY_BUDGET_BYTES:-53687091200}
+      STUN_URLS: ${STUN_URLS:-stun:stun.l.google.com:19302,stun:stun.cloudflare.com:3478}
       APPLICATION_REVIEW_SWEEP_INTERVAL_MS: ${APPLICATION_REVIEW_SWEEP_INTERVAL_MS:-60000}
       APPLICATION_REVIEW_SWEEP_BATCH_SIZE: ${APPLICATION_REVIEW_SWEEP_BATCH_SIZE:-100}
       DELIVERY_REPUTATION_SWEEP_INTERVAL_MS: ${DELIVERY_REPUTATION_SWEEP_INTERVAL_MS:-60000}
@@ -107,6 +151,73 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      minio:
+        condition: service_healthy
+      coturn:
+        condition: service_started
+    networks:
+      - sha-rek-network
+
+  # Local-dev-only TURN relay. Production uses a managed provider (Cloudflare
+  # Realtime TURN, Twilio NTS as fallback) -- never self-hosted coturn there,
+  # per ADR 0016: that would mean operating a UDP relay across a wide port
+  # range plus its own bandwidth bill, exactly the surface the ADR avoids by
+  # not running an SFU.
+  coturn:
+    image: coturn/coturn:latest
+    container_name: sha-rek-coturn
+    command: >
+      -n
+      --listening-port=3478
+      --min-port=49160
+      --max-port=49200
+      --realm=${TURN_REALM:-sharek.local}
+      --use-auth-secret
+      --static-auth-secret=${TURN_STATIC_AUTH_SECRET:-sharek-turn-dev-secret-please-change}
+      --no-tls
+      --no-dtls
+      --log-file=stdout
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "49160-49200:49160-49200/udp"
+    networks:
+      - sha-rek-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: sha-rek-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-sharek-minio}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-sharek-minio-secret}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sha-rek-network
+
+  # One-shot: creates the chat-attachments bucket, then exits. The app must
+  # never hold s3:CreateBucket -- provisioning the bucket is infrastructure's
+  # job, not a runtime privilege the API carries.
+  minio-init:
+    image: minio/mc:latest
+    container_name: sha-rek-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-sharek-minio} ${S3_SECRET_ACCESS_KEY:-sharek-minio-secret} &&
+      mc mb --ignore-existing local/${S3_CHAT_ATTACHMENTS_BUCKET:-sharek-chat-attachments}
+      "
     networks:
       - sha-rek-network
 
@@ -141,6 +252,7 @@ volumes:
   postgres_data:
   api_build:
   material_storage:
+  minio_data:
 
 networks:
   sha-rek-network:

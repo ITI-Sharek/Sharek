@@ -18,7 +18,9 @@
     "test:migrations:matching": "node scripts/test-ai-match-result-migration.mjs",
     "test:migrations:skill-requirements": "node scripts/test-contribution-request-skill-requirements-migration.mjs",
     "test:migrations:eligibility": "node scripts/test-eligibility-evaluations-migration.mjs",
+    "test:migrations:assignment-calls": "node scripts/test-assignment-calls-migration.mjs",
     "test:concurrency:application-quota": "ts-node --project tsconfig.json scripts/test-application-daily-quota-concurrency.ts",
+    "test:concurrency:assignment-calls": "ts-node --project tsconfig.json scripts/test-assignment-call-concurrency.ts",
     "test:api-clients": "node scripts/validate-api-clients.mjs",
     "test:postman": "node scripts/validate-postman-coverage.mjs",
     "test:ai-routes": "node scripts/validate-ai-route-contract.mjs",
@@ -42,9 +44,12 @@
     "seed": "prisma db seed"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1115.0",
+    "@aws-sdk/s3-request-presigner": "^3.1115.0",
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.27",
+    "@nestjs/event-emitter": "^3.1.0",
     "@nestjs/platform-express": "^11.1.27",
     "@nestjs/platform-socket.io": "^11.1.28",
     "@nestjs/websockets": "^11.1.28",

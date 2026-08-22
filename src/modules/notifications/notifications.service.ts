@@ -13,6 +13,8 @@ import { NotificationPresenterService } from './notification-presenter.service';
 import { NotificationRealtimeService } from './notification-realtime.service';
 import {
   buildApplicationNotificationDeepLink,
+  buildAssignmentCallMissedNotificationDeepLink,
+  buildChatAttachmentBlockedNotificationDeepLink,
   buildConversationActivityNotificationDeepLink,
   buildDeliveryNotificationDeepLink,
   buildProposalNotificationDeepLink,
@@ -107,6 +109,20 @@ export interface ConversationActivityNotificationInput {
   messageId: string;
   senderName: string;
   messagePreview: string;
+}
+
+export interface ChatAttachmentBlockedNotificationInput {
+  userId: string;
+  conversationId: string;
+  attachmentId: string;
+  filename: string;
+}
+
+export interface MissedCallNotificationInput {
+  userId: string;
+  callId: string;
+  conversationId: string;
+  callerName: string;
 }
 
 @Injectable()
@@ -570,6 +586,137 @@ export class NotificationsService {
       deliveredRealtime: false,
       notification: this.presentRealtimeNotification(notification),
     };
+  }
+
+  /**
+   * Sender-only, per COMMUNICATION.md item 3: the peer is told about a
+   * blocked attachment only through the permanent tombstone in the thread,
+   * never a notification, which would otherwise imply something about the
+   * sender's intent that a failed scan does not establish.
+   */
+  async createChatAttachmentBlockedNotification(
+    input: ChatAttachmentBlockedNotificationInput,
+    options?: {
+      transaction?: Prisma.TransactionClient;
+      emitRealtime?: boolean;
+    },
+  ): Promise<NotificationCreateResultDto> {
+    const templateKey: NotificationTemplateKey = 'chat_attachment.blocked';
+    const parameters = {
+      conversationId: input.conversationId,
+      filename: input.filename,
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
+    const deepLink = buildChatAttachmentBlockedNotificationDeepLink(parameters);
+    // Keyed on the attachment, not the conversation: two blocked uploads in
+    // the same thread are two distinct facts, each worth its own notification.
+    const deduplicationKey = `chat-attachment-blocked:${input.attachmentId}`;
+
+    const persist = async (transaction: Prisma.TransactionClient) => {
+      const existing = await transaction.notification.findUnique({
+        where: { deduplication_key: deduplicationKey },
+      });
+      let notification = existing;
+      let created = false;
+      if (!notification) {
+        notification = await transaction.notification.create({
+          data: {
+            user_id: input.userId,
+            type: policy.category,
+            template_key: templateKey,
+            template_version: 1,
+            parameters,
+            deep_link: deepLink,
+            priority: policy.priority,
+            deduplication_key: deduplicationKey,
+          },
+        });
+        created = true;
+        await this.notificationEvents.appendCreated(transaction, notification);
+      }
+      return {
+        notificationId: notification.id,
+        created,
+        deliveredRealtime: false,
+        notification: this.presentRealtimeNotification(notification),
+      };
+    };
+
+    if (options?.transaction) {
+      return persist(options.transaction);
+    }
+    const persisted = await this.database.$transaction(persist);
+    const deliveredRealtime =
+      persisted.created && options?.emitRealtime !== false
+        ? await this.publishCreated(persisted.notificationId)
+        : false;
+    return { ...persisted, deliveredRealtime };
+  }
+
+  /**
+   * Not grouped with anything (COMMUNICATION.md, unread activity item 5): a
+   * missed call is always its own Notification row, never merged into or
+   * counted alongside grouped message activity the way
+   * `createConversationActivityNotification` merges repeat messages.
+   */
+  async createMissedCallNotification(
+    input: MissedCallNotificationInput,
+    options?: {
+      transaction?: Prisma.TransactionClient;
+      emitRealtime?: boolean;
+    },
+  ): Promise<NotificationCreateResultDto> {
+    const templateKey: NotificationTemplateKey = 'assignment_call.missed';
+    const parameters = {
+      conversationId: input.conversationId,
+      callId: input.callId,
+      callerName: input.callerName,
+    };
+    validateNotificationTemplateParameters(templateKey, parameters);
+    const policy = getNotificationTemplatePolicy(templateKey);
+    const deepLink = buildAssignmentCallMissedNotificationDeepLink(parameters);
+    const deduplicationKey = `assignment-call-missed:${input.callId}`;
+
+    const persist = async (transaction: Prisma.TransactionClient) => {
+      const existing = await transaction.notification.findUnique({
+        where: { deduplication_key: deduplicationKey },
+      });
+      let notification = existing;
+      let created = false;
+      if (!notification) {
+        notification = await transaction.notification.create({
+          data: {
+            user_id: input.userId,
+            type: policy.category,
+            template_key: templateKey,
+            template_version: 1,
+            parameters,
+            deep_link: deepLink,
+            priority: policy.priority,
+            deduplication_key: deduplicationKey,
+          },
+        });
+        created = true;
+        await this.notificationEvents.appendCreated(transaction, notification);
+      }
+      return {
+        notificationId: notification.id,
+        created,
+        deliveredRealtime: false,
+        notification: this.presentRealtimeNotification(notification),
+      };
+    };
+
+    if (options?.transaction) {
+      return persist(options.transaction);
+    }
+    const persisted = await this.database.$transaction(persist);
+    const deliveredRealtime =
+      persisted.created && options?.emitRealtime !== false
+        ? await this.publishCreated(persisted.notificationId)
+        : false;
+    return { ...persisted, deliveredRealtime };
   }
 
   async createDeliveryNotification(

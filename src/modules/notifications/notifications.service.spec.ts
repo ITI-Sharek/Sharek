@@ -64,6 +64,123 @@ describe('NotificationsService', () => {
     });
   });
 
+  it('creates an urgent missed-call notification for the callee, deep-linking to the conversation', async () => {
+    const createdAt = new Date('2026-08-22T12:30:00.000Z');
+    const persisted = {
+      id: 'notification-missed-call-1',
+      user_id: 'callee-1',
+      type: NotificationType.assignment_call,
+      template_key: 'assignment_call.missed',
+      template_version: 1,
+      parameters: {
+        conversationId: 'conversation-1',
+        callId: 'call-1',
+        callerName: 'Cal Ler',
+      },
+      deep_link: '/messages?conversation=conversation-1',
+      priority: 'urgent',
+      deduplication_key: 'assignment-call-missed:call-1',
+      is_read: false,
+      read_at: null,
+      aggregate_version: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+      title: null,
+      message: null,
+      metadata: null,
+    };
+    const transaction = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue(persisted),
+      },
+      notificationEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'event-missed-call-1' }),
+      },
+    };
+    const service = new NotificationsService({} as never);
+
+    await expect(
+      service.createMissedCallNotification(
+        {
+          userId: 'callee-1',
+          callId: 'call-1',
+          conversationId: 'conversation-1',
+          callerName: 'Cal Ler',
+        },
+        { transaction: transaction as never, emitRealtime: false },
+      ),
+    ).resolves.toMatchObject({
+      notificationId: persisted.id,
+      created: true,
+      deliveredRealtime: false,
+      notification: {
+        type: NotificationType.assignment_call,
+        title: 'Missed call',
+        message: 'You missed a call from Cal Ler.',
+      },
+    });
+
+    expect(transaction.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: 'callee-1',
+        type: NotificationType.assignment_call,
+        template_key: 'assignment_call.missed',
+        priority: 'urgent',
+        deep_link: '/messages?conversation=conversation-1',
+        deduplication_key: 'assignment-call-missed:call-1',
+      }),
+    });
+    expect(transaction.notificationEvent.create).toHaveBeenCalledWith({
+      data: {
+        notification_id: persisted.id,
+        user_id: 'callee-1',
+        event_type: NotificationEventType.created,
+        aggregate_version: 1,
+      },
+    });
+  });
+
+  it('deduplicates a missed-call notification per call, returning the existing row without creating a second one', async () => {
+    const createdAt = new Date('2026-08-22T12:30:00.000Z');
+    const existing = {
+      id: 'notification-missed-call-1',
+      user_id: 'callee-1',
+      type: NotificationType.assignment_call,
+      template_key: 'assignment_call.missed',
+      template_version: 1,
+      parameters: { conversationId: 'conversation-1', callId: 'call-1', callerName: 'Cal Ler' },
+      deep_link: '/messages?conversation=conversation-1',
+      priority: 'urgent',
+      deduplication_key: 'assignment-call-missed:call-1',
+      is_read: false,
+      read_at: null,
+      aggregate_version: 1,
+      created_at: createdAt,
+      updated_at: createdAt,
+      title: null,
+      message: null,
+      metadata: null,
+    };
+    const transaction = {
+      notification: {
+        findUnique: jest.fn().mockResolvedValue(existing),
+        create: jest.fn(),
+      },
+      notificationEvent: { create: jest.fn() },
+    };
+    const service = new NotificationsService({} as never);
+
+    await expect(
+      service.createMissedCallNotification(
+        { userId: 'callee-1', callId: 'call-1', conversationId: 'conversation-1', callerName: 'Cal Ler' },
+        { transaction: transaction as never, emitRealtime: false },
+      ),
+    ).resolves.toMatchObject({ notificationId: existing.id, created: false });
+    expect(transaction.notification.create).not.toHaveBeenCalled();
+    expect(transaction.notificationEvent.create).not.toHaveBeenCalled();
+  });
+
   it('creates a conversation activity notification and its durable event in the message transaction', async () => {
     const createdAt = new Date('2026-08-10T12:00:00.000Z');
     const persisted = {

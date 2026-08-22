@@ -24,6 +24,21 @@ process.env.ADVISORY_FIT_QUEUE_ENABLED =
 // the upload command fails.
 process.env.MATERIAL_SCAN_QUEUE_ENABLED =
   process.env.MATERIAL_SCAN_QUEUE_ENABLED ?? 'false';
+// Same reasoning as the Material scan queue: no spec may open a Redis socket,
+// and `ChatAttachmentScanQueue.enqueueScan` also throws when disabled, so an
+// e2e booting the real ChatAttachmentsService will need it enabled.
+process.env.CHAT_ATTACHMENT_SCAN_QUEUE_ENABLED =
+  process.env.CHAT_ATTACHMENT_SCAN_QUEUE_ENABLED ?? 'false';
+process.env.S3_CHAT_ATTACHMENTS_BUCKET =
+  process.env.S3_CHAT_ATTACHMENTS_BUCKET ?? 'test-chat-attachments-bucket';
+// Same reasoning as the Material and chat-attachment scan queues: no spec
+// may open a Redis socket. Unlike those, nothing in AssignmentCallQueue
+// throws when disabled -- a timer that never fires just means the manual
+// escape hatches (answer/decline/end) are still available.
+process.env.ASSIGNMENT_CALL_QUEUE_ENABLED =
+  process.env.ASSIGNMENT_CALL_QUEUE_ENABLED ?? 'false';
+process.env.TURN_STATIC_AUTH_SECRET =
+  process.env.TURN_STATIC_AUTH_SECRET ?? 'test-turn-static-auth-secret-32chars';
 process.env.MATERIAL_ANALYSIS_QUEUE_ENABLED =
   process.env.MATERIAL_ANALYSIS_QUEUE_ENABLED ?? 'false';
 process.env.REQUIREMENT_INFERENCE_QUEUE_ENABLED =

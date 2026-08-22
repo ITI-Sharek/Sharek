@@ -61,6 +61,17 @@ export interface BadgeNotificationParameters {
   badgeType: BadgeNotificationBadgeType;
 }
 
+export interface ChatAttachmentBlockedNotificationParameters {
+  conversationId: string;
+  filename: string;
+}
+
+export interface AssignmentCallMissedNotificationParameters {
+  conversationId: string;
+  callId: string;
+  callerName: string;
+}
+
 export interface NotificationTemplateParameterMap {
   'delivery.submitted': DeliveryNotificationParameters;
   'delivery.resubmitted': DeliveryNotificationParameters;
@@ -84,6 +95,8 @@ export interface NotificationTemplateParameterMap {
   'skill_profile_generation.needs_more_evidence': SkillProfileGenerationNotificationParameters;
   'skill_profile_generation.failed': SkillProfileGenerationNotificationParameters;
   'conversation.activity': ConversationActivityNotificationParameters;
+  'chat_attachment.blocked': ChatAttachmentBlockedNotificationParameters;
+  'assignment_call.missed': AssignmentCallMissedNotificationParameters;
   'system.legacy': LegacyNotificationParameters;
   'achievement.first_contribution': BadgeNotificationParameters;
 }

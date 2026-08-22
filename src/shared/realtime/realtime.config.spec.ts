@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { isRealtimeNotificationsEnabled } from './realtime.config';
 
 describe('isRealtimeNotificationsEnabled', () => {
-  it('defaults the shared realtime transport to disabled', () => {
-    expect(isRealtimeNotificationsEnabled(new ConfigService())).toBe(false);
+  it('defaults the shared realtime transport to enabled after the client cutover', () => {
+    expect(isRealtimeNotificationsEnabled(new ConfigService())).toBe(true);
   });
 
   it.each([true, 'true'])('accepts an enabled value: %p', (value) => {

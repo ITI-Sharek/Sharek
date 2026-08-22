@@ -5,6 +5,8 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AssignmentConversationsModule } from './modules/assignment-conversations/assignment-conversations.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
+import { AssignmentCallsModule } from './modules/assignment-calls/assignment-calls.module';
+import { ChatAttachmentsModule } from './modules/chat-attachments/chat-attachments.module';
 import { EligibilityModule } from './modules/eligibility/eligibility.module';
 import { MaterialsModule } from './modules/materials/materials.module';
 import { ContributionProposalsModule } from './modules/contribution-proposals/contribution-proposals.module';
@@ -66,6 +68,8 @@ import { RealtimeModule } from './shared/realtime/realtime.module';
     AdminModule,
     AiModule,
     AssignmentConversationsModule,
+    ChatAttachmentsModule,
+    AssignmentCallsModule,
     SkillGuidanceModule,
     MatchingModule,
   ],
